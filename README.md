@@ -30,7 +30,7 @@ cd trunk
 svn update LMDZ.COMMON LMDZ.MARS
 ```
 
-The local `LMDZ.MARS` source snapshot documented by this wiki does not include `.git` or `.svn` metadata, so this repository cannot state an exact upstream revision from the local copy. The bundled local `changelog.txt` extends through 2026-06-05.
+The local `LMDZ.MARS` source snapshot documented by this wiki does not include `.git` or `.svn` metadata. It was compared against the official SVN history: local `changelog.txt` and `deftank/xios/file_def_physics.xml` match r4249/r4258 and do not match r4259. The official log shows no other `LMDZ.MARS` subtree changes from r4249 through r4258, so the documented source content can be labeled `r4258-equivalent` (same content throughout r4249-r4258). It does not include the r4259 change from 2026-06-11 for XIOS/PEM output variable names.
 
 This repository is not an official LMDZ.MARS distribution and is not affiliated with or endorsed by the LMDZ.MARS maintainers.
 
