@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>calltherm_interface_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/calltherm_interface_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="calltherm_interface_modf90">calltherm_interface_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\calltherm_interface_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>calltherm_interface_mod.F90</code> 定义 Martian thermal plume model 的 <code>physiq</code> 接口层。它不直接求解完整热羽流结构，而是在 <code>physiq_mod.F</code> 的主物理时间步中，当 <code>callkeys_mod:calltherm</code> 为真且 <code>turb_mod:turb_resolved</code> 为假时，准备热羽流输入场、把物理时间步拆成 <code>comtherm_h:nsplit_thermals</code> 个子步长、调用 <code>thermcell_main_mars</code> 计算热羽流温度/CO2 耦合演化，再用 <code>thermcell_dqup</code> 对风、非 CO2 tracer 和可选 TKE 做被动上升输送。</p>
+<p>该接口还负责单位约定：<code>thermcell_main_mars</code> 的温度和 CO2 tracer 结果在子步长累计阶段以整步增量保存，写回 <code>physiq</code> 前温度和 CO2 tracer 要除以 <code>ptimestep</code> 变成 tendency；而 <code>thermcell_dqup</code> 返回的风、非 CO2 tracer 和 TKE 已是导数形式。最后，本例程把扩散热通量和热羽流热通量合并，更新 <code>hfmax</code> 和 <code>wstar</code>，供下一物理时间步的 surface-layer gustiness 使用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>calltherm_interface_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装热羽流模型和 <code>physiq</code> 之间的接口</td>
+</tr>
+<tr>
+<td><code>calltherm_interface</code></td>
+<td>subroutine</td>
+<td>43</td>
+<td>准备输入场、执行热羽流子步长、输出热羽流 tendency 和 <code>wstar</code> 诊断</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comtherm_h</code></td>
+<td>未限制</td>
+<td>读取 <code>nsplit_thermals</code>、<code>qtransport_thermals</code>、<code>dtke_thermals</code> 等热羽流编译期参数</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>nqmx</code>, <code>noms</code></td>
+<td>源码声明了依赖，但本文件可见逻辑中未直接使用这两个符号</td>
+<td>待确认：该 <code>use</code> 是否为历史遗留或保留接口</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>r</code>, <code>g</code>, <code>cpp</code></td>
+<td>用于层质量、密度、热通量和自由对流速度尺度计算</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>thermcell_main_mars_mod</code></td>
+<td><code>thermcell_main_mars</code></td>
+<td>每个热羽流子步长内求热羽流主体结构和温度/CO2 演化</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>thermcell_dqup_mod</code></td>
+<td><code>thermcell_dqup</code></td>
+<td>在质量通量已知后，对被动变量做热羽流上升输送</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>thermcell_main_mars</code></td>
+<td><code>thermcell_main_mars_mod</code> / <code>thermcell_main_mars.F90</code></td>
+<td>行 232-242</td>
+<td>在每个 <code>zdt</code> 子步长内计算热羽流高度、质量通量、卷入/脱离、温度增量、CO2 tracer 增量和诊断通量</td>
+</tr>
+<tr>
+<td><code>thermcell_dqup</code></td>
+<td><code>thermcell_dqup_mod</code> / <code>thermcell_dqup.F90</code></td>
+<td>行 315-318</td>
+<td>用平均质量通量输送 <code>u</code>，返回 <code>d_u_ajs</code></td>
+</tr>
+<tr>
+<td><code>thermcell_dqup</code></td>
+<td><code>thermcell_dqup_mod</code> / <code>thermcell_dqup.F90</code></td>
+<td>行 321-324</td>
+<td>用平均质量通量输送 <code>v</code>，返回 <code>d_v_ajs</code></td>
+</tr>
+<tr>
+<td><code>thermcell_dqup</code></td>
+<td><code>thermcell_dqup_mod</code> / <code>thermcell_dqup.F90</code></td>
+<td>行 331-334</td>
+<td>对非 CO2 tracer 做被动输送，返回 <code>d_q_ajs(:,:,iq)</code></td>
+</tr>
+<tr>
+<td><code>thermcell_dqup</code></td>
+<td><code>thermcell_dqup_mod</code> / <code>thermcell_dqup.F90</code></td>
+<td>行 340-344</td>
+<td>在 <code>dtke_thermals</code> 为真时输送层平均 TKE</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code>, <code>nlayer</code>, <code>nq</code></td>
+<td><code>physiq</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>物理网格点数、垂直层数和 tracer 数</td>
+</tr>
+<tr>
+<td><code>igcm_co2</code></td>
+<td><code>physiq</code> / tracer 初始化</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>CO2 tracer 在 <code>pq</code> 中的索引；0 表示没有 CO2 tracer</td>
+</tr>
+<tr>
+<td><code>zzlev</code>, <code>zzlay</code></td>
+<td><code>physiq</code> 几何场</td>
+<td>real <code>(ngrid,nlayer+1)</code> / <code>(ngrid,nlayer)</code></td>
+<td>m</td>
+<td>层界面和层中心高度</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td><code>physiq</code></td>
+<td>real scalar</td>
+<td>s</td>
+<td>物理时间步长</td>
+</tr>
+<tr>
+<td><code>pu</code>, <code>pv</code>, <code>pt</code>, <code>pq</code></td>
+<td><code>physiq</code> 状态场</td>
+<td>real arrays</td>
+<td>m/s, K, kg/kg</td>
+<td>热羽流调用前的风、温度和 tracer 混合比</td>
+</tr>
+<tr>
+<td><code>pdu</code>, <code>pdv</code>, <code>pdt</code>, <code>pdq</code></td>
+<td>之前物理过程累计 tendency</td>
+<td>real arrays</td>
+<td>m/s/s, K/s, kg/kg/s</td>
+<td>热羽流之前已计算出的风、温度、tracer tendency</td>
+</tr>
+<tr>
+<td><code>q2</code></td>
+<td>湍流/PBL 状态</td>
+<td>real <code>(ngrid,nlayer+1)</code></td>
+<td>model units</td>
+<td>界面 TKE；仅 <code>dtke_thermals</code> 为真时参与</td>
+</tr>
+<tr>
+<td><code>pplay</code>, <code>pplev</code>, <code>pphi</code></td>
+<td><code>physiq</code> 压力/位势高度场</td>
+<td>real arrays</td>
+<td>Pa, m2/s2</td>
+<td>层中心压力、层界面压力和位势高度</td>
+</tr>
+<tr>
+<td><code>zpopsk</code></td>
+<td><code>physiq</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>-</td>
+<td>Exner-like 因子 <code>(pplay/ps) ** (r/cp)</code></td>
+</tr>
+<tr>
+<td><code>pdhdif</code></td>
+<td>垂直扩散过程</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K/s</td>
+<td>扩散方案的位温 tendency，用于 <code>hfmax</code>/<code>wstar</code></td>
+</tr>
+<tr>
+<td><code>sensibFlux</code></td>
+<td>surface layer scheme</td>
+<td>real <code>(ngrid)</code></td>
+<td>W/m2</td>
+<td>地表感热通量，换算后并入扩散热通量积分</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdu_th</code>, <code>pdv_th</code></td>
+<td><code>physiq</code> 累加到 <code>pdu</code>/<code>pdv</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m/s/s</td>
+<td>热羽流对水平风的 tendency</td>
+</tr>
+<tr>
+<td><code>pdt_th</code></td>
+<td><code>physiq</code> 累加到 <code>pdt</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K/s</td>
+<td>热羽流对温度的 tendency</td>
+</tr>
+<tr>
+<td><code>pdq_th</code></td>
+<td><code>physiq</code> 累加到 <code>pdq</code></td>
+<td>real <code>(ngrid,nlayer,nq)</code></td>
+<td>kg/kg/s</td>
+<td>热羽流对 tracer 的 tendency</td>
+</tr>
+<tr>
+<td><code>lmax</code>, <code>zmaxth</code></td>
+<td><code>turb_mod</code>/诊断</td>
+<td>integer <code>(ngrid)</code>, real <code>(ngrid)</code></td>
+<td>layer index, m</td>
+<td>热羽流到达层号和插值高度</td>
+</tr>
+<tr>
+<td><code>pbl_dtke</code></td>
+<td>PBL/TKE tendency</td>
+<td>real <code>(ngrid,nlayer+1)</code></td>
+<td>model units/s</td>
+<td>可选热羽流 TKE tendency；默认 <code>dtke_thermals=.false.</code> 时为 0</td>
+</tr>
+<tr>
+<td><code>hfmax</code></td>
+<td><code>turb_mod:hfmax_th</code> / 诊断</td>
+<td>real <code>(ngrid)</code></td>
+<td>K m/s</td>
+<td>扩散和热羽流合并后的最大热通量诊断</td>
+</tr>
+<tr>
+<td><code>wstar</code></td>
+<td><code>turb_mod:wstar</code> / 下一时间步 surface layer</td>
+<td>real <code>(ngrid)</code></td>
+<td>m/s</td>
+<td>自由对流速度尺度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本例程读取 <code>comtherm_h</code> 的编译期参数；其中 GCM 默认 <code>nsplit_thermals=10</code>，<code>qtransport_thermals=.true.</code>，<code>dtke_thermals=.false.</code>。</li>
+<li>本例程读取 <code>comcstfi_h</code> 中的 <code>r</code>、<code>g</code>、<code>cpp</code>，但不写入该模块。</li>
+<li>本例程没有 <code>SAVE</code> 状态、没有文件 I/O，也不直接写 NetCDF；所有结果通过 intent(out) 参数返回给 <code>physiq</code>。</li>
+<li><code>physiq_mod.F</code> 在 <code>calltherm .and. .not.turb_resolved</code> 时调用本接口；若 <code>calltherm</code> 为假或 turbulence-resolved 路径启用，<code>physiq</code> 将 <code>wstar</code> 和 <code>hfmax_th</code> 清零。</li>
+<li><code>conf_phys.F</code> 中 <code>calltherm</code> 默认 <code>.false.</code>；源码禁止 <code>calltherm</code> 与 <code>calladj</code> 同时开启，并在 <code>calltherm</code> 开启但 <code>callyamada4</code> 或 <code>callrichsl</code> 未开启时打印强建议。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>将所有热羽流输出、诊断和累计数组清零，包括 <code>pdu_th</code>、<code>pdv_th</code>、<code>pdt_th</code>、<code>pdq_th</code>、<code>pbl_dtke</code>、<code>fm_therm</code>、<code>entr_therm</code>、<code>detr_therm</code>、<code>heatFlux</code>、<code>zmaxth</code>。</li>
+<li>用热羽流之前已经累计的 tendency 构造输入状态：
+<ul>
+<li><code>zu = pu + pdu * ptimestep</code></li>
+<li><code>zv = pv + pdv * ptimestep</code></li>
+<li><code>zt = pt + pdt * ptimestep</code></li>
+<li>若 <code>qtransport_thermals</code> 为真，<code>pq_therm = pq + pdq * ptimestep</code></li>
+</ul></li>
+<li>若 <code>dtke_thermals</code> 为真，把界面 TKE <code>q2(:,l)</code> 和 <code>q2(:,l+1)</code> 平均成层中心 <code>q2_therm(:,l)</code>。</li>
+<li>令 <code>zdt = ptimestep / nsplit_thermals</code>，循环 <code>isplit=1..nsplit_thermals</code> 调用 <code>thermcell_main_mars</code>。每个子步长返回的热羽流高度、质量通量、卷入/脱离、热通量、浮力和垂直速度诊断按 <code>fact=1/nsplit_thermals</code> 做时间平均。</li>
+<li>子步长内温度增量 <code>d_t_the</code> 乘以 <code>ptimestep*fact</code> 后累计到 <code>d_t_ajs</code>，并立即加回 <code>zt</code> 作为下一子步长输入；若存在 CO2 tracer，<code>d_q_the(:,:,igcm_co2)</code> 也按相同方式转成整步增量、累计并加回 <code>pq_therm(:,:,igcm_co2)</code>。</li>
+<li>子步长结束后，按 <code>masse=(pplev(:,l)-pplev(:,l+1))/g</code> 计算层质量，用 <code>fm_therm(l)-fm_therm(l+1)+entr_therm(l)</code> 重算 <code>detrmod</code>。若 <code>detrmod&lt;0</code>，源码通过减少 <code>entr_therm</code> 并把 <code>detrmod</code> 置零来避免负 detrainment。</li>
+<li>以固定 <code>ndt=10</code> 调用 <code>thermcell_dqup</code> 输送 <code>u</code>、<code>v</code>、非 CO2 tracer 和可选 TKE。该例程内部再把 <code>ptimestep</code> 分成 <code>ndt</code> 个输送子步长，最后返回导数。</li>
+<li>将输出写回：<code>pdu_th/pdv_th</code> 直接取 <code>d_u_ajs/d_v_ajs</code>；非 CO2 <code>pdq_th</code> 直接取 <code>d_q_ajs</code>；CO2 <code>pdq_th</code> 由于累计的是整步 delta q，需要除以 <code>ptimestep</code>；<code>pdt_th</code> 由 <code>d_t_ajs/ptimestep</code> 得到。</li>
+<li>用扩散位温 tendency、感热通量、热羽流温度 tendency 和热羽流底部热通量计算 <code>hfmax</code>，再按 <code>wstar=(g*zmaxth*hfmax/pbl_teta)**(1/3)</code> 更新自由对流速度尺度；若当前 <code>zmax</code> 不大于 0，则 <code>wstar=0</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>calltherm_interface(...):
+    zero all thermals tendencies and diagnostics
+
+    zu = pu + pdu * ptimestep
+    zv = pv + pdv * ptimestep
+    zt = pt + pdt * ptimestep
+    if qtransport_thermals:
+        pq_therm = pq + pdq * ptimestep
+
+    if dtke_thermals:
+        q2_therm(l) = 0.5 * (q2(l) + q2(l+1))
+
+    zdt = ptimestep / nsplit_thermals
+    for each thermal substep:
+        thermcell_main_mars(..., zdt, zu, zv, zt, pq_therm, q2_therm, ...)
+        average mass fluxes, entrainment/detrainment, plume height, diagnostics
+        accumulate temperature delta into d_t_ajs
+        if CO2 tracer exists:
+            accumulate CO2 delta into d_q_ajs(:,:,igcm_co2)
+        update zt and CO2 tracer for next substep
+
+    masse = layer pressure thickness / g
+    detrmod = fm(l) - fm(l+1) + entr(l)
+    clip negative detrmod by reducing entrainment
+
+    thermcell_dqup(..., zu, d_u_ajs, ndt=10, limz)
+    thermcell_dqup(..., zv, d_v_ajs, ndt=10, limz)
+    for each non-CO2 tracer:
+        thermcell_dqup(..., pq_therm(:,:,iq), d_q_ajs(:,:,iq), ndt=10, limz)
+    if dtke_thermals:
+        thermcell_dqup(..., q2_therm, dq2_therm, ndt=10, limz)
+
+    pdu_th = d_u_ajs
+    pdv_th = d_v_ajs
+    pdt_th = d_t_ajs / ptimestep
+    pdq_th(non-CO2) = d_q_ajs
+    pdq_th(CO2) = d_q_ajs / ptimestep
+    pbl_dtke = layer/interface average of dq2_therm when enabled
+
+    combine diffusion heat flux and thermal heat flux
+    hfmax = max(wtth + wtdif)
+    wstar = cubic_root(g * zmaxth * hfmax / pbl_teta) if zmax &gt; 0 else 0</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>主物理时间步 <code>physiq</code></td>
+<td><code>physiq_mod.F</code> 在 <code>calltherm .and. .not.turb_resolved</code> 条件下调用本接口，并把返回的热羽流 tendency 累加进全局 tendency</td>
+</tr>
+<tr>
+<td>边界层 / 对流</td>
+<td>位于垂直扩散、surface layer 和重力波拖曳之后，负责热羽流对 PBL 中温度、动量和 tracer 的混合</td>
+</tr>
+<tr>
+<td>配置系统</td>
+<td><code>calltherm</code> 控制是否进入该路径；<code>calladj</code> 不能与 <code>calltherm</code> 同开；源码建议搭配 <code>callyamada4</code> 和 <code>callrichsl</code></td>
+</tr>
+<tr>
+<td>诊断输出</td>
+<td><code>physiq</code> 后续将 <code>hfmax_th</code> 和 <code>wstar</code> 作为统计/输出字段写出</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>本文件是自由格式 <code>.F90</code> 模块，但仍使用 LMD 历史风格的长参数列表和 continuation。</li>
+<li><code>thermcell_main_mars</code> 负责热羽流主动变量的子步长演化；<code>thermcell_dqup</code> 负责质量通量已知后的被动输送，两者在本接口中分阶段耦合。</li>
+<li>CO2 tracer 被特殊处理：CO2 会影响 <code>thermcell_main_mars</code> 的极夜混合逻辑，因此它在主子步长循环中和温度一起更新；非 CO2 tracer 则后处理为被动输送。</li>
+<li><code>limz</code> 由 <code>thermcell_main_mars</code> 返回，后续输出和 <code>thermcell_dqup</code> 都只填到 <code>limz</code>；初始化保证未覆盖层保持 0。</li>
+<li><code>wstar</code> 明确滞后一时间步影响 surface layer，因为源码注释说明 surface layer 和 diffusion 在 thermals 之前调用。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>开启路径需要 <code>callphys.def</code> 或默认配置链中 <code>calltherm=.true.</code>；但 <code>conf_phys.F</code> 默认 <code>calltherm=.false.</code>。</li>
+<li>不要同时开启 <code>calltherm</code> 和 <code>calladj</code>；源码会通过 <code>abort_physic</code> 中止。</li>
+<li>若复现 thermal plume 方案，<code>comtherm_h</code> 中 <code>nsplit_thermals</code> 是编译期参数，不是运行时 <code>getin_p</code> 参数；GCM 默认 10，MESOSCALE 默认 4。</li>
+<li><code>qtransport_thermals=.true.</code> 时才输出 tracer tendency；当前源码默认开启。</li>
+<li><code>dtke_thermals=.false.</code> 是当前默认，且注释标明仍为实验性质；复现实验若打开它，需要同时检查 <code>q2</code> 的层界面/层中心转换。</li>
+<li>CO2 tracer 的 <code>pdq_th</code> 单位转换不同于非 CO2 tracer：CO2 子步长累计的是 delta q，输出前必须除以 <code>ptimestep</code>。</li>
+<li><code>wstar</code> 和 <code>hfmax</code> 是下一时间步 surface layer gustiness 的反馈量，不应理解为同一时间步已经影响了本次 surface-atmosphere exchange。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>tracer_mod, only: nqmx,noms</code> 在本文件可见逻辑中未直接使用；待确认是否为历史接口保留。</li>
+<li><code>pbl_teta</code> 取 <code>MINLOC(abs(dteta(ig,1:lmax(ig))))</code>，若某格点 <code>lmax(ig)=0</code> 的 Fortran 切片行为和运行时保护需要结合编译器/上游 <code>thermcell_main_mars</code> 保证确认；源码随后仅用 <code>zmax&gt;0</code> 控制 <code>wstar</code>，但 <code>pbl_teta</code> 赋值循环未显式跳过 <code>lmax=0</code>。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="pbl_parameters_mod.html">pbl_parameters_mod</a>：边界层诊断参数中记录了 <code>calltherm</code> 与稳定度函数、<code>calladj</code> 路径的关系。</li>
+<li><a href="../../architecture/config-system.html">config-system</a>：总体物理开关配置入口。</li>
+<li><a href="../../architecture/testphys1d-config.html">testphys1d-config</a>：1D 配置和 PBL/对流开关上下文。</li>
+<li><a href="thermcell_main_mars.html">thermcell_main_mars</a>：热羽流主体结构和子步长核心，返回温度、CO2、质量通量和诊断量。</li>
+<li><a href="thermcell_dqup.html">thermcell_dqup</a>：质量通量已知后的上升输送算子。</li>
+<li><a href="comtherm_h.html">comtherm_h</a>：热羽流编译期参数、子步长数、tracer/TKE 输送开关和主体模型调参常数。</li>
+<li><a href="turb_mod.html">turb_mod</a>：提供 <code>q2</code>、<code>wstar</code>、<code>hfmax_th</code>、<code>zmax_th</code> 和 <code>sensibFlux</code> 等共享状态数组。</li>
+<li><a href="physiq_mod.html">physiq_mod.md</a>：主物理时间步调度总入口。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

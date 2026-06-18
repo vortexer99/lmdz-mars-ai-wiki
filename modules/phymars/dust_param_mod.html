@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dust_param_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dust_param_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dust_param_modf90">dust_param_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dust_param_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>该文件定义尘埃循环的共享配置模块 <code>dust_param_mod</code>（51 行）。它集中保存控制尘埃方案的逻辑开关（是否辐射活性、是否两矩方案、是否升华注入、是否自由尘埃等）、尘埃 bin 数 <code>dustbin</code>、参考气压常数 <code>odpref</code>、尘埃缩放模式 <code>dustscaling_mode</code>，以及两个按格点分配的缩放数组 <code>tauscaling</code>、<code>dust_rad_adjust</code>。模块还提供分配/释放这两个数组的 <code>ini_dust_param_mod</code>、<code>end_dust_param_mod</code> 例程。</p>
+<p>这些开关由 <code>conf_phys</code>（读取 <code>callphys.def</code>）写入，被 15+ 个 phymars 文件（<code>aeropacity</code>、<code>dust_scaling</code>、<code>dust_rad_adjust</code>、<code>read_dust_scenario</code>、<code>initracer</code>、<code>phyetat0</code>/<code>phyredem</code> 等）读取，是尘埃循环的中心配置枢纽。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>尘埃循环配置开关与缩放状态模块</td>
+</tr>
+<tr>
+<td><code>active</code></td>
+<td>logical SAVE</td>
+<td>4</td>
+<td>尘埃是否辐射活性</td>
+</tr>
+<tr>
+<td><code>doubleq</code></td>
+<td>logical SAVE</td>
+<td>5</td>
+<td>是否用两矩方案（需 <code>dustbin&gt;=2</code>）</td>
+</tr>
+<tr>
+<td><code>submicron</code></td>
+<td>logical SAVE</td>
+<td>6</td>
+<td>是否包含次微米尘埃二次分布</td>
+</tr>
+<tr>
+<td><code>lifting</code></td>
+<td>logical SAVE</td>
+<td>7</td>
+<td>是否激活地表尘埃注入</td>
+</tr>
+<tr>
+<td><code>freedust</code></td>
+<td>logical SAVE</td>
+<td>8</td>
+<td>真则不对尘埃质量/数量做 <code>tauscaling</code> 重缩放</td>
+</tr>
+<tr>
+<td><code>callddevil</code></td>
+<td>logical SAVE</td>
+<td>9</td>
+<td>是否激活尘卷风参数化</td>
+</tr>
+<tr>
+<td><code>reff_driven_IRtoVIS_scenario</code></td>
+<td>logical SAVE</td>
+<td>10</td>
+<td>用 GCM 尘埃粒径把 IR 场景转 VIS</td>
+</tr>
+<tr>
+<td><code>dustbin</code></td>
+<td>integer SAVE</td>
+<td>15</td>
+<td>尘埃 tracer bin 数</td>
+</tr>
+<tr>
+<td><code>odpref</code></td>
+<td>real PARAMETER</td>
+<td>19</td>
+<td>DOD 参考气压 610 Pa</td>
+</tr>
+<tr>
+<td><code>tauscaling</code></td>
+<td>real SAVE ALLOCATABLE(:)</td>
+<td>22</td>
+<td>qdust/Ndust 转换（缩放）因子，按格点</td>
+</tr>
+<tr>
+<td><code>dustscaling_mode</code></td>
+<td>integer SAVE</td>
+<td>23</td>
+<td>尘埃缩放模式：0=不缩放(freedust)，1=GCM5.3 prescribed，2=仅辐射缩放</td>
+</tr>
+<tr>
+<td><code>dust_rad_adjust</code></td>
+<td>real SAVE ALLOCATABLE(:)</td>
+<td>27</td>
+<td>尘埃辐射缩放因子，按格点</td>
+</tr>
+<tr>
+<td><code>t_scenario_sol</code></td>
+<td>real PARAMETER</td>
+<td>28</td>
+<td><code>tau_pref_scenario</code> 视为精确的当日时刻 <code>14/24</code> sol</td>
+</tr>
+<tr>
+<td><code>ini_dust_param_mod</code></td>
+<td>subroutine</td>
+<td>35</td>
+<td>按 <code>ngrid</code> 分配 <code>tauscaling</code>、<code>dust_rad_adjust</code></td>
+</tr>
+<tr>
+<td><code>end_dust_param_mod</code></td>
+<td>subroutine</td>
+<td>44</td>
+<td>释放 <code>tauscaling</code>、<code>dust_rad_adjust</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>本模块不 <code>use</code> 任何其它模块</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td><code>ini/end</code> 例程只用 Fortran intrinsic <code>allocate</code>/<code>deallocate</code>/<code>allocated</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>phys_state_var_init</code>（调用 <code>ini_dust_param_mod</code>）</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>水平格点数，用于分配缩放数组</td>
+</tr>
+<tr>
+<td>各开关值</td>
+<td><code>conf_phys</code>（<code>getin_p</code> 读 <code>callphys.def</code>）</td>
+<td>logical/integer</td>
+<td>-</td>
+<td><code>dustbin</code>/<code>active</code>/<code>doubleq</code>/<code>submicron</code>/<code>freedust</code>/<code>callddevil</code>/<code>dustscaling_mode</code>/<code>reff_driven_IRtoVIS_scenario</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tauscaling(ngrid)</code></td>
+<td><code>dust_scaling</code>/<code>dust_rad_adjust</code>/<code>aeropacity</code>/<code>read_dust_scenario</code>/restart 等</td>
+<td>real array</td>
+<td>-</td>
+<td>尘埃质量/数量缩放因子</td>
+</tr>
+<tr>
+<td><code>dust_rad_adjust(ngrid)</code></td>
+<td><code>dust_rad_adjust</code>/<code>aeropacity</code> 等</td>
+<td>real array</td>
+<td>-</td>
+<td>尘埃辐射缩放因子</td>
+</tr>
+<tr>
+<td>开关/常数</td>
+<td>15+ phymars 文件</td>
+<td>混合</td>
+<td>-</td>
+<td>作为共享只读配置被广泛读取</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>全部为 module 级 <code>SAVE</code> 变量；<code>active/doubleq/submicron/lifting/freedust/callddevil</code>、<code>dustbin</code>、<code>tauscaling/dustscaling_mode/dust_rad_adjust</code> 标为 <code>THREADPRIVATE</code>（行 12-13、17、31）。注意 <code>reff_driven_IRtoVIS_scenario</code> <strong>未</strong>出现在任何 THREADPRIVATE 列表中（见待确认）。</li>
+<li><code>ini_dust_param_mod</code> 分配 <code>tauscaling</code>、<code>dust_rad_adjust</code>；<code>end_dust_param_mod</code> 释放它们。由 <code>phys_state_var_init</code>（行 184-185，先 end 再 ini）管理生命周期。</li>
+<li>开关本身不在此模块赋值，由 <code>conf_phys</code> 写入；本模块只声明与持有。</li>
+<li>无文件 I/O、无日志输出。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>模块声明尘埃循环的全部配置开关、<code>dustbin</code>、参考常数 <code>odpref=610</code>、<code>t_scenario_sol=14/24</code>、缩放模式 <code>dustscaling_mode</code> 与两个缩放数组。</li>
+<li><code>ini_dust_param_mod(ngrid)</code>：<code>allocate(tauscaling(ngrid))</code>、<code>allocate(dust_rad_adjust(ngrid))</code>。</li>
+<li><code>end_dust_param_mod</code>：若已分配则 <code>deallocate</code> 两数组（幂等保护）。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>module dust_param_mod:
+    declare SAVE switches: active, doubleq, submicron, lifting,
+                           freedust, callddevil, reff_driven_IRtoVIS_scenario
+    declare SAVE dustbin, dustscaling_mode
+    parameter odpref = 610.        ! DOD 参考气压 (Pa)
+    parameter t_scenario_sol = 14/24.
+    allocatable tauscaling(:), dust_rad_adjust(:)
+
+    subroutine ini_dust_param_mod(ngrid):
+        allocate tauscaling(ngrid), dust_rad_adjust(ngrid)
+
+    subroutine end_dust_param_mod:
+        if allocated: deallocate tauscaling, dust_rad_adjust</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>尘埃循环</td>
+<td>提供全套尘埃方案开关、bin 数、缩放模式与缩放因子数组，是尘埃循环的中心配置枢纽</td>
+</tr>
+<tr>
+<td>辐射</td>
+<td><code>odpref</code>、<code>freedust</code>、<code>reff_driven_IRtoVIS_scenario</code>、<code>tauscaling</code>、<code>dust_rad_adjust</code> 供 <code>aeropacity</code> 计算光学厚度与缩放</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 Fortran 90（<code>.F90</code>）。</li>
+<li>大量 module 级 <code>SAVE</code> + <code>THREADPRIVATE</code>，OpenMP 下每线程各持一份。</li>
+<li><code>odpref</code>、<code>t_scenario_sol</code> 为编译期 <code>PARAMETER</code> 常数。</li>
+<li><code>end_dust_param_mod</code> 用 <code>if (allocated(...))</code> 做幂等释放保护。</li>
+<li>开关与状态分离：声明在此，赋值在 <code>conf_phys</code>，分配在 <code>phys_state_var_init</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>odpref=610 Pa</code>：所有 <code>tau_pref_*</code> 尘埃柱光学厚度的参考气压。</li>
+<li><code>t_scenario_sol=14/24</code>：场景 DOD 视为精确的当日时刻（约 14:00 LT），供 <code>compute_dtau</code>/<code>dust_rad_adjust</code> 时间插值。</li>
+<li><code>dustscaling_mode</code>：0=freedust 不缩放，1=GCM5.3 prescribed（用 <code>tauscaling</code>），2=仅辐射缩放（用 <code>dust_rad_adjust</code>）。<code>conf_phys</code> 中：<code>dustscaling_mode=1 与 freedust</code> 不兼容、<code>dustscaling_mode=2 与 iaervar=1</code> 不兼容（行 570-576）。</li>
+<li><code>active</code> 要求 <code>dustbin&gt;=1</code>；<code>doubleq</code> 要求 <code>dustbin=2</code>（conf_phys 校验）。</li>
+<li>缩放数组按 <code>ngrid</code> 分配，restart 路径（<code>phyetat0</code>/<code>phyredem</code>）会读写 <code>tauscaling</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>行 10 的 <code>reff_driven_IRtoVIS_scenario</code> 是 <code>LOGICAL,SAVE</code>，但未出现在任何 <code>!$OMP THREADPRIVATE</code> 列表中（行 12-13 的 THREADPRIVATE 只含 <code>active,doubleq,submicron,lifting,freedust,callddevil</code>）。推断：它在 OpenMP 下为线程间共享而非私有；由于它只在 <code>conf_phys</code> 一次性设定且运行中只读，共享通常无害，但与同组其它开关的 THREADPRIVATE 处理不一致，复现并行行为时需留意。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="aeropacity_mod.html">aeropacity_mod</a> — 读取 <code>odpref/freedust/reff_driven_IRtoVIS_scenario</code>，并就地用 <code>tauscaling/dust_rad_adjust</code></li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle 主题</a></li>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod</a> — 调用 <code>ini/end_dust_param_mod</code> 管理缩放数组生命周期</li>
+<li><a href="dust_scaling_mod.html">dust_scaling_mod.md</a>：计算 <code>tauscaling/dust_rad_adjust</code>。</li>
+<li><a href="dust_rad_adjust_mod.html">dust_rad_adjust_mod.md</a>：管理 <code>t_scenario_sol/dust_rad_adjust</code>。</li>
+<li><a href="compute_dtau_mod.html">compute_dtau_mod.md</a>：读取 <code>t_scenario_sol</code> 并计算注入目标。</li>
+<li><a href="conf_phys.html">conf_phys.md</a>：写入全部物理开关。</li>
+<li><a href="read_dust_scenario_mod.html">read_dust_scenario_mod.md</a>：读取场景目标并配合 <code>tauscaling</code>。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

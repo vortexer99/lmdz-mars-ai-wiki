@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>aerave - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/aerave.md</span>
+    </nav>
+    <article class="content">
+<h1 id="aeravef">aerave.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\aerave.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>气溶胶辐射性质带平均化工具。将气溶胶的光学性质（消光系数、单次散射反照率、不对称因子）从高分辨率光谱数据通过普朗克函数加权平均到 GCM 的辐射带。用于辐射传输计算前的气溶胶光学性质预处理。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>aerave_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>气溶胶带平均模块</td>
+</tr>
+<tr>
+<td><code>aerave</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>主例程：计算带平均光学性质</td>
+</tr>
+<tr>
+<td><code>blackl</code></td>
+<td>subroutine</td>
+<td>203</td>
+<td>普朗克黑体辐射函数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>（无）</td>
+<td>—</td>
+<td>自包含模块，无外部依赖</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>blackl</code></td>
+<td>本文件（aerave_mod）</td>
+<td>行 134</td>
+<td>计算普朗克黑体辐射强度（W/m²/sr/m）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ndata</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>光谱数据点数量</td>
+</tr>
+<tr>
+<td><code>longdata(ndata)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>米</td>
+<td>光谱数据波长</td>
+</tr>
+<tr>
+<td><code>epdata(ndata)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>—</td>
+<td>消光系数（归一化或绝对值）</td>
+</tr>
+<tr>
+<td><code>omegdata(ndata)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>—</td>
+<td>单次散射反照率</td>
+</tr>
+<tr>
+<td><code>gdata(ndata)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>—</td>
+<td>不对称因子</td>
+</tr>
+<tr>
+<td><code>longref</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>米</td>
+<td>参考波长（光学厚度已知处）</td>
+</tr>
+<tr>
+<td><code>epref</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>—</td>
+<td>参考波长处的光学厚度</td>
+</tr>
+<tr>
+<td><code>temp</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>K</td>
+<td>温度（用于普朗克加权）</td>
+</tr>
+<tr>
+<td><code>nir</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>辐射带数量</td>
+</tr>
+<tr>
+<td><code>longir(nir+1)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>米</td>
+<td>辐射带边界波长</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>epir(nir)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>—</td>
+<td>各辐射带平均光学厚度</td>
+</tr>
+<tr>
+<td><code>omegir(nir)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>—</td>
+<td>各带平均单次散射反照率</td>
+</tr>
+<tr>
+<td><code>gir(nir)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>—</td>
+<td>各带平均不对称因子</td>
+</tr>
+<tr>
+<td><code>qref</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>—</td>
+<td>参考波长处的消光系数</td>
+</tr>
+<tr>
+<td><code>omegaref</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>—</td>
+<td>参考波长处的单次散射反照率</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>无 module 级变量读写</li>
+<li>无文件 I/O</li>
+<li>无诊断输出（诊断代码已注释，行 187-195）</li>
+<li>局部参数 <code>nirmx=100</code>、<code>nbande=1000</code> 硬编码</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><p><strong>参考波长插值</strong>（行 87-113）：在 <code>longdata</code> 中定位 <code>longref</code>，线性插值得到 <code>qref</code> 和 <code>omegaref</code>。计算校正因子 <code>factep = qref/epref</code>，将 <code>epdata</code> 转换为 <code>qextcorrdata = epdata/factep</code>（使参考波长处的值与输入 <code>epref</code> 一致）。</p></li>
+<li><p><strong>带循环</strong>（行 117-181）：对每个辐射带 <code>iir</code>：</p>
+<ul>
+<li>将带宽细分为 <code>nbande=1000</code> 个子带（行 121）</li>
+<li>对每个子带 <code>ibande</code>（行 129-171）：
+<ul>
+<li>计算子带中心波长 <code>long</code></li>
+<li>调用 <code>blackl</code> 计算普朗克辐射强度 <code>emit</code></li>
+<li>在 <code>longdata</code> 中线性插值得到 <code>qextcorr</code>、<code>omeg</code>、<code>g</code></li>
+<li>累加：<code>totalemit += deltalong*emit</code>，<code>epir += deltalong*emit*qextcorr</code>，<code>omegir += deltalong*emit*omeg*qextcorr</code>，<code>gir += deltalong*emit*omeg*qextcorr*g</code></li>
+</ul></li>
+</ul></li>
+<li><p><strong>带平均计算</strong>（行 175-177）：</p>
+<ul>
+<li><code>gir(iir) = gir(iir) / omegir(iir)</code>（不对称因子加权平均）</li>
+<li><code>omegir(iir) = omegir(iir) / epir(iir)</code>（单次散射反照率加权平均）</li>
+<li><code>epir(iir) = epir(iir) / totalemit(iir)</code>（光学厚度加权平均）</li>
+</ul></li>
+<li><p><strong>blackl 子程序</strong>（行 203-223）：普朗克函数实现：</p>
+<pre><code>B(λ,T) = 2πc₁/λ⁵ / (exp(c₂/λT) - 1)</code></pre>
+<p>其中 <code>c₁ = hc²</code>，<code>c₂ = hc/k</code>，折射率 <code>rind=1</code>（真空）。</p></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>! 参考波长插值
+在 longdata 中定位 longref
+线性插值计算 qref, omegaref
+factep = qref / epref
+qextcorrdata = epdata / factep
+
+! 对每个辐射带
+DO iir = 1, nir
+  deltalong = (longir(iir+1) - longir(iir)) / nbande
+  初始化 totalemit, epir, omegir, gir 为 0
+
+  ! 对每个子带
+  DO ibande = 1, nbande
+    long = longir(iir) + (ibande - 0.5) * deltalong
+    emit = blackl(long, temp)  ! 普朗克函数
+
+    ! 插值气溶胶性质
+    在 longdata 中定位 long
+    线性插值计算 qextcorr, omeg, g
+
+    ! 累加（普朗克加权）
+    totalemit += deltalong * emit
+    epir += deltalong * emit * qextcorr
+    omegir += deltalong * emit * omeg * qextcorr
+    gir += deltalong * emit * omeg * qextcorr * g
+  END DO
+
+  ! 计算带平均
+  gir = gir / omegir
+  omegir = omegir / epir
+  epir = epir / totalemit
+END DO</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>辐射计算</td>
+<td>气溶胶光学性质预处理，为辐射传输提供带平均参数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="已确认调用链">已确认调用链</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>suaer.F90</code></td>
+<td>行 25：<code>use aerave_mod, only: aerave</code></td>
+<td>读入并准备 aerosol 光学数据后调用带平均例程</td>
+</tr>
+<tr>
+<td><code>suaer.F90</code></td>
+<td>行 422：<code>CALL aerave(...)</code></td>
+<td>对太阳短波波段计算 <code>epir</code>、<code>omegir</code>、<code>gir</code></td>
+</tr>
+<tr>
+<td><code>suaer.F90</code></td>
+<td>行 480：<code>CALL aerave(...)</code></td>
+<td>对红外长波波段计算 <code>epir</code>、<code>omegir</code>、<code>gir</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran（列格式）</li>
+<li>硬编码参数：<code>nirmx=100</code>（最大带数）、<code>nbande=1000</code>（每带细分数）</li>
+<li><code>blackl</code> 使用 <code>DOUBLE PRECISION</code> 精度</li>
+<li>诊断代码（行 187-195）已注释，用于验证全光谱积分是否接近 σT⁴</li>
+<li>插值逻辑重复出现两次（参考波长和子带内），未抽取为独立函数</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>输入波长 <code>longdata</code> 必须为<strong>米</strong>单位</li>
+<li><code>epref</code> 是参考波长处的光学厚度，不是消光系数</li>
+<li><code>temp</code> 用于普朗克加权，影响带平均结果</li>
+<li><code>nbande=1000</code> 是固定的细分精度，不可调</li>
+<li>如果 <code>omegir</code> 为零（无散射），<code>gir</code> 除法会产生 NaN/Inf</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>epdata</code> 的物理单位和归一化方式（是否已除以某参考值）</li>
+<li><code>nirmx=100</code> 是否足够（当前 GCM 辐射带数量）</li>
+<li>诊断代码（行 187-195）是否应在生产中启用</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li>辐射计算主题页：<a href="../../themes/radiation.html">radiation</a></li>
+<li><a href="suaer.html">suaer.F90</a> - 调用 <code>aerave</code> 生成短波和长波 aerosol 带平均光学性质。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

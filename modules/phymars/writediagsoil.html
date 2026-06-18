@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>writediagsoil - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/writediagsoil.md</span>
+    </nav>
+    <article class="content">
+<h1 id="writediagsoilf90">writediagsoil.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\writediagsoil.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>writediagsoil.F90</code> 是传统 NetCDF 土壤诊断文件 <code>diagsoil.nc</code> 的追加写入后端。<code>conf_phys</code> 读取 <code>diagsoil</code> 开关并写入本模块的全局变量；<code>write_output_mod</code> 遇到第二维等于 <code>nsoilmx</code> 的地下剖面字段时调用 <code>writediagsoil</code>，普通大气三维场则继续走 <code>writediagfi</code>/XIOS 路径。</p>
+<p>本文件在第一次有效调用时创建 <code>diagsoil.nc</code>，整理土壤热惯量和网格面积，并调用 <a href="iniwritesoil.html">iniwritesoil</a> 写入经纬度、深度、时间维和固定字段。后续每到采样步时，它按变量名懒定义新 NetCDF 变量，并把 3D 地下剖面、2D 地表场或 0D 标量追加到当前时间记录。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>writediagsoil_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装 <code>diagsoil</code> 开关和 <code>writediagsoil</code> 子程序</td>
+</tr>
+<tr>
+<td><code>diagsoil</code></td>
+<td>module variable</td>
+<td>5</td>
+<td>全局输出开关；<code>.true.</code> 时才生成/写入 <code>diagsoil.nc</code>，由 <code>conf_phys</code> 初始化</td>
+</tr>
+<tr>
+<td><code>writediagsoil</code></td>
+<td>subroutine</td>
+<td>10</td>
+<td>将土壤诊断变量写入 <code>diagsoil.nc</code>，必要时先初始化文件和变量定义</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>mlayer</code>, <code>nsoilmx</code>, <code>inertiedat</code></td>
+<td>土壤层数、层中深度和热惯量固定字段</td>
+<td></td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>cell_area</code></td>
+<td>初始化 <code>diagsoil.nc</code> 时写入网格面积</td>
+<td></td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>steps_per_sol</code>, <code>outputs_per_sol</code></td>
+<td>计算输出采样间隔和 <code>time</code> 变量的 sol 单位值</td>
+<td></td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_mpi_root</code>, <code>is_master</code>, <code>gather</code></td>
+<td>并行模式下聚合物理网格字段，并限制主进程写文件</td>
+<td></td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>klon_glo</code>, <code>Grid1Dto2D_glo</code>, <code>nbp_lon</code>, <code>nbp_lat</code></td>
+<td>物理一维数组到全局经纬网格的转换和维度大小</td>
+<td></td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>grid_type</code>, <code>unstructured</code></td>
+<td>检查非结构网格并提前中止</td>
+<td></td>
+</tr>
+<tr>
+<td><code>iniwritesoil_mod</code></td>
+<td><code>iniwritesoil</code></td>
+<td>初始化 <code>diagsoil.nc</code> 的维度、坐标和固定变量</td>
+<td></td>
+</tr>
+<tr>
+<td><code>netcdf.inc</code>（include）</td>
+<td>—</td>
+<td>NetCDF F77 接口常量与例程</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iniwritesoil</code></td>
+<td><code>iniwritesoil_mod</code> / <code>iniwritesoil.F90</code></td>
+<td>行 157、159</td>
+<td>首次调用时初始化 <code>diagsoil.nc</code> 的坐标、时间维、<code>area</code> 和 <code>th_inertia</code></td>
+</tr>
+<tr>
+<td><code>Gather</code></td>
+<td><code>mod_phys_lmdz_para</code></td>
+<td>行 125、127、209、296</td>
+<td>并行模式下把局地物理网格数组聚合到全局数组</td>
+</tr>
+<tr>
+<td><code>Grid1Dto2D_glo</code></td>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td>行 212、299</td>
+<td>将全局一维物理网格重排为经纬二维数组</td>
+</tr>
+<tr>
+<td><code>NF_CREATE</code> / <code>NF_OPEN</code> / <code>NF_CLOSE</code></td>
+<td>NetCDF</td>
+<td>行 116、182、162、414</td>
+<td>创建、打开和关闭 <code>diagsoil.nc</code></td>
+</tr>
+<tr>
+<td><code>NF_INQ_VARID</code> / <code>NF_INQ_DIMID</code></td>
+<td>NetCDF</td>
+<td>行 189、243、248-251、328、333-335、381、386</td>
+<td>查询时间、变量和维度 ID；变量不存在时进入懒定义路径</td>
+</tr>
+<tr>
+<td><code>def_var</code></td>
+<td><code>def_var.F90</code></td>
+<td>行 255、339、390</td>
+<td>为新诊断变量写入 NetCDF 变量定义和属性</td>
+</tr>
+<tr>
+<td><code>NF_PUT_VARA_REAL</code></td>
+<td>NetCDF</td>
+<td>行 194、278、280、360、362、402</td>
+<td>追加写入时间值和变量数据；本文件强制用 real*4 输出</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部错误处理</td>
+<td>行 93、107、119、198、374</td>
+<td>对非结构网格、文件创建失败、时间写入失败等不可继续条件中止</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>物理水平网格点数</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>调用方</td>
+<td>character</td>
+<td>—</td>
+<td>NetCDF 变量名；第一次出现的 <code>name</code> 被记作时间循环首变量</td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td>调用方</td>
+<td>character</td>
+<td>—</td>
+<td>写入变量的 <code>long_name</code> 属性</td>
+</tr>
+<tr>
+<td><code>units</code></td>
+<td>调用方</td>
+<td>character</td>
+<td>—</td>
+<td>写入变量的 <code>units</code> 属性</td>
+</tr>
+<tr>
+<td><code>dimpx</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>变量维度标志：<code>3</code> 为 <code>(longitude, latitude, depth, time)</code>，<code>2</code> 为 <code>(longitude, latitude, time)</code>，<code>0</code> 为 <code>(time)</code></td>
+</tr>
+<tr>
+<td><code>px</code></td>
+<td>调用方</td>
+<td>real(ngrid,nsoilmx)</td>
+<td>随变量</td>
+<td>待输出字段；2D 和 0D 分支只使用第一土壤层位置</td>
+</tr>
+<tr>
+<td><code>diagsoil</code></td>
+<td><code>conf_phys</code> / 本模块</td>
+<td>logical</td>
+<td>—</td>
+<td><code>.false.</code> 时本例程立即返回，不创建文件</td>
+</tr>
+<tr>
+<td><code>inertiedat</code>, <code>cell_area</code>, <code>mlayer</code></td>
+<td><code>comsoil_h</code>, <code>geometry_mod</code></td>
+<td>real arrays</td>
+<td>见源变量</td>
+<td>首次初始化文件时写入的固定土壤和网格信息</td>
+</tr>
+<tr>
+<td><code>steps_per_sol</code>, <code>outputs_per_sol</code></td>
+<td><code>time_phylmdz_mod</code></td>
+<td>integer</td>
+<td>—</td>
+<td>决定采样间隔 <code>isample=steps_per_sol/outputs_per_sol</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>diagsoil.nc</code></td>
+<td>当前运行目录</td>
+<td>NetCDF 文件</td>
+<td>—</td>
+<td>土壤诊断时间序列文件</td>
+</tr>
+<tr>
+<td><code>time</code></td>
+<td><code>diagsoil.nc</code></td>
+<td>real(time)</td>
+<td>sol</td>
+<td>每个输出记录的模型时间，<code>date=(zitau+1)/steps_per_sol</code></td>
+</tr>
+<tr>
+<td><code>name</code> 对应变量</td>
+<td><code>diagsoil.nc</code></td>
+<td><code>dimpx</code> 决定</td>
+<td><code>units</code> 参数</td>
+<td>追加的土壤诊断变量</td>
+</tr>
+</tbody>
+</table>
+<p>典型维度：</p>
+<table>
+<thead>
+<tr>
+<th><code>dimpx</code></th>
+<th>NetCDF 维度</th>
+<th>数据来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>3</code></td>
+<td><code>(longitude, latitude, depth, time)</code></td>
+<td><code>px(:,1:nsoilmx)</code>，用于土壤剖面变量</td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td><code>(longitude, latitude, time)</code></td>
+<td><code>px(:,1)</code>，用于地表或柱积分场</td>
+</tr>
+<tr>
+<td><code>0</code></td>
+<td><code>(time)</code></td>
+<td><code>px(1,1)</code>，用于标量；并行模式未实现</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>模块开关</strong>：<code>diagsoil</code> 是 <code>save</code> 变量，由 <code>conf_phys.F:191-194</code> 读取配置键 <code>diagsoil</code> 后设置，默认 <code>.false.</code>。</li>
+<li><strong>时间循环状态</strong>：<code>date</code>、<code>isample</code>、<code>ntime</code>、<code>firstname</code>、<code>zitau</code> 都是 <code>save</code> 变量，并通过 <code>!$OMP THREADPRIVATE</code> 设为线程私有状态。</li>
+<li><strong>首变量约定</strong>：第一次传入的 <code>name</code> 被保存为 <code>firstname</code>；之后每次再次遇到这个名字，就把 <code>zitau</code> 加一并视作新的时间步。</li>
+<li><strong>文件副作用</strong>：主进程创建、打开、写入并关闭硬编码文件名 <code>diagsoil.nc</code>。</li>
+<li><strong>并行副作用</strong>：<code>CPP_PARA</code> 下字段先 <code>Gather</code> 到全局物理网格，再由 MPI root / master 转为经纬二维数组；0D 分支在并行模式下直接 abort。</li>
+<li><strong>错误处理差异</strong>：文件创建、非结构网格、时间写入失败会 <code>abort_physic</code>；变量数据写入失败只打印错误消息，不中止。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>检查开关与网格</strong>：若 <code>diagsoil=.false.</code> 立即返回；若 <code>grid_type==unstructured</code>，报错并中止，因为 <code>diagsoil.nc</code> 只支持 lon-lat 或 1D。</li>
+<li><strong>首次初始化</strong>：当 <code>firstname=="1234567890"</code> 时，保存首个变量名、设置采样间隔、创建 <code>diagsoil.nc</code>，并整理 <code>inertiedat</code> 与 <code>cell_area</code>。</li>
+<li><strong>写固定框架</strong>：3D lon-lat 情况把极点、内点和冗余经度点填入 <code>inertia</code> / <code>area</code>；1D 情况传入单点数组；随后调用 <code>iniwritesoil</code> 并关闭文件。</li>
+<li><strong>推进本地时间</strong>：每次 <code>name==firstname</code> 时令 <code>zitau=zitau+1</code>。只有 <code>mod(zitau+1,isample)==0</code> 时才进入写数据分支。</li>
+<li><strong>写时间轴</strong>：采样步上，主进程打开 <code>diagsoil.nc</code>；若当前变量就是 <code>firstname</code>，则 <code>ntime=ntime+1</code> 并把 <code>date</code> 写入 <code>time(ntime)</code>。</li>
+<li><strong>写 3D 剖面变量</strong>：把 <code>px(ngrid,nsoilmx)</code> 重排为 <code>(nbp_lon+1,nbp_lat,nsoilmx)</code> 或 1D profile；变量不存在时用 <code>def_var</code> 定义 <code>(longitude,latitude,depth,time)</code>；再写当前时间片。</li>
+<li><strong>写 2D 变量</strong>：取 <code>px(:,1)</code>，重排为 <code>(nbp_lon+1,nbp_lat)</code> 或 1D surface value；变量不存在时定义 <code>(longitude,latitude,time)</code>；再写当前时间片。</li>
+<li><strong>写 0D 变量</strong>：串行模式下取 <code>px(1,1)</code>，变量不存在时定义 <code>(time)</code>，再写当前时间点。</li>
+<li><strong>关闭文件</strong>：采样步末尾主进程关闭 <code>diagsoil.nc</code>，等待下一变量或下一输出时间。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if not diagsoil:
+  return
+if grid_type is unstructured:
+  abort
+
+if first call:
+  firstname = name
+  isample = steps_per_sol / outputs_per_sol
+  create diagsoil.nc
+  gather or copy inertiedat and cell_area
+  map them to lon-lat grid, with redundant longitude point if 3D
+  iniwritesoil(..., inertia, area, mlayer)
+  close diagsoil.nc
+  zitau = -1
+
+if name == firstname:
+  zitau += 1
+
+if this step is not a sampling step:
+  return
+
+open diagsoil.nc
+if name == firstname:
+  ntime += 1
+  time[ntime] = (zitau + 1) / steps_per_sol
+
+if dimpx == 3:
+  map px(:,1:nsoilmx) to lon-lat-depth or 1D profile
+  define variable if missing
+  write one time slab
+else if dimpx == 2:
+  map px(:,1) to lon-lat or 1D surface value
+  define variable if missing
+  write one time slab
+else if dimpx == 0:
+  if CPP_PARA: abort
+  define scalar time variable if missing
+  write px(1,1)
+
+close diagsoil.nc</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>土壤诊断输出</td>
+<td>生成并追加写入 <code>diagsoil.nc</code>，是 <a href="iniwritesoil.html">iniwritesoil</a> 之后的逐时步写入阶段</td>
+</tr>
+<tr>
+<td>水循环 / 地下水</td>
+<td><a href="soilwater.html">soilwater</a> 的地下水、冰饱和度和 regolith 通量诊断可通过 <code>write_output</code> 进入本例程</td>
+</tr>
+<tr>
+<td>土壤热扩散</td>
+<td><a href="soil.html">soil</a> 产生的 <code>tsoil</code> / <code>soiltemp</code> 等地下温度剖面可按 <code>nsoilmx</code> 维度写入</td>
+</tr>
+<tr>
+<td>XIOS 与传统输出</td>
+<td><code>write_output_mod</code> 同时负责 XIOS 发送和传统文件；<code>writediagsoil</code> 是传统 <code>diagsoil.nc</code> 路径，不受 XIOS <code>file_def</code> 是否引用字段控制</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>硬编码文件名</strong>：输出文件固定为 <code>diagsoil.nc</code>，没有从参数传入文件名。</li>
+<li><strong>首变量驱动时间轴</strong>：时间记录由 <code>firstname</code> 决定，复现时要保持每个输出周期的变量调用顺序稳定。</li>
+<li><strong>real*4 输出</strong>：源码注释说明 2010 年修改为强制 real*4 输出；实际写入使用 <code>NF_PUT_VARA_REAL</code>。</li>
+<li><strong>经度闭合点</strong>：3D lon-lat 输出使用 <code>nbp_lon+1</code>，最后一列复制第一列，和 <code>iniwritesoil</code> 写出的经度维度保持一致。</li>
+<li><strong>旧式 NetCDF 接口</strong>：使用 <code>include "netcdf.inc"</code> 和 <code>NF_*</code> 例程，变量不存在时通过查询失败触发 <code>def_var</code>。</li>
+<li><strong>并行/线程混合</strong>：并行数据转换用 <code>Gather</code>、<code>Grid1Dto2D_glo</code>、<code>is_mpi_root</code>、<code>is_master</code> 和 OpenMP barrier；时间计数状态是 <code>THREADPRIVATE</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>diagsoil</code> 默认关闭；没有配置 <code>diagsoil=true</code> 时，<code>write_output</code> 即使调用到本例程也不会产生文件。</li>
+<li><code>diagsoil.nc</code> 不支持 <code>grid_type==unstructured</code>；非结构网格运行会在本例程开头中止。</li>
+<li><code>write_output_mod</code> 只把第二维等于 <code>nsoilmx</code> 的 2D 数组转给 <code>writediagsoil</code>；普通大气三维变量仍走 <code>writediagfi</code> 或 XIOS。</li>
+<li>采样间隔是 <code>steps_per_sol/outputs_per_sol</code> 的整数结果；复现输出频率时需要同时核对这两个时间模块变量。</li>
+<li>1D 模型以 <code>klon_glo==1</code> 判断，写入维度为 1×1×<code>nsoilmx</code>，不写冗余经度点。</li>
+<li>并行模式下 0D 标量分支未实现；直接调用 <code>writediagsoil(...,dimpx=0,...)</code> 的代码在 <code>CPP_PARA</code> 下会 abort。</li>
+<li>变量数据写入失败只打印错误而不中止；检查输出完整性时不能只依赖运行是否正常结束。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>write_output_mod</code> 当前未把普通 0D 标量路由到 <code>writediagsoil</code>；0D 分支是否仍有外部直接调用者，需全项目进一步确认。</li>
+<li><code>firstname</code> 长度固定为 20，超过 20 字符的首变量名会触发 abort；当前土壤诊断字段是否都满足这一限制，应结合具体输出清单核验。</li>
+<li><code>isample=steps_per_sol/outputs_per_sol</code> 未在本文件中防护除零或不能整除的情形；配置层是否已保证合法，需从时间配置入口另行确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="iniwritesoil.html">iniwritesoil</a> — <code>diagsoil.nc</code> 的维度、坐标和固定字段初始化</li>
+<li><a href="comsoil_h.html">comsoil_h</a> — 提供 <code>nsoilmx</code>、<code>mlayer</code>、<code>inertiedat</code> 等土壤共享状态</li>
+<li><a href="soil.html">soil</a> — 土壤热扩散求解器，提供地下温度剖面</li>
+<li><a href="soilwater.html">soilwater</a> — 地下水吸附-扩散-相变求解器，输出多项地下水诊断</li>
+<li><a href="soil_settings.html">soil_settings</a> — 土壤层深、热惯量和初始土壤状态设置</li>
+<li><a href="../../themes/water-cycle.html">water-cycle</a> — 水循环主题页，含地下储库与诊断输出串联</li>
+<li><a href="../../architecture/xios-config.html">xios-config</a> — XIOS 输出配置；用于区分 XIOS 路径和传统 <code>diagsoil.nc</code> 路径</li>
+<li><a href="../../architecture/testphys1d-config.html">testphys1d-config</a> — 1D 配置表中列出 <code>diagsoil</code> 开关</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

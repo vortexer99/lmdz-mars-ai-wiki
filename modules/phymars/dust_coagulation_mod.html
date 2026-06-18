@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dust_coagulation_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dust_coagulation_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dust_coagulation_modf90">dust_coagulation_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dust_coagulation_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>dust_coagulation_mod.F90</code> 定义尘埃粒子凝并方案。源码文件头注释写明该方案基于 Bertrand et al., 2022，作者为 T. Bertrand。它接收当前尘埃质量/数量混合比、温度、压力和已有物理倾向，把背景尘埃、rocket storm dust、mountain top dust 的连续对数正态粒径谱离散到 10 个半径 bin，在每个格点/层上用凝并核更新粒子数分布，再把结果折回到每个尘埃模式的质量和数量 tendency <code>pdqcoag</code>。</p>
+<p>源码依据：<code>dust_coagulation_mod.F90:1-16</code> 定义模块与 public 初始化例程；<code>dust_coagulation_mod.F90:93-400</code> 定义主例程 <code>dust_coagulation_main</code>；<code>physiq_mod.F:1477-1520</code> 在 <code>dust_coagulation</code> 开关打开时调用本模块并把输出 tendency 加回 <code>pdq</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dust_coagulation_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>尘埃凝并模块容器。</td>
+</tr>
+<tr>
+<td><code>dust_coagulation_init</code></td>
+<td>subroutine</td>
+<td>63</td>
+<td>分配并初始化凝并半径/体积 bin；查表模式下构造凝并核查找表。</td>
+</tr>
+<tr>
+<td><code>dust_coagulation_main</code></td>
+<td>subroutine</td>
+<td>93</td>
+<td>主计算：由质量/数量示踪剂构造粒径分布，执行凝并，输出 mass/number tendency。</td>
+</tr>
+<tr>
+<td><code>dynvis</code></td>
+<td>function</td>
+<td>403</td>
+<td>用 Sutherland 公式计算 CO2 动力粘度。</td>
+</tr>
+<tr>
+<td><code>kinvis</code></td>
+<td>function</td>
+<td>413</td>
+<td>由动力粘度和密度计算运动粘度。</td>
+</tr>
+<tr>
+<td><code>thervel</code></td>
+<td>function</td>
+<td>419</td>
+<td>计算气体分子或尘埃粒子的热速度。</td>
+</tr>
+<tr>
+<td><code>mfp</code></td>
+<td>function</td>
+<td>427</td>
+<td>由温度和密度估计平均自由程。</td>
+</tr>
+<tr>
+<td><code>cun</code></td>
+<td>function</td>
+<td>435</td>
+<td>Cunningham slip-flow 修正。</td>
+</tr>
+<tr>
+<td><code>diff</code></td>
+<td>function</td>
+<td>442</td>
+<td>粒子扩散系数。</td>
+</tr>
+<tr>
+<td><code>lambda</code></td>
+<td>function</td>
+<td>449</td>
+<td>粒子平均自由程。</td>
+</tr>
+<tr>
+<td><code>delta</code></td>
+<td>function</td>
+<td>459</td>
+<td>Brownian transition regime 中的平均距离修正。</td>
+</tr>
+<tr>
+<td><code>fallv</code></td>
+<td>function</td>
+<td>469</td>
+<td>带 Cunningham 修正的粒子下落速度。</td>
+</tr>
+<tr>
+<td><code>reyn</code></td>
+<td>function</td>
+<td>478</td>
+<td>Reynolds 数。</td>
+</tr>
+<tr>
+<td><code>stokes</code></td>
+<td>function</td>
+<td>485</td>
+<td>以两粒子相对沉降速度定义的 Stokes 数。</td>
+</tr>
+<tr>
+<td><code>schmidt</code></td>
+<td>function</td>
+<td>495</td>
+<td>Schmidt 数。</td>
+</tr>
+<tr>
+<td><code>coal</code></td>
+<td>function</td>
+<td>502</td>
+<td>coalescence efficiency 公式；当前主流程未直接调用。</td>
+</tr>
+<tr>
+<td><code>betab</code></td>
+<td>function</td>
+<td>520</td>
+<td>Brownian coagulation kernel。</td>
+</tr>
+<tr>
+<td><code>betag</code></td>
+<td>function</td>
+<td>540</td>
+<td>gravitational coagulation kernel。</td>
+</tr>
+<tr>
+<td><code>betade</code></td>
+<td>function</td>
+<td>561</td>
+<td>Brownian diffusion enhancement kernel。</td>
+</tr>
+<tr>
+<td><code>betade_tabfunc</code></td>
+<td>function</td>
+<td>575</td>
+<td>构造查表时使用的 diffusion enhancement kernel。</td>
+</tr>
+<tr>
+<td><code>betati</code></td>
+<td>function</td>
+<td>591</td>
+<td>turbulent inertial kernel；源码注释标为 not implemented yet。</td>
+</tr>
+<tr>
+<td><code>betati_tabfunc</code></td>
+<td>function</td>
+<td>601</td>
+<td>turbulent inertial 查表函数；当前查表构造未填充 <code>table_ti</code>。</td>
+</tr>
+<tr>
+<td><code>frac</code></td>
+<td>function</td>
+<td>613</td>
+<td>把两个 bin 凝并后的中间体积分配到目标 bin。</td>
+</tr>
+<tr>
+<td><code>make_tables</code></td>
+<td>subroutine</td>
+<td>644</td>
+<td>构造温度、压力/平均自由程网格上的 kernel 查找表。</td>
+</tr>
+<tr>
+<td><code>boxinterp</code></td>
+<td>function</td>
+<td>686</td>
+<td>对查找表做二维线性插值。</td>
+</tr>
+<tr>
+<td><code>findval</code></td>
+<td>function</td>
+<td>718</td>
+<td>找到数组中第一个大于目标值的位置。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code>, <code>g</code>, <code>r</code>, <code>mugaz</code></td>
+<td><code>pi</code> 用于体积/分布公式，<code>g</code> 用于落速，<code>r</code> 用于空气密度和 pressure kernel；<code>mugaz</code> 在本文件中未使用。</td>
+<td><code>mugaz</code> 是否为历史遗留依赖待确认。</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_dust_mass</code>, <code>igcm_dust_number</code>, <code>igcm_stormdust_mass</code>, <code>igcm_stormdust_number</code>, <code>igcm_topdust_mass</code>, <code>igcm_topdust_number</code></td>
+<td>标识三类尘埃的质量/数量示踪剂索引。</td>
+<td>无。</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>kbz</code>, <code>m0co2</code></td>
+<td>Boltzmann 常数和 CO2 分子质量，用于热速度、扩散和平均自由程。</td>
+<td>无。</td>
+</tr>
+</tbody>
+</table>
+<p>源码依据：<code>dust_coagulation_mod.F90:9-13</code>。</p>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>make_tables</code></td>
+<td>本文件</td>
+<td><code>dust_coagulation_mod.F90:83</code></td>
+<td>当 <code>full_coag_equations=.false.</code> 时预计算 kernel 查找表。</td>
+</tr>
+<tr>
+<td><code>mfp</code></td>
+<td>本文件</td>
+<td><code>dust_coagulation_mod.F90:225,278,585,606</code></td>
+<td>由温度/密度或 pressure 派生平均自由程。</td>
+</tr>
+<tr>
+<td><code>betab</code></td>
+<td>本文件</td>
+<td><code>236,249,520-538</code> 等</td>
+<td>Brownian kernel，直接模式和查表构造均使用。</td>
+</tr>
+<tr>
+<td><code>betag</code></td>
+<td>本文件</td>
+<td><code>237,250,540-559</code> 等</td>
+<td>gravitational kernel，受 <code>coal_coeff_mode</code> 影响。</td>
+</tr>
+<tr>
+<td><code>betade</code> / <code>betade_tabfunc</code></td>
+<td>本文件</td>
+<td><code>238,251,575-589,675-677</code></td>
+<td>diffusion enhancement kernel；查表模式用 <code>betade_tabfunc</code> 预计算。</td>
+</tr>
+<tr>
+<td><code>betati</code></td>
+<td>本文件</td>
+<td><code>239,252,591-599</code></td>
+<td>turbulent kernel；源码标注未实现，且查表路径中对应调用被注释。</td>
+</tr>
+<tr>
+<td><code>boxinterp</code></td>
+<td>本文件</td>
+<td><code>300-341</code></td>
+<td>查表模式下对 kernel 表做二维插值。</td>
+</tr>
+<tr>
+<td><code>findval</code></td>
+<td>本文件</td>
+<td><code>281,285,288</code></td>
+<td>查表模式下定位温度、平均自由程、压力相邻格点。</td>
+</tr>
+<tr>
+<td><code>frac</code></td>
+<td>本文件</td>
+<td><code>240,254,316,343</code></td>
+<td>计算凝并后体积落入目标 bin 的比例。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>physiq</code></td>
+<td>integer</td>
+<td>-</td>
+<td>水平格点数。</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>physiq</code></td>
+<td>integer</td>
+<td>-</td>
+<td>垂直层数。</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td><code>physiq</code></td>
+<td>integer</td>
+<td>-</td>
+<td>示踪剂数。</td>
+</tr>
+<tr>
+<td><code>ptime</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>sol 或模型时间（待确认）</td>
+<td>传入但本文件未使用。</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>s</td>
+<td>物理时间步，用于把 tendency 转成当前状态并推进凝并。</td>
+</tr>
+<tr>
+<td><code>pq(ngrid,nlayer,nq)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>kg/kg 或 nb/kg</td>
+<td>当前 advected tracer field。</td>
+</tr>
+<tr>
+<td><code>pdqfi(ngrid,nlayer,nq)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>tracer unit/s</td>
+<td>上游物理过程已累积的 tracer tendency。</td>
+</tr>
+<tr>
+<td><code>pt(ngrid,nlayer)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>K</td>
+<td>层中温度。</td>
+</tr>
+<tr>
+<td><code>pdtfi(ngrid,nlayer)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>K/s</td>
+<td>上游温度 tendency；用于构造 <code>zt</code>，但后续未使用。</td>
+</tr>
+<tr>
+<td><code>pplay(ngrid,nlayer)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>Pa</td>
+<td>层中压力，用于空气密度、查表 pressure 坐标。</td>
+</tr>
+<tr>
+<td><code>pplev(ngrid,nlayer+1)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>Pa</td>
+<td>层界面压力；传入但本文件未使用。</td>
+</tr>
+<tr>
+<td><code>full_coag_equations</code></td>
+<td><code>conf_phys</code>/模块 SAVE</td>
+<td>logical</td>
+<td>-</td>
+<td>真：每步直接计算 kernel；假：用初始化时的查找表。</td>
+</tr>
+<tr>
+<td><code>dust_coag_kernel_b/g/de/ti</code></td>
+<td><code>conf_phys</code>/模块 SAVE</td>
+<td>logical</td>
+<td>-</td>
+<td>是否启用 Brownian、gravitational、diffusion enhancement、turbulent inertial kernel。</td>
+</tr>
+<tr>
+<td><code>coal_coeff_mode</code></td>
+<td><code>conf_phys</code>/模块 SAVE</td>
+<td>integer</td>
+<td>-</td>
+<td>gravitational kernel 中 coalescence efficiency 的选择模式。</td>
+</tr>
+</tbody>
+</table>
+<p>配置依据：<code>conf_phys.F:392-408</code> 设置 <code>dust_coagulation</code> 默认 <code>.false.</code>、<code>full_coag_equations</code> 默认 <code>.false.</code>、Brownian kernel 默认 <code>.true.</code>、其他 kernel 默认 <code>.false.</code>、<code>coal_coeff_mode=0</code>。同一段源码没有看到 <code>getin_p</code> 读取 kernel 子开关，因此本文件页只记录源码默认值。</p>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdqcoag(ngrid,nlayer,nq)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>tracer unit/s</td>
+<td>尘埃凝并产生的 tracer tendency。</td>
+</tr>
+<tr>
+<td><code>pdqcoag(:,:,igcm_dust_mass)</code></td>
+<td><code>physiq</code> → <code>pdq</code></td>
+<td>real</td>
+<td>kg/kg/s</td>
+<td>背景尘埃质量 tendency。</td>
+</tr>
+<tr>
+<td><code>pdqcoag(:,:,igcm_dust_number)</code></td>
+<td><code>physiq</code> → <code>pdq</code></td>
+<td>real</td>
+<td>nb/kg/s</td>
+<td>背景尘埃数量 tendency。</td>
+</tr>
+<tr>
+<td><code>pdqcoag(:,:,igcm_stormdust_*)</code></td>
+<td><code>physiq</code> → <code>pdq</code> when <code>rdstorm</code></td>
+<td>real</td>
+<td>kg/kg/s, nb/kg/s</td>
+<td>rocket storm dust 的质量/数量 tendency。</td>
+</tr>
+<tr>
+<td><code>pdqcoag(:,:,igcm_topdust_*)</code></td>
+<td><code>physiq</code> → <code>pdq</code> when <code>topflows</code></td>
+<td>real</td>
+<td>kg/kg/s, nb/kg/s</td>
+<td>mountain top dust 的质量/数量 tendency。</td>
+</tr>
+</tbody>
+</table>
+<p>源码依据：<code>dust_coagulation_mod.F90:116,387-395</code> 生成 <code>pdqcoag</code>；<code>physiq_mod.F:1484-1518</code> 把背景尘埃、<code>topdust</code>、<code>stormdust</code> 的对应 tendency 加入 <code>pdq</code>。</p>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>full_coag_equations</code>、<code>dust_coag_kernel_b/g/de/ti</code>、<code>coal_coeff_mode</code> 是 <code>SAVE</code> 且 <code>THREADPRIVATE</code> 的模块变量，由 <code>conf_phys.F</code> 设置默认值并打印。</li>
+<li><code>rads_coag</code>、<code>vols_coag</code>、<code>deltar_coag</code> 在 <code>dust_coagulation_init</code> 中分配，后续主例程依赖这些数组。</li>
+<li>查表模式下 <code>table_pt</code>、<code>table_pres</code>、<code>table_mfp</code>、<code>table_b</code>、<code>table_g</code>、<code>table_de</code> 在 <code>make_tables</code> 中填充；<code>table_ti</code> 声明但未填充。</li>
+<li><code>dev_dt</code> 和 <code>rho_dust</code> 在本模块中为 public，默认分别为 <code>0.63676</code> 和 <code>2500.</code>；<code>dust_coagulation_main</code> 用它们确定粒径谱宽度和尘埃密度。</li>
+<li>本模块不直接做文件 I/O；副作用主要是分配模块数组、填充 lookup table、输出 <code>pdqcoag</code>。</li>
+</ul>
+<p>复现风险：<code>dust_coagulation_init</code> 无 <code>allocated()</code> 保护，若被重复调用会再次 <code>allocate(rads_coag/vols_coag/deltar_coag)</code>；源码调用点 <code>physiq_mod.F:806-808</code> 表明它在初始化阶段由 <code>dust_coagulation</code> 开关保护调用。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><p><strong>初始化粒径 bin</strong><br />
+<code>dust_coagulation_init</code> 分配 10 个 bin，最小半径 <code>r1_coag=0.01e-6 m</code>，最大半径 <code>rn_coag=40.e-6 m</code>，体积比 <code>vrat_coag=(rn/r1)^(3/(nres-1))</code>。每个 bin 的半径和体积按几何级数生成，<code>deltar_coag</code> 存放直径宽度。查表模式下调用 <code>make_tables</code>。</p></li>
+<li><p><strong>把上游 tendency 并入当前状态</strong><br />
+主例程中 <code>zq = pq + pdqfi*ptimestep</code>，<code>zt = pt + pdtfi*ptimestep</code>。源码后续计算空气密度与 kernel 时使用 <code>pt</code> 而不是 <code>zt</code>；待确认这是有意使用未加热后的温度，还是保留变量未使用。</p></li>
+<li><p><strong>构造各尘埃模式的初始对数正态数分布</strong><br />
+对 <code>igcm_dust_mass</code>、<code>igcm_stormdust_mass</code>、<code>igcm_topdust_mass</code> 三类 mass tracer，源码假设对应 number tracer 为 <code>iq-1</code>。质量和数量都设下限 <code>1e-15</code>。几何均值半径：</p>
+<pre class="text"><code>r0 = (3/4 * mass / (pi * number * rho_dust))^(1/3) * exp(-1.5*dev_dt^2)</code></pre>
+<p>每个 bin 的数浓度分布：</p>
+<pre class="text"><code>ndis_bin = number * rho_air * deltar
+           / (2*r_bin*sqrt(2*pi)*dev_dt)
+           * exp(-0.5*(log(r_bin/r0))^2/dev_dt^2)</code></pre>
+<p><code>ndis_tab</code> 单位按源码变量关系推断为 <code>nb/m3/bin</code>。</p></li>
+<li><p><strong>合并多个尘埃模式并保存初始比例</strong><br />
+<code>ndis=sum(ndis_tab, mode)</code> 得到所有尘埃模式合并后的总 bin 分布。<code>rat_tab</code> 保存每个模式在每个 bin 中的初始占比，并归一化，使凝并后的总分布能再按初始比例分回背景尘埃、stormdust、topdust。</p></li>
+<li><p><strong>执行凝并</strong><br />
+仅当 <code>ntot=sum(ndis)/rho_air &gt; 1000</code> 时启用凝并。两条路径：</p>
+<ul>
+<li><code>full_coag_equations=.true.</code>：逐格点/层/目标 bin 直接调用 <code>betab/betag/betade/betati</code> 计算 kernel。</li>
+<li><code>full_coag_equations=.false.</code>：用 <code>findval</code> 定位查表角点，再用 <code>boxinterp</code> 插值 <code>table_b/table_g/table_de</code>。</li>
+</ul>
+<p>每个目标 bin <code>k</code> 计算两个项：</p>
+<pre class="text"><code>term1 = sum_{jj&lt;=k, ii&lt;k} frac(ii,jj,k) * vols(ii) * kernel(ii,jj)
+        * ndis_new(ii) * ndis(jj) * dt / vols(k)
+
+term2 = sum_j (1-frac(k,j,k)) * kernel(k,j) * ndis(j) * dt
+
+ndis_new(k) = (ndis(k) + coal_fac*term1) / (1 + coal_fac*term2)</code></pre>
+<p>随后按 <code>sum(ndis*vols)/sum(ndis_new*vols)</code> 归一化，保持总体积（质量）守恒。</p></li>
+<li><p><strong>把凝并后的总分布折回各尘埃模式</strong><br />
+<code>ndis_tab_new = ndis_new * rat_tab</code>。每个模式的新 number mixing ratio 为 <code>sum(ndis_tab_new)/rho_air</code>，新 mass mixing ratio 为 <code>sum(ndis_tab_new*vols)*rho_dust/rho_air</code>。然后用 <code>mass_new/mtotnew*mtot</code> 再次校正各模式质量，保持总质量。</p></li>
+<li><p><strong>输出 tendency 并做非负保护</strong><br />
+mass tendency 为 <code>(mass_new-mass_ini)/dt</code>；number tendency 为 <code>(numb_new-numb_ini_dis)/dt</code>。若加上 tendency 后质量或数量非正，则用 <code>-zq/dt + epsilon</code> 保护到小正值。</p></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>init:
+  allocate 10 coagulation bins between 0.01 um and 40 um
+  compute bin radii, volumes, diameter widths
+  if using lookup tables:
+    build temperature, mean-free-path/pressure grids
+    fill Brownian, gravitational, diffusion-enhancement kernels
+
+main:
+  zq = pq + pdqfi * dt
+  rho_air = pplay / (r * pt)
+  initialize pdqcoag = 0
+
+  for each dust mass tracer in {dust, stormdust, topdust}:
+    mass_ini = max(zq(mass), 1e-15)
+    number_ini = max(zq(number index = mass index - 1), 1e-15)
+    mtot += mass_ini
+    r0 = moment radius from mass/number/rho_dust/dev_dt
+    for each coag bin:
+      ndis_tab(bin, mode) = lognormal number distribution
+    number_ini_dis = sum(ndis_tab over bins) / rho_air
+
+  rat_tab = ndis_tab / sum(ndis_tab over dust modes)
+  ndis = sum(ndis_tab over dust modes)
+  ntot = sum(ndis over bins) / rho_air
+
+  for each column and layer:
+    if ntot &lt;= 1000: keep ndis_new at initialized value
+    else:
+      for each target bin:
+        kernel = selected Brownian + gravitational + diffusion + turbulent terms
+        compute gain term from smaller-bin collisions
+        compute loss term from target-bin collisions
+        ndis_new = (old + coal_fac*gain) / (1 + coal_fac*loss)
+      normalize ndis_new volume to initial ndis volume
+
+  for each dust mode:
+    ndis_tab_new = ndis_new * initial mode/bin fraction
+    number_new = sum(ndis_tab_new) / rho_air
+    mass_new = sum(ndis_tab_new * volume) * rho_dust / rho_air
+  rescale mass_new so total mass equals initial total mass
+
+  pdqcoag(mass) = (mass_new - mass_ini) / dt
+  pdqcoag(number) = (number_new - number_ini_dis) / dt
+  protect against negative post-tendency values</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>尘埃循环</td>
+<td>可选微物理阶段；减少/重分布 dust number，保持质量守恒，并影响后续由 mass/number 反算的粒径。</td>
+</tr>
+<tr>
+<td>辐射</td>
+<td>推断：凝并改变 number tendency，从而影响 doubleq 粒径和后续辐射有效半径；本文件不直接调用辐射模块。</td>
+</tr>
+<tr>
+<td>rocket storm dust</td>
+<td>当 <code>rdstorm</code> 打开时，<code>physiq_mod.F:1507-1518</code> 把 <code>igcm_stormdust_*</code> 的 <code>pdqcoag</code> 加回 <code>pdq</code>。</td>
+</tr>
+<tr>
+<td>mountain top dust</td>
+<td>当 <code>topflows</code> 打开时，<code>physiq_mod.F:1494-1505</code> 把 <code>igcm_topdust_*</code> 的 <code>pdqcoag</code> 加回 <code>pdq</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>模块变量大量 <code>SAVE</code> + <code>THREADPRIVATE</code>，说明该方案按 OpenMP 线程保存独立状态。</li>
+<li>public 声明只显式列出 <code>dust_coagulation_init</code>，但模块变量和 <code>dust_coagulation_main</code> 未设 <code>private</code>，因此默认仍可被 <code>use</code> 访问；<code>physiq_mod.F:27-28</code> 只导入 <code>dust_coagulation_main</code> 和 <code>dust_coagulation_init</code>。</li>
+<li><code>dust_coag_kernel_ti</code> 注释为 <code>Not implemented yet</code>；直接计算路径可调用 <code>betati</code>，但 <code>betati</code> 中 <code>eps</code> 未赋值，查表路径的 turbulent 调用被注释，<code>table_ti</code> 也未填充。</li>
+<li><code>ptime</code>、<code>pplev</code>、局部 <code>zt</code>、<code>rn</code>、若干局部变量声明后未在有效计算中使用。待确认：这些是否为预留接口或历史遗留。</li>
+<li>查表路径中 <code>p2=findval(table_pres,pres0)</code> 后若 <code>p2==0</code> 则设为 <code>table_numt</code>，而不是 <code>table_nump</code>。待确认：由于两者当前都等于 25，数值上不表现差异，但复现时不应把它泛化为不同维度。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须先调用 <code>dust_coagulation_init</code>，否则 <code>rads_coag/vols_coag/deltar_coag</code> 和查表数组没有初始化。</li>
+<li>该方案依赖 mass tracer 与 number tracer 的索引相邻关系：代码用 <code>iq-1</code> 读取 number tracer。复现或重排 tracer 表时必须保持 <code>*_number</code> 紧邻并位于对应 <code>*_mass</code> 前一位。</li>
+<li>默认配置只打开 Brownian kernel，且 <code>dust_coagulation</code> 本身默认关闭；本仓库 <code>deftank/datadir/doc</code> 中未找到显式 <code>dust_coagulation</code> 配置样例。</li>
+<li><code>full_coag_equations=.false.</code> 时，kernel 使用初始化阶段的查表和双线性插值；<code>=.true.</code> 时每步直接计算。</li>
+<li><code>ntot &lt;= 1000 nb/kg</code> 的格点/层不会进入凝并更新。复现风险：源码未显式把这些层的 <code>ndis_new</code> 设为初始 <code>ndis</code>，后续仍参与折回 moments；该行为需用运行测试确认是否符合预期。</li>
+<li>质量守恒通过两层归一化实现：先对总 bin 体积分布归一化，再对各模式 <code>mass_new</code> 按初始总质量 <code>mtot</code> 重缩放。</li>
+<li><code>pdqcoag</code> 的 number tendency 用离散化后的 <code>numb_ini_dis</code> 而非原始 <code>numb_ini</code> 作基准；这是避免 bin 离散误差立即进入 tendency 的关键。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>dust_coag_kernel_*</code>、<code>full_coag_equations</code>、<code>coal_coeff_mode</code> 在当前源码中只有默认赋值和打印，未见 <code>getin_p</code> 读取；是否在其他分支或运行框架中覆盖，待确认。</li>
+<li><code>zt=pt+pdtfi*dt</code> 已计算但未用于 kernel；是否应使用更新后温度待确认。</li>
+<li><code>betati/betati_tabfunc</code> 中 <code>eps</code> 未赋值，且源码注释 turbulent kernel 未实现；不要在复现中启用 <code>dust_coag_kernel_ti</code>，除非先补全物理定义。</li>
+<li><code>coal</code> 函数当前未被 <code>betag</code> 直接调用；<code>betag</code> 使用 <code>coal_coeff_mode</code> 的三种简化效率。完整 coalescence efficiency 公式的设计用途待确认。</li>
+<li><code>ntot&lt;=1000</code> 时 <code>ndis_new</code> 保持初始化零值，后续 mass/number 折回的结果需数值测试验证。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="./index.html">phymars 模块总览</a></li>
+<li><a href="../../themes/dust-cycle.html">尘埃循环主题</a></li>
+<li><a href="./callsedim_mod.html">callsedim_mod.md</a></li>
+<li><a href="./newsedim_mod.html">newsedim_mod.md</a></li>
+<li><a href="updaterad.html">updaterad.md</a>：尘埃/水冰/CO₂ 冰有效半径反演模块（TASK-0028 已完成）</li>
+<li><a href="rocketduststorm_mod.html">rocketduststorm_mod.md</a>：火箭式尘暴垂直输运方案（TASK-0022 已完成）</li>
+<li><a href="topmons_mod.html">topmons_mod.md</a>：山顶地形尘流输运方案（TASK-0023 已完成）</li>
+<li><a href="../../routines/dust_coagulation_main.html">dust_coagulation_main.md</a>：主凝并 tendency 例程级页面（TASK-0030 已完成）</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

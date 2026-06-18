@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>interp_line - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/interp_line.md</span>
+    </nav>
+    <article class="content">
+<h1 id="interp_linef">interp_line.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\interp_line.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>interp_line.F</code> 定义 <code>interp_line_mod</code> 模块和 <code>interp_line</code> 子程序，是一个通用的线性插值工具例程。它被 <code>soil_settings.F</code> 和 <code>lect_start_archive.F</code> 调用，用于在有序的源数据点之间进行线性插值，或在目标点超出源数据范围时使用最近的边界值。</p>
+<p>本例程的核心功能是：给定源数据 <code>(x1, y1)</code> 和目标横坐标 <code>x2</code>，计算对应的插值结果 <code>y2</code>。当 <code>x2</code> 超出 <code>x1</code> 的范围时，不做外推，而是使用最近的边界值。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>interp_line_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装线性插值工具例程</td>
+</tr>
+<tr>
+<td><code>interp_line</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>在有序源数据点之间进行线性插值</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>本例程只使用内在函数和数组循环，不调用其他用户例程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x1</code></td>
+<td>调用方</td>
+<td>real <code>(len1)</code></td>
+<td>-</td>
+<td>源数据的有序横坐标数组</td>
+</tr>
+<tr>
+<td><code>y1</code></td>
+<td>调用方</td>
+<td>real <code>(len1)</code></td>
+<td>-</td>
+<td>源数据在 <code>x1</code> 处的值</td>
+</tr>
+<tr>
+<td><code>len1</code></td>
+<td>调用方</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>源数据数组长度</td>
+</tr>
+<tr>
+<td><code>x2</code></td>
+<td>调用方</td>
+<td>real <code>(len2)</code></td>
+<td>-</td>
+<td>目标横坐标数组（有序）</td>
+</tr>
+<tr>
+<td><code>len2</code></td>
+<td>调用方</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>目标数组长度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>y2</code></td>
+<td>调用方</td>
+<td>real <code>(len2)</code></td>
+<td>-</td>
+<td>在 <code>x2</code> 处的插值结果</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本文件没有 <code>save</code> 变量、<code>COMMON</code>、<code>THREADPRIVATE</code>、文件 I/O、配置读取或诊断输出。</li>
+<li>纯函数式接口，无副作用。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>对每个目标点 <code>x2(i)</code>：
+<ul>
+<li><strong>边界检查</strong>：若 <code>x2(i)</code> 超出 <code>x1</code> 的范围（即 <code>(x2(i) ≤ x1(1) 且 x2(i) ≤ x1(len1))</code> 或 <code>(x2(i) ≥ x1(1) 且 x2(i) ≥ x1(len1))</code>）：
+<ul>
+<li>使用最近的边界值：若 <code>|x2(i) - x1(1)| &lt; |x2(i) - x1(len1)|</code>，则 <code>y2(i) = y1(1)</code>，否则 <code>y2(i) = y1(len1)</code></li>
+</ul></li>
+<li><strong>内部插值</strong>：否则，找到包含 <code>x2(i)</code> 的区间 <code>[x1(j), x1(j+1)]</code>，进行线性插值：
+<pre><code>y2(i) = ((x2(i) - x1(j)) / (x1(j+1) - x1(j))) * y1(j+1)
+      + ((x2(i) - x1(j+1)) / (x1(j) - x1(j+1))) * y1(j)</code></pre></li>
+</ul></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>interp_line(x1, y1, len1, x2, y2, len2):
+    for i in 1..len2:
+        if x2(i) is outside [x1(1), x1(len1)]:
+            if |x2(i) - x1(1)| &lt; |x2(i) - x1(len1)|:
+                y2(i) = y1(1)
+            else:
+                y2(i) = y1(len1)
+        else:
+            for j in 1..len1-1:
+                if x2(i) is in [x1(j), x1(j+1)]:
+                    y2(i) = linear_interpolation(x1(j), y1(j), x1(j+1), y1(j+1), x2(i))</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>土壤设置</td>
+<td><code>soil_settings.F</code> 调用本例程进行土壤参数插值</td>
+</tr>
+<tr>
+<td>初始场读取</td>
+<td><code>lect_start_archive.F</code> 调用本例程进行初始数据插值</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran（<code>.F</code> 扩展名），使用传统 Fortran 77 风格的注释和续行符 <code>&amp;</code>。</li>
+<li>纯工具例程，无外部依赖。</li>
+<li>使用简单的嵌套循环实现，时间复杂度为 O(len2 × len1)。</li>
+<li>边界处理使用最近邻方法，不做外推。</li>
+<li>假设 <code>x1</code> 是有序的，但未显式检查。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须确保 <code>x1</code> 是有序的（单调递增或递减）。</li>
+<li>当 <code>x2(i)</code> 超出范围时，使用最近的边界值，不是外推。</li>
+<li>插值公式使用标准的线性插值，但写法略有冗余。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>是否需要检查 <code>x1</code> 的单调性。</li>
+<li>是否可以优化为二分查找以提高性能。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="soil_settings.html">soil_settings</a>：调用本例程进行土壤参数插值。</li>
+<li><a href="../dynphy_lonlat/lect_start_archive.html">lect_start_archive.md</a>：调用本例程进行初始数据插值。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

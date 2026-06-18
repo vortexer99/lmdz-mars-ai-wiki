@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pending-confirmation-triage - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="file-index.html">文件索引</a>
+        <a href="source-coverage-matrix.html">覆盖矩阵</a>
+        <a class="active" href="pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/pending-confirmation-triage.md</span>
+    </nav>
+    <article class="content">
+<h1 id="pending-confirmation-triage">Pending confirmation triage</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>本页收束 Mars Wiki 中的 <code>待确认</code> 与源码疑点。它不是“未完成页面”清单，而是把已经写入各页的不确定性分级：哪些需要运行验证，哪些需要外部数据或文献，哪些只是源码边界尚未集中复核。</p>
+<p>处理原则：</p>
+<ul>
+<li>能由源码直接确认的内容，不再保留为旧缺页或旧登记占位。</li>
+<li>不能由源码单独确认的内容，保留 <code>待确认</code>，并说明需要哪类证据。</li>
+<li>不把推断写成事实；需要运行、构建日志、外部数据版本或维护者判断的内容继续显式标注。</li>
+</ul>
+<h2 id="优先级分类">优先级分类</h2>
+<table>
+<thead>
+<tr>
+<th>等级</th>
+<th>含义</th>
+<th>处理方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0</td>
+<td>可能影响数值结果、守恒性、数组索引或 restart 复现</td>
+<td>优先用最小运行案例或维护者确认。</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>影响物理解释、外部数据版本或诊断可比性</td>
+<td>需要文献、数据文件版本或实验配置佐证。</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>影响构建、并行行为或工具链复现</td>
+<td>用 build log、脚本和实际工具运行核验。</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>遗留变量、注释、命名或未使用导入</td>
+<td>保留在页面内，批量清理时再处理。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="p0-源码疑点">P0 源码疑点</h2>
+<table>
+<thead>
+<tr>
+<th>页面</th>
+<th>疑点</th>
+<th>需要的证据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/phymars/co2cloud_mod.html">co2cloud_mod</a></td>
+<td><code>SatIndex</code> 或相邻饱和索引逻辑中疑似使用了容易混淆的数组下标。</td>
+<td>小列例子复现 CO2 云激活层选择，并与预期饱和剖面对比。</td>
+</tr>
+<tr>
+<td><a href="../modules/aeronomars/conduction.html">conduction</a></td>
+<td>热传导系数或层索引边界在高层热层路径中有待确认项。</td>
+<td>单列热层测试或与原论文/历史版本对比。</td>
+</tr>
+<tr>
+<td><a href="../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a></td>
+<td>水汽地表交换段的 <code>.or.</code> 守卫疑似恒真，可能影响 <code>h2o_ice</code> 注入路径理解。</td>
+<td>最小水循环配置运行，记录该分支的进入条件与 tendency 输出。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/topmons_mod.html">topmons_mod</a></td>
+<td><code>qbar_number_pbl</code> 等 PBL 平均量的单位和数浓度解释仍需确认。</td>
+<td>追踪调用方输入单位，或用诊断输出核对量纲。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/dyn1d/writerestart1D_mod.html">writerestart1D_mod</a></td>
+<td>文本 restart 中 <code>q</code> 实参维度和读取端格式的完全对应关系待确认。</td>
+<td><code>testphys1d</code> 写出再读入闭环测试。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="p1-物理参数和外部数据">P1 物理参数和外部数据</h2>
+<table>
+<thead>
+<tr>
+<th>页面</th>
+<th>疑点</th>
+<th>需要的证据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="reaction-rates.html">reaction-rates</a></td>
+<td>热层化学反应速率常数的外部版本来源尚未完全归档。</td>
+<td>对照 <code>chemthermos_reactionrates.def</code> 的历史来源、JPL/UMIST 或项目文档。</td>
+</tr>
+<tr>
+<td><a href="../themes/radiation.html">radiation</a> 与辐射相关文件页</td>
+<td>气溶胶、辐射表或典型光学参数的推荐范围不能仅由源码判断。</td>
+<td>数据表版本、运行配置和基准实验说明。</td>
+</tr>
+<tr>
+<td><a href="../modules/util/aeropt_mod.html">aeropt_mod</a> / <a href="../modules/util/aeroptical.html">aeroptical</a></td>
+<td>ASCII 光学性质表的具体文件版本、半径范围和波长范围需要与 datadir 实物对应。</td>
+<td>实际 datadir 文件清单和表头检查。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/soilwater.html">soilwater</a> 与 <a href="../modules/phymars/soil.html">soil</a></td>
+<td>土壤吸附、地下冰和热惯量常数的物理来源需要外部资料补强。</td>
+<td>对照配置、论文或维护者说明。</td>
+</tr>
+<tr>
+<td><a href="../modules/util/simu_MCS.html">simu_MCS</a></td>
+<td>MCS 分箱文件版本、Ls-sol 换算和观测高度坐标约定需与实际观测产品一致。</td>
+<td>观测文件元数据和一组已知对比案例。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="p2-构建和边界契约">P2 构建和边界契约</h2>
+<table>
+<thead>
+<tr>
+<th>页面</th>
+<th>疑点</th>
+<th>需要的证据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../architecture/common-dependencies.html">common-dependencies</a></td>
+<td><code>temps_mod</code> 串行/并行版本选择取决于构建目标。</td>
+<td>实际 make/cmake 编译日志或目标配置。</td>
+</tr>
+<tr>
+<td><a href="../architecture/xios-config.html">xios-config</a></td>
+<td>XIOS server/client 模式、重复 field id 和实际输出开关组合需要运行验证。</td>
+<td>运行日志、<code>iodef.xml</code> 和 XIOS 输出文件。</td>
+</tr>
+<tr>
+<td><a href="../themes/util-toolchain.html">util-toolchain</a></td>
+<td>多个 util 工具串联时插值顺序会影响结果。</td>
+<td>固定输入文件和 <code>.def</code> 后做端到端工具链记录。</td>
+</tr>
+<tr>
+<td><a href="../modules/util/startarchive2icosa.html">startarchive2icosa</a></td>
+<td>XIOS/MPI 编译链和硬编码文件名对现代环境的兼容性。</td>
+<td>本机编译和一次 start archive 转换运行。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/dyn1d/mod_const_mpi.html">mod_const_mpi</a> / <a href="../modules/phymars/dyn1d/parallel_lmdz.html">parallel_lmdz</a></td>
+<td>1D XIOS、MPI、OpenMP 条件路径的实际组合。</td>
+<td>1D 不同编译选项下的运行日志。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="p3-遗留注释和局部代码清理">P3 遗留注释和局部代码清理</h2>
+<p>这些条目通常不阻塞 Wiki 交付，但应保留在源文件页中，避免误删历史语义：</p>
+<table>
+<thead>
+<tr>
+<th>页面</th>
+<th>条目</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/dynphy_lonlat/iniphysiq_mod.html">iniphysiq_mod</a></td>
+<td>源码 TODO 指出 <code>comgeomfi_h</code> 内容可能应迁移到 <code>geometry_mod</code>。</td>
+</tr>
+<tr>
+<td><a href="../modules/dynphy_lonlat/mvc_horiz_mod.html">mvc_horiz_mod</a></td>
+<td><code>pi</code> 声明赋值但未使用，纬度方向假设北到南递减。</td>
+</tr>
+<tr>
+<td><a href="../modules/dynphy_lonlat/subslope_mola.html">subslope_mola</a></td>
+<td>多个 <code>regular_lonlat_mod</code> 导入常量未直接使用；<code>crit</code> 的物理解释需结合坡面约定。</td>
+</tr>
+<tr>
+<td><a href="../modules/util/fit_Iceinertia_MONSicedepth.html">fit_Iceinertia_MONSicedepth</a></td>
+<td>xvik 输出命名与该工具硬编码读取名之间存在历史兼容性风险。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="已做掉的占位类问题">已做掉的占位类问题</h2>
+<p>本轮收尾已把以下“缺页面”类占位转为实际导航或边界说明：</p>
+<table>
+<thead>
+<tr>
+<th>原占位</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inigeomphy_mod</code> 旧缺页占位</td>
+<td>收束到 <a href="../architecture/common-dependencies.html">common-dependencies</a> 的 COMMON 几何边界说明。</td>
+</tr>
+<tr>
+<td><code>temps_mod</code> 旧缺页占位</td>
+<td>收束到 <a href="../architecture/common-dependencies.html">common-dependencies</a> 的时间状态边界说明。</td>
+</tr>
+<tr>
+<td><code>interp_horiz</code> 旧登记缺口</td>
+<td>收束到 <a href="../architecture/common-dependencies.html">common-dependencies</a> 的水平插值边界说明，并区分 <code>hrecast</code> 本地同名子程序。</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code> 旧缺页占位</td>
+<td>收束到 <a href="../architecture/common-dependencies.html">common-dependencies</a> 的几何共享状态说明。</td>
+</tr>
+<tr>
+<td>util 工具链主题/索引待写</td>
+<td>新增 <a href="../themes/util-toolchain.html">util-toolchain</a>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="后续处理规则">后续处理规则</h2>
+<ol type="1">
+<li>新增 <code>待确认</code> 时必须说明它需要源码、运行、外部数据、构建日志还是维护者判断。</li>
+<li>仅凭“看起来合理”不得移除 <code>待确认</code>。</li>
+<li>若运行验证通过，应在对应页面补一句验证证据，并在本页把条目移到“已确认”或删除。</li>
+<li>若发现真实源码问题，应新建维护任务或 issue，不在 Wiki 中直接修改源码。</li>
+</ol>
+
+    </article>
+  </main>
+</body>
+</html>

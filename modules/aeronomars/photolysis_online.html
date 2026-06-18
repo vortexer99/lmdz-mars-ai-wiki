@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>photolysis_online - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/photolysis_online.md</span>
+    </nav>
+    <article class="content">
+<h1 id="photolysis_onlinef">photolysis_online.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\photolysis_online.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>photolysis_online.F</code> 定义 <code>photolysis_online_mod</code>，是火星 GCM 在线光解率计算模块。它消费 <a href="photolysis_mod.html">photolysis_mod</a> 在 <code>init_photolysis</code> 中预读的光谱网格、太阳通量、温度相关截面和量子产额，对每一列大气逐波长做单色辐射传输（两流近似 + 伪球面修正），累加得到 <code>v_phot(nlayer, nb_phot_max)</code> 的 15 个光解率。</p>
+<p>本文件本身不读取任何外部文件，也不做化学矩阵积分；它只负责把 <code>photolysis_mod</code> 的共享谱表数据转化为逐层光解率，由 <a href="photochemistry_mod.html">photochemistry_mod</a> 在 <code>jonline=.true.</code> 时消费。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>photolysis_online_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1-1573</td>
+<td>在线光解率计算模块，包含主例程和全部内部子例程</td>
+</tr>
+<tr>
+<td><code>photolysis_online</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">9-1571</td>
+<td>在线光解主入口；接收大气剖面和几何参数，输出 <code>v_phot</code> 光解率</td>
+</tr>
+<tr>
+<td><code>setair</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">285-337</td>
+<td>计算空气柱增量 <code>colinc</code> 和 CO₂ Rayleigh 光学厚度 <code>dtrl</code>（Ityaksov 2008）</td>
+</tr>
+<tr>
+<td><code>setco2</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">341-425</td>
+<td>CO₂ 温度相关截面（195/295/370 K 对数插值），O(¹D) 通道 λ&lt;167 nm</td>
+</tr>
+<tr>
+<td><code>seto2</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">429-514</td>
+<td>O₂ 温度相关截面（150/200/250/300 K 线性插值），Schumann-Runge 修正，O(¹D) λ&lt;175 nm</td>
+</tr>
+<tr>
+<td><code>seto3</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">516-597</td>
+<td>O₃ 温度相关截面（218/298 K 线性插值），O(¹D) 量子产额 JPL 2006</td>
+</tr>
+<tr>
+<td><code>seth2o2</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">599-675</td>
+<td>H₂O₂ 温度相关截面（JPL 2006 多项式 A0-A7 + B0-B4）</td>
+</tr>
+<tr>
+<td><code>setno2</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">677-743</td>
+<td>NO₂ 温度相关截面（220/294 K）和量子产额（248/298 K），JPL 2006</td>
+</tr>
+<tr>
+<td><code>setaer</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">745-802</td>
+<td>固定气溶胶光学属性：ω=0.622（Wolff 2010@258nm）、g=0.88（Mateshvili 2007@210nm）、scaleh=10km、γ=0.03（Conrath）</td>
+</tr>
+<tr>
+<td><code>setcld</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">804-845</td>
+<td>无云（<code>dtcld=0</code>）；预留 <code>omcld=0.99</code>、<code>gcld=0.85</code></td>
+</tr>
+<tr>
+<td><code>sphers</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">847-976</td>
+<td>球面几何斜路径（Dahlback &amp; Stamnes 1991），火星半径 3393 km</td>
+</tr>
+<tr>
+<td><code>rtlink</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">978-1074</td>
+<td>光学属性汇总和辐射传输调度；delta 缩放开关，调用 <code>ps2str</code></td>
+</tr>
+<tr>
+<td><code>ps2str</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">1076-1526</td>
+<td>两流辐射传输求解器（Toon et al. 1989），半球平均法，伪球面直射修正</td>
+</tr>
+<tr>
+<td><code>tridiag</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">1528-1571</td>
+<td>Thomas 三对角算法（Numerical Recipes）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>photolysis_mod</code></td>
+<td><code>nw, wl, wc, wu, f, albedo, mopt, nphot, nabs, xso2_*, xsco2_*, xso3_*, xsh2o, xsh2o2, xsho2, xsh2, xsno*, xsn2, xshdo, yieldco2, yieldo2, yieldh2, yieldno, yieldn2, yldno2_*</code></td>
+<td>读取全部光谱网格、太阳通量、吸收截面、量子产额和地表反照率</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th style="text-align: right;">调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>setair</code></td>
+<td>本文件 contains</td>
+<td style="text-align: right;">130</td>
+<td>空气柱增量和 Rayleigh 光学厚度</td>
+</tr>
+<tr>
+<td><code>seto2</code></td>
+<td>本文件 contains</td>
+<td style="text-align: right;">138</td>
+<td>O₂ 温度相关截面和光学厚度</td>
+</tr>
+<tr>
+<td><code>setco2</code></td>
+<td>本文件 contains</td>
+<td style="text-align: right;">145</td>
+<td>CO₂ 温度相关截面和光学厚度</td>
+</tr>
+<tr>
+<td><code>seto3</code></td>
+<td>本文件 contains</td>
+<td style="text-align: right;">152</td>
+<td>O₃ 温度相关截面和光学厚度</td>
+</tr>
+<tr>
+<td><code>seth2o2</code></td>
+<td>本文件 contains</td>
+<td style="text-align: right;">159</td>
+<td>H₂O₂ 温度相关截面和光学厚度</td>
+</tr>
+<tr>
+<td><code>setno2</code></td>
+<td>本文件 contains</td>
+<td style="text-align: right;">165</td>
+<td>NO₂ 温度相关截面和光学厚度</td>
+</tr>
+<tr>
+<td><code>setaer</code></td>
+<td>本文件 contains</td>
+<td style="text-align: right;">222</td>
+<td>气溶胶光学厚度和散射属性</td>
+</tr>
+<tr>
+<td><code>setcld</code></td>
+<td>本文件 contains</td>
+<td style="text-align: right;">226</td>
+<td>云光学厚度（当前设为零）</td>
+</tr>
+<tr>
+<td><code>sphers</code></td>
+<td>本文件 contains</td>
+<td style="text-align: right;">230</td>
+<td>球面几何斜路径长度</td>
+</tr>
+<tr>
+<td><code>rtlink</code></td>
+<td>本文件 contains</td>
+<td style="text-align: right;">253</td>
+<td>单色辐射传输调度</td>
+</tr>
+<tr>
+<td><code>ps2str</code></td>
+<td>本文件 contains（由 rtlink 调用）</td>
+<td style="text-align: right;">1058/1066</td>
+<td>两流近似辐射传输求解</td>
+</tr>
+<tr>
+<td><code>tridiag</code></td>
+<td>本文件 contains（由 ps2str 调用）</td>
+<td style="text-align: right;">1377/1462</td>
+<td>三对角矩阵求解</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>integer</td>
+<td>层</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>deutchem</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>logical</td>
+<td>-</td>
+<td>是否启用氘化学（HDO 光解两通道）</td>
+</tr>
+<tr>
+<td><code>nb_phot_max</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>integer</td>
+<td>反应数</td>
+<td>输出 <code>v_phot</code> 第二维容量</td>
+</tr>
+<tr>
+<td><code>alt(nlayer)</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>real</td>
+<td>km</td>
+<td>层高度</td>
+</tr>
+<tr>
+<td><code>press(nlayer)</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>real</td>
+<td>hPa</td>
+<td>层压力</td>
+</tr>
+<tr>
+<td><code>temp(nlayer)</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>real</td>
+<td>K</td>
+<td>层温度</td>
+</tr>
+<tr>
+<td><code>mmean(nlayer)</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>real</td>
+<td>g mol⁻¹</td>
+<td>平均分子质量</td>
+</tr>
+<tr>
+<td><code>rm(nlayer,nesp)</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>real</td>
+<td>VMR</td>
+<td>各化学物种混合比</td>
+</tr>
+<tr>
+<td><code>i_co2,i_co,i_o,i_o1d,i_o2,i_o3,i_h,i_h2,i_oh,i_ho2,i_h2o2,i_h2o,i_n,i_n2d,i_no,i_no2,i_n2</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>integer</td>
+<td>index</td>
+<td>化学物种在 <code>rm</code> 第二维中的索引</td>
+</tr>
+<tr>
+<td><code>nesp</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>integer</td>
+<td>物种数</td>
+<td>化学物种总数</td>
+</tr>
+<tr>
+<td><code>tau</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>real</td>
+<td>-</td>
+<td>地表积分气溶胶光学厚度</td>
+</tr>
+<tr>
+<td><code>sza</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>real</td>
+<td>degree</td>
+<td>太阳天顶角</td>
+</tr>
+<tr>
+<td><code>dist_sol</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>real</td>
+<td>AU</td>
+<td>日火距离</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>v_phot(nlayer,nb_phot_max)</code></td>
+<td><a href="photochemistry_mod.html">photochemistry_mod</a></td>
+<td><code>real(kind=8)</code></td>
+<td>s⁻¹</td>
+<td>光解率；前 <code>nphot</code> 个槽位填充，其余保持零</td>
+</tr>
+</tbody>
+</table>
+<h3 id="光解反应编号">光解反应编号</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">编号</th>
+<th>变量名</th>
+<th>反应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td><code>j_o2_o</code></td>
+<td>O₂ + hν → O + O</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td><code>j_o2_o1d</code></td>
+<td>O₂ + hν → O + O(¹D)</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td><code>j_co2_o</code></td>
+<td>CO₂ + hν → CO + O</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td><code>j_co2_o1d</code></td>
+<td>CO₂ + hν → CO + O(¹D)</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td><code>j_o3_o1d</code></td>
+<td>O₃ + hν → O₂ + O(¹D)</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td><code>j_o3_o</code></td>
+<td>O₃ + hν → O₂ + O</td>
+</tr>
+<tr>
+<td style="text-align: right;">7</td>
+<td><code>j_h2o</code></td>
+<td>H₂O + hν → H + OH</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td><code>j_h2o2</code></td>
+<td>H₂O₂ + hν → OH + OH</td>
+</tr>
+<tr>
+<td style="text-align: right;">9</td>
+<td><code>j_ho2</code></td>
+<td>HO₂ + hν → OH + O</td>
+</tr>
+<tr>
+<td style="text-align: right;">10</td>
+<td><code>j_h2</code></td>
+<td>H₂ + hν → H + H</td>
+</tr>
+<tr>
+<td style="text-align: right;">11</td>
+<td><code>j_no</code></td>
+<td>NO + hν → N + O</td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td><code>j_no2</code></td>
+<td>NO₂ + hν → NO + O</td>
+</tr>
+<tr>
+<td style="text-align: right;">13</td>
+<td><code>j_n2</code></td>
+<td>N₂ + hν → N + N</td>
+</tr>
+<tr>
+<td style="text-align: right;">14</td>
+<td><code>j_hdo_od</code></td>
+<td>HDO + hν → OD + H（仅 <code>deutchem</code>）</td>
+</tr>
+<tr>
+<td style="text-align: right;">15</td>
+<td><code>j_hdo_d</code></td>
+<td>HDO + hν → D + OH（仅 <code>deutchem</code>）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="吸收气体编号">吸收气体编号</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">编号</th>
+<th>变量名</th>
+<th>气体</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td><code>a_o2</code></td>
+<td>O₂</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td><code>a_co2</code></td>
+<td>CO₂</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td><code>a_o3</code></td>
+<td>O₃</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td><code>a_h2o</code></td>
+<td>H₂O</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td><code>a_h2o2</code></td>
+<td>H₂O₂</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td><code>a_ho2</code></td>
+<td>HO₂</td>
+</tr>
+<tr>
+<td style="text-align: right;">7</td>
+<td><code>a_h2</code></td>
+<td>H₂</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td><code>a_no</code></td>
+<td>NO</td>
+</tr>
+<tr>
+<td style="text-align: right;">9</td>
+<td><code>a_no2</code></td>
+<td>NO₂</td>
+</tr>
+<tr>
+<td style="text-align: right;">10</td>
+<td><code>a_n2</code></td>
+<td>N₂</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本模块无自有 <code>SAVE</code> 或 <code>THREADPRIVATE</code> 变量；所有光谱数据通过 <code>use photolysis_mod</code> 访问。</li>
+<li><code>rtlink</code> 内有 <code>logical, save :: delta</code> 并标记 <code>!$OMP THREADPRIVATE(delta)</code>，用于缓存 delta 缩放选择。</li>
+<li>无文件 I/O、无 <code>abort_physic</code>、无 MPI 通信；所有输入数据已由 <code>photolysis_mod::init_photolysis</code> 预读并广播。</li>
+<li><code>v_phot</code> 先初始化为零，波长循环累加后统一清除 <code>&lt;1e-30</code> 的小值。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>工作垂直网格</strong>：将 <code>nlayer</code> 层 GCM 网格复制到 <code>nlev=nlayer+1</code> 层界面网格（<code>zpress/zalt/ztemp/zmmean</code>），顶层设 <code>zpress(nlev)=0</code>，顶层高度和温度用外推。</li>
+<li><strong>空气柱和 Rayleigh</strong>：<code>setair</code> 用静力方程 <code>colinc = avo * 0.1 * dp / (mmean * g)</code> 计算空气柱增量（<code>g=3.72</code> m/s²），用 Ityaksov et al. 2008 CO₂ Rayleigh 截面 <code>σ = 1.78e-26 * ν^(4+0.625)</code> 计算 <code>dtrl</code>。</li>
+<li><strong>温度相关截面</strong>：对 O₂（4 温度点线性）、CO₂（3 温度点对数）、O₃（2 温度点线性）、H₂O₂（JPL 多项式）和 NO₂（2 温度点+量子产额）调用各 <code>set*</code> 子例程，填充 <code>dtgas</code> 和 <code>sj</code>。</li>
+<li><strong>温度无关截面</strong>：对 H₂O、HO₂、H₂、NO、N₂ 直接在循环中用 <code>colinc * rm * xs</code> 填充 <code>dtgas</code> 和 <code>sj</code>（含产额 <code>yieldh2/yieldno/yieldn2</code>）。</li>
+<li><strong>氘化学</strong>：若 <code>deutchem=.true.</code>，HDO 用 <code>0.5*xshdo</code> 分两个通道（<code>j_hdo_od</code> 和 <code>j_hdo_d</code>）填充 <code>sj</code>。</li>
+<li><strong>总气体光学厚度</strong>：<code>dagas</code> 对所有 10 种吸收气体的 <code>dtgas</code> 逐层逐波长求和。</li>
+<li><strong>气溶胶和云</strong>：<code>setaer</code> 设置固定气溶胶廓线（<code>scaleh=10km</code>、<code>gamma=0.03</code> 波长依赖、<code>omega=0.622</code>、<code>g=0.88</code>）；<code>setcld</code> 设零云光学厚度。</li>
+<li><strong>球面几何</strong>：<code>sphers</code> 按 Dahlback &amp; Stamnes 1991 计算斜路径长度比 <code>dsdh</code> 和层间折射索引 <code>nid</code>，火星半径 <code>3393 km</code>。</li>
+<li><strong>太阳通量缩放</strong>：<code>fmars = f * (1/dist_sol)^2</code>。</li>
+<li><strong>波长循环</strong>：对 <code>iw=1:nw-1</code>，调用 <code>rtlink</code> 做单色辐射传输，得到直射/漫射上下行辐照度 <code>edir/edn/eup</code> 和作用量通量 <code>fdir/fdn/fup</code>；计算球面作用量通量 <code>saflux = fmars * (fdir+fdn+fup)</code>；逐反应逐层累加 <code>v_phot += saflux * sj * (wu-wl)</code>。</li>
+<li><strong>小值清除</strong>：<code>where (v_phot &lt; 1e-30) v_phot = 0</code>。</li>
+</ol>
+<h3 id="rtlink--ps2str-细节">rtlink / ps2str 细节</h3>
+<ul>
+<li><code>rtlink</code> 做 delta 缩放（<code>delta</code> 逻辑变量 <code>save</code> 并 <code>THREADPRIVATE</code>）：当 <code>g² &gt; 0.2</code> 时启用，缩放 <code>tau/omega</code> 后调用 <code>ps2str</code>。</li>
+<li><code>ps2str</code> 实现 Toon et al. 1989 两流近似，选择半球平均法（hemispheric mean），用 <code>tridiag</code> 求解 2*nlev 维三对角系统。</li>
+<li>伪球面修正：直射光束用 <code>sphers</code> 的 <code>dsdh</code> 斜路径衰减，而非平面平行近似。</li>
+</ul>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>photolysis_online(nlayer, ..., v_phot):
+  nlev = nlayer + 1
+  build interface-level grid zpress/zalt/ztemp/zmmean (top: p=0, extrapolate z/T)
+
+  call setair → colinc, dtrl (Rayleigh, Ityaksov 2008 CO2)
+
+  dtgas = 0
+  call seto2  → dtgas(:,:  ,a_o2),  sj(:,:,:  )  [T-dep, 4-point linear, Schumann-Runge]
+  call setco2 → dtgas(:,:  ,a_co2), sj(:,:,:  )  [T-dep, 3-point log, O(1D)&lt;167nm]
+  call seto3  → dtgas(:,:  ,a_o3),  sj(:,:,:  )  [T-dep, 2-point linear, JPL yield]
+  call seth2o2→ dtgas(:,:  ,a_h2o2),sj(:,:,:  )  [T-dep, JPL polynomial]
+  call setno2 → dtgas(:,:  ,a_no2), sj(:,:,:  )  [T-dep, 2-point + yield]
+
+  for ilay, iw:  # T-independent
+    dtgas(ilay,iw,a_h2o) = colinc * rm(i_h2o) * xsh2o
+    dtgas(ilay,iw,a_ho2) = colinc * rm(i_ho2) * xsho2
+    dtgas(ilay,iw,a_h2)  = colinc * rm(i_h2)  * xsh2  * yieldh2
+    dtgas(ilay,iw,a_no)  = colinc * rm(i_no)  * xsno  * yieldno
+    dtgas(ilay,iw,a_n2)  = colinc * rm(i_n2)  * xsn2  * yieldn2
+    sj(ilay,iw,j_*) = corresponding xs * yield
+
+  if deutchem: sj(:,:,j_hdo_od) = sj(:,:,j_hdo_d) = 0.5 * xshdo
+
+  dagas = sum(dtgas over all absorbers)
+
+  call setaer → dtaer, omaer, gaer (fixed aerosol profile)
+  call setcld → dtcld=0, omcld, gcld (no clouds)
+  call sphers → dsdh, nid (spherical geometry, R=3393km)
+
+  fmars = f * (1/dist_sol)^2
+  v_phot = 0
+
+  for iw = 1..nw-1:
+    call rtlink → edir, edn, eup, fdir, fdn, fup (two-stream, pseudo-spherical)
+    saflux = fmars * (fdir + fdn + fup)
+    for i = 1..nphot:
+      for ilay = 1..nlayer:
+        v_phot(ilay,i) += saflux(ilay) * sj(ilay,iw,i) * (wu(iw) - wl(iw))
+
+  where (v_phot &lt; 1e-30) v_phot = 0</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>在线光解</td>
+<td><code>jonline=.true.</code> 时由 <a href="photochemistry_mod.html">photochemistry_mod</a> 调用，消费 <a href="photolysis_mod.html">photolysis_mod</a> 的光谱数据</td>
+</tr>
+<tr>
+<td>光化学反应网络</td>
+<td>提供基础 15 个光解槽位中的有效速率（13 或 15 取决于 <code>deutchem</code>），供 <code>photochemistry</code> 反应速率和矩阵积分</td>
+</tr>
+<tr>
+<td>氘化学</td>
+<td><code>deutchem=.true.</code> 时额外计算 HDO 两通道光解（<code>j_hdo_od</code>/<code>j_hdo_d</code>）</td>
+</tr>
+<tr>
+<td>气溶胶-光解耦合</td>
+<td>地表气溶胶光学厚度 <code>tau</code> 通过 <code>setaer</code> 影响全柱光解率</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran（<code>.F</code>），保留大量 TUV 风格注释块和 ASCII 装饰线。</li>
+<li>全部内部子例程通过 <code>contains</code> 封装在 <code>photolysis_online</code> 内部，共享主例程的局部变量（隐式宿主关联），不通过参数传递 <code>nw/wl/wc</code> 等——而是通过 <code>use photolysis_mod</code> 模块变量访问。</li>
+<li><code>rtlink</code> 中 <code>delta</code> 用 <code>save</code> + <code>THREADPRIVATE</code> 缓存，首次调用计算后保持不变。</li>
+<li>火星重力 <code>g=3.72</code> m/s² 和 Avogadro 常数 <code>avo=6.022e23</code> 在 <code>setair</code> 中硬编码为 <code>parameter</code>。</li>
+<li>火星半径 <code>3393 km</code> 在 <code>sphers</code> 中硬编码。</li>
+<li><code>setcld</code> 当前设 <code>dtcld=0</code>，但已预留 <code>omcld=0.99</code> 和 <code>gcld=0.85</code> 参数，为未来云光学模块留出接口。</li>
+<li><code>ps2str</code> 实现 4 种两流方法（hemispheric mean、Eddington、quadrature、P-I），但硬编码选择 <code>1=hemispheric mean</code>。</li>
+<li><code>seto2</code> 中 Schumann-Runge 波段（180-200 nm）低分辨率修正因子 <code>factor=0.8</code>（<code>mopt==2</code>）。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>调用前必须已完成 <code>photolysis_mod::init_photolysis</code>，否则所有 <code>xs*/yield*/f/albedo</code> 数组未初始化。</li>
+<li><code>nphot</code> 由 <code>photolysis_mod</code> 模块变量提供；基础值 13，<code>deutchem</code> 开启时 <code>calchim_mod</code> 会设为 15，<code>nb_phot_max</code> 需 ≥ <code>nphot</code>。</li>
+<li><code>rm</code> 混合比的物种索引必须与 <code>photochemistry_mod</code> 中传入的 <code>i_co2/i_o2/i_o3</code> 等一致。</li>
+<li><code>sza</code> 在线路径的日夜阈值为 113°（由 <code>photochemistry_mod</code> 控制），不同于离线 <code>photolysis</code> 的 95° 阈值。</li>
+<li>输出 <code>v_phot</code> 的小值清除阈值为 <code>1e-30</code>；小于此值的光解率被置零。</li>
+<li><code>dist_sol</code> 缩放以 1 AU 为基准（<code>(1/dist_sol)^2</code>），与离线路径的 <code>(1.52/dist_sol)^2</code> 基准不同。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>rtlink</code> 的 <code>delta</code> 保存变量在多次调用间保持首次计算值，是否在不同 SZA/气溶胶条件下需要重算待确认。</li>
+<li><code>setcld</code> 预留的 <code>omcld=0.99</code> 和 <code>gcld=0.85</code> 参数来源文献待确认。</li>
+<li><code>ps2str</code> 硬编码选择 hemispheric mean 方法，是否曾使用或计划使用其他方法待确认。</li>
+<li>离线 <code>photolysis</code> 的 <code>sza</code> 阈值为 95° 而在线路径为 113°（由调用方控制），差异是否为有意设计待确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="photolysis_mod.html">photolysis_mod</a>：上游共享谱表模块；提供全部光谱输入数据。</li>
+<li><a href="photochemistry_mod.html">photochemistry_mod</a>：下游消费方，<code>jonline=.true.</code> 时调用本例程获取 <code>v_phot</code>。</li>
+<li><a href="photolysis.html">photolysis</a>：离线光解路径；与本文件在线路径互斥。</li>
+<li><a href="calchim_mod.html">calchim_mod</a>：高层化学调度，控制在线/离线光解选择。</li>
+<li><a href="chemistrydata.html">chemistrydata</a>：离线光解查找表数据模块。</li>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

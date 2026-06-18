@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>planete_h - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/planete_h.md</span>
+    </nav>
+    <article class="content">
+<h1 id="planete_hf90">planete_h.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\planete_h.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>planete_h.F90</code> 定义 <code>planete_h</code> 共享模块，用来保存火星轨道参数、年长、倾角、边界层湍流下限，以及由轨道输入派生出的偏心率、半通径和近日点太阳经度。它本身不推进物理时间步，而是在初始化阶段由 <code>tabfi</code> 或 1D 初始化路径写入基础量，再由 <code>iniorbit</code> 计算 <code>e_elips/p_elips/lsperi</code>，供 <code>solarlong</code> 和 <code>orbite</code> 把 sol 日期、太阳经度、日火距离和太阳赤纬联系起来。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>planete_h</code></td>
+<td>module</td>
+<td>1</td>
+<td>保存行星轨道、年长、倾角、湍流下限和派生轨道几何量的共享模块。</td>
+</tr>
+<tr>
+<td><code>aphelie</code></td>
+<td>module variable, <code>REAL,SAVE</code></td>
+<td>5</td>
+<td>远日点日火距离，单位 Mkm。</td>
+</tr>
+<tr>
+<td><code>periheli</code></td>
+<td>module variable, <code>REAL,SAVE</code></td>
+<td>6</td>
+<td>近日点日火距离，单位 Mkm。</td>
+</tr>
+<tr>
+<td><code>year_day</code></td>
+<td>module variable, <code>REAL,SAVE</code></td>
+<td>7</td>
+<td>一个火星年的 sol 数。</td>
+</tr>
+<tr>
+<td><code>peri_day</code></td>
+<td>module variable, <code>REAL,SAVE</code></td>
+<td>9</td>
+<td>近日点日期，单位 sol。</td>
+</tr>
+<tr>
+<td><code>obliquit</code></td>
+<td>module variable, <code>REAL,SAVE</code></td>
+<td>10</td>
+<td>行星倾角，单位 degree。</td>
+</tr>
+<tr>
+<td><code>lmixmin</code></td>
+<td>module variable, <code>REAL,SAVE</code></td>
+<td>11</td>
+<td>边界层混合长度下限参数。</td>
+</tr>
+<tr>
+<td><code>emin_turb</code></td>
+<td>module variable, <code>REAL,SAVE</code></td>
+<td>13</td>
+<td>湍流能量下限参数。</td>
+</tr>
+<tr>
+<td><code>coefvis</code></td>
+<td>module variable, <code>REAL,SAVE</code></td>
+<td>14</td>
+<td>可见光系数共享槽；本次源码搜索未找到 <code>phymars</code> 内除本模块外的读写点。</td>
+</tr>
+<tr>
+<td><code>coefir</code></td>
+<td>module variable, <code>REAL,SAVE</code></td>
+<td>15</td>
+<td>红外系数共享槽；本次源码搜索未找到 <code>phymars</code> 内除本模块外的读写点。</td>
+</tr>
+<tr>
+<td><code>lsperi</code></td>
+<td>module variable, <code>REAL,SAVE</code></td>
+<td>17</td>
+<td>近日点太阳经度，单位 rad，由 <code>iniorbit</code> 计算。</td>
+</tr>
+<tr>
+<td><code>e_elips</code></td>
+<td>module variable, <code>REAL,SAVE</code></td>
+<td>18</td>
+<td>轨道偏心率，由远日点和近日点距离计算。</td>
+</tr>
+<tr>
+<td><code>p_elips</code></td>
+<td>module variable, <code>REAL,SAVE</code></td>
+<td>19</td>
+<td>椭圆半通径，<code>iniorbit</code> 中除以 <code>unitastr</code> 后以 AU 保存。</td>
+</tr>
+<tr>
+<td><code>unitastr</code></td>
+<td>real parameter</td>
+<td>21</td>
+<td>天文单位，149.597927 Mkm。</td>
+</tr>
+<tr>
+<td><code>lsp2solp</code></td>
+<td>subroutine</td>
+<td>28</td>
+<td>给定近日点太阳经度 <code>lsp</code>，反推近日点 sol <code>solp</code>。</td>
+</tr>
+<tr>
+<td><code>iniorbit</code></td>
+<td>subroutine</td>
+<td>54</td>
+<td>根据 <code>aphelie/periheli/year_day/peri_day</code> 初始化 <code>e_elips/p_elips/lsperi</code> 并打印诊断。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td><code>lsp2solp</code> 和 <code>iniorbit</code> 使用圆周率做角度、异常近点角和太阳经度换算。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>本文件不调用自定义例程，只使用 <code>atan</code>、<code>tan</code>、<code>sqrt</code>、<code>sin</code>、<code>cos</code>、<code>abs</code>、<code>nint</code>、<code>modulo</code> 等 Fortran intrinsic。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="上游写入与调用点">上游写入与调用点</h2>
+<table>
+<thead>
+<tr>
+<th>调用方 / 写入方</th>
+<th>源码位置</th>
+<th>关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tabfi.F</code></td>
+<td><code>use planete_h</code> 在 62-64 行；默认值在 123-133 行；重启控制表读取在 190-198 行；<code>call iniorbit()</code> 在 549 行</td>
+<td>3D 物理初始化路径设置 <code>year_day/periheli/aphelie/peri_day/obliquit/lmixmin/emin_turb</code>，可交互修改 <code>peri_ls</code> 并调用 <code>lsp2solp</code>，最后调用 <code>iniorbit</code> 生成派生轨道量。</td>
+</tr>
+<tr>
+<td><code>init_testphys1d_mod.F90</code></td>
+<td><code>use planete_h</code> 在 15 行；默认值在 141-154 行；<code>paleomars</code> 分支在 369-401 行</td>
+<td>1D/testphys 路径设置同一组轨道和湍流参数；<code>paleomars</code> 为真时从 <code>callphys.def</code> 读 <code>obliquit/eccentric/Lsperi</code>，再改写 <code>periheli/aphelie/peri_day</code>。</td>
+</tr>
+<tr>
+<td><code>phyredem.F90</code></td>
+<td><code>use planete_h</code> 在 22-23 行；控制表写入在 110-119 行</td>
+<td>物理 start/restart 写出时把年长、近日点/远日点距离、近日点 sol、倾角、混合长度和湍流能量下限保存到 <code>tab_cntrl</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="下游读取点">下游读取点</h2>
+<table>
+<thead>
+<tr>
+<th>读取方</th>
+<th>源码位置</th>
+<th>读取内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>solarlong.F</code></td>
+<td>8 行；36-58 行</td>
+<td>读取 <code>peri_day/year_day/e_elips/lsperi</code>，把 sol 日期转换为太阳经度 <code>psollong</code>。</td>
+</tr>
+<tr>
+<td><code>orbite.F</code></td>
+<td>8 行；40-43 行</td>
+<td>读取 <code>e_elips/p_elips/obliquit/lsperi</code>，把太阳经度转换为日火距离 <code>pdist_sol</code> 和太阳赤纬 <code>pdecli</code>。</td>
+</tr>
+<tr>
+<td><code>co2condens_mod.F</code></td>
+<td>31 行、874 行</td>
+<td>读取 <code>obliquit</code>，在低倾角且非古气候分支下参与 CO2 极冠相关条件判断。</td>
+</tr>
+<tr>
+<td><code>physiq_mod.F</code></td>
+<td>89 行</td>
+<td>读取 <code>obliquit</code>；源码附近注释说明 CO2 冷阱倾角判断现由 <code>co2condens</code> 处理。</td>
+</tr>
+<tr>
+<td><code>read_dust_scenario_mod.F90</code></td>
+<td>15 行、188-191 行</td>
+<td>读取 <code>year_day</code>，当尘埃注入或 <code>dustscaling_mode==2</code> 时检查情景文件时间维长度是否等于年长。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>aphelie</code></td>
+<td><code>tabfi</code> 默认值、restart <code>tab_cntrl(16)</code> 或 1D <code>paleomars</code> 换算</td>
+<td>real scalar</td>
+<td>Mkm</td>
+<td>远日点日火距离。</td>
+</tr>
+<tr>
+<td><code>periheli</code></td>
+<td><code>tabfi</code> 默认值、restart <code>tab_cntrl(15)</code> 或 1D <code>paleomars</code> 换算</td>
+<td>real scalar</td>
+<td>Mkm</td>
+<td>近日点日火距离。</td>
+</tr>
+<tr>
+<td><code>year_day</code></td>
+<td><code>tabfi</code> 默认值或 restart <code>tab_cntrl(14)</code>；1D 默认值</td>
+<td>real scalar</td>
+<td>sol</td>
+<td>火星年长度。</td>
+</tr>
+<tr>
+<td><code>peri_day</code></td>
+<td><code>tabfi</code> 默认值、restart <code>tab_cntrl(17)</code>、<code>lsp2solp</code> 或 <code>call_dayperi</code></td>
+<td>real scalar</td>
+<td>sol</td>
+<td>从北半球春分起算的近日点日期。</td>
+</tr>
+<tr>
+<td><code>obliquit</code></td>
+<td><code>tabfi</code> 默认值、restart <code>tab_cntrl(18)</code> 或 1D <code>getin("obliquit")</code></td>
+<td>real scalar</td>
+<td>degree</td>
+<td>轨道倾角。</td>
+</tr>
+<tr>
+<td><code>lsp</code></td>
+<td><code>tabfi</code> 交互修改项 <code>peri_ls</code></td>
+<td>real scalar</td>
+<td>degree</td>
+<td>传给 <code>lsp2solp</code> 的近日点太阳经度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>solp</code></td>
+<td><code>tabfi</code> 的 <code>peri_day</code></td>
+<td>real scalar</td>
+<td>sol</td>
+<td><code>lsp2solp</code> 由近日点太阳经度反推的近日点日期。</td>
+</tr>
+<tr>
+<td><code>e_elips</code></td>
+<td><code>solarlong</code>、<code>orbite</code></td>
+<td>real saved scalar</td>
+<td>-</td>
+<td>轨道偏心率 <code>(aphelie - periheli)/(aphelie + periheli)</code>。</td>
+</tr>
+<tr>
+<td><code>p_elips</code></td>
+<td><code>orbite</code></td>
+<td>real saved scalar</td>
+<td>AU</td>
+<td>半通径 <code>0.5*(periheli+aphelie)*(1-e^2)/unitastr</code>。</td>
+</tr>
+<tr>
+<td><code>lsperi</code></td>
+<td><code>solarlong</code>、<code>orbite</code></td>
+<td>real saved scalar</td>
+<td>rad</td>
+<td>近日点太阳经度，<code>iniorbit</code> 用平均近点角和偏近点角求得后归一到 <code>[0,2*pi)</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>所有可变模块量都是 <code>REAL,SAVE</code>，并用 OpenMP <code>THREADPRIVATE</code> 分组声明；并行运行时每个线程持有私有副本。</li>
+<li><code>lsp2solp</code> 不只返回 <code>solp</code>，还会重算并写入模块变量 <code>e_elips</code>。</li>
+<li><code>iniorbit</code> 写入 <code>e_elips/p_elips/lsperi</code>，并向标准输出打印输入轨道量、偏心率、半通径、平均近点角、偏近点角和近日点太阳经度。</li>
+<li><code>coefvis/coefir</code> 在本文件中声明为共享状态，但本次 <code>rg</code> 未发现 <code>phymars</code> 内实际读写点；复现时不要假定它们已参与当前主路径。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>初始化路径先写基础轨道量：<code>aphelie/periheli/year_day/peri_day/obliquit</code>。3D 路径来自 <code>tabfi</code> 默认值或 <code>startfi.nc</code> 控制表；1D 路径来自默认常数或 <code>paleomars</code> 配置。</li>
+<li>如用户在 <code>tabfi</code> 交互修改 <code>peri_ls</code>，<code>lsp2solp</code> 先用远日点/近日点距离求 <code>e_elips</code>，把输入的近日点 Ls 转成偏近点角，再由 Kepler 方程形式反推出 <code>peri_day</code>。</li>
+<li><code>iniorbit</code> 重新由远日点/近日点距离计算 <code>e_elips</code>，并计算 AU 单位的 <code>p_elips</code>。</li>
+<li><code>iniorbit</code> 用 <code>(year_day - peri_day)/year_day</code> 得到平均近点角，Newton 迭代求偏近点角 <code>zx0</code>，收敛阈值为 <code>1.e-12</code>，最多 100 次。</li>
+<li><code>iniorbit</code> 由 <code>zx0</code> 和 <code>e_elips</code> 计算 <code>lsperi</code>，再用 <code>modulo(lsperi,2*pi)</code> 归一化。</li>
+<li>后续 <code>solarlong</code> 用 <code>peri_day/year_day/e_elips/lsperi</code> 把日期转为 Ls；<code>orbite</code> 用 <code>e_elips/p_elips/lsperi/obliquit</code> 把 Ls 转为距离和赤纬。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>initialize base orbit values from tabfi, restart, or 1D configuration
+
+if user changes peri_ls in tabfi:
+    e_elips = (aphelie - periheli) / (aphelie + periheli)
+    zx0 = eccentric_anomaly_at_Ls0(peri_ls, e_elips)
+    solp = year_day * (1 - (zx0 - e_elips * sin(zx0)) / (2*pi))
+    peri_day = solp
+
+iniorbit:
+    e_elips = (aphelie - periheli) / (aphelie + periheli)
+    p_elips = 0.5 * (periheli + aphelie) * (1 - e_elips^2) / unitastr
+    zanom = 2*pi * (((year_day - peri_day) / year_day) - nearest_integer)
+    solve zx0 - e_elips*sin(zx0) = abs(zanom) by Newton iteration
+    if zanom &lt; 0:
+        zx0 = -zx0
+    lsperi = modulo(-2 * atan(sqrt((1+e_elips)/(1-e_elips)) * tan(zx0/2)), 2*pi)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>轨道 / 季节换算</td>
+<td>保存并初始化 <code>peri_day/year_day/e_elips/lsperi</code>，支撑 sol 与 Ls 的互转。</td>
+</tr>
+<tr>
+<td>太阳几何</td>
+<td>保存 <code>obliquit</code>、<code>p_elips</code> 和 <code>lsperi</code>，支撑日火距离和太阳赤纬计算。</td>
+</tr>
+<tr>
+<td>辐射调用链</td>
+<td><code>orbite</code> 的 <code>dist_sol/declin</code> 下游影响短波通量缩放、太阳角、近红外 CO2 加热、坡面和热层路径。</td>
+</tr>
+<tr>
+<td>restart 可复现性</td>
+<td><code>phyredem</code> 把基础轨道和湍流参数写入控制表；<code>tabfi</code> 可从控制表恢复这些值并重新调用 <code>iniorbit</code>。</td>
+</tr>
+<tr>
+<td>1D 古气候试验</td>
+<td><code>init_testphys1d_mod.F90</code> 的 <code>paleomars</code> 分支通过 <code>obliquit/eccentric/Lsperi</code> 改写本模块轨道状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>这是自由格式 <code>.F90</code> 模块，但变量名沿用较老的 <code>planete_h</code> 头文件风格。</li>
+<li>共享变量未声明 <code>PROTECTED</code>，源码第 23 行注释也提示理想情况下应保护；当前实现依赖初始化顺序约束。</li>
+<li><code>lsp2solp</code> 的局部 <code>degrad = 180.d0/pi</code> 让输入 <code>lsp</code> 按 degree 解释；<code>lsperi</code> 模块变量则以 rad 保存。</li>
+<li><code>iniorbit</code> 的 Newton 迭代结束后无论是否因收敛退出，都会再执行一次 <code>zx0 = zx0 + zdx</code>；复现时应保留该字面行为。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>调用 <code>solarlong</code> 或 <code>orbite</code> 前必须保证 <code>iniorbit</code> 已在当前线程的 <code>planete_h</code> 副本上执行，否则 <code>e_elips/p_elips/lsperi</code> 可能未定义或过期。</li>
+<li><code>aphelie/periheli</code> 用 Mkm，<code>p_elips</code> 输出为 AU；不要在 <code>orbite</code> 中重复除以天文单位。</li>
+<li>3D restart 路径恢复的是基础量，再由 <code>tabfi</code> 调 <code>iniorbit</code> 重建派生量；restart 文件不直接保存 <code>e_elips/p_elips/lsperi</code>。</li>
+<li>1D <code>paleomars</code> 分支会把 <code>Lsperi</code> 从 degree 转为 rad，仅用于 <code>call_dayperi</code>；随后仍需依赖初始化链路调用 <code>iniorbit</code> 来生成 <code>lsperi/p_elips/e_elips</code>。</li>
+<li><code>read_dust_scenario_mod.F90</code> 中 <code>realday=mod(zday,669.)</code> 仍硬编码 669，但时间维一致性检查用 <code>year_day</code>；古气候或非标准年长配置下要分别检查这两处行为。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>coefvis/coefir</code> 在当前 <code>phymars</code> 搜索范围内没有除声明外的读写点；是否由预处理、外部分支或历史接口使用，需后续全仓库或构建配置核对。</li>
+<li>1D <code>paleomars</code> 分支中 <code>Lsperi</code> 范围检查源码写成 <code>if (eccentric &lt; 0. .or. eccentric &gt; 360.)</code>，疑似应检查 <code>Lsperi</code>；本页按源码字面记录，不判断修复。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a>：本模块所属目录。</li>
+<li><a href="orbite.html">orbite</a>：读取 <code>e_elips/p_elips/obliquit/lsperi</code> 计算日火距离和太阳赤纬。</li>
+<li><a href="call_dayperi.html">call_dayperi</a>：1D 古气候路径中从 <code>Lsperi/eccentric/year_day</code> 反推 <code>peri_day</code>。</li>
+<li><a href="phyredem.html">phyredem</a>：把基础轨道和湍流参数写入物理 start/restart 控制表。</li>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod.F90</a>：物理状态变量初始化编排页面，记录初始化链路上下文。</li>
+<li><a href="comsaison_h.html">comsaison_h</a>：保存由 <code>solarlong</code>、<code>orbite</code> 和 <code>physiq</code> 下游写入的季节/太阳几何状态。</li>
+<li><a href="../../themes/radiation.html">radiation</a>：辐射主题页，记录太阳几何和通量缩放的下游使用。</li>
+<li><a href="solarlong.html">solarlong.md</a>：负责把 sol 日期转换为太阳经度。</li>
+<li><a href="tabfi.html">tabfi.md</a>：负责控制表读取、默认物理常数和交互修改。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

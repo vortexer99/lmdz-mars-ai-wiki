@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>molvis - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/molvis.md</span>
+    </nav>
+    <article class="content">
+<h1 id="molvisf">molvis.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\molvis.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>molvis.F</code> 定义 <code>molvis_mod</code>，提供热层风速的垂直分子黏性扩散求解器。子程序 <code>molvis</code> 对一个风速分量 <code>pvel</code> 做一维垂直隐式三对角求解，输出同维度的速度 tendency <code>zdvelmolvis</code>（m/s/s）。<code>thermosphere_mod.F</code> 在 <code>callmolvis</code> 开关为真时分别把纬向风 <code>pu</code> 和经向风 <code>pv</code> 传入本例程，得到 <code>zdumolvis</code> 与 <code>zdvmolvis</code>，再累加回 <code>pdu</code> 和 <code>pdv</code>。</p>
+<p>源码注释说明本文件基于 <code>conduction.F</code>，但这里求解的是速度增量而不是温度增量：热导率系数 <code>Akknew</code> 会先通过 <code>fac = 0.25*(9*Cp - 5*Cv)</code> 换算为分子黏性相关系数，其中 <code>Cv = cpnew-rnew</code>，<code>Cp</code> 和 <code>R</code> 来自 <code>conc_mod::cpnew/rnew</code>。下边界固定为地表速度 <code>velsurf=0.0</code>，上边界通量 <code>phitop=0.0</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>molvis_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1（<code>END MODULE</code> 184）</td>
+<td>包装分子黏性风速扩散例程</td>
+</tr>
+<tr>
+<td><code>molvis</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7（<code>END SUBROUTINE</code> 182）</td>
+<td>对一个风速分量求解垂直分子黏性扩散 tendency</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td>saved local logical</td>
+<td style="text-align: right;">75</td>
+<td>每个 OpenMP 线程首次调用时打印 <code>skk</code>，随后置为 <code>.false.</code></td>
+</tr>
+<tr>
+<td><code>skk</code></td>
+<td>local parameter</td>
+<td style="text-align: right;">71</td>
+<td>温度指数，固定为 <code>0.69</code></td>
+</tr>
+<tr>
+<td><code>velsurf</code></td>
+<td>local parameter</td>
+<td style="text-align: right;">73</td>
+<td>下边界速度，固定为 <code>0.0</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>conc_mod</code></td>
+<td><code>cpnew</code>, <code>Akknew</code>, <code>rnew</code></td>
+<td>读取当前成分相关的定压比热、热导率系数和气体常数，用于把热导率系数换算为分子黏性系数并计算密度</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无外部例程</td>
+<td>-</td>
+<td>-</td>
+<td>本例程只做局部数组运算和 Thomas 前推/回代；除 Fortran intrinsic 外不调用外部子程序</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>integer</td>
+<td>-</td>
+<td>大气列数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>integer</td>
+<td>-</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real</td>
+<td>s</td>
+<td>物理时间步</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>Pa</td>
+<td>层中压力，用于 <code>rho=p/(R*T)</code></td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer+1)</code></td>
+<td>Pa</td>
+<td>层界面压力；声明后未在例程体使用</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K</td>
+<td>当前层中温度</td>
+</tr>
+<tr>
+<td><code>pdt</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K/s</td>
+<td>已累计温度 tendency，用于构造预测温度 <code>zt=pt+pdt*ptimestep</code></td>
+</tr>
+<tr>
+<td><code>pvel</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m/s</td>
+<td>单个风速分量；调用方分别传入 <code>pu</code> 和 <code>pv</code></td>
+</tr>
+<tr>
+<td><code>tsurf</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid)</code></td>
+<td>K</td>
+<td>地表温度，参与底层 <code>lambda(1)</code> 的温度依赖系数</td>
+</tr>
+<tr>
+<td><code>zzlev</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer+1)</code></td>
+<td>m</td>
+<td>层界面高度；本例程只复制 1..<code>nlayer</code>，然后把顶界面设为 <code>zlev(nlayer)+10000.</code></td>
+</tr>
+<tr>
+<td><code>zzlay</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m</td>
+<td>层中高度，用于计算层间距离</td>
+</tr>
+<tr>
+<td><code>Akknew</code>, <code>cpnew</code>, <code>rnew</code></td>
+<td><code>conc_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>mixed</td>
+<td>成分相关热导率系数、定压比热和比气体常数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zdvelmolvis</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m/s/s</td>
+<td>分子黏性造成的速度 tendency；调用方把它分别接到 <code>zdumolvis</code> 或 <code>zdvmolvis</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>firstcall</code> 是 <code>SAVE</code> + <code>THREADPRIVATE</code> 的局部状态；每个 OpenMP 线程首次调用会向标准输出打印 <code>molvis: coeff of molecular viscosity skk</code> 和 <code>skk=0.69</code>。</li>
+<li><code>phitop</code> 是普通局部变量，每次调用在第 93 行设为 <code>0.0</code>，作为顶边界零动量通量。</li>
+<li><code>velsurf=0.0</code> 是硬编码底边界速度，底层方程使用 <code>lambda(1)*(velsurf-zvel(1))</code>，等价于无滑移地表速度条件。</li>
+<li>本例程不写文件、不修改 <code>conc_mod</code> 数组，也不修改输入的 <code>pdt/pvel</code>；真正的风场 tendency 累加发生在调用方 <code>thermosphere_mod.F</code> 第 102-103 行。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<p>逐列 <code>ig=1,ngrid</code> 独立求解：</p>
+<ol type="1">
+<li>构造预测温度与当前风速：<code>zt(l)=pt(ig,l)+pdt(ig,l)*ptimestep</code>，<code>zvel(l)=pvel(ig,l)</code>，并复制 <code>zzlay/zzlev</code> 的前 <code>nlayer</code> 个高度。</li>
+<li>把顶层界面重设为 <code>zlev(nlayer+1)=zlev(nlayer)+10000.</code>，即忽略传入的 <code>zzlev(ig,nlayer+1)</code>，用硬编码 10 km 顶层厚度。</li>
+<li>计算黏性扩散系数 <code>lambda</code>。底层用 <code>tsurf(ig)**skk/zlay(1)</code>；上方各层用 <code>zt(l)**skk/(zlay(l)-zlay(l-1))</code>。每层都先用 <code>fac=0.25*(9*cpnew-5*(cpnew-rnew))</code> 把 <code>Akknew</code> 换算为黏性相关系数。</li>
+<li>计算惯性项 <code>alpha(l)=rho(l)/ptimestep * dz(l)</code>，其中 <code>rho=pplay/(rnew*zt)</code>；与 <code>conduction.F</code> 不同，<code>alpha</code> 不再乘 <code>cpnew</code>，因为这里扩散的是速度而不是温度。</li>
+<li>做 Thomas 前推。底层包含地表速度边界 <code>velsurf=0</code>，中间层按相邻层风速差和上一层 <code>C/D</code> 递推，顶层用 <code>phitop=0</code> 的零通量边界。</li>
+<li>自顶向下回代得到 <code>pdvelm(l)</code>，最后输出 <code>zdvelmolvis(ig,l)=pdvelm(l)/ptimestep</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>molvis(..., pvel, ..., zdvelmolvis):
+  if firstcall:
+    print skk
+    firstcall = false
+
+  phitop = 0.0
+  for each column ig:
+    for l = 1..nlayer:
+      zt(l) = pt(ig,l) + pdt(ig,l) * ptimestep
+      zvel(l) = pvel(ig,l)
+      zlay(l) = zzlay(ig,l)
+      zlev(l) = zzlev(ig,l)
+    zlev(nlayer+1) = zlev(nlayer) + 10000.
+
+    fac = 0.25 * (9*cpnew(ig,1) - 5*(cpnew(ig,1)-rnew(ig,1)))
+    lambda(1) = Akknew(ig,1) * tsurf(ig)**skk / zlay(1) / fac
+    for l = 2..nlayer:
+      fac = 0.25 * (9*cpnew(ig,l) - 5*(cpnew(ig,l)-rnew(ig,l)))
+      lambda(l) = Akknew(ig,l) / fac * zt(l)**skk / (zlay(l)-zlay(l-1))
+
+    for l = 1..nlayer:
+      rho = pplay(ig,l) / (rnew(ig,l) * zt(l))
+      alpha(l) = rho / ptimestep * (zlev(l+1)-zlev(l))
+
+    den(1) = alpha(1) + lambda(2) + lambda(1)
+    C(1) = (lambda(1)*(0-zvel(1)) + lambda(2)*(zvel(2)-zvel(1))) / den(1)
+    D(1) = lambda(2) / den(1)
+    for l = 2..nlayer-1:
+      den(l) = alpha(l) + lambda(l+1) + lambda(l)*(1-D(l-1))
+      C(l) = (lambda(l+1)*(zvel(l+1)-zvel(l))
+              + lambda(l)*(zvel(l-1)-zvel(l)+C(l-1))) / den(l)
+      D(l) = lambda(l+1) / den(l)
+    den(nlayer) = alpha(nlayer) + lambda(nlayer)*(1-D(nlayer-1))
+    C(nlayer) = ((C(nlayer-1)+zvel(nlayer-1)-zvel(nlayer))*lambda(nlayer)
+                 + phitop) / den(nlayer)
+
+    pdvelm(nlayer) = C(nlayer)
+    for l = nlayer-1..1:
+      pdvelm(l) = C(l) + D(l) * pdvelm(l+1)
+
+    zdvelmolvis(ig,l) = pdvelm(l) / ptimestep</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热层动量扩散</td>
+<td><code>thermosphere_mod</code> 在 <code>callmolvis</code> 下对 <code>pu</code> 和 <code>pv</code> 各调用一次本例程，再把输出累加回 <code>pdu/pdv</code></td>
+</tr>
+<tr>
+<td>高层大气成分热力学</td>
+<td>通过 <code>conc_mod::Akknew/cpnew/rnew</code> 读取随 tracer 组成更新的热导率系数、比热和气体常数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 <code>.F</code>，续行混用第 6 列 <code>&amp;</code> 和 <code>$</code>。</li>
+<li>算法结构与 <code>conduction.F</code> 相似，但 <code>alpha</code> 不乘 <code>cpnew</code>，底边界从地表温度改为地表速度 <code>velsurf=0</code>。</li>
+<li><code>pplev</code> 声明为输入但未使用；<code>zzlev(ig,nlayer+1)</code> 也没有被使用，顶界面由 <code>zlev(nlayer)+10000.</code> 覆盖。</li>
+<li>局部变量 <code>m</code>、<code>tmean</code> 声明后未使用。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>callmolvis</code> 默认在 <code>conf_phys.F</code> 中设为 <code>.false.</code>，通过 <code>getin_p("callmolvis",callmolvis)</code> 覆盖；若 <code>callthermos=.false.</code> 但 <code>callmolvis=.true.</code>，<code>conf_phys</code> 会终止运行。</li>
+<li><code>thermosphere_mod</code> 的顺序是 EUV、热传导、分子黏性、分子扩散；因此 <code>molvis</code> 看到的 <code>pdt</code> 已可能包含上游 EUV 与热传导 tendency。</li>
+<li>正常运行前需要 <code>conc_mod::Akknew/cpnew/rnew</code> 已由 <code>update_r_cp_mu_ak</code> 更新；若脱离 <code>callthermos</code> 路径单独调用，需要自行保证这些数组已分配并赋值。</li>
+<li>顶层厚度硬编码为 10 km，底边界速度硬编码为 0 m/s；这两个边界条件会直接影响最高层和最低层的动量 tendency。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>pplev</code> 作为入参但未使用，可能是沿用 <code>conduction</code> 接口的历史残留。</li>
+<li><code>zzlev(ig,nlayer+1)</code> 被接口传入但不用于顶层厚度，实际顶界面强制为 <code>zzlev(ig,nlayer)+10000.</code>；是否应使用真实顶界面高度需开发者确认。</li>
+<li>方程从 <code>den(1)=alpha(1)+lambda(2)+lambda(1)</code> 开始，隐含 <code>nlayer&gt;=2</code>；单层垂直网格会访问 <code>lambda(2)</code>，复现时应避免单层配置或先确认调用约束。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览，本文件在“分子扩散”组中。</li>
+<li><a href="conduction.html">conduction</a>：同源的热层分子热传导求解器，源码注释称 <code>molvis.F</code> 基于该文件。</li>
+<li><a href="../phymars/conc_mod.html">conc_mod</a>：提供 <code>Akknew/cpnew/rnew</code>，本例程用它们构造黏性扩散系数和密度。</li>
+<li><a href="../phymars/callkeys_mod.html">callkeys_mod</a>：定义 <code>callmolvis</code> 开关。</li>
+<li><a href="../phymars/conf_phys.html">conf_phys</a>：读取 <code>callmolvis</code> 并检查其依赖 <code>callthermos</code>。</li>
+<li><a href="thermosphere_mod.html">thermosphere_mod</a>：热层物理过程总调度，直接调用方。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

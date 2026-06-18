@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>calchim_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/calchim_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="calchim_modf90">calchim_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\calchim_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>calchim_mod.F90</code> 定义 <code>calchim_mod</code>，是 Mars 物理包中把 advected tracers、温度、风场、太阳几何、尘/冰表面积和化学开关整理后送入光化学/热层化学例程的调度模块。核心例程 <code>calchim</code> 在 firstcall 阶段识别可参与化学的 tracer 索引，选择在线或离线光解初始化路径，并在每个物理网格列上把质量混合比转换为体积混合比、调用 <code>photochemistry</code>、<code>perosat</code>、可选 <code>chemthermos</code>/<code>deposition</code>，最后把更新后的 mole fraction 转回 <code>dqchim</code> 倾向。</p>
+<p>本文件还保存 <code>ichemistry</code>、<code>zdqchim</code>、<code>zdqschim</code> 三个模块状态；<code>ini_calchim_mod</code>/<code>end_calchim_mod</code> 负责分配和释放化学倾向缓存。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>calchim_mod</code></td>
+<td>module</td>
+<td>1（<code>END MODULE</code> 1009）</td>
+<td>化学调度模块，保存化学调用频率和倾向缓存</td>
+</tr>
+<tr>
+<td><code>ichemistry</code></td>
+<td>integer save THREADPRIVATE</td>
+<td>5</td>
+<td>物理步中化学调用频率的共享状态；本文件声明但不在本例程内赋值</td>
+</tr>
+<tr>
+<td><code>zdqchim</code></td>
+<td>allocatable real save THREADPRIVATE</td>
+<td>6, 992-993, 1004</td>
+<td><code>pq</code> 的光化学倾向缓存，维度 <code>(ngrid,nlayer,nq)</code></td>
+</tr>
+<tr>
+<td><code>zdqschim</code></td>
+<td>allocatable real save THREADPRIVATE</td>
+<td>7, 994-995, 1005</td>
+<td><code>qsurf</code> 的光化学倾向缓存，维度 <code>(ngrid,nq)</code></td>
+</tr>
+<tr>
+<td><code>calchim</code></td>
+<td>subroutine</td>
+<td>13（<code>END SUBROUTINE</code> 981）</td>
+<td>准备并调用光化学、H2O2 凝结、热层化学和可选干沉降，输出化学倾向</td>
+</tr>
+<tr>
+<td><code>ini_calchim_mod</code></td>
+<td>subroutine</td>
+<td>984（<code>END SUBROUTINE</code> 997）</td>
+<td>分配并清零 <code>zdqchim/zdqschim</code></td>
+</tr>
+<tr>
+<td><code>end_calchim_mod</code></td>
+<td>subroutine</td>
+<td>1000（<code>END SUBROUTINE</code> 1007）</td>
+<td>释放已分配的 <code>zdqchim/zdqschim</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<p><code>calchim</code> 内部：</p>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_*</code>, <code>mmol</code></td>
+<td>读取化学相关 tracer 的全局索引和摩尔质量；firstcall 构造 <code>niq</code>，逐层换算质量混合比/体积混合比</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>conc_mod</code></td>
+<td><code>mmean</code></td>
+<td>读取每列每层平均摩尔质量，参与 <code>pq &lt;-&gt; zycol</code> 换算并输出统计</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>由 <code>mu0</code> 计算太阳天顶角 <code>szacol=acos(mu0)*180/pi</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>chemthermos_mod</code></td>
+<td><code>chemthermos</code></td>
+<td><code>.not.unichim</code> 时调用热层化学源汇</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>chemthermos_readini_mod</code></td>
+<td><code>chemthermos_readini</code></td>
+<td>firstcall 且 <code>.not.unichim</code> 时读取热层反应速率文件</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>photochemistry_mod</code></td>
+<td><code>photochemistry</code></td>
+<td>主光化学积分例程，更新 <code>zycol</code> 并返回光解率、夜辉发射率和迭代数</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>deposition_mod</code></td>
+<td><code>deposition</code></td>
+<td><code>depos</code> 为真时逐列调用干沉降；当前默认关闭</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>perosat_mod</code></td>
+<td><code>perosat</code></td>
+<td>光化学后处理 H2O2 凝结并写 <code>dqcloud/dqscloud</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>chemistrydata_mod</code></td>
+<td><code>read_phototable</code></td>
+<td><code>photochem .and. .not.jonline</code> 时读取离线光解查找表</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>photolysis_mod</code></td>
+<td><code>init_photolysis</code>, <code>nphot</code></td>
+<td>在线光解初始化；若启用氘化学则先把 <code>nphot</code> 增加 2</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>iono_h</code></td>
+<td><code>temp_elect</code></td>
+<td>逐层按高度/温度算电子温度，传给光化学</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>wstats_mod</code></td>
+<td><code>wstats</code></td>
+<td>写统计输出 <code>jo3/emission_no/emission_o2/mmean</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>write_output_mod</code></td>
+<td><code>write_output</code></td>
+<td>写诊断输出 <code>jo3/jh2o/iter_chemistry/emission_*</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>photochem</code></td>
+<td>外部配置开关，控制是否执行光化学分支</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abort_physic</code></td>
+<td>LMDZ 物理工具（本例程未显式 <code>use</code> 其宿主模块）</td>
+<td>277-749 多处</td>
+<td>必需 tracer 缺失时中止；部分 N/O 物种仅在 <code>photochem</code> 为真时要求</td>
+</tr>
+<tr>
+<td><code>init_photolysis</code></td>
+<td><code>photolysis_mod</code></td>
+<td>770</td>
+<td><code>photochem .and. jonline</code> 时初始化在线光解</td>
+</tr>
+<tr>
+<td><code>read_phototable</code></td>
+<td><code>chemistrydata_mod</code></td>
+<td>773</td>
+<td><code>photochem .and. .not.jonline</code> 时读取离线光解表</td>
+</tr>
+<tr>
+<td><code>chemthermos_readini</code></td>
+<td><code>chemthermos_readini_mod</code></td>
+<td>780</td>
+<td><code>.not.unichim</code> 时读取 61 个热层反应 Arrhenius 参数</td>
+</tr>
+<tr>
+<td><code>temp_elect</code></td>
+<td><code>iono_h</code></td>
+<td>821</td>
+<td>逐层计算电子温度；第三参数固定为 <code>1</code>，即 Viking 路径</td>
+</tr>
+<tr>
+<td><code>photochemistry</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>875-881</td>
+<td>主光化学积分，输入列状态并原地更新 <code>zycol</code></td>
+</tr>
+<tr>
+<td><code>perosat</code></td>
+<td><code>perosat_mod</code></td>
+<td>893-895</td>
+<td>处理 H2O2 饱和/凝结，写云凝结倾向</td>
+</tr>
+<tr>
+<td><code>chemthermos</code></td>
+<td><code>chemthermos_mod</code></td>
+<td>901-903</td>
+<td><code>.not.unichim</code> 时对热层段执行 C/O/H/N/ions 化学</td>
+</tr>
+<tr>
+<td><code>deposition</code></td>
+<td><code>deposition_mod</code></td>
+<td>915-917</td>
+<td><code>depos</code> 为真时执行干沉降路径</td>
+</tr>
+<tr>
+<td><code>write_output</code></td>
+<td><code>write_output_mod</code></td>
+<td>959-968</td>
+<td>输出光解率、迭代数和夜辉发射率诊断</td>
+</tr>
+<tr>
+<td><code>wstats</code></td>
+<td><code>wstats_mod</code></td>
+<td>970-977</td>
+<td>写统计文件中的光化学/平均摩尔质量字段</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code>,<code>nlayer</code>,<code>nq</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>物理列数、垂直层数、tracer 数</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>s</td>
+<td>物理时间步</td>
+</tr>
+<tr>
+<td><code>pplay</code>,<code>pplev</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlayer)</code> / <code>(ngrid,nlayer+1)</code></td>
+<td>Pa</td>
+<td>层中/界面气压；内部 <code>zpress=pplay/100</code> 转为 mbar</td>
+</tr>
+<tr>
+<td><code>pt</code>,<code>pdt</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K, K/s 或调用方累计倾向约定</td>
+<td>当前温度和时间步前已有温度倾向；内部用 <code>pt+pdt*ptimestep</code></td>
+</tr>
+<tr>
+<td><code>pu</code>,<code>pdu</code>,<code>pv</code>,<code>pdv</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m/s, tendency</td>
+<td>当前水平风和时间步前已有风倾向；传给干沉降</td>
+</tr>
+<tr>
+<td><code>dist_sol</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>AU</td>
+<td>日火距离，传给光化学</td>
+</tr>
+<tr>
+<td><code>mu0</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid)</code></td>
+<td>-</td>
+<td>太阳天顶角余弦；内部转为 <code>szacol</code>（degree）</td>
+</tr>
+<tr>
+<td><code>zzlev</code>,<code>zzlay</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlayer+1)</code> / <code>(ngrid,nlayer)</code></td>
+<td>m</td>
+<td>界面/层中高度；内部 <code>zlocal=zzlay/1000</code> 转为 km</td>
+</tr>
+<tr>
+<td><code>zday</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>Martian day since Ls=0</td>
+<td>传给光化学和热层化学</td>
+</tr>
+<tr>
+<td><code>pq</code>,<code>pdq</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlayer,nq)</code></td>
+<td>mass mixing ratio, tendency</td>
+<td>tracer 当前值和进入化学前已有倾向；内部先形成 <code>zq=pq+pdq*ptimestep</code></td>
+</tr>
+<tr>
+<td><code>dqcloud</code>,<code>dqscloud</code></td>
+<td>调用方/输出数组</td>
+<td>real <code>(ngrid,nlayer,nq)</code>, <code>(ngrid,nq)</code></td>
+<td>tendency</td>
+<td>作为 <code>perosat</code> 的 H2O2 凝结倾向输出载体</td>
+</tr>
+<tr>
+<td><code>tau</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid)</code></td>
+<td>-</td>
+<td>尘不透明度，传给光化学</td>
+</tr>
+<tr>
+<td><code>co2ice</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid)</code></td>
+<td>kg/m2</td>
+<td>传给 <code>deposition</code>；当前 <code>depos</code> 默认关闭</td>
+</tr>
+<tr>
+<td><code>surfdust</code>,<code>surfice</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m2/m3</td>
+<td>尘/冰表面积；内部乘 <code>1.e-2</code> 转为 cm2/cm3</td>
+</tr>
+<tr>
+<td><code>mmean</code></td>
+<td><code>conc_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>g/mole</td>
+<td>平均摩尔质量，参与质量/体积混合比换算</td>
+</tr>
+<tr>
+<td><code>igcm_*</code>,<code>mmol</code></td>
+<td><code>tracer_mod</code></td>
+<td>integer / real</td>
+<td>- / g/mole</td>
+<td>tracer 索引和摩尔质量</td>
+</tr>
+<tr>
+<td><code>photochem</code></td>
+<td><code>callkeys_mod</code></td>
+<td>logical</td>
+<td>-</td>
+<td>是否执行光化学分支</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dqchim</code></td>
+<td>调用方，通常累加到 tracer tendency</td>
+<td>real <code>(ngrid,nlayer,nq)</code></td>
+<td>mass mixing ratio / s</td>
+<td>化学导致的 tracer 倾向；每层主量物种取其它化学物种倾向的负和以保持质量闭合</td>
+</tr>
+<tr>
+<td><code>dqschim</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nq)</code></td>
+<td>-</td>
+<td>地表 tracer 化学倾向；本例程每次清零，未进一步写入</td>
+</tr>
+<tr>
+<td><code>dqcloud</code>,<code>dqscloud</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlayer,nq)</code>, <code>(ngrid,nq)</code></td>
+<td>tendency</td>
+<td><code>perosat</code> 写入的 H2O2 凝结相关倾向</td>
+</tr>
+<tr>
+<td><code>jo3</code>,<code>jh2o</code>,<code>iter_chemistry</code> 诊断</td>
+<td><code>write_output</code></td>
+<td>3D fields</td>
+<td><code>s-1</code>, <code>s-1</code>, count</td>
+<td>光解率和化学迭代数；仅 <code>photochem .and. output .and. ngrid&gt;1</code></td>
+</tr>
+<tr>
+<td><code>emission_no</code>,<code>emission_o2</code> 诊断</td>
+<td><code>write_output</code> / <code>wstats</code></td>
+<td>3D fields</td>
+<td><code>cm-3 s-1</code></td>
+<td>NO/O2 夜辉发射率；来自光化学/热层化学</td>
+</tr>
+<tr>
+<td><code>jo3</code>,<code>emission_no</code>,<code>emission_o2</code>,<code>mmean</code> 统计</td>
+<td><code>wstats</code></td>
+<td>stats fields</td>
+<td>见调用</td>
+<td>统计文件输出；仅 <code>photochem .and. output .and. ngrid&gt;1</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>ichemistry</code>、<code>zdqchim</code>、<code>zdqschim</code> 为模块级 <code>SAVE</code> 且 <code>THREADPRIVATE</code>；<code>ini_calchim_mod</code> 分配 <code>zdqchim(ngrid,nlayer,nq)</code> 和 <code>zdqschim(ngrid,nq)</code> 并清零，<code>end_calchim_mod</code> 释放。</li>
+<li><code>calchim</code> 内部的 <code>firstcall</code>、<code>depos</code>、<code>ionchem</code>、<code>deutchem</code>、<code>jonline</code>、<code>unichim</code>、<code>output</code>、<code>nbq</code>、<code>niq</code>、<code>chemthermod</code> 以及 tracer 索引缓存均为 <code>SAVE/THREADPRIVATE</code>。firstcall 后不会重新扫描 tracer 列表。</li>
+<li>firstcall 默认开关为：<code>unichim=.true.</code>、<code>jonline=.true.</code>、<code>ionchem=.false.</code>、<code>deutchem=.false.</code>、<code>depos=.false.</code>、<code>output=.true.</code>。</li>
+<li><code>calchim</code> 会在 firstcall 打印找到的 tracer 数量和 <code>niq</code> 索引；缺少必需 tracer 时多处调用 <code>abort_physic</code>。</li>
+<li>若 <code>photochem .and. jonline</code>，调用 <code>init_photolysis</code>；若 <code>photochem .and. .not.jonline</code>，调用 <code>read_phototable</code> 并产生文件读取/广播副作用。</li>
+<li>若 <code>.not.unichim</code>，firstcall 调 <code>chemthermos_readini</code> 读取运行目录下的热层反应速率文件；逐列还会调用 <code>chemthermos</code>。</li>
+<li>若 <code>photochem .and. output .and. ngrid&gt;1</code>，通过 <code>write_output</code> 和 <code>wstats</code> 写诊断/统计字段。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>firstcall 初始化开关与 tracer 列表</strong>：设定 <code>unichim/jonline/ionchem/deutchem/depos/output</code> 默认值，分配 <code>niq(nq)</code>，按 <code>igcm_*</code> 检查化学需要的 tracer。CO2、CO、O、O1D、O2、O3、H、H2、OH、HO2、H2O2、N2、H2O 等缺失会中止；CH4 缺失只打印并忽略。</li>
+<li><strong>按 tracer 存在性开启扩展化学</strong>：若 <code>HDO</code> 存在则 <code>deutchem=.true.</code>，随后要求 OD、D、HD、DO2、HDO2 等氘相关物种；若 <code>O2+</code> 存在则 <code>ionchem=.true.</code>，随后要求 CO2+、O+、NO+、CO+、C+、N2+、N+、H+、HCO2+、HCO+、H2O+、H3O+、OH+、e- 等离子化学物种。</li>
+<li><strong>光解/速率初始化</strong>：若 <code>photochem</code> 为真，<code>jonline=true</code> 时调用 <code>init_photolysis</code>，且 <code>deutchem</code> 会先 <code>nphot=nphot+2</code>；<code>jonline=false</code> 时调用 <code>read_phototable</code>。若 <code>.not.unichim</code>，读取 <code>chemthermos_reactionrates.def</code>。</li>
+<li><strong>逐列准备化学输入</strong>：对每个 <code>ig,l</code>，计算 <code>zq=pq+pdq*ptimestep</code>，把化学 tracer 从质量混合比换算为 mole fraction：<code>zycol=zq*mmean/mmol</code>；同时更新温度/风场、把气压转 mbar、数密度转 <code>cm-3</code>、高度转 km、表面积转 <code>cm2/cm3</code>，并通过 <code>temp_elect(...,1)</code> 得到电子温度。</li>
+<li><strong>选择热层切换层</strong>：<code>unichim=true</code> 时 <code>lswitch=nlayer+1</code>；否则首次遇到 <code>pplay(ig,l)&lt;10.</code> 的层作为 <code>lswitch</code>，用于分隔低层光化学和高层热层化学。</li>
+<li><strong>执行化学分支</strong>：<code>photochem</code> 为真时设置反应数：基础二体反应 31、三体反应 6、quench/heterogeneous 9；<code>ionchem</code> 额外加 64 个二体反应并设 <code>nphotion=18</code>；<code>deutchem</code> 额外加 35 个二体反应；<code>nb_phot_max=nphot+nphotion+nquench</code> 后调用 <code>photochemistry</code>。</li>
+<li><strong>后处理与可选过程</strong>：光化学后保存 <code>jo3/jh2o/iter</code>，调用 <code>perosat</code> 处理 H2O2 凝结；<code>.not.unichim</code> 时以 <code>chemthermod=3</code> 调 <code>chemthermos</code>；<code>depos</code> 为真时调用 <code>deposition</code>。</li>
+<li><strong>回写倾向</strong>：每层用 <code>maxloc(zycol(l,:))</code> 找到主量物种 <code>iqmax</code>；其它化学物种按 <code>(new_mass_mixing_ratio-zq)/ptimestep</code> 形成 <code>dqchim</code>，主量物种的 <code>dqchim</code> 设为这些倾向的负和。</li>
+<li><strong>诊断输出</strong>：若 <code>photochem .and. output .and. ngrid&gt;1</code>，输出光解率、迭代数、NO/O2 夜辉发射率，并写统计。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>calchim(...):
+  if firstcall:
+    set unichim=true, jonline=true, ionchem=false, deutchem=false, depos=false, output=true
+    allocate niq(nq)
+    scan igcm_* tracer indices; append required species into niq or abort if mandatory species missing
+    if HDO exists: deutchem=true; require OD/D/HD/DO2/HDO2
+    if O2+ exists: ionchem=true; require ion species and electron tracer
+    if photochem:
+      if jonline:
+        if deutchem: nphot = nphot + 2
+        call init_photolysis()
+      else:
+        call read_phototable()
+    if not unichim: call chemthermos_readini()
+    firstcall=false
+
+  zero dqchim and dqschim
+  for each grid column ig:
+    for each layer l:
+      for each chemistry tracer iq in niq:
+        zq = pq + pdq*ptimestep
+        zycol(l,iq) = zq * mmean / mmol(iq)
+      ztemp = pt + pdt*ptimestep
+      zpress = pplay/100
+      zdens = zpress/(kb*1e4*ztemp)
+      zlocal = zzlay/1000
+      ztelec = temp_elect(zlocal,ztemp,1)
+      convert dust/ice surface area from m2/m3 to cm2/cm3
+      choose lswitch = nlayer+1 if unichim else first pplay &lt; 10 Pa
+
+    if photochem:
+      set reaction counters from ionchem/deutchem/nphot/nquench
+      call photochemistry(..., zycol, ...)
+      save jo3/jh2o/iter
+      call perosat(..., zycol, dqcloud, dqscloud)
+      if not unichim: call chemthermos(..., zycol, ...)
+      save emission fields
+
+    if depos: call deposition(..., zycol, ...)
+
+    for each layer:
+      iqmax = index of max zycol(l,:)
+      for each chemistry tracer iq except iqmax:
+        dqchim(ig,l,iq) = (zycol(l,iq)*mmol(iq)/mmean(ig,l) - zq(ig,l,iq))/ptimestep
+        dqchim(ig,l,iqmax) -= dqchim(ig,l,iq)
+
+  if photochem and output and ngrid &gt; 1:
+    write_output jo3, jh2o, iter_chemistry, emission_no, emission_o2
+    wstats jo3, emission_no, emission_o2, mmean</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>光化学 / 光解</td>
+<td>作为 <code>photochemistry</code> 的列级调度层，选择在线 <code>init_photolysis</code> 或离线 <code>read_phototable</code>，并组织 tracer、气压、温度、数密度、太阳几何、尘/冰表面积输入</td>
+</tr>
+<tr>
+<td>热层化学 / 电离层</td>
+<td><code>ionchem</code> 按离子 tracer 存在性开启；<code>.not.unichim</code> 时读取热层反应速率并调用 <code>chemthermos</code>；逐层通过 <code>temp_elect</code> 提供电子温度</td>
+</tr>
+<tr>
+<td>水相关化学与凝结</td>
+<td>H2O/H2O2/HDO 等 tracer 参与化学；光化学后调用 <code>perosat</code> 处理 H2O2 凝结倾向</td>
+</tr>
+<tr>
+<td>诊断输出</td>
+<td>输出 <code>jo3</code>、<code>jh2o</code>、化学迭代数、NO/O2 夜辉发射率和 <code>mmean</code> 统计</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>.F90</code> 自由格式模块，但包含大量 <code>SAVE/THREADPRIVATE</code> 缓存；firstcall 后 tracer 索引和开关不会随运行中配置变化重置。</li>
+<li>开关默认值在源码中硬编码，且 firstcall 前有一段较早的光解/热层初始化代码被注释；活跃初始化位于 tracer 检查之后（765-780 行）。</li>
+<li>质量守恒采用“每层最大 mole fraction 物种补偿”的写法：其它化学物种显式计算倾向，主量物种取负和。</li>
+<li><code>temp_elect</code> 第三个参数固定为 <code>1</code>，即使用 Viking 路径；源码注释说明 <code>2</code> 对应 MAVEN。</li>
+<li><code>.not.unichim</code> 的切换压力阈值为 <code>pplay &lt; 10.</code>（Pa），而传给化学例程的 <code>zpress</code> 已转为 mbar。</li>
+<li><code>depos</code> 默认 <code>.false.</code>，且下游 <code>deposition.F</code> 当前也不实际修改 <code>zycol</code>。</li>
+<li><code>ig_vl1</code> 的 Viking-1 诊断网格计算代码被注释；只有 <code>depos=true</code> 且实际调用 <code>deposition</code> 时才可能用到该变量，当前默认路径不会使用。</li>
+<li>疑似源码细节：氘相关缺失检查中若对应 tracer 不存在，若干 <code>else</code> 分支仍检查 <code>i_oplus</code>/<code>i_d</code>/<code>i_hd</code> 等非本物种条件并报 HDO/HD/DO2/HDO2 缺失（449-520 行）；这里按源码事实记录，是否为复制粘贴错误待开发者确认。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>运行中需提供基础化学 tracer：CO2、CO、O、O1D、O2、O3、H、H2、OH、HO2、H2O2、N2、H2O；若 <code>photochem=true</code>，N、N2D、NO、NO2 缺失也会中止。</li>
+<li>CH4 缺失不会中止，只打印 “no ch4, ignored”。</li>
+<li>HDO tracer 存在会开启 <code>deutchem</code>，因此必须同步提供 OD、D、HD、DO2、HDO2 等氘相关 tracer。</li>
+<li>O2+ tracer 存在会开启 <code>ionchem</code>，因此必须同步提供所有离子化学 tracer 和电子 tracer。</li>
+<li>默认 <code>jonline=true</code>，光解走 <code>init_photolysis</code>；若源码改为 <code>jonline=false</code>，运行需要可读取离线光解查找表。</li>
+<li>默认 <code>unichim=true</code>，不会读取 <code>chemthermos_reactionrates.def</code>，也不会调用 <code>chemthermos</code>；若改为 <code>.false.</code>，运行目录需包含该速率文件。</li>
+<li>默认 <code>output=true</code>，但诊断输出只在 <code>photochem</code> 为真且 <code>ngrid&gt;1</code> 时发生。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>abort_physic</code> 的宿主模块未在本例程 <code>use</code> 列表中显式声明；是否依赖旧式外部过程或间接可见性，待编译链路确认。</li>
+<li><code>ichemistry</code> 在本文件声明但未赋值；其配置来源和调用方如何使用该频率字段需要结合 <code>conf_phys</code>/<code>physiq</code> 继续核验。</li>
+<li>氘 tracer 缺失检查中若干 <code>else</code> 分支的条件与报错文字不完全匹配，疑似复制粘贴问题，待源码维护者确认。</li>
+<li><code>.not.unichim</code>、<code>jonline=false</code>、<code>depos=true</code> 这三个路径默认都关闭；本页按源码路径记录，实际生产配置是否启用待运行配置确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览，本文件位于“光化学”分类。</li>
+<li><a href="chemistrydata.html">chemistrydata</a>：离线光解查找表读取方，供 <code>calchim</code> 在 <code>jonline=false</code> 时调用。</li>
+<li><a href="chemthermos_readini.html">chemthermos_readini</a>：热层反应速率读取方，供 <code>.not.unichim</code> firstcall 调用。</li>
+<li><a href="deposition.html">deposition</a>：可选干沉降路径，受 <code>depos</code> 开关控制。</li>
+<li><a href="iono_h.html">iono_h</a>：提供 <code>temp_elect</code> 电子温度函数。</li>
+<li><a href="../phymars/conc_mod.html">conc_mod</a>：提供 <code>mmean</code>，参与质量混合比/体积混合比换算。</li>
+<li><a href="../phymars/phys_state_var_init_mod.html">phys_state_var_init_mod</a>：初始化/释放阶段调用 <code>ini_calchim_mod</code> 和 <code>end_calchim_mod</code>。</li>
+<li><a href="../phymars/physiq_mod.html">physiq_mod</a>：物理主调度中与化学/热层相关的上游入口。</li>
+<li><a href="photochemistry_mod.html">photochemistry_mod</a>：主光化学积分文件页；说明 <code>photochemistry</code> 的在线/离线光解、反应速率、隐式积分、<code>jo3/jh2o/iter</code> 和夜辉诊断生成。</li>
+<li><a href="photolysis_mod.html">photolysis_mod</a>：在线光解初始化和共享谱表状态；<code>calchim</code> firstcall 在 <code>jonline=true</code> 时调用 <code>init_photolysis</code>，并可能先对 <code>nphot</code> 加 2。</li>
+<li><a href="photolysis_online.html">photolysis_online.F</a>：在线光解率计算文件页（TASK-0206）。</li>
+<li><a href="chemthermos.html">chemthermos</a>：热层化学文件页，说明 <code>.not.unichim</code> 路径中的数密度矩阵、<code>jthermcalc_e107</code>/<code>paramfoto_compact</code> 调用和 <code>lswitch:nlayer</code> 写回。</li>
+<li><a href="perosat.html">perosat</a>：H2O2 饱和/凝结文件页，说明 <code>dqcloud/dqscloud</code> 的写入逻辑。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

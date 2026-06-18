@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>datareadnc - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/datareadnc.md</span>
+    </nav>
+    <article class="content">
+<h1 id="datareadncf">datareadnc.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\datareadnc.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>火星地表数据 NetCDF 读取与网格插值例程。<code>datareadnc</code> 从 <code>surface.nc</code> 文件读取地表粗糙度、反照率、热惯量、MOLA 地形和亚网格地形参数（hmons/summit/base），分别经水平插值或复合平均映射到 GCM 目标网格，输出给 <a href="newstart.html"><code>newstart</code></a> 用于初始化地表物理场。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datareadnc</code></td>
+<td>subroutine</td>
+<td>2</td>
+<td>读取 <code>surface.nc</code> 地表数据并插值到 GCM 网格</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ioipsl_getincom</code></td>
+<td><code>getin</code></td>
+<td>读取用户配置的 <code>datadir</code> 路径</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>g, pi</code></td>
+<td>重力加速度常数和圆周率</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="../phymars/datafile_mod.html"><code>datafile_mod</code></a></td>
+<td><code>datadir</code></td>
+<td>数据文件目录路径（模块变量）</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="avg_horiz_mod.html"><code>avg_horiz_mod</code></a></td>
+<td><code>avg_horiz</code></td>
+<td>水平空间平均插值</td>
+<td></td>
+</tr>
+<tr>
+<td><code>mvc_horiz_mod</code></td>
+<td><code>mvc_horiz</code></td>
+<td>水平质量权重复合平均（取最大值）</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>INCLUDE 头文件</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>头文件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimensions.h</code></td>
+<td>网格维度参数 <code>iim, jjm, iip1, jjp1</code> 等</td>
+</tr>
+<tr>
+<td><code>paramet.h</code></td>
+<td>物理参数</td>
+</tr>
+<tr>
+<td><code>comgeom.h</code></td>
+<td>几何参数 <code>rlonu, rlatv</code> 等</td>
+</tr>
+<tr>
+<td><code>netcdf.inc</code></td>
+<td>NetCDF Fortran 接口常量和声明</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin</code></td>
+<td><code>ioipsl_getincom</code></td>
+<td>行 123</td>
+<td>读取 <code>datadir</code> 配置覆盖默认路径</td>
+</tr>
+<tr>
+<td><code>NF_OPEN</code></td>
+<td>NetCDF 库</td>
+<td>行 125</td>
+<td>打开 <code>surface.nc</code> 文件</td>
+</tr>
+<tr>
+<td><code>NF_INQ_VARID</code></td>
+<td>NetCDF 库</td>
+<td>行 143, 152, 216, 338</td>
+<td>查询变量 ID</td>
+</tr>
+<tr>
+<td><code>NF_GET_VAR_REAL/DOUBLE</code></td>
+<td>NetCDF 库</td>
+<td>行 145/147, 154/156, 223/225, 353/355</td>
+<td>读取变量数据</td>
+</tr>
+<tr>
+<td><code>initial0</code></td>
+<td>公共工具（待确认模块）</td>
+<td>行 208-210, 348-350</td>
+<td>将数组初始化为零</td>
+</tr>
+<tr>
+<td><a href="grid_noro1.html"><code>grid_noro1</code></a></td>
+<td><code>grid_noro1.F</code></td>
+<td>行 241</td>
+<td>无旋转网格设置，为亚网格地形统计计算中间网格</td>
+</tr>
+<tr>
+<td><a href="avg_horiz_mod.html"><code>avg_horiz</code></a></td>
+<td><code>avg_horiz_mod.F</code></td>
+<td>行 245</td>
+<td>亚网格地形平均：源网格数据分箱平均到 GCM 网格</td>
+</tr>
+<tr>
+<td><code>interp_horiz</code></td>
+<td>待确认文件</td>
+<td>行 274</td>
+<td>水平插值：将数据网格插值到 GCM 网格</td>
+</tr>
+<tr>
+<td><code>mvc_horiz</code></td>
+<td><code>mvc_horiz_mod.F</code></td>
+<td>行 378</td>
+<td>亚网格地形最大值：hmons/summit/base 取网格内最大值</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>relief</code></td>
+<td>调用方</td>
+<td><code>CHARACTER(len=3)</code>, inout</td>
+<td>—</td>
+<td>地形类型标志；<code>'pla'</code> 表示平面（无地形），否则设为 <code>'MOL'</code>（MOLA）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phisinit</code></td>
+<td><code>newstart</code></td>
+<td><code>REAL</code> <code>(iimp1*jjp1)</code></td>
+<td>m²/s²</td>
+<td>地表位势（km×g）</td>
+</tr>
+<tr>
+<td><code>alb</code></td>
+<td><code>newstart</code></td>
+<td><code>REAL</code> <code>(iimp1*jjp1)</code></td>
+<td>—</td>
+<td>地表反照率</td>
+</tr>
+<tr>
+<td><code>ith</code></td>
+<td><code>newstart</code></td>
+<td><code>REAL</code> <code>(iimp1*jjp1)</code></td>
+<td>—</td>
+<td>热惯量</td>
+</tr>
+<tr>
+<td><code>z0</code></td>
+<td><code>newstart</code></td>
+<td><code>REAL</code> <code>(iimp1*jjp1)</code></td>
+<td>m</td>
+<td>表面粗糙度（源数据 cm→m ×0.01）</td>
+</tr>
+<tr>
+<td><code>zmea</code></td>
+<td><code>newstart</code></td>
+<td><code>REAL</code> <code>(imdp1*jmdp1)</code></td>
+<td>m</td>
+<td>亚网格平均高程</td>
+</tr>
+<tr>
+<td><code>zstd</code></td>
+<td><code>newstart</code></td>
+<td><code>REAL</code> <code>(imdp1*jmdp1)</code></td>
+<td>m</td>
+<td>亚网格高程标准差</td>
+</tr>
+<tr>
+<td><code>zsig</code></td>
+<td><code>newstart</code></td>
+<td><code>REAL</code> <code>(imdp1*jmdp1)</code></td>
+<td>m</td>
+<td>亚网格高程偏度相关</td>
+</tr>
+<tr>
+<td><code>zgam</code></td>
+<td><code>newstart</code></td>
+<td><code>REAL</code> <code>(imdp1*jmdp1)</code></td>
+<td>m</td>
+<td>亚网格高程峰度相关</td>
+</tr>
+<tr>
+<td><code>zthe</code></td>
+<td><code>newstart</code></td>
+<td><code>REAL</code> <code>(imdp1*jmdp1)</code></td>
+<td>m</td>
+<td>亚网格高程阈值</td>
+</tr>
+<tr>
+<td><code>hmons</code></td>
+<td><code>newstart</code></td>
+<td><code>REAL</code> <code>(imdp1*jmdp1)</code></td>
+<td>m</td>
+<td>亚网格山峰高度</td>
+</tr>
+<tr>
+<td><code>summit</code></td>
+<td><code>newstart</code></td>
+<td><code>REAL</code> <code>(imdp1*jmdp1)</code></td>
+<td>m</td>
+<td>山峰顶部高程</td>
+</tr>
+<tr>
+<td><code>base</code></td>
+<td><code>newstart</code></td>
+<td><code>REAL</code> <code>(imdp1*jmdp1)</code></td>
+<td>m</td>
+<td>山峰基底高程</td>
+</tr>
+<tr>
+<td><code>zavg</code></td>
+<td><code>newstart</code></td>
+<td><code>REAL</code> <code>(imdp1*jmdp1)</code></td>
+<td>m</td>
+<td>MOLA 地形平均值（经 <code>avg_horiz</code>）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>读取 <code>datafile_mod::datadir</code> 模块变量，先赋默认值 <code>"/u/lmdz/WWW/planets/mars/datadir"</code>，再用 <code>getin</code> 从 <code>callphys.def</code> 覆盖。</li>
+<li>打开并读取 <code>surface.nc</code> 文件（I/O 副作用）。</li>
+<li>覆写 <code>comconst_mod::pi</code>：<code>pi=2.*ASIN(1.)</code>（行 111）。</li>
+<li>无 common block 写入。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>打开 NetCDF</strong>：设定 <code>datadir</code> 默认路径→<code>getin</code> 覆盖→<code>NF_OPEN</code> 打开 <code>surface.nc</code>；失败则打印指引信息并 <code>CALL ABORT</code>。</li>
+<li><strong>读坐标</strong>：读取 <code>latitude(jmdp1)</code> 和 <code>longitude(imd)</code> 数组，转换为弧度标量盒坐标 <code>rlonud(imdp1)</code> 和 <code>rlatvd(jmd)</code>。</li>
+<li><strong>主循环 k=0..4</strong>：依次读取 <code>z0</code>、<code>albedo</code>、<code>thermal</code>、<code>zMOL</code>（地形）、<code>zMOL</code>（亚网格统计）：
+<ul>
+<li><strong>k=4（亚网格地形统计）</strong>：<code>zMOL×1000</code> 转 m → <code>grid_noro1</code> 计算亚网格统计量（zmea/zstd/zsig/zgam/zthe） → <code>avg_horiz</code> 计算 GCM 网格平均 → <code>zavg</code>。</li>
+<li><strong>k=0..3</strong>：数据填充到 <code>zdataS</code>（<code>imdp1×jmdp1</code>）→ <code>interp_horiz</code> 插值 → 周期性边界 → 按 k 保存到 <code>z0</code>（×0.01 转 m）/ <code>alb</code> / <code>ith</code> / <code>phisinit</code>。</li>
+</ul></li>
+<li><strong>地形后处理</strong>：<code>phisinit × 1000 × g</code> 转换为地表位势（m²/s²）。</li>
+<li><strong>扩展循环 k=5..7</strong>：读取 <code>hmons</code>、<code>summit</code>、<code>base</code>，使用 <code>mvc_horiz</code> 取最大值复合 → <code>-999999</code> 缺失值填 0。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>SUBROUTINE datareadnc(relief, phisinit, alb, ith, z0,
+                      zmea, zstd, zsig, zgam, zthe,
+                      hmons, summit, base, zavg)
+
+  datadir ← &quot;/u/lmdz/WWW/planets/mars/datadir&quot;
+  getin(&quot;datadir&quot;, datadir)
+  NF_OPEN(datadir/surface.nc)
+  READ latitude, longitude
+  转换 → rlonud, rlatvd（弧度标量盒坐标）
+
+  FOR k = 0 TO 4:
+    string = [&#39;z0&#39;, &#39;albedo&#39;, &#39;thermal&#39;, &#39;zMOL&#39;, &#39;zMOL&#39;]
+    READ NetCDF variable string(k) → zdata
+    IF k == 4 THEN  ! 亚网格地形
+      zdata × 1000
+      grid_noro1 → zmea/zstd/zsig/zgam/zthe
+      avg_horiz → zavg
+    ELSE
+      zdata → zdataS（填充 imdp1 列）
+      interp_horiz(zdataS → pfield)
+      周期性边界补齐
+      按 k 保存: z0(×0.01), alb, ith, phisinit
+    ENDIF
+  ENDFOR
+
+  phisinit ← phisinit × 1000 × g
+
+  FOR k = 5 TO 7:
+    string = [&#39;hmons&#39;, &#39;summit&#39;, &#39;base&#39;]
+    READ NetCDF variable → zdata
+    zdata → zdataS
+    mvc_horiz（取最大值）→ pfield
+    -999999 缺失值 → 0
+    保存到 hmons/summit/base
+  ENDFOR
+END SUBROUTINE</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>初始场准备</td>
+<td>从 <code>surface.nc</code> 读取全套地表参数供 GCM 初始化使用</td>
+</tr>
+<tr>
+<td>地形与亚网格</td>
+<td>提供 MOLA 地形、亚网格统计和山峰参数，影响动力学和物理过程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>Fixed-form Fortran</strong>（72 列限制、<code>c</code> 注释、<code>&amp;</code>/<code>$</code> 续行），但使用 <code>!</code> 行注释和 <code>::</code> 声明等 F90 扩展。</li>
+<li><strong><code>NC_DOUBLE</code> 条件编译</strong>：<code>#ifdef NC_DOUBLE</code> 选择 <code>NF_GET_VAR_DOUBLE</code> 或 <code>NF_GET_VAR_REAL</code>，适配不同 NetCDF 精度。</li>
+<li><strong>硬编码网格参数</strong>：<code>imd=360, jmd=179, klatdat=180, ngridmxgdat=360</code> 对应 <code>surface.nc</code> 的 360×180 全球 1° 网格。</li>
+<li><strong>缺失值处理</strong>：<code>-999999.</code> 作为 NetCDF 数据缺失标记，在扩展循环中填为 0。</li>
+<li><strong><code>pi</code> 覆写</strong>：行 111 <code>pi=2.*ASIN(1.)</code> 直接从反三角函数计算，不依赖外部赋值。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>需要 <code>surface.nc</code> 文件在 <code>datadir</code> 路径下可用（默认 <code>/u/lmdz/WWW/planets/mars/datadir</code>，可在 <code>callphys.def</code> 中覆盖）。</li>
+<li>需要 <code>dimensions.h</code> 提供 <code>iim, jjm</code> 等 GCM 网格维度。</li>
+<li><code>relief='pla'</code> 时地形场清零（平面模式），否则自动设为 <code>'MOL'</code>（MOLA 地形）。</li>
+<li><code>comgeom.h</code> 提供 <code>rlonu, rlatv</code> 目标网格坐标。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>initial0</code> 和 <code>interp_horiz</code> 所在文件/模块未在源码中显式 USE 或 EXTERNAL 声明，可能通过 include 或链接时接口引入。</li>
+<li><code>mvc_horiz_mod</code> 的具体算法（最大值复合还是质量权重平均）需查看源码确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="avg_horiz_mod.html"><code>avg_horiz_mod</code></a> — 水平空间平均插值，由本例程在 k=4 时调用</li>
+<li><a href="grid_noro1.html"><code>grid_noro1</code></a> — 无旋转网格设置，由本例程在 k=4 时调用</li>
+<li><a href="../phymars/datafile_mod.html"><code>datafile_mod</code></a> — <code>datadir</code> 模块变量来源</li>
+<li><a href="index.html">dynphy_lonlat/index</a> — 所属目录概览</li>
+<li><a href="newstart.html">newstart</a> — 调用方，在 start_archive 路径中读取 <code>surface.nc</code> 地表静态场</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

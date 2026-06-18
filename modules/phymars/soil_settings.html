@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>soil_settings - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/soil_settings.md</span>
+    </nav>
+    <article class="content">
+<h1 id="soil_settingsf">soil_settings.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\soil_settings.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>soil_settings.F</code> 是土壤初始化设置例程。它从 <code>startfi.nc</code> 重启文件中读取土壤层深度几何、热惯量、土壤温度和地热通量等字段，并在层数不匹配时执行垂直插值。由 <code>phyetat0_mod</code> 在 GCM 初始化阶段调用一次。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>soil_settings_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>包裹 <code>soil_settings</code> 子程序的模块</td>
+</tr>
+<tr>
+<td><code>soil_settings</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>从重启文件读取并初始化土壤属性</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>layer</code>, <code>mlayer</code>, <code>inertiedat</code>, <code>inertiesoil</code>, <code>volcapa</code>, <code>flux_geo</code>, <code>adsorption_soil</code>, <code>igcm_h2o_vap_soil</code>, <code>igcm_h2o_ice_soil</code>, <code>igcm_h2o_vap_ads</code></td>
+<td>土壤共享状态：层几何、热惯量、体积热容量、地热通量、吸附开关和 tracer 索引</td>
+<td></td>
+</tr>
+<tr>
+<td><code>iostart</code></td>
+<td><code>inquire_field_ndims</code>, <code>get_var</code>, <code>get_field</code>, <code>inquire_field</code>, <code>inquire_dimension_length</code></td>
+<td>NetCDF 重启文件 I/O 接口</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comslope_mod</code></td>
+<td><code>nslope</code></td>
+<td>坡面 bin 数量</td>
+<td></td>
+</tr>
+<tr>
+<td><code>interp_line_mod</code></td>
+<td><code>interp_line</code></td>
+<td>一维线性插值</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inquire_dimension_length</code></td>
+<td><code>iostart</code></td>
+<td>行 106</td>
+<td>查询 <code>subsurface_layers</code> 维度长度</td>
+</tr>
+<tr>
+<td><code>inquire_field_ndims</code></td>
+<td><code>iostart</code></td>
+<td>行 128</td>
+<td>查询 <code>inertiedat</code> 字段的维度数</td>
+</tr>
+<tr>
+<td><code>get_var</code></td>
+<td><code>iostart</code></td>
+<td>行 143, 148</td>
+<td>读取 <code>soildepth</code> 坐标变量</td>
+</tr>
+<tr>
+<td><code>get_field</code></td>
+<td><code>iostart</code></td>
+<td>行 203, 229, 236, 279, 286, 335, 342, 440, 457, 472, 488</td>
+<td>读取 <code>inertiedat</code>/<code>inertiesoil</code>/<code>tsoil</code>/<code>flux_geo</code>/<code>h2o_vap_soil</code>/<code>h2o_ice_soil</code>/<code>h2o_vap_ads</code> 字段</td>
+</tr>
+<tr>
+<td><code>inquire_field</code></td>
+<td><code>iostart</code></td>
+<td>行 247, 301</td>
+<td>检查 <code>inertiesoil</code>/<code>tsoil</code> 字段是否存在</td>
+</tr>
+<tr>
+<td><code>interp_line</code></td>
+<td><code>interp_line_mod</code></td>
+<td>行 370, 395, 403, 419</td>
+<td>一维线性插值（层数不匹配时）</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>物理基础设施</td>
+<td>行 119, 206, 224, 232, 240, 274, 282, 290, 331, 339, 345</td>
+<td>关键字段缺失或分配失败时终止</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nid</code></td>
+<td><code>phyetat0_mod</code></td>
+<td>integer</td>
+<td>—</td>
+<td>已打开的 <code>startfi.nc</code> NetCDF 文件 ID</td>
+</tr>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>phyetat0_mod</code></td>
+<td>integer</td>
+<td>—</td>
+<td>水平网格点数</td>
+</tr>
+<tr>
+<td><code>nsoil</code></td>
+<td><code>phyetat0_mod</code>（<code>nsoilmx</code>）</td>
+<td>integer</td>
+<td>—</td>
+<td>目标土壤层数（=57）</td>
+</tr>
+<tr>
+<td><code>nqsoil</code></td>
+<td><code>phyetat0_mod</code></td>
+<td>integer</td>
+<td>—</td>
+<td>土壤 tracer 数量</td>
+</tr>
+<tr>
+<td><code>tsurf(ngrid,nslope)</code></td>
+<td><code>phyetat0_mod</code></td>
+<td>real</td>
+<td>K</td>
+<td>地表温度</td>
+</tr>
+<tr>
+<td><code>indextime</code></td>
+<td><code>phyetat0_mod</code></td>
+<td>integer</td>
+<td>—</td>
+<td>时间轴索引</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tsoil(ngrid,nsoil,nslope)</code></td>
+<td><code>phyetat0_mod</code> → <code>comsoil_h</code></td>
+<td>real</td>
+<td>K</td>
+<td>土壤各层温度</td>
+</tr>
+<tr>
+<td><code>qsoil(ngrid,nsoil,nqsoil,nslope)</code></td>
+<td><code>phyetat0_mod</code> → <code>comsoil_h</code></td>
+<td>real</td>
+<td>kg/kg</td>
+<td>土壤 tracer（h2o_vap_soil, h2o_ice_soil, h2o_vap_ads）</td>
+</tr>
+</tbody>
+</table>
+<p>同时写入 <code>comsoil_h</code> 中的：<code>layer</code>/<code>mlayer</code>（层深度）、<code>inertiedat</code>/<code>inertiesoil</code>（热惯量）、<code>volcapa</code>（体积热容量）、<code>flux_geo</code>（地热通量）。</p>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>写入 <code>comsoil_h</code> module 变量</strong>：<code>layer</code>/<code>mlayer</code>（层深度几何）、<code>inertiedat</code>/<code>inertiesoil</code>（热惯量）、<code>volcapa</code>（体积热容量）、<code>flux_geo</code>（地热通量）</li>
+<li><strong>写入 <code>qsoil</code></strong>：土壤 tracer 数组（h2o_vap_soil, h2o_ice_soil, h2o_vap_ads）</li>
+<li><strong>日志输出</strong>：大量 <code>write(*,*)</code> 打印读取状态和字段范围</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="1-深度坐标行-100168">1. 深度坐标（行 100–168）</h3>
+<ol type="1">
+<li><strong>查询层数</strong>（行 106）：从 <code>startfi.nc</code> 读取 <code>subsurface_layers</code> 维度长度 <code>dimlen</code>。</li>
+<li><strong>层数不匹配</strong>（行 108–123）：<code>dimlen ≠ nsoil</code> 时设 <code>interpol=.true.</code>，分配 <code>oldmlayer</code>。</li>
+<li><strong>旧格式检测</strong>（行 128–153）：查询 <code>inertiedat</code> 维度数 <code>ndims</code>：
+<ul>
+<li><code>ndims=1</code>：旧格式（热惯量仅地表），设 <code>olddepthdef=.true.</code>，用公式 <code>oldmlayer(k) = sqrt(887.75/π) * (2^(k-0.5) - 1)</code> 构建旧深度。</li>
+<li><code>ndims≠1</code>：新格式，读取 <code>soildepth</code> 坐标到 <code>mlayer</code> 或 <code>oldmlayer</code>。</li>
+</ul></li>
+<li><strong>构建新深度</strong>（行 156–162）：<code>interpol=.true.</code> 时用公式 <code>mlayer(k) = lay1*(1+k^2.9*(1-exp(-k/20)))</code>，<code>lay1=2e-4</code>。</li>
+<li><strong>构建层界面</strong>（行 165–168）：<code>layer(k) = (mlayer(k)+mlayer(k-1))/2</code>，最后一层外推。</li>
+</ol>
+<h3 id="2-体积热容量行-170183">2. 体积热容量（行 170–183）</h3>
+<ul>
+<li><code>volcapa</code> 由 <code>tabfi.F</code> 在读取 <code>controle</code> 表时设置。</li>
+<li>若 <code>volcapa ≤ 0</code>，设为默认值 <code>1e6</code> J/m³/K。</li>
+</ul>
+<h3 id="3-热惯量行-185294">3. 热惯量（行 185–294）</h3>
+<p><strong>3.1 当日气候热惯量 <code>inertiedat</code></strong>（行 190–243）：</p>
+<ul>
+<li><code>ndims=1</code>（旧格式）：读取地表值 <code>surfinertia</code>，复制到所有层。</li>
+<li><code>ndims≠1</code>（新格式）：直接读取 3D 字段，或存入 <code>oldinertiedat</code> 待插值。</li>
+</ul>
+<p><strong>3.2 PEM 热惯量 <code>inertiesoil</code></strong>（行 245–294）：</p>
+<ul>
+<li>字段不存在时：从 <code>inertiedat</code> 复制。</li>
+<li>字段存在时：直接读取，或存入 <code>oldinertiesoil</code> 待插值。</li>
+</ul>
+<h3 id="4-土壤温度行-298349">4. 土壤温度（行 298–349）</h3>
+<ul>
+<li>字段不存在时：从 <code>tsurf</code> 复制到所有层。</li>
+<li>字段存在时：直接读取，或存入 <code>oldtsoil</code> 待插值。</li>
+</ul>
+<h3 id="5-垂直插值行-352432">5. 垂直插值（行 352–432）</h3>
+<ul>
+<li><strong><code>olddepthdef</code> 路径</strong>（行 355–380）：旧格式深度用 <code>inertiesoil/volcapa</code> 缩放，插值 tsoil。</li>
+<li><strong><code>interpol</code> 路径</strong>（行 381–432）：新格式层数不匹配时，用 <code>interp_line</code> 对 <code>inertiedat</code>/<code>inertiesoil</code>/<code>tsoil</code> 分别插值到新网格。</li>
+</ul>
+<h3 id="6-地热通量行-436445">6. 地热通量（行 436–445）</h3>
+<ul>
+<li>读取 <code>flux_geo</code>；不存在时设为 0。</li>
+</ul>
+<h3 id="7-吸附-tracer行-448501">7. 吸附 tracer（行 448–501）</h3>
+<ul>
+<li><code>adsorption_soil=.true.</code> 时读取 <code>h2o_vap_soil</code>、<code>h2o_ice_soil</code>、<code>h2o_vap_ads</code>；不存在时设为 0。</li>
+</ul>
+<h3 id="8-报告行-505523">8. 报告（行 505–523）</h3>
+<ul>
+<li>打印 <code>volcapa</code>、<code>inertiedat</code>/<code>inertiesoil</code>/<code>tsoil</code> 的最小最大值。</li>
+</ul>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>dimlen = inquire(&quot;subsurface_layers&quot;)
+if dimlen ≠ nsoil: interpol = true
+
+ndims = inquire_field_ndims(&quot;inertiedat&quot;)
+if ndims == 1:   ! 旧格式
+  olddepthdef = true
+  oldmlayer = sqrt(887.75/π)*(2^(k-0.5)-1)
+else:
+  read &quot;soildepth&quot; → mlayer or oldmlayer
+
+if interpol: mlayer = lay1*(1+k^2.9*(1-exp(-k/20)))
+layer(k) = (mlayer(k)+mlayer(k-1))/2
+
+if volcapa ≤ 0: volcapa = 1e6
+
+read inertiedat → inertiedat or oldinertiedat
+if inertiesoil exists: read → inertiesoil or oldinertiesoil
+else: inertiesoil = inertiedat
+
+if tsoil exists: read → tsoil or oldtsoil
+else: tsoil = tsurf (all layers)
+
+if olddepthdef or interpol:
+  interp_line(oldgrid, oldval, mlayer, newval)  ! 对每个字段
+
+read flux_geo (default 0)
+if adsorption_soil: read h2o_vap_soil, h2o_ice_soil, h2o_vap_ads (default 0)
+
+report min/max of volcapa, inertiedat, inertiesoil, tsoil</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>土壤初始化</td>
+<td>从 <code>startfi.nc</code> 读取土壤层几何、热惯量、温度和 tracer，是 GCM 启动的关键步骤</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td><code>adsorption_soil</code> 控制是否读取地下 h2o_vap/ice/ads tracer</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>固定格式 Fortran</strong>：使用 <code>c</code> 列注释、<code>DO</code>/<code>ENDDO</code> 大写。</li>
+<li><strong>旧格式兼容</strong>：<code>ndims=1</code> 检测旧格式（热惯量仅地表），用公式重建深度坐标。</li>
+<li><strong>垂直插值</strong>：层数不匹配时用 <code>interp_line</code> 线性插值，支持 <code>olddepthdef</code>（旧格式深度缩放）和 <code>interpol</code>（新格式直接插值）两种路径。</li>
+<li><strong>大量日志</strong>：每个字段读取都打印状态和范围。</li>
+<li><strong><code>phyetat0_mod</code> 唯一调用方</strong>：仅在 GCM 初始化时调用一次。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>startfi.nc</code> 必须包含 <code>subsurface_layers</code> 维度、<code>soildepth</code> 坐标、<code>inertiedat</code> 字段。</li>
+<li><code>inertiesoil</code> 和 <code>tsoil</code> 可选；不存在时分别从 <code>inertiedat</code> 和 <code>tsurf</code> 初始化。</li>
+<li><code>flux_geo</code> 可选；不存在时设为 0。</li>
+<li><code>volcapa</code> 由 <code>tabfi.F</code> 读取 <code>controle</code> 表设置；若为 0 则用默认值 <code>1e6</code>。</li>
+<li><code>adsorption_soil</code> 开关控制是否读取地下 h2o tracer。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>行 138 <code>oldmlayer(k) = sqrt(887.75/π) * (2^(k-0.5)-1)</code> 中 887.75 的来源（待确认：推断为火星热扩散特征参数，但无文献引用）。</li>
+<li>行 368 <code>oldgrid(2:) = oldmlayer * (inertiesoil/volcapa)</code> 中深度用 <code>inertie/volcapa</code> 缩放的物理含义（待确认：推断为扩散长度尺度 <code>sqrt(κ*t)</code> 的简化）。</li>
+<li>日志中 <code>phyetat0:</code> 前缀（行 455 等）来自调用方名称，推断为复制粘贴遗留。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="comsoil_h.html">comsoil_h</a> — 土壤共享参数文件，本文件写入层几何、热惯量等</li>
+<li><a href="soil.html">soil</a> — 土壤热扩散求解器，使用本文件设置的 <code>layer</code>/<code>mlayer</code>/<code>volcapa</code></li>
+<li><a href="waterice_tifeedback_mod.html">waterice_tifeedback_mod</a> — 水冰热惯量反馈，修改 <code>inertiesoil</code></li>
+<li><a href="iniwritesoil.html">iniwritesoil</a> — 土壤诊断 NetCDF 初始化</li>
+<li><a href="soil_settings.html">soil_settings.md</a>：本页面。</li>
+<li><a href="../../architecture/water-cycle-config.html">water-cycle-config</a> — <code>adsorption_soil</code> 开关说明</li>
+<li><a href="../../themes/water-cycle.html">water-cycle</a> — 水循环主题页</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

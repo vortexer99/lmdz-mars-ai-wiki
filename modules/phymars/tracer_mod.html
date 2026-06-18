@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>tracer_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/tracer_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="tracer_modf90">tracer_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\tracer_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>tracer_mod.F90</code> 是 LMDZ.MARS 的<strong>tracer 共享定义核心模块</strong>。它声明了所有 tracer 相关的全局状态变量（tracer 数量、名称、分子量、物理属性、tracer 索引），并提供初始化（<code>ini_tracer_mod</code>）和释放（<code>end_tracer_mod</code>）子程序。被 30+ 个物理模块使用，是整个 tracer 系统的枢纽。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<h3 id="模块与子程序">模块与子程序</h3>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>tracer 共享定义核心模块</td>
+</tr>
+<tr>
+<td><code>ini_tracer_mod</code></td>
+<td>subroutine</td>
+<td>157</td>
+<td>解析 tracer 配置文件、分配数组、检查 CO2 tracer 存在性</td>
+</tr>
+<tr>
+<td><code>end_tracer_mod</code></td>
+<td>subroutine</td>
+<td>235</td>
+<td>释放 allocatable 数组（未释放 <code>nqchildren</code>，疑似遗漏）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="核心标量">核心标量</h3>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nqmx</code></td>
+<td>integer, save</td>
+<td>6</td>
+<td>tracer 总数（由 <code>ini_tracer_mod</code> 初始化）</td>
+</tr>
+<tr>
+<td><code>nqparents</code></td>
+<td>integer, save</td>
+<td>146</td>
+<td>parent 为 "air" 的 tracer 数量</td>
+</tr>
+<tr>
+<td><code>varian</code></td>
+<td>real, save</td>
+<td>20</td>
+<td>对数正态分布特征方差</td>
+</tr>
+<tr>
+<td><code>r3n_q</code></td>
+<td>real, save</td>
+<td>21</td>
+<td>用于从数浓度和质量混合比计算 r0</td>
+</tr>
+<tr>
+<td><code>rho_dust</code></td>
+<td>real, save</td>
+<td>22</td>
+<td>火星尘埃密度 (kg/m³)</td>
+</tr>
+<tr>
+<td><code>rho_ice</code></td>
+<td>real, save</td>
+<td>23</td>
+<td>水冰密度 (kg/m³)</td>
+</tr>
+<tr>
+<td><code>rho_ice_co2</code></td>
+<td>real, save</td>
+<td>27</td>
+<td>CO2 冰密度 (kg/m³)</td>
+</tr>
+<tr>
+<td><code>nuice_ref</code> / <code>nuice_sed</code></td>
+<td>real, save</td>
+<td>24–25</td>
+<td>水冰有效方差（反演/沉降）</td>
+</tr>
+<tr>
+<td><code>nuiceco2_ref</code> / <code>nuiceco2_sed</code></td>
+<td>real, save</td>
+<td>28–29</td>
+<td>CO2 冰有效方差（反演/沉降）</td>
+</tr>
+<tr>
+<td><code>ref_r0</code></td>
+<td>real, save</td>
+<td>26</td>
+<td>reff = ref_r0 * r0 的系数</td>
+</tr>
+<tr>
+<td><code>ccn_factor</code></td>
+<td>real, save</td>
+<td>34</td>
+<td>水冰粒子成核比例</td>
+</tr>
+</tbody>
+</table>
+<h3 id="allocatable-数组">Allocatable 数组</h3>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>noms(nqmx)</code></td>
+<td>character*30, save</td>
+<td>10</td>
+<td>tracer 名称</td>
+</tr>
+<tr>
+<td><code>mmol(nqmx)</code></td>
+<td>real, save</td>
+<td>11</td>
+<td>tracer 分子量 (g/mol)</td>
+</tr>
+<tr>
+<td><code>radius(nqmx)</code></td>
+<td>real, save</td>
+<td>12</td>
+<td>尘埃/冰粒子半径 (m)</td>
+</tr>
+<tr>
+<td><code>rho_q(nqmx)</code></td>
+<td>real, save</td>
+<td>13</td>
+<td>tracer 密度 (kg/m³)</td>
+</tr>
+<tr>
+<td><code>alpha_lift(nqmx)</code></td>
+<td>real, save</td>
+<td>14</td>
+<td>盐化垂直/水平通量比 (m⁻¹)</td>
+</tr>
+<tr>
+<td><code>alpha_devil(nqmx)</code></td>
+<td>real, save</td>
+<td>15</td>
+<td>尘魔抬升系数</td>
+</tr>
+<tr>
+<td><code>igcm_dustbin(nqmx)</code></td>
+<td>integer, save</td>
+<td>46</td>
+<td>dust bin tracer 索引</td>
+</tr>
+<tr>
+<td><code>nqdust(nqmx)</code></td>
+<td>integer, save</td>
+<td>38</td>
+<td>尘埃 tracer 索引（用于 aeropacity）</td>
+</tr>
+<tr>
+<td><code>nqchildren(nqmx)</code></td>
+<td>integer, save</td>
+<td>147</td>
+<td>每个 tracer 的子 tracer 数量</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tracer-索引整数save">Tracer 索引（整数，save）</h3>
+<p><strong>尘埃类</strong>（行 46–62）：</p>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>igcm_dustbin(:)</code></td>
+<td>dust bin tracer 索引数组</td>
+</tr>
+<tr>
+<td><code>igcm_dust_mass</code> / <code>igcm_dust_number</code></td>
+<td>传输尘埃质量/数浓度混合比</td>
+</tr>
+<tr>
+<td><code>igcm_ccn_mass</code> / <code>igcm_ccn_number</code></td>
+<td>CCN 质量/数浓度混合比</td>
+</tr>
+<tr>
+<td><code>igcm_dust_submicron</code></td>
+<td>亚微米尘埃混合比</td>
+</tr>
+<tr>
+<td><code>igcm_stormdust_mass</code> / <code>igcm_stormdust_number</code></td>
+<td>风暴尘埃质量/数浓度</td>
+</tr>
+<tr>
+<td><code>igcm_topdust_mass</code> / <code>igcm_topdust_number</code></td>
+<td>山顶尘埃质量/数浓度</td>
+</tr>
+</tbody>
+</table>
+<p><strong>CO2 云 CCN</strong>（行 64–74）：</p>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>igcm_ccnco2_mass</code> / <code>igcm_ccnco2_number</code></td>
+<td>CO2 冰 CCN 质量/数浓度</td>
+</tr>
+<tr>
+<td><code>igcm_ccnco2_meteor_mass</code> / <code>igcm_ccnco2_meteor_number</code></td>
+<td>流星体 CCN</td>
+</tr>
+<tr>
+<td><code>igcm_ccnco2_h2o_mass_ice</code> / <code>igcm_ccnco2_h2o_mass_ccn</code> / <code>igcm_ccnco2_h2o_number</code></td>
+<td>水冰 CCN for CO2</td>
+</tr>
+</tbody>
+</table>
+<p><strong>水/冰</strong>（行 76–84）：</p>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>igcm_h2o_vap</code> / <code>igcm_h2o_ice</code></td>
+<td>水汽/水冰</td>
+</tr>
+<tr>
+<td><code>igcm_hdo_vap</code> / <code>igcm_hdo_ice</code></td>
+<td>HDO 汽/HDO 冰</td>
+</tr>
+<tr>
+<td><code>igcm_co2_ice</code></td>
+<td>CO2 冰</td>
+</tr>
+</tbody>
+</table>
+<p><strong>化学成分</strong>（行 86–109）：</p>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>igcm_co2</code>, <code>igcm_co</code>, <code>igcm_o</code>, <code>igcm_o1d</code>, <code>igcm_o2</code>, <code>igcm_o3</code></td>
+<td>碳氧化合物</td>
+</tr>
+<tr>
+<td><code>igcm_h</code>, <code>igcm_h2</code>, <code>igcm_oh</code>, <code>igcm_ho2</code>, <code>igcm_h2o2</code></td>
+<td>氢氧化合物</td>
+</tr>
+<tr>
+<td><code>igcm_n2</code>, <code>igcm_ar</code>, <code>igcm_n</code>, <code>igcm_no</code>, <code>igcm_no2</code>, <code>igcm_n2d</code></td>
+<td>氮氩化合物</td>
+</tr>
+<tr>
+<td><code>igcm_he</code>, <code>igcm_ch4</code></td>
+<td>氦、甲烷</td>
+</tr>
+</tbody>
+</table>
+<p><strong>氘代物种</strong>（行 111–118）：</p>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>igcm_od</code>, <code>igcm_d</code>, <code>igcm_hd</code>, <code>igcm_do2</code>, <code>igcm_hdo2</code></td>
+<td>HDO 衍生氘代物种</td>
+</tr>
+</tbody>
+</table>
+<p><strong>离子</strong>（行 120–139）：</p>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>igcm_co2plus</code>, <code>igcm_oplus</code>, <code>igcm_o2plus</code>, <code>igcm_coplus</code>, <code>igcm_cplus</code></td>
+<td>正离子</td>
+</tr>
+<tr>
+<td><code>igcm_nplus</code>, <code>igcm_noplus</code>, <code>igcm_n2plus</code>, <code>igcm_hplus</code></td>
+<td>正离子</td>
+</tr>
+<tr>
+<td><code>igcm_hco2plus</code>, <code>igcm_hcoplus</code>, <code>igcm_h2oplus</code>, <code>igcm_h3oplus</code>, <code>igcm_ohplus</code></td>
+<td>分子离子</td>
+</tr>
+<tr>
+<td><code>igcm_elec</code></td>
+<td>电子</td>
+</tr>
+</tbody>
+</table>
+<p><strong>其他</strong>（行 141–151）：</p>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>igcm_ar_n2</code></td>
+<td>CO2 + 中性气体模拟</td>
+</tr>
+<tr>
+<td><code>qparentmin</code></td>
+<td>parent 混合比阈值 (1e-16)</td>
+</tr>
+<tr>
+<td><code>masseqmin</code></td>
+<td>质量守恒阈值 (1e-16)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>调用位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code>, <code>bcast</code></td>
+<td>MPI 并行：仅主进程解析配置文件</td>
+<td><code>ini_tracer_mod</code></td>
+</tr>
+<tr>
+<td><code>parse_traceur_file_mod</code></td>
+<td><code>get_nq_from_traceur_file</code>, <code>get_names_from_traceur_file</code></td>
+<td>解析旧格式 <code>traceur.def</code></td>
+<td><code>ini_tracer_mod</code></td>
+</tr>
+<tr>
+<td><code>parse_tracer_file_mod</code></td>
+<td><code>get_nq_from_tracer_file</code>, <code>get_names_from_tracer_file</code>, <code>get_children_from_tracer_file</code></td>
+<td>解析新格式 <code>tracer.def</code></td>
+<td><code>ini_tracer_mod</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>get_nq_from_traceur_file</code></td>
+<td><code>parse_traceur_file_mod</code></td>
+<td>行 182</td>
+<td>从 <code>traceur.def</code> 获取 tracer 数量</td>
+</tr>
+<tr>
+<td><code>get_names_from_traceur_file</code></td>
+<td><code>parse_traceur_file_mod</code></td>
+<td>行 186</td>
+<td>从 <code>traceur.def</code> 获取 tracer 名称和父子关系</td>
+</tr>
+<tr>
+<td><code>get_nq_from_tracer_file</code></td>
+<td><code>parse_tracer_file_mod</code></td>
+<td>行 198</td>
+<td>从 <code>tracer.def</code> 获取 tracer 数量</td>
+</tr>
+<tr>
+<td><code>get_names_from_tracer_file</code></td>
+<td><code>parse_tracer_file_mod</code></td>
+<td>行 201</td>
+<td>从 <code>tracer.def</code> 获取 tracer 名称</td>
+</tr>
+<tr>
+<td><code>get_children_from_tracer_file</code></td>
+<td><code>parse_tracer_file_mod</code></td>
+<td>行 204</td>
+<td>从 <code>tracer.def</code> 获取父子关系</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>物理基础设施</td>
+<td>行 206, 220</td>
+<td>无配置文件或无 CO2 tracer 时终止</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<h3 id="ini_tracer_mod">ini_tracer_mod</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>traceur.def</code> 或 <code>tracer.def</code></td>
+<td>运行目录文件</td>
+<td>配置文件</td>
+<td>tracer 定义（名称、数量、父子关系）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<h3 id="ini_tracer_mod-1">ini_tracer_mod</h3>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nqmx</code></td>
+<td>全局</td>
+<td>integer</td>
+<td>tracer 总数</td>
+</tr>
+<tr>
+<td><code>noms(nqmx)</code></td>
+<td>全局</td>
+<td>character*30</td>
+<td>tracer 名称</td>
+</tr>
+<tr>
+<td><code>nqparents</code></td>
+<td>全局</td>
+<td>integer</td>
+<td>parent tracer 数量</td>
+</tr>
+<tr>
+<td><code>nqchildren(nqmx)</code></td>
+<td>全局</td>
+<td>integer</td>
+<td>每个 tracer 的子 tracer 数量</td>
+</tr>
+<tr>
+<td><code>mmol/radius/rho_q/alpha_lift/alpha_devil</code></td>
+<td>全局</td>
+<td>real(nqmx)</td>
+<td>tracer 物理属性数组（分配，未赋值）</td>
+</tr>
+<tr>
+<td><code>igcm_dustbin/nqdust</code></td>
+<td>全局</td>
+<td>integer(nqmx)</td>
+<td>tracer 索引数组（分配，未赋值）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>所有变量都是 <code>SAVE</code> + <code>!$OMP THREADPRIVATE</code></strong>：每个 OpenMP 线程有独立副本。</li>
+<li><strong>allocatable 数组</strong>：<code>noms</code>, <code>mmol</code>, <code>radius</code>, <code>rho_q</code>, <code>alpha_lift</code>, <code>alpha_devil</code>, <code>igcm_dustbin</code>, <code>nqdust</code>, <code>nqchildren</code> — 由 <code>ini_tracer_mod</code> 分配；<code>end_tracer_mod</code> 释放前 8 个，<strong>未释放 <code>nqchildren</code></strong>（行 239-246 遗漏，疑似 bug）。</li>
+<li><strong>tracer 索引</strong>（<code>igcm_*</code>）：源码注释"should be 0 if the corresponding tracer does not exist"（行 42-43），但无显式 <code>= 0</code> 初始化；实际由 <code>initracer.F90</code> 根据 tracer 名称匹配赋值。</li>
+<li><strong>物性常数</strong>（<code>rho_dust</code>, <code>rho_ice</code> 等）：由 <code>initracer.F90</code> 或 <code>conf_phys.F</code> 赋值。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="ini_tracer_mod行-157233">ini_tracer_mod（行 157–233）</h3>
+<ol type="1">
+<li><strong>查找配置文件</strong>（行 176–208）：
+<ul>
+<li>先查 <code>traceur.def</code>（旧格式）→ 用 <code>parse_traceur_file_mod</code> 解析</li>
+<li>不存在则查 <code>tracer.def</code>（新格式）→ 用 <code>parse_tracer_file_mod</code> 解析</li>
+<li>都不存在 → <code>abort_physic</code> 终止</li>
+</ul></li>
+<li><strong>检查 CO2 tracer</strong>（行 210–221）：遍历所有 tracer 名称，必须有 <code>"co2"</code>，否则终止</li>
+<li><strong>分配数组</strong>（行 224–231）：分配 <code>mmol</code>, <code>radius</code>, <code>rho_q</code>, <code>alpha_lift</code>, <code>alpha_devil</code>, <code>igcm_dustbin</code>, <code>nqdust</code></li>
+</ol>
+<h3 id="end_tracer_mod行-235248">end_tracer_mod（行 235–248）</h3>
+<ul>
+<li>释放 <code>noms</code>, <code>mmol</code>, <code>radius</code>, <code>rho_q</code>, <code>alpha_lift</code>, <code>alpha_devil</code>, <code>igcm_dustbin</code>, <code>nqdust</code> 这 8 个 allocatable 数组（带 <code>allocated()</code> 保护）；<code>nqchildren</code> 也是 allocatable，但源码未在此释放，已在待确认中标为疑似遗漏。</li>
+</ul>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>ini_tracer_mod:
+  if traceur.def exists:
+    parse traceur.def → nqmx, noms, nqparents, nqchildren
+  elif tracer.def exists:
+    parse tracer.def → nqmx, noms, nqparents, nqchildren
+  else:
+    abort
+
+  if &quot;co2&quot; not in noms:
+    abort(&quot;co2 tracer is now mandatory&quot;)
+
+  allocate mmol, radius, rho_q, alpha_lift, alpha_devil, igcm_dustbin, nqdust
+
+end_tracer_mod:
+  deallocate noms, mmol, radius, rho_q, alpha_lift, alpha_devil, igcm_dustbin, nqdust
+  ! NOTE: nqchildren is NOT deallocated here — likely an oversight</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tracer 配置体系</td>
+<td>提供 tracer 数量、名称和父子关系的全局存储</td>
+</tr>
+<tr>
+<td>尘埃循环</td>
+<td><code>igcm_dust_*</code>, <code>nqdust</code>, <code>rho_dust</code>, <code>alpha_lift</code> 等</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td><code>igcm_h2o_vap/ice</code>, <code>igcm_hdo_vap/ice</code></td>
+</tr>
+<tr>
+<td>CO2 循环</td>
+<td><code>igcm_co2</code>, <code>igcm_co2_ice</code>, <code>igcm_ccnco2_*</code></td>
+</tr>
+<tr>
+<td>辐射计算</td>
+<td><code>radius</code>, <code>rho_q</code> 用于粒子光学属性</td>
+</tr>
+<tr>
+<td>化学</td>
+<td><code>igcm_co</code>, <code>igcm_o</code>, <code>igcm_oh</code> 等化学 species 索引</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>纯声明模块</strong>：模块体只有变量声明，无可执行代码（除 <code>contains</code> 中的子程序）。</li>
+<li><strong>所有变量 <code>SAVE</code> + <code>!$OMP THREADPRIVATE</code></strong>：确保 OpenMP 并行安全。</li>
+<li><strong>旧/新格式双轨</strong>：<code>ini_tracer_mod</code> 先查 <code>traceur.def</code>，不存在再查 <code>tracer.def</code>。</li>
+<li><strong>CO2 强制检查</strong>：<code>co2</code> tracer 是必须的（行 219–221），反映 CO2 在火星大气中的核心地位。</li>
+<li><strong>tracer 索引由 <code>initracer.F90</code> 赋值</strong>：本模块只声明和分配，实际的索引匹配在 <code>initracer</code> 中完成。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须有 <code>traceur.def</code> 或 <code>tracer.def</code> 文件，且包含 <code>"co2"</code> tracer。</li>
+<li>tracer 物性（<code>mmol</code>, <code>radius</code>, <code>rho_q</code> 等）由 <code>initracer.F90</code> 赋值，不在本模块。</li>
+<li>所有 <code>igcm_*</code> 索引应为 0（未显式初始化），由 <code>initracer.F90</code> 根据 <code>noms</code> 匹配赋值。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>igcm_ccnco2_meteor_mass/number</code>（行 66–67）和 <code>igcm_ccnco2_h2o_*</code>（行 68–70）在 <code>!$OMP THREADPRIVATE</code> 声明中缺失（行 72–74 只列了部分），推断为遗漏（待确认：是否影响 OpenMP 并行）。</li>
+<li><code>varian</code>, <code>r3n_q</code>, <code>rho_dust</code> 等标量的赋值位置不在本文件（待确认：由 <code>initracer</code> 或 <code>conf_phys</code> 赋值）。</li>
+<li><code>nqchildren</code>（行 147）为 allocatable 数组，由 <code>ini_tracer_mod</code> 分配但 <code>end_tracer_mod</code>（行 239-246）未释放，疑似内存泄漏遗漏。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="parse_tracer_file.html">parse_tracer_file</a> — 新格式 <code>tracer.def</code> 解析接口模块</li>
+<li><a href="../../routines/initracer-co2-tracers.html">initracer-co2-tracers</a> — CO2 tracer 初始化段页</li>
+<li><a href="../../architecture/config-system.html">config-system</a> — 配置体系总览</li>
+<li><a href="../../architecture/water-cycle-config.html">water-cycle-config</a> — 水循环配置</li>
+<li><a href="../../architecture/co2-cycle-config.html">co2-cycle-config</a> — CO2 循环配置</li>
+<li><a href="../../themes/water-cycle.html">water-cycle</a> — 水循环主题页</li>
+<li><a href="../../themes/co2-cycle.html">co2-cycle</a> — CO2 循环主题页</li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle</a> — 尘埃循环主题页</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

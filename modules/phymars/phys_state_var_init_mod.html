@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>phys_state_var_init_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/phys_state_var_init_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="phys_state_var_init_modf90">phys_state_var_init_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\phys_state_var_init_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>phys_state_var_init_mod.F90</code> 是 <code>phymars</code> 物理状态数组和基础常数的生命周期编排模块。它不计算具体物理 tendency，而是在物理初始化入口里按固定顺序释放旧数组、重新分配共享模块数组，并写入第一批物理常数和时间控制状态。</p>
+<p>源码注释说明这些工作过去由 <code>inifis</code> 完成。当前 3D GCM 路径中，<code>iniphysiq_mod.F90</code> 在 <code>inigeomphy</code> 之后进入 OpenMP 并行区，调用 <code>phys_state_var_init</code>，随后才调用 <code>ini_fillgeom</code> 填充几何三角缓存，再调用 <code>conf_phys</code> 读取物理配置。1D <code>init_testphys1d_mod.F90</code> 也复用同一个入口，在它之后执行 <code>ini_fillgeom</code>、<code>conf_phys</code> 和 <code>initracer</code>。</p>
+<p>复现时要把本文件看作“分配和初始化顺序契约”：很多下游模块假定自己的数组已经按 <code>ngrid/nlayer/nq/nslope</code> 分配好，但几何值、restart 字段和运行开关仍由后续入口继续填充。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phys_state_var_init_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>物理状态变量初始化编排模块</td>
+</tr>
+<tr>
+<td><code>phys_state_var_init</code></td>
+<td>subroutine</td>
+<td>5</td>
+<td>确定坡面维度，初始化常数和时间状态，并按固定顺序释放/分配多个 <code>phymars</code> 共享模块数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>init_print_control_mod</code></td>
+<td><code>init_print_control</code></td>
+<td>初始化输出控制常数和标志</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>slope_mod</code></td>
+<td><code>ini_slope_mod</code>, <code>end_slope_mod</code></td>
+<td>分配坡面几何数组</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comsaison_h</code></td>
+<td><code>ini_comsaison_h</code>, <code>end_comsaison_h</code></td>
+<td>分配季节和太阳几何共享数组</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>ini_surfdat_h</code>, <code>end_surfdat_h</code></td>
+<td>按 <code>ngrid,nq,nslope</code> 分配地表状态数组</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comgeomfi_h</code></td>
+<td><code>ini_comgeomfi_h</code>, <code>end_comgeomfi_h</code></td>
+<td>分配几何三角函数缓存</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>ini_comsoil_h</code>, <code>end_comsoil_h</code></td>
+<td>按 <code>ngrid,nslope</code> 分配土壤共享状态</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>ini_dimradmars_mod</code>, <code>end_dimradmars_mod</code></td>
+<td>按 <code>ngrid,nlayer,nslope</code> 分配辐射维度相关数组</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>yomlw_h</code></td>
+<td><code>ini_yomlw_h</code>, <code>end_yomlw_h</code></td>
+<td>分配长波辐射共享数组</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>conc_mod</code></td>
+<td><code>ini_conc_mod</code>, <code>end_conc_mod</code></td>
+<td>分配大气混合物热力学属性缓存</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>turb_mod</code></td>
+<td><code>ini_turb_mod</code>, <code>end_turb_mod</code></td>
+<td>分配湍流共享数组</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>init_comcstfi_h</code></td>
+<td>写入半径、比热、重力和气体常数</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>ini_tracer_mod</code>, <code>end_tracer_mod</code></td>
+<td>初始化 tracer 定义相关状态</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>init_time</code></td>
+<td>初始化物理时间和日历状态</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>compute_dtau_mod</code></td>
+<td><code>ini_compute_dtau_mod</code>, <code>end_compute_dtau_mod</code></td>
+<td>分配尘埃光学厚度时间记忆数组</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>rocketduststorm_mod</code></td>
+<td><code>ini_rocketduststorm_mod</code>, <code>end_rocketduststorm_mod</code></td>
+<td>分配火箭式尘暴方案数组</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>calchim_mod</code></td>
+<td><code>ini_calchim_mod</code>, <code>end_calchim_mod</code></td>
+<td>分配光化学相关数组</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>watercloud_mod</code></td>
+<td><code>ini_watercloud_mod</code>, <code>end_watercloud_mod</code></td>
+<td>分配水云微物理数组</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>nonoro_gwd_ran_mod</code></td>
+<td><code>ini_nonoro_gwd_ran</code>, <code>end_nonoro_gwd_ran</code></td>
+<td>分配非地形随机重力波记忆数组</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>nonoro_gwd_mix_mod</code></td>
+<td><code>ini_nonoro_gwd_mix</code>, <code>end_nonoro_gwd_mix</code></td>
+<td>分配非地形重力波混合数组</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td><code>ini_dust_param_mod</code>, <code>end_dust_param_mod</code></td>
+<td>分配尘埃参数数组</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>dust_rad_adjust_mod</code></td>
+<td><code>ini_dust_rad_adjust_mod</code>, <code>end_dust_rad_adjust_mod</code></td>
+<td>分配尘埃辐射调整状态</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comslope_mod</code></td>
+<td><code>nslope</code>, <code>end_comslope_h</code>, <code>ini_comslope_h</code></td>
+<td>保存并分配坡面维度相关状态</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>paleoclimate_mod</code></td>
+<td><code>end_paleoclimate</code>, <code>ini_paleoclimate</code></td>
+<td>分配古气候 lag-layer 状态</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>tracer_mass_fixer_dyn_mod</code></td>
+<td><code>ini_tracer_mass_fixer_dyn</code>, <code>end_tracer_mass_fixer_dyn</code></td>
+<td>分配动力 tracer 质量修正缓存</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>netcdf</code></td>
+<td>-</td>
+<td>读取 <code>startfi.nc</code> 的 <code>nslope</code> 维度</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code>, <code>bcast</code></td>
+<td>非 MESOSCALE 路径下 master 读取 <code>nslope</code> 并广播</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nf90_open</code> / <code>nf90_inq_dimid</code> / <code>nf90_inquire_dimension</code></td>
+<td>NetCDF</td>
+<td>83-96</td>
+<td>尝试从 <code>startfi.nc</code> 读取 <code>nslope</code> 维度长度</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部错误处理入口</td>
+<td>95</td>
+<td>当 <code>nslope</code> 维度存在但无法读取时中止初始化</td>
+</tr>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_para</code></td>
+<td>103</td>
+<td>将 master 进程确定的 <code>nslope</code> 广播给其他进程</td>
+</tr>
+<tr>
+<td><code>end_tracer_mod</code> / <code>ini_tracer_mod</code></td>
+<td><code>tracer_mod</code></td>
+<td>111-112</td>
+<td>释放并初始化 tracer 模块状态</td>
+</tr>
+<tr>
+<td><code>init_print_control</code></td>
+<td><code>init_print_control_mod</code></td>
+<td>115</td>
+<td>初始化输出控制</td>
+</tr>
+<tr>
+<td><code>init_comcstfi_h</code></td>
+<td><code>comcstfi_h</code></td>
+<td>118</td>
+<td>写入 <code>rad/cpp/g/r</code> 等基础常数</td>
+</tr>
+<tr>
+<td><code>init_time</code></td>
+<td><code>time_phylmdz_mod</code></td>
+<td>121</td>
+<td>写入初始日、终止日、初始时刻、sol 长度和物理时间步</td>
+</tr>
+<tr>
+<td><code>end_*</code> / <code>ini_*</code> 系列</td>
+<td>多个 <code>phymars</code> 模块</td>
+<td>124-201</td>
+<td>逐模块释放并按当前维度重新分配共享数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>当前物理列数；3D 路径传 <code>klon_omp</code>，1D 路径传 <code>1</code></td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>调用方</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>垂直大气层数</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>调用方</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>tracer 数量</td>
+</tr>
+<tr>
+<td><code>day_ini</code>, <code>day_end</code></td>
+<td>调用方 / 动力时间模块</td>
+<td>integer scalar</td>
+<td>sol</td>
+<td>初始和结束日期</td>
+</tr>
+<tr>
+<td><code>hour_ini</code></td>
+<td>调用方 / 动力时间模块</td>
+<td>real scalar</td>
+<td>sol fraction 或小时语义由上游决定</td>
+<td>初始时刻</td>
+</tr>
+<tr>
+<td><code>pdaysec</code></td>
+<td>调用方</td>
+<td>real scalar</td>
+<td>s</td>
+<td>sol 长度</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>调用方</td>
+<td>real scalar</td>
+<td>s</td>
+<td>物理时间步</td>
+</tr>
+<tr>
+<td><code>prad</code>, <code>pg</code>, <code>pr</code>, <code>pcpp</code></td>
+<td>调用方</td>
+<td>real scalars</td>
+<td>SI 混合</td>
+<td>行星半径、重力、气体常数和比热</td>
+</tr>
+<tr>
+<td><code>startfi.nc</code></td>
+<td>当前运行目录</td>
+<td>NetCDF file</td>
+<td>-</td>
+<td>可选读取 <code>nslope</code> 维度；文件缺失或无该维度时使用 <code>nslope=1</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nslope</code></td>
+<td><code>comslope_mod</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>坡面 bin 数；由 <code>startfi.nc</code> 维度或 MESOSCALE/default 路径确定</td>
+</tr>
+<tr>
+<td><code>rad</code>, <code>g</code>, <code>r</code>, <code>cpp</code> 等</td>
+<td><code>comcstfi_h</code></td>
+<td>module scalars</td>
+<td>SI</td>
+<td>物理常数缓存</td>
+</tr>
+<tr>
+<td><code>day_ini/day_end/hour_ini/daysec/dtphys</code> 等</td>
+<td><code>time_phylmdz_mod</code></td>
+<td>module state</td>
+<td>混合</td>
+<td>物理时间控制状态</td>
+</tr>
+<tr>
+<td>多个共享模块数组</td>
+<td><code>surfdat_h</code>, <code>comsoil_h</code>, <code>dimradmars_mod</code>, <code>watercloud_mod</code>, <code>nonoro_gwd_*</code> 等</td>
+<td>allocatable module arrays</td>
+<td>混合</td>
+<td>按当前运行维度分配后的物理状态缓存</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>非 <code>MESOSCALE</code> 构建下，只有 <code>is_master</code> 进程直接打开 <code>startfi.nc</code> 查询 <code>nslope</code> 维度；随后 <code>bcast(nslope)</code> 把结果同步给所有进程。</li>
+<li><code>MESOSCALE</code> 构建下不读取 <code>startfi.nc</code> 的坡面维度，而是打印 <code>subgrid slopes temporarily switched off in mesoscale, nslope=1</code> 并强制 <code>nslope=1</code>。</li>
+<li>例程会连续调用大量 <code>end_*</code> 后接 <code>ini_*</code>，其副作用是释放旧分配并按新维度重建共享状态。复现初始化顺序时不能跳过这些释放调用，因为下游 <code>ini_*</code> 入口未必都能安全处理已分配数组。</li>
+<li>本文件只调用 <code>ini_comgeomfi_h(ngrid)</code> 分配 <code>sinlat/coslat/sinlon/coslon</code> 等缓存；实际几何值由调用方随后调用 <code>ini_fillgeom</code> 填入。</li>
+<li>源码直接调用 <code>abort_physic</code>，但本文件未显式 <code>use abort_physic</code> 所在模块；复现编译行为时应以当前构建系统的外部接口解析为准。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>把目标文件名固定为 <code>startfi.nc</code>。</li>
+<li>非 <code>MESOSCALE</code> 下由 master 尝试打开 <code>startfi.nc</code>。文件不存在或没有 <code>nslope</code> 维度时设置 <code>nslope=1</code>；若 <code>nslope</code> 维度存在但无法读取长度，则调用 <code>abort_physic</code> 中止；读取成功时令 <code>nslope=nslope_read</code>。</li>
+<li>非 <code>MESOSCALE</code> 下广播 <code>nslope</code>；<code>MESOSCALE</code> 下直接强制 <code>nslope=1</code>。</li>
+<li>释放并初始化 <code>tracer_mod</code>，再初始化输出控制。</li>
+<li>调用 <code>init_comcstfi_h(prad,pcpp,pg,pr)</code> 写入基础物理常数。</li>
+<li>调用 <code>init_time(day_ini,day_end,hour_ini,pdaysec,ptimestep)</code> 写入物理日历和时间步状态。</li>
+<li>按源码顺序释放/分配坡面、季节、地表、几何、土壤、辐射、长波、混合物属性、湍流、尘埃、化学、水云、非地形重力波、坡面分布、古气候和 tracer 质量修正相关模块数组。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>phys_state_var_init(ngrid,nlayer,nq, day_ini,day_end,hour_ini, pdaysec,ptimestep, prad,pg,pr,pcpp)
+  filename = &quot;startfi.nc&quot;
+
+  if not MESOSCALE:
+    if is_master:
+      if startfi.nc cannot be opened:
+        nslope = 1
+      else if dimension &quot;nslope&quot; is absent:
+        nslope = 1
+      else if dimension length cannot be read:
+        abort_physic(&quot;phys_state_var_init&quot;, &quot;nslope present but not readable&quot;, 1)
+      else:
+        nslope = nslope_read
+    bcast(nslope)
+  else:
+    print mesoscale slope-disabled message
+    nslope = 1
+
+  end_tracer_mod()
+  ini_tracer_mod()
+  init_print_control()
+  init_comcstfi_h(prad, pcpp, pg, pr)
+  init_time(day_ini, day_end, hour_ini, pdaysec, ptimestep)
+
+  for each shared-state module in source order:
+    call its end_* routine
+    call its ini_* routine with ngrid, nlayer, nq, and/or nslope</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>物理初始化</td>
+<td>在 3D <code>iniphysiq</code> 和 1D <code>init_testphys1d</code> 中分配 <code>phymars</code> 共享状态，是 <code>conf_phys</code> 和 <code>physiq</code> 前的状态准备层</td>
+</tr>
+<tr>
+<td>物理 restart 兼容</td>
+<td>先从 <code>startfi.nc</code> 的 <code>nslope</code> 维度决定坡面相关数组大小，使后续 <code>phyetat0_mod</code> 读坡面字段时维度匹配</td>
+</tr>
+<tr>
+<td>次网格坡面</td>
+<td>初始化 <code>slope_mod</code>、<code>surfdat_h</code>、<code>comsoil_h</code>、<code>dimradmars_mod</code>、<code>comslope_mod</code> 和 <code>paleoclimate_mod</code> 的坡面维度相关数组</td>
+</tr>
+<tr>
+<td>水云和 CO2/尘埃相关流程</td>
+<td>分配 <code>watercloud_mod</code>、<code>dust_param_mod</code>、<code>dust_rad_adjust_mod</code>、<code>compute_dtau_mod</code> 等共享缓存，具体物理值由后续配置、restart 或物理步填充</td>
+</tr>
+<tr>
+<td>非地形重力波</td>
+<td>分配随机 GW 和 eddy-mix GW 的跨步记忆数组，restart 读取由 <code>phyetat0_mod</code> 负责</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>本例程是一个长初始化序列，源码顺序就是运行契约。新增模块若有共享数组，一般需要在这里补上对应 <code>end_*</code> / <code>ini_*</code> 调用。</li>
+<li><code>nslope</code> 在任何坡面相关数组分配前确定，避免 <code>surfdat_h</code>、<code>comsoil_h</code>、<code>dimradmars_mod</code>、<code>comslope_mod</code> 和 <code>paleoclimate_mod</code> 维度不一致。</li>
+<li>3D OpenMP 路径中本例程位于 <code>!$OMP PARALLEL COPYIN(day_ini,day_end,hour_ini)</code> 内；被初始化模块若含 threadprivate 状态，复现时需要保留调用上下文。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>若 <code>startfi.nc</code> 存在且含 <code>nslope</code> 维度，坡面相关数组会按该长度分配；若文件缺失或无 <code>nslope</code> 维度，则默认只有一个坡面。</li>
+<li>若 <code>startfi.nc</code> 中存在 <code>nslope</code> 维度但 NetCDF 无法读取长度，初始化会中止，而不是回退到 <code>nslope=1</code>。</li>
+<li>单独调用 <code>phys_state_var_init</code> 只分配 <code>comgeomfi_h</code> 的几何缓存，不会填入经纬度三角函数；3D 和 1D 调用方都在之后调用 <code>ini_fillgeom</code>。</li>
+<li>1D 无 restart 路径后续可能通过 <code>nslope</code> 配置重新释放并分配 <code>surfdat_h</code>、<code>comsoil_h</code>、<code>dimradmars_mod</code> 和 <code>paleoclimate_mod</code> 的 slope-var 数组；不要把 <code>phys_state_var_init</code> 的初始 <code>nslope</code> 当作 1D 最终坡面维度的唯一来源。</li>
+<li><code>ini_tracer_mod</code> 与 1D 后续 <code>initracer</code> 不是同一层入口：本文件负责 tracer 模块初始化，1D 入口后续还会执行更具体的 tracer 初始场处理。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>abort_physic</code> 在本文件中未显式通过 <code>use</code> 导入；需以当前编译单元和接口声明方式确认是否依赖外部过程解析。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="comcstfi_h.html">comcstfi_h</a></li>
+<li><a href="comgeomfi_h.html">comgeomfi_h</a></li>
+<li><a href="comsaison_h.html">comsaison_h</a></li>
+<li><a href="conc_mod.html">conc_mod</a></li>
+<li><a href="paleoclimate_mod.html">paleoclimate_mod</a></li>
+<li><a href="nonoro_gwd_mix_mod.html">nonoro_gwd_mix_mod</a></li>
+<li><a href="nonoro_gwd_ran_mod.html">nonoro_gwd_ran_mod</a></li>
+<li><a href="phyetat0_mod.html">phyetat0_mod</a></li>
+<li><a href="phyredem.html">phyredem</a></li>
+<li><a href="time_phylmdz_mod.html">time_phylmdz_mod</a></li>
+<li><a href="turb_mod.html">turb_mod</a></li>
+<li><a href="tracer_mass_fixer_dyn_mod.html">tracer_mass_fixer_dyn_mod</a></li>
+<li><a href="../../architecture/testphys1d-config.html">testphys1d-config</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

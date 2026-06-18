@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>geticecover - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/geticecover.md</span>
+    </nav>
+    <article class="content">
+<h1 id="geticecoverf90">geticecover.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\geticecover.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>geticecover.F90</code> 定义 <code>geticecover_mod</code>，用 Titus/TES 极冠边界的经度-季节谐波系数估算给定物理网格点是否位于南北 CO2 季节性极冠内。主入口 <code>geticecover</code> 接收每个网格点的经度、纬度和太阳经度 <code>Ls</code>，逐点调用内部函数 <code>isitice</code>，输出 <code>icecover(ig)=0.</code> 或 <code>1.</code>。</p>
+<p>在当前源码搜索中，唯一外部调用点位于 <code>physiq_mod.F</code> 的 CO2 凝结段：当 <code>tituscap</code> 为真时，<code>physiq</code> 在调用 <code>co2condens</code> 之前用 <code>geticecover</code> 覆盖 <code>qsurf_tmp(:,igcm_co2)</code>，随后乘以 <code>10000.</code>。因此这个文件不是一般水冰覆盖诊断，而是可选的 Titus 观测 CO2 季节极冠掩膜入口。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geticecover_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>包含极冠边界判定入口和内部谐波拟合函数。</td>
+</tr>
+<tr>
+<td><code>geticecover</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7</td>
+<td>遍历 <code>ngrid</code> 个网格点，把 <code>isitice(ls,lon,lat)</code> 的 0/1 判定写入 <code>icecover(:)</code>。</td>
+</tr>
+<tr>
+<td><code>isitice</code></td>
+<td>real function</td>
+<td style="text-align: right;">26</td>
+<td>按纬度带选择是否调用南/北极冠边界函数，并返回该点是否在极冠侧。</td>
+</tr>
+<tr>
+<td><code>nplatcrocus</code></td>
+<td>real function</td>
+<td style="text-align: right;">43</td>
+<td>用北半球 40 项谐波和 3 个 TES 年系数估算北极冠边界纬度。</td>
+</tr>
+<tr>
+<td><code>splatcrocus</code></td>
+<td>real function</td>
+<td style="text-align: right;">176</td>
+<td>用南半球 60 项谐波和 2 个 TES 年系数估算南极冠边界纬度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>文件没有 <code>use</code> 语句；只使用 Fortran 内建 <code>acos</code>、<code>cos</code>、<code>sin</code>、<code>dot_product</code>。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>isitice</code></td>
+<td><code>geticecover.F90</code></td>
+<td><code>geticecover</code> 第 22 行</td>
+<td>对单个经纬度点返回 0/1 冰盖覆盖标记。</td>
+</tr>
+<tr>
+<td><code>splatcrocus</code></td>
+<td><code>geticecover.F90</code></td>
+<td><code>isitice</code> 第 36 行</td>
+<td>南纬 <code>lat&lt;=-40.</code> 时计算南极冠边界。</td>
+</tr>
+<tr>
+<td><code>nplatcrocus</code></td>
+<td><code>geticecover.F90</code></td>
+<td><code>isitice</code> 第 39 行</td>
+<td>北纬 <code>lat&gt;=40.</code> 时计算北极冠边界。</td>
+</tr>
+<tr>
+<td><code>geticecover</code></td>
+<td><code>physiq_mod.F</code></td>
+<td>第 2301 行</td>
+<td><code>tituscap</code> 为真时，用观测极冠掩膜覆盖 CO2 地表储量临时场。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td><code>INTEGER</code></td>
+<td>grid point count</td>
+<td>本次物理列数。</td>
+</tr>
+<tr>
+<td><code>ls</code></td>
+<td>调用方；<code>physiq</code> 中为 <code>180.*zls/pi</code></td>
+<td><code>REAL</code></td>
+<td>degree</td>
+<td>太阳经度，源码内部再乘 <code>acos(-1.)/180.</code> 转弧度。</td>
+</tr>
+<tr>
+<td><code>lontab(:)</code></td>
+<td>调用方；<code>physiq</code> 中为 <code>180.*longitude/pi</code></td>
+<td><code>REAL(ngrid)</code></td>
+<td>degree east</td>
+<td>每个网格点经度。</td>
+</tr>
+<tr>
+<td><code>lattab(:)</code></td>
+<td>调用方；<code>physiq</code> 中为 <code>180.*latitude/pi</code></td>
+<td><code>REAL(ngrid)</code></td>
+<td>degree</td>
+<td>每个网格点纬度。</td>
+</tr>
+<tr>
+<td><code>tituscap</code></td>
+<td><code>callkeys_mod</code> / <code>conf_phys.F</code></td>
+<td>logical switch</td>
+<td>-</td>
+<td>默认 <code>.false.</code>；<code>conf_phys.F</code> 通过 <code>getin_p("tituscap",tituscap)</code> 从配置读取，控制 <code>physiq</code> 是否调用本模块。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>icecover(:)</code></td>
+<td>调用方</td>
+<td><code>REAL(ngrid)</code></td>
+<td>binary mask</td>
+<td><code>0.</code> 表示不在极冠掩膜内，<code>1.</code> 表示在极冠掩膜内。</td>
+</tr>
+<tr>
+<td><code>qsurf_tmp(:,igcm_co2)</code></td>
+<td><code>physiq_mod.F</code> 调用后处理</td>
+<td><code>REAL(ngrid)</code></td>
+<td>model surface tracer storage scale</td>
+<td><code>physiq</code> 在 <code>tituscap</code> 分支中把 <code>icecover</code> 赋给该字段，并乘以 <code>10000.</code> 后交给后续 CO2 凝结路径。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p><code>geticecover_mod</code> 不定义保存型 module 变量，不读写文件，不打印日志，也不直接读取配置。它的副作用限于写入 <code>icecover(:)</code> 实参。</p>
+<p>共享状态发生在调用侧：<code>tituscap</code> 是 <code>callkeys_mod</code> 中的 <code>logical, save</code> 变量，并声明为 OpenMP <code>THREADPRIVATE</code>；<code>conf_phys.F</code> 默认将其设为 <code>.false.</code>，再从 <code>callphys.def</code> 风格配置读取。<code>physiq_mod.F</code> 只在 <code>IF (tituscap)</code> 分支中调用本模块。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>geticecover</code> 先把整个 <code>icecover(:)</code> 清零。</li>
+<li>对每个网格点 <code>ig=1,ngrid</code>，调用 <code>isitice(ls,lontab(ig),lattab(ig))</code>。</li>
+<li><code>isitice</code> 对中低纬做快速跳过：<code>-40 &lt; lat &lt; 40</code> 时不调用任何边界函数，保持 <code>0.</code>。</li>
+<li>当 <code>lat&lt;=-40.</code> 时，计算南极冠边界 <code>splatcrocus(ls,lon)</code>；若网格纬度更靠南，即 <code>lat &lt;= splatcrocus</code>，返回 <code>1.</code>。</li>
+<li>当 <code>lat&gt;=40.</code> 时，计算北极冠边界 <code>nplatcrocus(ls,lon)</code>；若网格纬度更靠北，即 <code>lat &gt;= nplatcrocus</code>，返回 <code>1.</code>。</li>
+<li><code>nplatcrocus</code> 用 40 项 <code>gen1/gen2</code> 谐波、3 组 TES 年系数和 3 个常数项计算 3 条边界线，再取平均。</li>
+<li><code>splatcrocus</code> 用 60 项 <code>gen1/gen2</code> 谐波、2 组 TES 年系数和 2 个常数项计算 2 条边界线，再取平均。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>icecover[:] = 0
+
+for each grid point ig:
+  if latitude &lt;= -40:
+    south_edge = splatcrocus(ls, longitude)
+    if latitude &lt;= south_edge:
+      icecover[ig] = 1
+  else if latitude &gt;= 40:
+    north_edge = nplatcrocus(ls, longitude)
+    if latitude &gt;= north_edge:
+      icecover[ig] = 1
+  else:
+    icecover[ig] = 0
+
+in physiq, when tituscap is true:
+  geticecover(..., qsurf_tmp[:, igcm_co2])
+  qsurf_tmp[:, igcm_co2] *= 10000</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/co2-cycle.html">CO2 循环</a></td>
+<td>在 <code>tituscap</code> 可选分支中，用 Titus/TES 观测极冠边界覆盖 CO2 地表冰临时场，再进入 <code>co2condens</code> 前处理。</td>
+</tr>
+<tr>
+<td><a href="../../routines/physiq-co2-cycle-callpoints.html">physiq CO2 调用点</a></td>
+<td><code>physiq</code> 第 11 段 CO2 凝结前置步骤；该页已记录 <code>tituscap -&gt; geticecover -&gt; qsurf_tmp(co2)</code> 的顺序。</td>
+</tr>
+<tr>
+<td><a href="index.html">phymars 核心物理模块目录</a></td>
+<td>属于 <code>libf\phymars</code> 的 CO2 地表/极冠支撑文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>文件没有 <code>private</code> 语句，因此 module 内的 <code>geticecover</code>、<code>isitice</code>、<code>nplatcrocus</code>、<code>splatcrocus</code> 在 Fortran 默认规则下都是 public；当前外部只搜索到 <code>geticecover</code> 被 <code>physiq_mod.F</code> 使用。</li>
+<li>北半球和南半球边界函数都把 <code>Ls</code> 和经度转换为弧度后，按 <code>cos(quan)</code> 与 <code>sin(quan)</code> 对硬编码 TES 系数做 <code>DOT_PRODUCT</code>。</li>
+<li>源码注释保留了 T.N. Titus 2005 LPSC 摘要的引用说明，并标注 A. Spiga 在 2011 年做了适配。</li>
+<li>两个边界函数中都有被注释掉的 <code>[-90,90]</code> 钳制逻辑；当前实际运行不钳制，<code>isitice</code> 直接用未钳制边界比较。</li>
+<li>文件尾部有一个完整但被注释掉的 <code>PROGRAM main</code> 测试片段，用固定纬度列表和 <code>Ls=0..360</code> 的步进打印掩膜。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>传入 <code>ls</code>、<code>lon</code>、<code>lat</code> 必须是度；<code>physiq_mod.F</code> 已从弧度转为度后再调用。若直接用弧度调用，谐波相位会错误。</li>
+<li>中低纬 <code>-40 &lt; lat &lt; 40</code> 永远返回 <code>0.</code>，不会计算边界函数。</li>
+<li>北半球判定方向是 <code>lat &gt;= nplatcrocus</code>；南半球判定方向是 <code>lat &lt;= splatcrocus</code>。</li>
+<li><code>tituscap</code> 默认关闭；复现 <code>physiq</code> 主流程中的本模块效果时必须确认配置确实把 <code>tituscap</code> 设为真。</li>
+<li><code>physiq</code> 调用后把 0/1 掩膜乘以 <code>10000.</code>，这一步不在 <code>geticecover</code> 内部。单独复现文件页逻辑时不要把 <code>icecover</code> 误解成最终 <code>qsurf_tmp</code> 量级。</li>
+<li>复现风险：南/北边界函数注释中都写有边界钳制代码，但当前源码没有启用；若重新实现时擅自钳制到 <code>[-90,90]</code>，极区边界判定可能和原模型不同。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>qsurf_tmp(:,igcm_co2) * 10000.</code> 的物理单位或经验量级没有在本文件中说明；本页只记录 <code>physiq_mod.F</code> 的字面调用后处理。</li>
+<li>Titus 系数表注释中南、北函数都写 “TES year 1”，但北半球实际平均 3 组年份、南半球实际平均 2 组年份；本页按数组维度和循环次数描述，不额外推断年份含义。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../routines/physiq-co2-cycle-callpoints.html">physiq-co2-cycle-callpoints</a></li>
+<li><a href="../../themes/co2-cycle.html">co2-cycle</a></li>
+<li><a href="index.html">phymars/index</a></li>
+<li><a href="../../reference/file-index.html">file-index</a></li>
+<li><a href="../../reference/symbol-index.html">symbol-index</a></li>
+<li><a href="../../routines/co2condens.html">co2condens.md</a> routine 页与 <a href="physiq_mod.html">physiq_mod.md</a> 完整文件页。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

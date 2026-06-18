@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nirdata - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/nirdata.md</span>
+    </nav>
+    <article class="content">
+<h1 id="nirdataf90">nirdata.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\nirdata.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>nirdata.F90</code> 定义 <code>nirdata_mod</code>，保存近红外 CO2 NLTE 修正表，并提供 <code>NIR_leedat</code> 例程从运行时数据目录读取 <code>NIRcorrection_feb2011.dat</code>。该表随后由 <code>nirco2abs.F</code> 在 <code>nircorr=1</code> 时按压力插值，得到 CO2 近红外吸收加热率的修正因子。</p>
+<p><code>physiq_mod.F</code> 在初始化阶段通过 <code>use nirdata_mod, only: NIR_leedat</code> 引入本例程，并在 <code>callnirco2.and.nircorr.eq.1</code> 时调用。非 <code>MESOSCALE</code> 编译路径下，只有 <code>is_master</code> 进程实际读文件，随后通过 <code>bcast</code> 把五个表数组广播到其他进程；<code>MESOSCALE</code> 路径下没有这些并行模块依赖，源码按字面直接读表。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nirdata_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>保存近红外 CO2 NLTE 修正表和读表例程。</td>
+</tr>
+<tr>
+<td><code>npres</code></td>
+<td>integer parameter</td>
+<td>6</td>
+<td>修正表压力层数，固定为 42。</td>
+</tr>
+<tr>
+<td><code>pres1d</code></td>
+<td>saved protected module array</td>
+<td>8</td>
+<td>表格压力坐标；读入后从 hPa 转为 Pa。</td>
+</tr>
+<tr>
+<td><code>corgcm</code></td>
+<td>saved protected module array</td>
+<td>9</td>
+<td>供 <code>nirco2abs</code> 插值的 GCM 修正因子表。</td>
+</tr>
+<tr>
+<td><code>oco21d</code></td>
+<td>saved protected module array</td>
+<td>10</td>
+<td>供 <code>nirco2abs</code> 插值的参考 O/CO2 比值表。</td>
+</tr>
+<tr>
+<td><code>alfa</code></td>
+<td>saved protected module array</td>
+<td>11</td>
+<td>供 <code>nirco2abs</code> 插值的混合指数表。</td>
+</tr>
+<tr>
+<td><code>p1999</code></td>
+<td>saved protected module array</td>
+<td>12</td>
+<td>从文件读入的旧方案相关列；当前源码树内未见下游使用。</td>
+</tr>
+<tr>
+<td><code>NIR_leedat</code></td>
+<td>subroutine</td>
+<td>17</td>
+<td>读取 <code>NIRcorrection_feb2011.dat</code> 并在非 <code>MESOSCALE</code> 路径广播表数组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datafile_mod</code></td>
+<td><code>datadir</code></td>
+<td>拼接运行时数据文件路径 <code>trim(datadir)//'/NIRcorrection_feb2011.dat'</code>。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code></td>
+<td>非 <code>MESOSCALE</code> 路径下只让 master 进程读取文件。</td>
+<td>该依赖位于 <code>#ifndef MESOSCALE</code> 内。</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td><code>bcast</code></td>
+<td>非 <code>MESOSCALE</code> 路径下广播读入的五个数组。</td>
+<td>该依赖位于 <code>#ifndef MESOSCALE</code> 内。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td><code>nirdata.F90:52-56</code></td>
+<td>非 <code>MESOSCALE</code> 路径下广播 <code>pres1d/corgcm/oco21d/p1999/alfa</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="上游调用点">上游调用点</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>源码位置</th>
+<th>调用条件</th>
+<th>传入 / 接收关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>physiq_mod.F</code></td>
+<td><code>physiq_mod.F:69</code>, <code>775</code></td>
+<td><code>callnirco2.and.nircorr.eq.1</code></td>
+<td>无显式参数；调用后本模块的 protected 表数组被填充。</td>
+</tr>
+<tr>
+<td><code>nirco2abs.F</code></td>
+<td><code>nirco2abs.F:15</code>, <code>159-161</code>, <code>226-228</code></td>
+<td>近红外 CO2 加热率计算且 <code>nircorr=1</code></td>
+<td>读取 <code>npres, alfa, corgcm, oco21d, pres1d</code>，通过 <code>interpnir</code> 插值得到逐层修正量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datadir</code></td>
+<td><code>datafile_mod</code></td>
+<td>character path</td>
+<td>-</td>
+<td>运行时数据目录。</td>
+</tr>
+<tr>
+<td><code>NIRcorrection_feb2011.dat</code></td>
+<td><code>trim(datadir)</code> 下的外部数据文件</td>
+<td>文本表，跳过前 9 行后读 42 行</td>
+<td>压力列读入后按 hPa 转 Pa</td>
+<td>每行读入 <code>pres1d, corgcm, oco21d, p1999, alfa</code> 五列。</td>
+</tr>
+<tr>
+<td><code>is_master</code></td>
+<td><code>mod_phys_lmdz_para</code></td>
+<td>logical</td>
+<td>-</td>
+<td>非 <code>MESOSCALE</code> 路径下控制是否由当前进程执行文件 I/O。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pres1d(npres)</code></td>
+<td><code>nirdata_mod</code> module state；<code>nirco2abs</code> 读取</td>
+<td>real array, save, protected</td>
+<td>Pa</td>
+<td>修正表压力坐标。</td>
+</tr>
+<tr>
+<td><code>corgcm(npres)</code></td>
+<td><code>nirdata_mod</code> module state；<code>nirco2abs</code> 读取</td>
+<td>real array, save, protected</td>
+<td>源表单位</td>
+<td>GCM 修正因子。</td>
+</tr>
+<tr>
+<td><code>oco21d(npres)</code></td>
+<td><code>nirdata_mod</code> module state；<code>nirco2abs</code> 读取</td>
+<td>real array, save, protected</td>
+<td>源表单位</td>
+<td>参考 O/CO2 比值。</td>
+</tr>
+<tr>
+<td><code>p1999(npres)</code></td>
+<td><code>nirdata_mod</code> module state</td>
+<td>real array, save, protected</td>
+<td>源表单位</td>
+<td>文件第四列；当前源码树内没有被 <code>nirco2abs</code> 引用。</td>
+</tr>
+<tr>
+<td><code>alfa(npres)</code></td>
+<td><code>nirdata_mod</code> module state；<code>nirco2abs</code> 读取</td>
+<td>real array, save, protected</td>
+<td>源表单位</td>
+<td>修正混合指数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>pres1d/corgcm/oco21d/alfa/p1999</code> 是 <code>save, protected</code> 的 module 数组，且标记为 <code>!$OMP THREADPRIVATE</code>。</li>
+<li><code>NIR_leedat</code> 使用固定单元号 <code>43</code> 打开外部数据文件，读取完成后关闭。</li>
+<li>非 <code>MESOSCALE</code> 路径下，只有 master 进程读文件，然后对五个数组逐一 <code>bcast</code>。</li>
+<li>源码没有检查 <code>open</code>/<code>read</code> 的 <code>iostat</code>；缺失或格式不符的数据文件会沿 Fortran 运行时错误路径暴露。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>声明 <code>npres=42</code>，并为五列近红外修正表分配固定长度 module 数组。</li>
+<li><code>NIR_leedat</code> 进入后读取 <code>datafile_mod::datadir</code>。</li>
+<li>非 <code>MESOSCALE</code> 编译时，先判断 <code>is_master</code>，只有 master 进入文件读取块。</li>
+<li>用单元号 <code>43</code> 打开 <code>trim(datadir)//'/NIRcorrection_feb2011.dat'</code>，要求文件状态为 <code>old</code>。</li>
+<li>连续跳过前 9 行表头。</li>
+<li>循环 <code>ind=1,npres</code>，每行依次读入 <code>pres1d(ind), corgcm(ind), oco21d(ind), p1999(ind), alfa(ind)</code>。</li>
+<li>将 <code>pres1d(ind)</code> 乘以 <code>100.</code>，把表中压力转换为 Pa。</li>
+<li>关闭文件；非 <code>MESOSCALE</code> 路径下再广播 <code>pres1d/corgcm/oco21d/p1999/alfa</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>NIR_leedat:
+    if not MESOSCALE:
+        if is_master:
+            read_table()
+        broadcast pres1d, corgcm, oco21d, p1999, alfa
+    else:
+        read_table()
+
+read_table:
+    open unit 43 at datadir/NIRcorrection_feb2011.dat
+    skip 9 header lines
+    for ind = 1..42:
+        read pressure, corgcm, oco21d, p1999, alfa
+        pressure = pressure * 100
+    close unit 43</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>近红外 CO2 吸收</td>
+<td>为 <code>nirco2abs</code> 提供 <code>nircorr=1</code> 时使用的压力表和 NLTE 修正参数。</td>
+</tr>
+<tr>
+<td>辐射初始化</td>
+<td><code>physiq</code> 在 <code>callnirco2.and.nircorr.eq.1</code> 时调用 <code>NIR_leedat</code>，确保后续 NIR 加热率计算已有表数据。</td>
+</tr>
+<tr>
+<td>运行时数据依赖</td>
+<td>依赖 <code>datafile_mod::datadir</code> 指向包含 <code>NIRcorrection_feb2011.dat</code> 的数据目录。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 <code>.F90</code> 模块，但包含 <code>#ifndef MESOSCALE</code> 预处理分支。</li>
+<li>表数组使用 <code>save, protected</code>，外部模块可读不可直接写。</li>
+<li>表数组同时是 OpenMP <code>THREADPRIVATE</code>，非 <code>MESOSCALE</code> 下广播后每个线程/并行上下文的数据可用性需遵循当前 LMDZ 并行运行约定。</li>
+<li><code>p1999</code> 被读取和广播，但当前 <code>rg</code> 只发现它在 <code>nirdata.F90</code> 内出现；<code>nirco2abs.F</code> 只 <code>use</code> 了 <code>npres/alfa/corgcm/oco21d/pres1d</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>数据文件路径是 <code>trim(datadir)//'/NIRcorrection_feb2011.dat'</code>，不是相对当前工作目录。</li>
+<li>读表时必须跳过前 9 行，再读取 42 行、5 列。</li>
+<li>第一列压力读入后立即乘以 <code>100.</code>；复现 <code>nirco2abs</code> 插值时应使用转换后的 Pa。</li>
+<li>非 <code>MESOSCALE</code> 并行路径下，只能让 master 读文件，再广播五个数组；否则可能造成重复 I/O 或非 master 数据未初始化。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 <code>LMDZ.MARS</code> 树下未找到 <code>NIRcorrection_feb2011.dat</code>，<code>LMDZ.MARS\datadir\NIRcorrection_feb2011.dat</code> 也不存在；实际运行环境需确认 <code>datadir</code> 指向的外部数据位置。</li>
+<li>源码注释只说明该表用于 2011 年新增 NLTE 修正；表中 <code>corgcm/oco21d/p1999/alfa</code> 各列的详细来源和单位需查数据文件或论文说明。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="nirco2abs.html">nirco2abs</a>：近红外 CO2 加热率计算，直接读取本模块表数组。</li>
+<li><a href="datafile_mod.html">datafile_mod</a>：运行时 <code>datadir</code> 来源。</li>
+<li><a href="../../themes/radiation.html">radiation</a>：辐射主题页。</li>
+<li><a href="../../architecture/config-system.html">config-system</a>：包含运行配置和数据目录背景。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

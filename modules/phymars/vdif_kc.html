@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vdif_kc - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/vdif_kc.md</span>
+    </nav>
+    <article class="content">
+<h1 id="vdif_kcf">vdif_kc.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\vdif_kc.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>vdif_kc.F</code> 是 <code>vdifc_mod.F</code> 在未启用 <code>callyamada4</code> 且未启用 <code>callatke</code> 时使用的垂直湍流扩散 K 系数方案。它根据层界面高度、层中心高度、风速、位温、地表拖曳系数和上一时步/输入的 <code>q2</code>，更新湍流速度尺度 <code>q=sqrt(q2)</code>，并输出动量扩散系数 <code>km</code> 与标量扩散系数 <code>kn</code>。在 <code>vdifc_mod.F</code> 中，<code>km</code>/<code>kn</code> 对应后续隐式扩散使用的 <code>zkv</code>/<code>zkh</code>。</p>
+<p>该例程还会在首次调用时从 <code>tracer_mod:noms</code> 查找 <code>"co2"</code> tracer。如果存在 CO2 tracer，它用 CO2 质量混合比构造一个修正的稳定度变量 <code>zhc</code>，使 Brunt-Vaisala 型稳定度项包含平均分子量变化的影响。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vdif_kc_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>垂直湍流扩散 K 系数方案模块</td>
+</tr>
+<tr>
+<td><code>vdif_kc</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>计算并更新 <code>q2</code>、动量扩散系数 <code>km</code> 和标量扩散系数 <code>kn</code></td>
+</tr>
+<tr>
+<td><code>ico2</code></td>
+<td>saved local integer</td>
+<td>215</td>
+<td>首次调用时缓存 <code>"co2"</code> tracer 的索引；0 表示未找到</td>
+</tr>
+<tr>
+<td><code>A</code>, <code>B</code></td>
+<td>saved local real</td>
+<td>220</td>
+<td>CO2 平均分子量修正中 <code>1/Mair = A*qco2 + B</code> 的系数</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td>saved local logical</td>
+<td>225</td>
+<td>控制 CO2 tracer 查找只在每个 OpenMP 线程首次调用时执行</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>noms</code></td>
+<td>首次调用时扫描 tracer 名称，查找 <code>"co2"</code> 的数组索引</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无外部例程调用</td>
+<td>—</td>
+<td>—</td>
+<td>只使用 <code>sqrt</code>、<code>amax1</code> 等 Fortran 内建函数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="上游调用点">上游调用点</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>源码位置</th>
+<th>调用条件</th>
+<th>传入/接收关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vdifc_mod.F::vdifc</code></td>
+<td><code>vdifc_mod.F:40,475-477</code></td>
+<td><code>callyamada4=.false.</code> 且 <code>callatke=.false.</code></td>
+<td>传入 <code>pzlev/pzlay/pu/pv/ph/zcdv_true_tmp/pq2/zq</code>；接收 <code>pq2</code>、<code>zkv</code>、<code>zkh</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方 <code>vdifc</code></td>
+<td>integer</td>
+<td>—</td>
+<td>水平网格点数</td>
+</tr>
+<tr>
+<td><code>nlay</code></td>
+<td>调用方 <code>vdifc</code></td>
+<td>integer</td>
+<td>—</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>调用方 <code>vdifc</code></td>
+<td>integer</td>
+<td>—</td>
+<td>tracer 数量</td>
+</tr>
+<tr>
+<td><code>dt</code></td>
+<td><code>vdifc</code> 传入 <code>ptimestep</code></td>
+<td>real</td>
+<td>s</td>
+<td>物理时间步长</td>
+</tr>
+<tr>
+<td><code>g</code></td>
+<td>物理常数</td>
+<td>real</td>
+<td>m/s^2</td>
+<td>重力加速度</td>
+</tr>
+<tr>
+<td><code>zlev(ngrid,nlay+1)</code></td>
+<td>垂直网格</td>
+<td>real</td>
+<td>m</td>
+<td>层界面高度；第 <code>nlay+1</code> 列是顶界面</td>
+</tr>
+<tr>
+<td><code>zlay(ngrid,nlay)</code></td>
+<td>垂直网格</td>
+<td>real</td>
+<td>m</td>
+<td>层中心高度</td>
+</tr>
+<tr>
+<td><code>u(ngrid,nlay)</code> / <code>v(ngrid,nlay)</code></td>
+<td>动力场</td>
+<td>real</td>
+<td>m/s</td>
+<td>层中心水平风速，输入为时间步开始值</td>
+</tr>
+<tr>
+<td><code>teta(ngrid,nlay)</code></td>
+<td>热力场</td>
+<td>real</td>
+<td>K</td>
+<td>层中心位温，输入为时间步开始值</td>
+</tr>
+<tr>
+<td><code>cd(ngrid)</code></td>
+<td><code>vdif_cd</code>/地表层交换</td>
+<td>real</td>
+<td>1</td>
+<td>地表动量拖曳系数</td>
+</tr>
+<tr>
+<td><code>zq(ngrid,nlay,nq)</code></td>
+<td>tracer 场</td>
+<td>real</td>
+<td>kg/kg</td>
+<td>只在存在 <code>"co2"</code> tracer 时读取 CO2 质量混合比</td>
+</tr>
+<tr>
+<td><code>q2(ngrid,nlay+1)</code></td>
+<td><code>vdifc</code> 的湍流状态</td>
+<td>real, inout</td>
+<td>m^2/s^2（速度平方）</td>
+<td>层界面上的 <code>q^2</code>，输入旧值，输出更新值</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q2(ngrid,nlay+1)</code></td>
+<td><code>vdifc</code> 后续扩散流程</td>
+<td>real, inout</td>
+<td>m^2/s^2</td>
+<td>更新后的湍流速度尺度平方</td>
+</tr>
+<tr>
+<td><code>km(ngrid,nlay+1)</code></td>
+<td><code>vdifc</code> 中的 <code>zkv</code></td>
+<td>real, out</td>
+<td>m^2/s</td>
+<td>动量湍流扩散系数</td>
+</tr>
+<tr>
+<td><code>kn(ngrid,nlay+1)</code></td>
+<td><code>vdifc</code> 中的 <code>zkh</code></td>
+<td>real, out</td>
+<td>m^2/s</td>
+<td>标量/热量湍流扩散系数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>读取共享 tracer 名称</strong>：<code>noms(:)</code> 来自 <code>tracer_mod</code>，只用于首次定位 <code>"co2"</code> tracer。</li>
+<li><strong>持久局部状态</strong>：<code>ico2</code>、<code>A</code>、<code>B</code>、<code>firstcall</code> 都是 <code>SAVE</code> + <code>!$OMP THREADPRIVATE</code>，每个 OpenMP 线程保留自己的首次调用状态。</li>
+<li><strong>原地更新</strong>：<code>q2</code> 是 <code>INTENT(INOUT)</code>，例程会裁剪下限并改写内部界面和顶界面值。</li>
+<li><strong>无文件 I/O/诊断输出</strong>：本文件不写 NetCDF、不读配置文件，也不直接修改其他模块变量。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>首次 CO2 tracer 定位（行 236-255）</strong>：若 <code>firstcall</code> 为真，遍历 <code>noms(1:nq)</code> 查找名称等于 <code>"co2"</code> 的 tracer。找到后设置 <code>ico2</code>，并用 <code>m_co2=44.01e-3 kg/mol</code> 与 <code>m_noco2=33.37e-3 kg/mol</code> 预计算 <code>A</code> 和 <code>B</code>。之后 <code>firstcall=.false.</code>。</li>
+<li><strong>构造稳定度用变量 <code>zhc</code>（行 270-279）</strong>：若 <code>ico2</code> 非 0，则 <code>zhc = teta * (A*zq(:,:,ico2)+B)</code>；否则 <code>zhc=teta</code>。后续 <code>n2</code> 使用 <code>zhc</code> 的层间差分而不是原始 <code>teta</code>。</li>
+<li><strong>初始化 <code>q2/q</code> 与地表边界（行 285-297）</strong>：所有界面 <code>q2</code> 至少为 <code>q2min=1e-3</code>；最底界面 <code>q2(:,1)</code> 由 <code>b1^(2/3) * cd * (u1^2+v1^2)</code> 重新给定并同样裁剪下限。</li>
+<li><strong>计算垂直几何倒数（行 313-327）</strong>：<code>unsdz</code> 是层厚倒数，<code>unsdzdec</code> 是相邻层中心或边界到层中心的距离倒数。源码注释特别提醒顶界面 <code>zlev(:,nlev)</code> 必须由调用方提供。</li>
+<li><strong>计算剪切与稳定度（行 331-380）</strong>：底界面剪切由第一层风速除以近地距离得到；内部界面 <code>n2</code> 用 <code>g * dz^-1 * 2*(zhc_l-zhc_{l-1})/(zhc_l+zhc_{l-1})</code> 计算，若为负则置 0。内部剪切 <code>m2</code> 来自相邻层风速差，顶界面复制倒数第二个界面。</li>
+<li><strong>Blackadar 混合长度与稳定度函数（行 387-449）</strong>：混合长度 <code>long = kappa*z/(1+z/long0)</code>，其中 <code>kappa=0.4</code>、<code>long0=160 m</code>。<code>gn=-long^2*n2/q2</code> 被限制到 <code>[-10,0.0233]</code>，再计算 <code>sn</code> 和 <code>sm</code>；若 <code>gn</code> 被截断或导数项符号不合理，<code>snq2/smq2</code> 被置 0。</li>
+<li><strong>初始 <code>kn/km</code>（行 457-486）</strong>：底界面取 <code>knmin=kmmin=1e-5</code>；内部界面按 <code>long*q*sn</code> 与 <code>long*q*sm</code> 计算；顶界面复制倒数第二个界面。</li>
+<li><strong>内部界面稳态耦合求解（行 497-605）</strong>：对 <code>ilev=2:nlev-1</code>，先把剪切生产、浮力项和耗散项拆成 <code>q</code>、<code>q^3</code>、<code>q*m2</code>、<code>q^3*m2</code> 贡献；然后求一个使局地 <code>q2</code> 方程与速度梯度方程同时达到稳态的 <code>m2cstat/qcstat</code>。<code>ilev=2</code> 使用地表拖曳 <code>cd</code> 的特殊边界项，其余界面使用上下相邻界面的 <code>kmpre/mpre</code>。</li>
+<li><strong>最终裁剪与重算扩散系数（行 584-605）</strong>：若新 <code>q2</code> 小于 <code>q2min</code>，重置为下限；随后用新 <code>q2</code> 重新计算 <code>gn/sn/sm</code> 以及最终 <code>kn/km</code>。</li>
+<li><strong>上下边界收尾（行 616-622）</strong>：底界面 <code>kn/km</code> 再次设为最小值；顶界面 <code>q2/q/kn/km</code> 复制倒数第二个界面。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>vdif_kc:
+  if firstcall:
+    ico2 = index of &quot;co2&quot; in noms, or 0
+    if ico2 exists:
+      A = 1/m_co2 - 1/m_noco2
+      B = 1/m_noco2
+    firstcall = false
+
+  if ico2 exists:
+    zhc = teta * (A*zq(:,:,ico2) + B)
+  else:
+    zhc = teta
+
+  q2 = max(q2, q2min)
+  q = sqrt(q2)
+  q2(:,1) = max(b1^(2/3) * cd * (u(:,1)^2 + v(:,1)^2), q2min)
+
+  compute layer-thickness inverses unsdz and center-distance inverses unsdzdec
+  compute shear m2/m and stable stratification n2
+  if n2 &lt; 0: n2 = 0
+
+  for internal interfaces:
+    long = Blackadar(kappa, long0, height_above_surface)
+    gn = clamp(-long^2*n2/q2, gnmin, gnmax)
+    sn, sm = stability_functions(gn)
+    snq2, smq2 = Taylor q2 derivative terms, or 0 if clipped/sign mismatch
+    kn = long*q*sn
+    km = long*q*sm
+
+  for internal interfaces:
+    split q2 source terms into q, q^3, q*m2, q^3*m2
+    solve stationary coupled q2/shear estimate:
+      m2cstat = m2 - source_sum/(dt*2*km)
+      mcstat = sqrt(m2cstat)
+      if lowest internal interface:
+        include surface-drag boundary term with cd
+      else:
+        use neighboring kmpre/mpre
+      qcstat = (kmcstat / (sm/q2) / long)^(1/3)
+    q2 = max(qcstat^2, q2min)
+    recompute sn/sm and final kn/km
+
+  bottom kn/km = minimum values
+  top q2/q/kn/km = values from previous interface</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>边界层垂直扩散</td>
+<td>在 <code>vdifc</code> 中为动量和标量隐式扩散提供 <code>zkv/zkh</code></td>
+</tr>
+<tr>
+<td>地表-大气耦合</td>
+<td>通过 <code>cd</code> 把地表拖曳系数接入底界面 <code>q2</code> 和最低内部界面的稳态剪切求解</td>
+</tr>
+<tr>
+<td>CO2 循环/大气组成</td>
+<td>若 tracer 列表含 <code>"co2"</code>，用 CO2 质量混合比修正稳定度变量 <code>zhc</code></td>
+</tr>
+<tr>
+<td>tracer 垂直混合</td>
+<td><code>kn</code> 作为标量扩散系数参与 <code>vdifc</code> 后续对热量和 tracer 的垂直扩散</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>固定格式 Fortran</strong>：文件扩展名 <code>.F</code>，使用固定格式续行和数字标签 <code>10001/10002</code>。</li>
+<li><strong>只有一个外部模块依赖</strong>：除 <code>tracer_mod:noms</code> 外不依赖其他模块，核心算法完全在本例程内展开。</li>
+<li><strong><code>SAVE</code> + <code>THREADPRIVATE</code> 首次初始化</strong>：CO2 tracer 索引和系数每个 OpenMP 线程缓存一次。</li>
+<li><strong>稳定度只处理稳定层结</strong>：内部 <code>n2&lt;0</code> 时直接置 0；源码注释说明对流调整应保证进入本例程的是稳定构型。</li>
+<li><strong>下限保护不等于上下限保护</strong>：<code>q2min</code>、<code>knmin</code>、<code>kmmin</code> 被实际使用；<code>q2max</code> 虽声明为参数，但源码没有对 <code>q2</code> 做上限裁剪。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>vdif_kc</code> 只在 <code>vdifc</code> 的 fallback 路径执行：<code>callyamada4=.false.</code> 且 <code>callatke=.false.</code>。若启用 Yamada4 或 ATKE，<code>vdifc</code> 会走其他例程。</li>
+<li>传入的 <code>zlev(:,nlay+1)</code> 必须是真实顶界面；源码中原先补顶界面的代码已被注释掉。</li>
+<li>CO2 修正取决于 <code>tracer_mod:noms</code> 首次调用时是否存在 <code>"co2"</code>；如果没有，稳定度直接用 <code>teta</code>。</li>
+<li><code>n2</code> 的负值会被钳到 0，因此复现不稳定层结时不能期待本例程显式产生对流增强。</li>
+<li>底界面 <code>q2</code> 每次都会由 <code>cd*(u1^2+v1^2)</code> 重置，不只是沿用输入 <code>q2</code>。</li>
+<li><code>vdifc</code> 在 <code>vdif_kc</code> 返回后，如果 <code>doubleq</code> 且 <code>ngrid==1</code>，还会把 <code>zkh/zkv</code> 的内部层最低值抬到 <code>80</code>；该保护不在本文件内。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>m2cstat</code> 在行 539-541 直接进入 <code>sqrt(m2cstat)</code>，源码没有非负保护。复现风险：若源项组合使 <code>m2cstat&lt;0</code>，可能产生 NaN；需开发者确认输入范围是否保证其非负。</li>
+<li><code>ilev=2</code> 的地表边界分支在行 552 使用 <code>u(igrid,3)</code>/<code>v(igrid,3)</code>。复现风险：该写法假设 <code>nlay&gt;=3</code>，常规 3D/1D 大气列应满足，但极简测试网格需要避免少于 3 层。</li>
+<li><code>q2max=1e2</code> 在行 191 声明但未使用；不应把它当作实际上限。</li>
+<li><code>firstcall</code> 缓存意味着若一次运行中动态改变 <code>noms</code> 或 tracer 顺序，本例程不会重新扫描 CO2 索引；当前流程通常在初始化后固定 tracer 表。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="vdif_cd_mod.html">vdif_cd_mod</a> — 地表层动量/热量交换系数，向 <code>vdifc</code> 提供 <code>cd</code>/<code>zcdv_true_tmp</code> 等输入背景。</li>
+<li><a href="../../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a> — <code>vdifc</code> 中水汽地表交换段；本页覆盖的是同一 <code>vdifc</code> 流程更早的 K 系数计算。</li>
+<li><a href="pbl_parameters_mod.html">pbl_parameters_mod</a> — PBL 诊断参数页，和本页共享边界层/稳定度背景，但该页不改变物理倾向。</li>
+<li><a href="tracer_mod.html">tracer_mod</a> — <code>noms</code> 来源，决定 CO2 tracer 是否触发稳定度修正。</li>
+<li><a href="index.html">phymars index</a> — <code>phymars</code> 目录总览。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

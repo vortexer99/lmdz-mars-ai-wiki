@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>yoegwd_h - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/yoegwd_h.md</span>
+    </nav>
+    <article class="content">
+<h1 id="yoegwd_hf90">yoegwd_h.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\yoegwd_h.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>yoegwd_h.F90</code> 定义 <code>yoegwd_h</code> 模块，是地形重力波拖曳链的共享调参状态容器。它本身不执行计算，也不读取配置文件；所有变量都在模块内以 <code>save</code> 或模块变量形式保存，并通过 OpenMP <code>THREADPRIVATE</code> 声明成为每个线程私有的地形 GW 参数副本。实际数值由 <a href="sugwd.html">sugwd</a> 在 <code>calldrag_noro</code> 首调用时写入，随后被 <a href="orosetup.html">orosetup</a>、<a href="gwstress_mod.html">gwstress_mod</a>、<a href="gwprofil_mod.html">gwprofil_mod</a> 和 <a href="orodrag_mod.html">orodrag_mod</a> 读取。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>yoegwd_h</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>地形重力波拖曳参数共享模块。</td>
+</tr>
+<tr>
+<td><code>GFRCRIT</code></td>
+<td>saved threadprivate real</td>
+<td style="text-align: right;">7, 10</td>
+<td>低层流 / Froude 相关临界参数；由 <code>SUGWD</code> 写为 <code>1.0</code>，供 <code>OROSETUP</code> 判据读取。</td>
+</tr>
+<tr>
+<td><code>GRCRIT</code></td>
+<td>saved threadprivate real</td>
+<td style="text-align: right;">8, 10</td>
+<td>Richardson 数临界参数；由 <code>SUGWD</code> 写为 <code>0.25</code>，供 <code>OROSETUP</code> 和 <code>GWPROFIL</code> 使用。</td>
+</tr>
+<tr>
+<td><code>GVCRIT</code></td>
+<td>saved threadprivate real</td>
+<td style="text-align: right;">9, 10</td>
+<td>临界风速阈值；由 <code>SUGWD</code> 写为 <code>0.0</code>，在 <code>GWSTRESS</code> 中出现在当前注释掉的截断判据里。</td>
+</tr>
+<tr>
+<td><code>GKDRAG</code></td>
+<td>saved threadprivate real</td>
+<td style="text-align: right;">11, 14</td>
+<td>地形 GW 底层应力 drag 系数；由 <code>SUGWD</code> 写为 <code>0.1</code>。</td>
+</tr>
+<tr>
+<td><code>GKDRAGL</code></td>
+<td>saved threadprivate real</td>
+<td style="text-align: right;">12, 14</td>
+<td><code>GKDRAG</code> 的派生系数；由 <code>SUGWD</code> 写为 <code>4.*GKDRAG</code>。</td>
+</tr>
+<tr>
+<td><code>GHMAX</code></td>
+<td>saved threadprivate real</td>
+<td style="text-align: right;">13, 14</td>
+<td>最大地形高度相关阈值；由 <code>SUGWD</code> 写为 <code>10000.</code>，本文件只声明。</td>
+</tr>
+<tr>
+<td><code>GRAHILO</code></td>
+<td>saved threadprivate real</td>
+<td style="text-align: right;">15, 18</td>
+<td>高低层相关经验系数；由 <code>SUGWD</code> 写为 <code>1.</code>。</td>
+</tr>
+<tr>
+<td><code>GSIGCR</code></td>
+<td>saved threadprivate real</td>
+<td style="text-align: right;">16, 18</td>
+<td><code>OROSETUP</code> 查找低层流高度的 sigma 阈值；由 <code>SUGWD</code> 写为 <code>0.80</code>。</td>
+</tr>
+<tr>
+<td><code>GSSEC</code></td>
+<td>saved threadprivate real</td>
+<td style="text-align: right;">17, 18</td>
+<td>Brunt-Vaisala 频率平方的安全下限；由 <code>SUGWD</code> 写为 <code>1.E-12</code>。</td>
+</tr>
+<tr>
+<td><code>GTSEC</code></td>
+<td>saved threadprivate real</td>
+<td style="text-align: right;">19, 22</td>
+<td>stress / 次网格地形各向异性的安全阈值；由 <code>SUGWD</code> 写为 <code>1.E-07</code>。</td>
+</tr>
+<tr>
+<td><code>GVSEC</code></td>
+<td>saved threadprivate real</td>
+<td style="text-align: right;">20, 22</td>
+<td>风速范数和风切变计算的安全下限；由 <code>SUGWD</code> 写为 <code>0.10</code>。</td>
+</tr>
+<tr>
+<td><code>GKWAKE</code></td>
+<td>saved threadprivate real</td>
+<td style="text-align: right;">21, 22</td>
+<td>阻塞层 wake drag 经验系数；由 <code>SUGWD</code> 写为 <code>1.0</code>，由 <code>ORODRAG</code> 读取。</td>
+</tr>
+<tr>
+<td><code>NKTOPG</code></td>
+<td>threadprivate integer</td>
+<td style="text-align: right;">23, 24</td>
+<td>地形高度搜索允许到达的顶部层索引；由 <code>SUGWD</code> 扫描 <code>sigtest</code> 后写入。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>本文件只声明共享变量，不 <code>use</code> 其他模块。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>本文件没有可执行语句。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SUGWD</code> 写入的参数值</td>
+<td><code>sugwd.F90</code> 行 45-76</td>
+<td>scalar real / integer</td>
+<td>依变量而定</td>
+<td>本模块变量的唯一已核验初始化来源。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GFRCRIT</code>, <code>GRCRIT</code>, <code>GSIGCR</code>, <code>GSSEC</code>, <code>GTSEC</code>, <code>GVSEC</code>, <code>NKTOPG</code></td>
+<td><code>orosetup.F90</code></td>
+<td>module variables</td>
+<td>阈值 / 层索引</td>
+<td>低层流、稳定度、风速保护和地形搜索层限制。</td>
+</tr>
+<tr>
+<td><code>GKDRAG</code>, <code>GTSEC</code>, <code>GVCRIT</code></td>
+<td><code>gwstress_mod.F90</code></td>
+<td>module variables</td>
+<td>drag 系数 / 阈值</td>
+<td>底层重力波应力公式和截断判据。</td>
+</tr>
+<tr>
+<td><code>GKDRAG</code>, <code>GRCRIT</code>, <code>GSSEC</code>, <code>GTSEC</code></td>
+<td><code>gwprofil_mod.F90</code></td>
+<td>module variables</td>
+<td>drag 系数 / 阈值</td>
+<td>应力廓线重算、波 Richardson 数破碎判据和小 stress 保护。</td>
+</tr>
+<tr>
+<td><code>GKWAKE</code></td>
+<td><code>orodrag_mod.F90</code></td>
+<td>module variable</td>
+<td>经验系数</td>
+<td>阻塞层 wake drag 方程的系数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p><code>yoegwd_h</code> 的全部变量都是共享模块状态，且都带有 OpenMP <code>THREADPRIVATE</code> 语义。源码没有提供显式初始化例程或默认值；正常路径依赖 <code>calldrag_noro_mod.F90</code> 首调用时先调用 <code>sugwd</code>，再进入 <code>ORODRAG/OROSETUP/GWSTRESS/GWPROFIL</code> 链。复现时不能只检查本文件声明，还必须确认 <code>SUGWD</code> 已经在同一线程中执行过，否则这些 threadprivate 变量可能保留未定义或旧值。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>声明 12 个 <code>real,save</code> 地形 GW 参数，分成四组 <code>THREADPRIVATE</code>。</li>
+<li>声明 1 个 <code>integer</code> 层索引 <code>NKTOPG</code>，同样设为 <code>THREADPRIVATE</code>；它不是 <code>real,save</code> 参数。</li>
+<li>不执行任何计算；参数写入由 <code>sugwd.F90::SUGWD</code> 完成，下游例程直接 <code>use yoegwd_h, only: ...</code> 读取。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>module yoegwd_h:
+    declare saved real tuning constants for orographic GW drag
+    mark each group as OpenMP threadprivate
+    declare integer NKTOPG
+    mark NKTOPG as OpenMP threadprivate
+
+runtime expectation:
+    SUGWD initializes these variables before the orographic GW chain reads them</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>地形重力波 / 次网格地形拖曳</td>
+<td>保存 <code>SUGWD</code> 初始化的调参常量和安全阈值，供 <code>OROSETUP</code> 预处理、<code>GWSTRESS</code> 应力初始化、<code>GWPROFIL</code> 应力廓线重算和 <code>ORODRAG</code> wake drag 使用。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>这是 Fortran 90 “头文件式”共享状态模块，只有声明，没有 <code>contains</code> 区段。</li>
+<li>所有 real 参数都带 <code>save</code>，保证模块状态跨调用保留；<code>NKTOPG</code> 是模块变量，本身也具有模块生命周期。</li>
+<li>每组变量都用 <code>!$OMP THREADPRIVATE(...)</code> 标注。并行运行时，每个线程需要自己的初始化副本，不能假设 master 线程写入后自动覆盖其他线程副本。</li>
+<li>本文件没有默认赋值；实际默认数值集中在 <code>sugwd.F90</code> 行 45-76。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>使用地形 GW 链前，必须确认 <code>calldrag_noro</code> 的 <code>firstcall</code> 路径已调用 <code>SUGWD</code>。</li>
+<li>修改 <code>GKDRAG</code> 时要同步检查 <code>GKDRAGL=4.*GKDRAG</code> 的派生关系。</li>
+<li><code>NKTOPG</code> 的有效值依赖 <code>SUGWD</code> 对半层 sigma 坐标 <code>sigtest</code> 的扫描结果。</li>
+<li>OpenMP 运行中要关注 threadprivate 初始化顺序；本模块没有 <code>COPYIN</code> 或集中广播逻辑。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>GHMAX</code> 在当前地形 GW 链中的实际消费位置未在本任务内找到，后续若复现最大地形高度限制，需要继续沿调用链核验。</li>
+<li><code>THREADPRIVATE</code> 变量在所有线程上的初始化时机需结合物理驱动的并行区边界确认；本页只记录源码声明和直接调用关系。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="sugwd.html">sugwd</a>：写入本模块变量的初始化例程。</li>
+<li><a href="calldrag_noro_mod.html">calldrag_noro_mod</a>：首调用时构造 <code>sigtest</code> 并调用 <code>sugwd</code>。</li>
+<li><a href="orosetup.html">orosetup</a>：读取低层流、稳定度、风速保护和 <code>NKTOPG</code>。</li>
+<li><a href="gwstress_mod.html">gwstress_mod</a>：读取 <code>GKDRAG</code>, <code>GTSEC</code>, <code>GVCRIT</code>。</li>
+<li><a href="gwprofil_mod.html">gwprofil_mod</a>：读取 <code>GKDRAG</code>, <code>GRCRIT</code>, <code>GSSEC</code>, <code>GTSEC</code>。</li>
+<li><a href="orodrag_mod.html">orodrag_mod</a>：读取 <code>GKWAKE</code>。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

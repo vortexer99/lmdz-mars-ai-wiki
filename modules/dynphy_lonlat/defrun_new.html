@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>defrun_new - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/defrun_new.md</span>
+    </nav>
+    <article class="content">
+<h1 id="defrun_newf">defrun_new.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\defrun_new.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>GCM 运行参数配置文件读取器。<code>defrun_new</code> 打开并解析 <code>run.def</code>，将时间步进、耗散参数、网格缩放（zoom）、海绵层、物理过程频率和起始输出等控制参数写入 <code>control_mod</code>/<code>logic_mod</code>/<code>serre_mod</code>/<code>sponge_mod</code> 等公共模块变量，供后续动力-物理循环使用。仅在非并行（<code>#ifndef CPP_PARA</code>）模式下编译。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>defrun_new</code></td>
+<td>subroutine</td>
+<td>1</td>
+<td>读取 <code>run.def</code> 运行参数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ioipsl_getincom</code></td>
+<td><code>getin</code></td>
+<td>从 <code>run.def</code> 读取键值对</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sponge_mod</code></td>
+<td><code>callsponge, nsponge, mode_sponge, tetasponge</code></td>
+<td>海绵层控制参数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>control_mod</code></td>
+<td><code>ndynstep, day_step, iperiod, iconser, dissip_period, iphysiq, anneeref, ecritstart, timestart, nday_r</code></td>
+<td>运行控制参数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td><code>hybrid, purmats, fxyhypb, ysinus, iflag_phys</code></td>
+<td>逻辑开关</td>
+<td></td>
+</tr>
+<tr>
+<td><code>serre_mod</code></td>
+<td><code>clon, clat, grossismx, grossismy, dzoomx, dzoomy, alphax, alphay, taux, tauy</code></td>
+<td>网格缩放（zoom）参数</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>INCLUDE 头文件</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>头文件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimensions.h</code></td>
+<td>网格维度参数</td>
+</tr>
+<tr>
+<td><code>paramet.h</code></td>
+<td>物理参数</td>
+</tr>
+<tr>
+<td><code>comdissnew.h</code></td>
+<td>耗散参数公共块（<code>lstardis/nitergdiv/nitergrot/niterh/tetagdiv/tetagrot/tetatemp/coefdis</code>）</td>
+</tr>
+<tr>
+<td><code>iniprint.h</code></td>
+<td>输出单元 <code>lunout</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin</code></td>
+<td><code>ioipsl_getincom</code></td>
+<td>多处</td>
+<td>从 <code>run.def</code> 文件读取各配置键值</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tapedef</code></td>
+<td>调用方</td>
+<td><code>INTEGER</code></td>
+<td>—</td>
+<td><code>run.def</code> 文件使用的 Fortran 单元号（通常 99）</td>
+</tr>
+<tr>
+<td><code>etatinit</code></td>
+<td>调用方</td>
+<td><code>LOGICAL</code></td>
+<td>—</td>
+<td><code>.true.</code> 表示由 <code>newstart</code> 调用（初始化模式），<code>.false.</code> 表示由 GCM 主循环调用（一致性校验模式）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<p>本例程无显式输出参数，所有配置值通过 USE 关联的模块变量传出。</p>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p>通过 USE 模块变量大量写入：</p>
+<ul>
+<li><strong><code>control_mod</code></strong>: <code>nday_r</code>, <code>ndynstep</code>, <code>day_step</code>, <code>iperiod</code>, <code>iconser</code>, <code>dissip_period</code>, <code>iphysiq</code>, <code>anneeref</code>, <code>ecritstart</code>, <code>timestart</code></li>
+<li><strong><code>logic_mod</code></strong>: <code>hybrid</code>, <code>purmats</code>, <code>fxyhypb</code>, <code>ysinus</code>, <code>iflag_phys</code></li>
+<li><strong><code>serre_mod</code></strong>: <code>clon</code>, <code>clat</code>, <code>grossismx</code>, <code>grossismy</code>, <code>alphax</code>, <code>alphay</code>, <code>dzooomx</code>, <code>dzooomy</code>, <code>taux</code>, <code>tauy</code></li>
+<li><strong><code>sponge_mod</code></strong>: <code>callsponge</code>, <code>nsponge</code>, <code>mode_sponge</code>, <code>tetasponge</code></li>
+<li><strong><code>comdissnew.h</code></strong>（公共块）: <code>lstardis</code>, <code>nitergdiv</code>, <code>nitergrot</code>, <code>niterh</code>, <code>tetagdiv</code>, <code>tetagrot</code>, <code>tetatemp</code>, <code>coefdis</code></li>
+<li><strong><code>iniprint.h</code></strong>: <code>lunout</code></li>
+<li><strong>文件 I/O</strong>: 打开并读取 <code>run.def</code>；可能打开 <code>lmdz.out</code> 作为日志输出文件</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>初始化</strong>：设 <code>anneeref=0</code>（火星无参考年），打开 <code>run.def</code> 验证存在性后关闭（后续 <code>getin</code> 自行打开），配置 <code>lunout</code> 输出单元。</li>
+<li><strong>时间步进参数</strong>：依次读取 <code>nday</code>（默认 1 天）、<code>ndynstep</code>（若 &gt; 0 则覆盖 nday）、<code>day_step</code>（默认 960 步/天）、<code>iperiod</code>（Matsuno 周期，默认 5 步，须整除 <code>day_step</code>）、<code>iconser</code>（控制输出周期，默认 120 步）。</li>
+<li><strong>耗散参数</strong>：<code>dissip_period</code>（默认 5 步）、<code>lstardis</code>（star 算子，默认 <code>.true.</code>）、<code>nitergdiv/nitergrot/niterh</code>（迭代次数，默认 1/2/2）、<code>tetagdiv/tetagrot/tetatemp</code>（耗散时标，默认 4000/5000/5000 s）、<code>coefdis</code>（默认 0）。</li>
+<li><strong>积分方案</strong>：<code>hybrid</code>（混合坐标，默认 <code>.true.</code>）、<code>purmats</code>（纯 Matsuno，默认 <code>.false.</code>）、<code>iflag_phys</code>（物理开关，默认 1）、<code>iphysiq</code>（物理周期，默认 20 步，须整除 <code>day_step</code>）。</li>
+<li><strong>起始输出</strong>：<code>timestart</code>（起始日期，默认 -9999）、<code>ecritstart</code>（start.nc 写出频率，须为 <code>iphysiq</code> 倍数）。</li>
+<li><strong>Zoom 参数</strong>（<code>etatinit</code> 分支）：
+<ul>
+<li><strong>GCM 模式（<code>.false.</code>）</strong>：读取 zoom 参数并与 <code>start</code> 文件中已有值做一致性校验，不一致则 <code>STOP</code>。</li>
+<li><strong>初始化模式（<code>.true.</code>）</strong>：直接读取 <code>clon</code>（默认 63°）、<code>clat</code>（默认 0°）、<code>grossismx/grossismy</code>（默认 1.0）、<code>fxyhypb</code>（默认 <code>.false.</code>）、<code>dzooomx/dzooomy</code>（默认 0）、<code>taux/tauy</code>（默认 2.0），并从 <code>grossismx</code> 计算 <code>alphax = 1 - 1/grossismx</code>。</li>
+</ul></li>
+<li><strong>海绵层</strong>：<code>callsponge</code>（默认 <code>.true.</code>）、<code>nsponge</code>（默认 3 层）、<code>mode_sponge</code>（默认 2）、<code>tetasponge</code>（默认 30000 s）。</li>
+<li><strong>后处理</strong>：<code>ysinus=.false.</code>（火星固定正则网格）；无 zoom 时强制 <code>fxyhypb=.false.</code>，有 zoom 时须 <code>fxyhypb=.true.</code> 否则 <code>STOP</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>SUBROUTINE defrun_new(tapedef, etatinit)
+  anneeref ← 0
+  OPEN run.def → verify exists → CLOSE
+  configure lunout
+
+  -- 时间步进 --
+  getin nday, ndynstep, day_step, iperiod, iconser
+
+  -- 耗散 --
+  getin dissip_period, lstardis, nitergdiv, nitergrot, niterh
+  getin tetagdiv, tetagrot, tetatemp, coefdis
+
+  -- 积分方案 --
+  getin hybrid, purmats, iflag_phys, iphysiq
+
+  -- 起始输出 --
+  getin timestart, ecritstart
+
+  -- Zoom（分支）--
+  IF .NOT.etatinit THEN  ! GCM 模式
+    getin clon/clat/grossismx/grossismy/fxyhypb/dzoomx/dzoomy/taux/tauy
+    校验与 start 文件一致
+  ELSE  ! 初始化模式
+    getin 同上，直接赋值
+    alphax ← 1 - 1/grossismx
+    alphay ← 1 - 1/grossismy
+  ENDIF
+
+  -- 海绵层 --
+  getin callsponge, nsponge, mode_sponge, tetasponge
+
+  ysinus ← .false.
+  IF no zoom THEN fxyhypb ← .false.
+  IF zoom AND NOT fxyhypb THEN STOP
+END SUBROUTINE</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GCM 运行配置</td>
+<td>从 <code>run.def</code> 读取全部运行参数，驱动整个模拟流程</td>
+</tr>
+<tr>
+<td>网格缩放（Zoom）</td>
+<td>读取并校验 zoom 参数，控制网格加密区域</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>Fixed-form Fortran</strong> 带 F90 扩展（<code>USE</code>、<code>!</code> 注释、<code>::</code> 声明）。</li>
+<li><strong>条件编译</strong>：整体包裹在 <code>#ifndef CPP_PARA</code> 中，并行模式下直接 <code>STOP</code>。</li>
+<li><strong>大量 <code>getin</code> 调用</strong>：约 30+ 个配置参数，每个都有硬编码默认值。</li>
+<li><strong>一致性校验</strong>：GCM 模式下 zoom 参数与 <code>start</code> 文件做差值比较（<code>ABS(x - xx) &gt;= 0.001</code>），不匹配即 <code>STOP</code>。</li>
+<li><strong>法语注释</strong>：源码保留大量法语注释（P. Le Van, L. Fairhead）。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>需要 <code>run.def</code> 文件在当前工作目录可用。</li>
+<li><code>tapedef</code> 通常传 99（<code>newstart.F</code> 和 <code>start2archive.F</code> 均用 99）。</li>
+<li><code>etatinit</code> 决定 zoom 参数行为：初始化 vs 一致性校验。</li>
+<li>并行模式下本例程不可用（<code>CPP_PARA</code> 宏排除）。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>comdissnew.h</code> 公共块中的变量是否在其他文件中被修改。</li>
+<li><code>serre_mod</code> 的具体模块定义位置（可能不在 dynphy_lonlat 目录内）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dynphy_lonlat/index</a> — 所属目录概览</li>
+<li><a href="newstart.html">newstart</a> — 调用方，以 <code>etatinit=.TRUE.</code> 调用</li>
+<li><a href="start2archive.html">start2archive</a> — 调用方，分别以 <code>.TRUE.</code> 和 <code>.FALSE.</code> 调用</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

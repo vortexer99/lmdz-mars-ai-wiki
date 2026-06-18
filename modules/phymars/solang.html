@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>solang - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/solang.md</span>
+    </nav>
+    <article class="content">
+<h1 id="solangf">solang.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\solang.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>solang.F</code> 定义 <code>solang_mod</code> 模块和 <code>solang</code> 子程序，用物理网格的经纬度三角缓存、太阳赤纬和当前时角计算每个格点的太阳天顶角余弦 <code>mu0</code>，并用 <code>mu0&gt;0</code> 给出当前时间片是否日照的 <code>fract</code>。它是 <code>physiq</code> 日变化辐射分支的太阳角计算入口，也被 <code>nirco2abs</code> 在近红外 CO2 日积分中复用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>solang_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>日变化太阳角辅助模块。</td>
+</tr>
+<tr>
+<td><code>solang</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>按格点经纬度和太阳赤纬/时角计算 <code>pmu0</code> 与 <code>pfract</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>-</td>
+<td>-</td>
+<td>本文件没有 <code>use</code> 依赖，全部数据通过显式参数传入。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 来源</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>本文件不调用自定义例程，也不调用非平凡 intrinsic。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="下游调用点">下游调用点</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>源码位置</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>physiq_mod.F</code></td>
+<td><code>use solang_mod</code> 在 66 行；调用在 1017-1018 行</td>
+<td><code>diurnal=.true.</code> 时，用 <code>sinlon/coslon/sinlat/coslat</code> 和由 <code>declin/zday</code> 构造的 <code>ztim1/2/3</code> 写入 <code>comsaison_h::mu0/fract</code>。</td>
+</tr>
+<tr>
+<td><code>nirco2abs.F</code></td>
+<td><code>use solang_mod</code> 在 12 行；调用在 216-218 行</td>
+<td>近红外 CO2 加热率的日平均积分中，对子时间点计算 <code>mu0_int/fract_int</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kgrid</code></td>
+<td>调用方</td>
+<td>integer scalar</td>
+<td>物理格点数。</td>
+</tr>
+<tr>
+<td><code>psilon(kgrid)</code></td>
+<td><code>comgeomfi_h::sinlon</code></td>
+<td>real array</td>
+<td>格点经度正弦。</td>
+</tr>
+<tr>
+<td><code>pcolon(kgrid)</code></td>
+<td><code>comgeomfi_h::coslon</code></td>
+<td>real array</td>
+<td>格点经度余弦。</td>
+</tr>
+<tr>
+<td><code>psilat(kgrid)</code></td>
+<td><code>comgeomfi_h::sinlat</code></td>
+<td>real array</td>
+<td>格点纬度正弦。</td>
+</tr>
+<tr>
+<td><code>pcolat(kgrid)</code></td>
+<td><code>comgeomfi_h::coslat</code></td>
+<td>real array</td>
+<td>格点纬度余弦。</td>
+</tr>
+<tr>
+<td><code>ptim1</code></td>
+<td>调用方</td>
+<td>real scalar</td>
+<td><code>sin(declin)</code>。</td>
+</tr>
+<tr>
+<td><code>ptim2</code></td>
+<td>调用方</td>
+<td>real scalar</td>
+<td><code>cos(declin)*cos(time)</code>；<code>physiq</code> 中 time 写成 <code>2*pi*(zday-.5)</code>。</td>
+</tr>
+<tr>
+<td><code>ptim3</code></td>
+<td>调用方</td>
+<td>real scalar</td>
+<td><code>-cos(declin)*sin(time)</code>；实参注释写作 <code>SIN(DECLI)*SIN(TIME)</code>，但调用方和公式实际用于经度正弦项。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pmu0(kgrid)</code></td>
+<td><code>comsaison_h::mu0</code> 或局部 <code>mu0_int</code></td>
+<td>real array</td>
+<td>太阳天顶角余弦；夜侧可为负值，源码没有把负值钳为 0。</td>
+</tr>
+<tr>
+<td><code>pfract(kgrid)</code></td>
+<td><code>comsaison_h::fract</code> 或局部 <code>fract_int</code></td>
+<td>real array</td>
+<td>当前时间片日照标志；<code>pmu0&gt;0</code> 时为 1，否则为 0。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>模块没有保存状态、文件 I/O 或标准输出。</li>
+<li>子程序先把 <code>pmu0</code> 和 <code>pfract</code> 全部清零，再覆盖计算结果。</li>
+<li>夜侧 <code>pmu0</code> 保留几何余弦负值；注释中的夜侧归零行已被注释掉。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>初始化所有格点的 <code>pmu0=0</code>、<code>pfract=0</code>。</li>
+<li>对每个格点计算：</li>
+</ol>
+<pre class="text"><code>pmu0 = sin(lat)*ptim1 + cos(lat)*ptim2*cos(lon) + cos(lat)*ptim3*sin(lon)</code></pre>
+<ol start="3" type="1">
+<li>若 <code>pmu0 &gt; 0</code>，设置 <code>pfract=1</code>；否则保持 <code>pfract=0</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>for jl in 1..kgrid:
+    pmu0[jl] = psilat[jl]*ptim1
+              + pcolat[jl]*ptim2*pcolon[jl]
+              + pcolat[jl]*ptim3*psilon[jl]
+    pfract[jl] = 1 if pmu0[jl] &gt; 0 else 0</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>日变化太阳几何</td>
+<td><code>physiq</code> 在 <code>diurnal=.true.</code> 分支使用本例程更新每个格点即时 <code>mu0/fract</code>。</td>
+</tr>
+<tr>
+<td>辐射</td>
+<td><code>mu0/fract</code> 进入短波辐射、坡面和相关诊断路径；非日变化分支由 <code>mucorr</code> 提供日平均等效值。</td>
+</tr>
+<tr>
+<td>近红外 CO2 加热</td>
+<td><code>nirco2abs</code> 用本例程在日积分子步上重新计算太阳角。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 文件，但模块化封装为 <code>solang_mod</code>。</li>
+<li>注释头保留长波辐射历史文字，实际功能是太阳角计算。</li>
+<li>只判断 <code>pmu0&gt;0</code> 得到 0/1 日照标志，没有计算部分时间步日照比例；调用方若要日平均，需要自行积分或使用 <code>mucorr</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>ptim2/ptim3</code> 的符号由调用方构造；<code>physiq</code> 和 <code>nirco2abs</code> 都使用 <code>ztim3=-cos(declin)*sin(2*pi*(zday-.5))</code>。</li>
+<li>不要假定夜侧 <code>mu0</code> 已经钳为 0；需要非负太阳角的调用方应自行处理或使用 <code>fract</code>。</li>
+<li>本例程只处理日变化瞬时几何；<code>diurnal=.false.</code> 时 <code>physiq</code> 改用 <code>mucorr</code> 计算日平均等效太阳角。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>参数注释中 <code>PTIM3</code> 写作 <code>SIN(DECLI)*SIN(TIME)</code>，但源码公式和调用方实参均对应 <code>-COS(declin)*SIN(time)</code>；本页按实际调用和公式记录。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a>：本模块所属目录。</li>
+<li><a href="nirco2abs.html">nirco2abs</a>：近红外 CO2 加热率中复用 <code>solang</code> 做日积分。</li>
+<li><a href="mucorr.html">mucorr</a>：非日变化分支的日平均太阳几何替代路径。</li>
+<li><a href="orbite.html">orbite</a>：上游计算 <code>declin</code>，供 <code>physiq</code> 构造 <code>ptim1/2/3</code>。</li>
+<li><a href="comsaison_h.html">comsaison_h</a>：保存 <code>mu0/fract/declin</code> 等季节和太阳几何共享状态。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

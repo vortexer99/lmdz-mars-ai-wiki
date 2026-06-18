@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>hrtherm - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/hrtherm.md</span>
+    </nav>
+    <article class="content">
+<h1 id="hrthermf">hrtherm.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\hrtherm.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>hrtherm.F</code> 定义 <code>hrtherm_mod</code>，提供例程 <code>hrtherm</code>，计算热层 EUV 光吸收加热率 <code>jtot</code>（erg/s）。它把各物种数密度打包到 <code>xabsi</code>，调用 <code>jthermcalc_e107</code> 计算光吸收系数（写入 <code>param_v4_h::jfotsout</code>），再按区间与物种加权求和得到每层总光吸收。夜间（太阳天顶角 <code>zenit&gt;140°</code>）直接置 <code>jtot=0</code> 返回。该例程由 <code>euvheat</code> 在 EUV 加热路径中逐列调用，属 <code>thermosphere_mod → euvheat → hrtherm → jthermcalc_e107</code> 链路。</p>
+<p>作者：fgg，2002-02 初版、2002-11 第二版（源码第 13–14 行）。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hrtherm_mod</code></td>
+<td>module</td>
+<td>1（<code>END MODULE</code> 139）</td>
+<td>包装 EUV 加热率计算的模块</td>
+</tr>
+<tr>
+<td><code>hrtherm</code></td>
+<td>subroutine</td>
+<td>9（<code>END SUBROUTINE</code> 137）</td>
+<td>计算每层 EUV 光吸收加热率 <code>jtot</code></td>
+</tr>
+<tr>
+<td><code>i_co2</code>..<code>i_n2</code></td>
+<td>integer parameters</td>
+<td>46–62</td>
+<td>EUV 加热用物种索引 1–17（须与 <code>chemthermos.F90</code> 一致）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>param_v4_h</code></td>
+<td><code>ninter</code>,<code>nabs</code>,<code>jfotsout</code>,<code>fluxtop</code>,<code>freccen</code></td>
+<td>区间/物种维度与光吸收系数、太阳通量、地球-太阳距离修正因子</td>
+<td><code>jfotsout</code> 由 <code>jthermcalc_e107</code> 写入；<code>fluxtop</code> 初始化见 <a href="param_read.html">param_read</a>/<a href="param_read_e107.html">param_read_e107</a>，<code>freccen</code> 由 <a href="param_v4_h.html">param_v4_h</a> 的 <code>fill_data_thermos</code> 设置</td>
+</tr>
+<tr>
+<td><code>jthermcalc_e107_mod</code></td>
+<td><code>jthermcalc_e107</code></td>
+<td>计算光吸收系数（填充 <code>jfotsout</code>）</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>jthermcalc_e107</code></td>
+<td><code>jthermcalc_e107_mod.F</code></td>
+<td>121</td>
+<td>按格点、EUV 模式、温度、SZA、日期计算光吸收系数，写入 <code>param_v4_h::jfotsout</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ig</code></td>
+<td><code>euvheat</code> 循环</td>
+<td>integer</td>
+<td>-</td>
+<td>网格点索引</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>euvheat</code></td>
+<td>integer</td>
+<td>-</td>
+<td>层数</td>
+</tr>
+<tr>
+<td><code>euvmod</code></td>
+<td><code>euvheat</code></td>
+<td>integer</td>
+<td>-</td>
+<td>EUV 模式级别（≥1 含 O3；≥2 含 N/离子物种）</td>
+</tr>
+<tr>
+<td><code>rm</code></td>
+<td><code>euvheat</code></td>
+<td>double <code>(nlayer,nespeuv)</code></td>
+<td>cm⁻³</td>
+<td>物种数密度矩阵</td>
+</tr>
+<tr>
+<td><code>nespeuv</code></td>
+<td><code>euvheat</code></td>
+<td>integer</td>
+<td>-</td>
+<td>EUV 物种数</td>
+</tr>
+<tr>
+<td><code>tx</code></td>
+<td><code>euvheat</code></td>
+<td>real <code>(nlayer)</code></td>
+<td>K</td>
+<td>温度</td>
+</tr>
+<tr>
+<td><code>iz</code></td>
+<td><code>euvheat</code></td>
+<td>real <code>(nlayer)</code></td>
+<td>-</td>
+<td>传给 <code>jthermcalc_e107</code> 的高度相关量</td>
+</tr>
+<tr>
+<td><code>zenit</code></td>
+<td><code>euvheat</code></td>
+<td>real</td>
+<td>deg</td>
+<td>太阳天顶角</td>
+</tr>
+<tr>
+<td><code>zday</code></td>
+<td><code>euvheat</code></td>
+<td>real</td>
+<td>-</td>
+<td>日期，传给 <code>jthermcalc_e107</code></td>
+</tr>
+<tr>
+<td><code>ninter</code>,<code>nabs</code>,<code>jfotsout</code>,<code>fluxtop</code>,<code>freccen</code></td>
+<td><code>param_v4_h</code></td>
+<td>integer/real arrays</td>
+<td>-</td>
+<td>区间数、物种数、光吸收系数、太阳通量、距离修正</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>jtot</code></td>
+<td><code>euvheat</code></td>
+<td>real <code>(nlayer)</code></td>
+<td>erg/s</td>
+<td>每层 EUV 光吸收总加热率；夜间为 0</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>读取 <code>param_v4_h</code> 共享量 <code>ninter/nabs/jfotsout/fluxtop/freccen</code>；不直接写这些数组（<code>jfotsout</code> 由被调用的 <code>jthermcalc_e107</code> 写入）。</li>
+<li>无 <code>SAVE/THREADPRIVATE</code> 本地变量；无文件 I/O；无 <code>getin</code>/<code>abort</code>/诊断打印。</li>
+<li>无 <code>intent</code> 声明（第 34–41 行）。</li>
+<li>夜间（<code>zenit&gt;140</code>）提前 <code>return</code>，<code>jtot</code> 置 0。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>日/夜判定</strong>（第 80–91 行）：<code>zenit&gt;140°</code> → <code>dn='n'</code>，<code>jtot(:)=0</code> 后 <code>return</code>；否则 <code>dn='d'</code>。</li>
+<li><strong>初始化</strong>（第 94–96 行）：<code>jergs=0</code>、<code>xabsi=0</code>、<code>jtot=0</code>。</li>
+<li><strong>打包数密度到 <code>xabsi(species,layer)</code></strong>（第 98–118 行）：<code>(1)=co2,(2)=o2,(3)=o,(4)=h2o,(5)=h2,(6)=h2o2</code> 恒填；<code>euvmod&gt;=1</code> 填 <code>(7)=o3</code>；<code>euvmod&gt;=2</code> 填 <code>(8)=n2,(9)=n,(10)=no,(13)=no2</code>；恒填 <code>(11)=co,(12)=h</code>。</li>
+<li><strong>计算光吸收系数</strong>（第 121–122 行）：<code>call jthermcalc_e107(ig,nlayer,euvmod,rm,nespeuv,tx,iz,zenit,zday)</code>（写入 <code>jfotsout</code>）。</li>
+<li><strong>总光吸收求和</strong>（第 125–135 行）：对每层 <code>i</code>、物种 <code>j=1..nabs</code>、区间 <code>indexint=1..ninter</code>： <code>jergs(indexint,j,i)=jfotsout(indexint,j,i)*xabsi(j,i)*fluxtop(indexint)/(0.5e9*freccen(indexint))</code>，<code>jtot(i)+=jergs</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>hrtherm(ig,nlayer,euvmod,rm,nespeuv,tx,iz,zenit,zday,jtot):
+  if zenit &gt; 140:           # night
+    jtot(:) = 0; return
+  jergs=0; xabsi=0; jtot=0
+  for i=1..nlayer:
+    xabsi(1,i)=rm(i,i_co2); xabsi(2,i)=rm(i,i_o2); xabsi(3,i)=rm(i,i_o)
+    xabsi(4,i)=rm(i,i_h2o); xabsi(5,i)=rm(i,i_h2); xabsi(6,i)=rm(i,i_h2o2)
+    if euvmod&gt;=1: xabsi(7,i)=rm(i,i_o3)
+    if euvmod&gt;=2: xabsi(8,i)=rm(i,i_n2); xabsi(9,i)=rm(i,i_n)
+                  xabsi(10,i)=rm(i,i_no); xabsi(13,i)=rm(i,i_no2)
+    xabsi(11,i)=rm(i,i_co); xabsi(12,i)=rm(i,i_h)
+  call jthermcalc_e107(ig,nlayer,euvmod,rm,nespeuv,tx,iz,zenit,zday)  # fills jfotsout
+  for i=1..nlayer:
+    jtot(i)=0
+    for j=1..nabs:
+      for indexint=1..ninter:
+        jergs(indexint,j,i)=jfotsout(indexint,j,i)*xabsi(j,i)*fluxtop(indexint)/(0.5e9*freccen(indexint))
+        jtot(i)=jtot(i)+jergs(indexint,j,i)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热层 EUV 加热</td>
+<td><code>euvheat</code> 逐列调用，输出 <code>jtot</code> 供 EUV 加热率；夜间置 0；<code>euvmod</code> 控制参与光吸收的物种范围</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 <code>.F</code>（续行第 1 列 <code>.</code>/<code>$</code>）。</li>
+<li>物种索引 <code>i_co2..i_n2=1..17</code> 为 <code>PARAMETER</code> 硬编码；源码注释（第 44–45 行）警告<strong>必须与 <code>chemthermos.F90</code> 中同名索引一致</strong>，否则错物种。</li>
+<li>旧版索引映射（第 63–75 行）被注释保留。</li>
+<li><code>euvmod</code> 阶梯式启用物种：0=基本 6+co+h；1=+o3；2=+n2/n/no/no2。</li>
+<li>无 <code>intent</code> 声明；局部 <code>k</code> 声明后未用。</li>
+<li>归一化常数 <code>0.5e9</code> 硬编码于 <code>jergs</code> 公式。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>物种索引须与 <code>chemthermos.F90</code> 严格一致（源码注释要求）；改任一处须同步另一处。</li>
+<li><code>jtot</code> 依赖 <code>param_v4_h::jfotsout</code>（由 <code>jthermcalc_e107</code> 当步写入）、<code>fluxtop</code>/<code>freccen</code>（<code>fluxtop</code> 初始化见 <a href="param_read.html">param_read</a>/<a href="param_read_e107.html">param_read_e107</a>，<code>freccen</code> 由 <a href="param_v4_h.html">param_v4_h</a> 的 <code>fill_data_thermos</code> 设置）。</li>
+<li>夜间 <code>zenit&gt;140°</code> 直接返回 0，不调用 <code>jthermcalc_e107</code>。</li>
+<li><code>euvmod</code> 决定光吸收物种集，影响 <code>jtot</code> 量级；复现须用相同 <code>euvmod</code>。</li>
+<li>单位：<code>jtot</code> 为 erg/s（非 SI），下游 <code>euvheat</code> 负责换算为 K/s 加热率。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>iz</code> 的物理含义与单位（传给 <code>jthermcalc_e107</code>，本例程不直接用其数值）。</li>
+<li><code>0.5e9</code> 归一化常数的来源（erg 与 photon 通量换算）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览，本文件在其“热层”分类下。</li>
+<li><a href="euvheat.html">euvheat.md</a>：EUV 加热率换算与 <code>hrtherm</code> 调用点。</li>
+<li><a href="jthermcalc_e107_mod.html">jthermcalc_e107_mod.F</a>：被调方文件页（TASK-0190），计算并写入 <code>jfotsout</code>。</li>
+<li><a href="param_v4_h.html">param_v4_h</a>：共享参数模块文件页，定义 <code>ninter/nabs/jfotsout/fluxtop/freccen</code>，并确认 <code>freccen</code> 由 <code>fill_data_thermos</code> 硬编码设置。</li>
+<li><a href="chemthermos.html">chemthermos</a>：共享同一套热层物种索引的热层化学主例程。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

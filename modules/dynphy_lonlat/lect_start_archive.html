@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lect_start_archive - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/lect_start_archive.md</span>
+    </nav>
+    <article class="content">
+<h1 id="lect_start_archivef">lect_start_archive.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\lect_start_archive.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>初始场归档文件（start_archive）读取与网格插值主例程。从 NetCDF 格式的 <code>start_archive</code> 文件读取全部大气、地表、土壤和示踪剂初始状态，通过垂直插值（<code>interp_vert</code>）和水平插值（<code>interp_horiz</code>）将旧网格数据重映射到当前模拟网格，并完成质量守恒修正。由 <code>newstart</code> 在初始化阶段调用。</p>
+<p>作者：05/1997 初版，12/2003 混合坐标修改。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lect_start_archive_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>包装 <code>lect_start_archive</code> 子例程</td>
+</tr>
+<tr>
+<td><code>lect_start_archive</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>读取 start_archive 并插值到当前网格</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>infotrac</code></td>
+<td><code>tname</code></td>
+<td>示踪剂名称（新命名约定）</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>nsoilmx</code>, <code>layer</code>, <code>mlayer</code>, <code>volcapa</code>, <code>inertiedat</code></td>
+<td>土壤层参数与热惯量</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>planete_h</code></td>
+<td>全模块</td>
+<td>行星轨道参数</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>comvert_mod</code></td>
+<td><code>ap</code>, <code>bp</code>, <code>aps</code>, <code>bps</code>, <code>preff</code></td>
+<td>垂直坐标系数</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>kappa</code>, <code>g</code>, <code>pi</code></td>
+<td>物理常数</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>comslope_mod</code></td>
+<td><code>nslope</code>, <code>def_slope</code>, <code>def_slope_mean</code>, <code>subslope_dist</code>, <code>end_comslope_h</code>, <code>ini_comslope_h</code></td>
+<td>坡面参数</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>interp_line_mod</code></td>
+<td><code>interp_line</code></td>
+<td>一维线性插值（土壤深度方向）</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>surfini_mod</code></td>
+<td><code>locate_watercaptag</code></td>
+<td>水冰帽标记定位</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>longitude</code>, <code>latitude</code></td>
+<td>经纬度</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>netcdf</code></td>
+<td>全模块</td>
+<td>NetCDF Fortran 接口</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>watercaptag</code></td>
+<td>水冰帽标记数组</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>interp_horiz</code></td>
+<td>外部</td>
+<td>1248-1601（30+ 处）</td>
+<td>水平插值（旧网格→新网格）</td>
+</tr>
+<tr>
+<td><code>interp_vert</code></td>
+<td>本目录</td>
+<td>1528, 1538, 1550, 1558, 1598</td>
+<td>垂直插值（旧垂直层→新垂直层）</td>
+</tr>
+<tr>
+<td><code>interp_line</code></td>
+<td><code>interp_line_mod</code></td>
+<td>1395, 1469, 1494</td>
+<td>一维线性插值（土壤深度方向）</td>
+</tr>
+<tr>
+<td><code>gr_dyn_fi</code></td>
+<td>外部</td>
+<td>1258-1646（15+ 处）</td>
+<td>动力网格→物理标量网格转换</td>
+</tr>
+<tr>
+<td><a href="scal_wind.html"><code>scal_wind</code></a></td>
+<td>本目录</td>
+<td>1563</td>
+<td>风场自然坐标转换；把 <code>us/vs</code> 平均到 u/v 风点</td>
+</tr>
+<tr>
+<td><code>locate_watercaptag</code></td>
+<td><code>surfini_mod</code></td>
+<td>1301</td>
+<td>水冰帽标记初始化</td>
+</tr>
+<tr>
+<td>NetCDF API</td>
+<td><code>netcdf</code></td>
+<td>全例程</td>
+<td>NF_INQ_VARID / NF_GET_VAR* / nf90_get_var</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>参数</td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>物理网格列数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>参数</td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>大气层数</td>
+</tr>
+<tr>
+<td><code>nqtot</code></td>
+<td>参数</td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>平流示踪剂数</td>
+</tr>
+<tr>
+<td><code>surfith</code></td>
+<td>参数</td>
+<td><code>real(iip1,jjp1)</code></td>
+<td>J m⁻² K⁻¹ s⁻¹/²</td>
+<td>地表热惯量</td>
+</tr>
+<tr>
+<td><code>nid</code></td>
+<td>参数</td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>NetCDF 文件标识符</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>date</code></td>
+<td>OUT</td>
+<td><code>real</code></td>
+<td>day</td>
+<td>选定初始日期</td>
+</tr>
+<tr>
+<td><code>tsurf</code></td>
+<td>OUT</td>
+<td><code>real(ngrid,nslope)</code></td>
+<td>K</td>
+<td>地表温度</td>
+</tr>
+<tr>
+<td><code>tsoil</code></td>
+<td>OUT</td>
+<td><code>real(ngrid,nsoilmx,nslope)</code></td>
+<td>K</td>
+<td>土壤温度</td>
+</tr>
+<tr>
+<td><code>inertiesoil</code></td>
+<td>OUT</td>
+<td><code>real(ngrid,nsoilmx,nslope)</code></td>
+<td>J m⁻² K⁻¹ s⁻¹/²</td>
+<td>土壤热惯量</td>
+</tr>
+<tr>
+<td><code>albedo</code></td>
+<td>OUT</td>
+<td><code>real(ngrid,2,nslope)</code></td>
+<td>—</td>
+<td>地表反照率（vis/nir）</td>
+</tr>
+<tr>
+<td><code>emis</code></td>
+<td>OUT</td>
+<td><code>real(ngrid,nslope)</code></td>
+<td>—</td>
+<td>地表发射率</td>
+</tr>
+<tr>
+<td><code>q2</code></td>
+<td>OUT</td>
+<td><code>real(ngrid,nlayer+1)</code></td>
+<td>—</td>
+<td>PBL 风方差</td>
+</tr>
+<tr>
+<td><code>t</code></td>
+<td>OUT</td>
+<td><code>real(iip1,jjp1,llm)</code></td>
+<td>K</td>
+<td>温度</td>
+</tr>
+<tr>
+<td><code>ucov</code>/<code>vcov</code></td>
+<td>OUT</td>
+<td><code>real(...,llm)</code></td>
+<td>m/s</td>
+<td>协变风场</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td>OUT</td>
+<td><code>real(iip1,jjp1)</code></td>
+<td>Pa</td>
+<td>地表气压</td>
+</tr>
+<tr>
+<td><code>h</code></td>
+<td>OUT</td>
+<td><code>real(iip1,jjp1,llm)</code></td>
+<td>K</td>
+<td>位温</td>
+</tr>
+<tr>
+<td><code>q</code></td>
+<td>OUT</td>
+<td><code>real(iip1,jjp1,llm,nqtot)</code></td>
+<td>—</td>
+<td>示踪剂混合比</td>
+</tr>
+<tr>
+<td><code>qsurf</code></td>
+<td>OUT</td>
+<td><code>real(ngrid,nqtot,nslope)</code></td>
+<td>—</td>
+<td>地表示踪剂</td>
+</tr>
+<tr>
+<td><code>watercap</code>/<code>peren_co2ice</code></td>
+<td>OUT</td>
+<td><code>real(ngrid,nslope)</code></td>
+<td>kg/m²</td>
+<td>永久水冰/CO₂冰帽</td>
+</tr>
+<tr>
+<td><code>tauscaling</code></td>
+<td>OUT</td>
+<td><code>real(ngrid)</code></td>
+<td>—</td>
+<td>尘转换因子</td>
+</tr>
+<tr>
+<td><code>totcloudfrac</code></td>
+<td>OUT</td>
+<td><code>real(ngrid)</code></td>
+<td>—</td>
+<td>亚网格云分数</td>
+</tr>
+<tr>
+<td><code>phisold_newgrid</code></td>
+<td>OUT</td>
+<td><code>real(iip1,jjp1)</code></td>
+<td>m²/s²</td>
+<td>插值后的地表位势</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong><code>comsoil_h</code></strong>：读写 <code>mlayer</code>/<code>layer</code>/<code>volcapa</code>/<code>inertiedat</code>（土壤深度和热惯量）</li>
+<li><strong><code>comslope_mod</code></strong>：设置 <code>nslope</code>/<code>def_slope</code>/<code>def_slope_mean</code>/<code>subslope_dist</code></li>
+<li><strong><code>surfdat_h::watercaptag</code></strong>：设置水冰帽标记</li>
+<li><strong><code>planete_h</code></strong>：读取行星轨道参数</li>
+<li><strong>交互式 I/O</strong>：从终端读取日期选择（<code>read(*,*) date</code>）和缺失示踪剂初始化值</li>
+<li><strong>文件 I/O</strong>：从 <code>nid</code> 对应的 NetCDF 文件读取所有初始场</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>示踪剂命名检测</strong>：检查是否使用旧命名（<code>q01,q02,...</code>）或新命名（<code>tname</code>）</li>
+<li><strong>读取维度</strong>：从 NetCDF 获取 <code>Time</code>/<code>latitude</code>/<code>longitude</code>/<code>altitude</code>/<code>subsurface_layers</code>/<code>nslope</code> 维度</li>
+<li><strong>数组分配</strong>：按旧网格维度分配所有 <code>...old</code> 数组</li>
+<li><strong>读取静态场</strong>：<code>controle</code>（100 元素控制参数表）、坐标、垂直系数 <code>aps/bps</code>、土壤深度 <code>soildepth</code>、热惯量 <code>inertiedat</code>、地表位势 <code>phisinit</code>、<code>ptotalold</code>/<code>co2icetotalold</code>（从 <code>tab_cntrl(99:100)</code>）</li>
+<li><strong>交互式日期选择</strong>：显示可用日期列表，从终端读取用户选择</li>
+<li><strong>读取时间相关场</strong>：
+<ul>
+<li>2D：<code>co2ice/co2_surf</code>、<code>emis</code>、<code>ps</code>、<code>tsurf</code>、<code>q2surf</code>、<code>tauscaling</code>、<code>totcloudfrac</code>、<code>watercap</code>、<code>perenial_co2ice</code>、<code>watercaptag</code>、<code>albedo</code></li>
+<li>地表示踪剂：按 <code>tname</code> 或旧命名循环读取 <code>*_surf</code></li>
+<li>土壤温度：<code>tsoil</code> 或旧格式 <code>Tg01,Tg02,...</code></li>
+<li>3D 大气：<code>temp</code>、<code>u</code>、<code>v</code>、<code>q2atm</code></li>
+<li>3D 示踪剂：按 <code>tname</code> 或旧命名循环读取</li>
+</ul></li>
+<li><strong>水平插值</strong>（2D 变量）：<code>interp_horiz</code> → <code>gr_dyn_fi</code> 对 phis、co2ice、tsurf、emis、tauscaling、totcloudfrac、watercap、peren_co2ice、watercaptag、albedo</li>
+<li><strong>质量守恒修正</strong>：<code>ps *= ptotalold/ptotal</code>、<code>co2ice *= co2icetotalold/co2icetotal</code></li>
+<li><strong>土壤深度插值</strong>（如需要）：<code>interp_line</code> 对热惯量和土壤温度</li>
+<li><strong>热惯量水平插值</strong>：<code>interp_horiz</code> → <code>gr_dyn_fi</code></li>
+<li><strong>3D 大气插值</strong>：
+<ul>
+<li>温度：<code>interp_vert</code> → <code>interp_horiz</code></li>
+<li>PBL 方差 q2：<code>interp_vert</code> → <code>interp_horiz</code> → <code>gr_dyn_fi</code></li>
+<li>风场：<code>interp_vert</code> → <code>interp_horiz</code> → <code>scal_wind</code> → 乘以 <code>cu/cv</code> 得协变风</li>
+<li>示踪剂：逐示踪剂 <code>interp_vert</code> → <code>interp_horiz</code></li>
+</ul></li>
+<li><strong>位温初始化</strong>：<code>h = t * (ps/preff)^kappa</code></li>
+<li><strong>释放数组</strong></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>Detect tracer naming convention (old q01..qN vs new tname)
+Read dimensions from NetCDF (Time, lat, lon, alt, soil layers, nslope)
+Allocate old-grid arrays
+Read static fields (control table, coords, vertical coeffs, soil, phis)
+Read ptotalold and co2icetotalold from tab_cntrl(99:100)
+Display available dates; read user selection from terminal
+Read time-dependent 2D fields (co2ice, emis, ps, tsurf, q2surf, etc.)
+Read surface tracers (loop nqtot, using tname or q01..qN)
+Read soil temperatures (tsoil or old Tg01..TgN format)
+Read 3D atmospheric fields (temp, u, v, q2atm, tracers)
+
+FOR each 2D variable:
+    interp_horiz(old → new grid) → gr_dyn_fi(scalar grid)
+Correct ps and co2ice for mass conservation
+IF soil depths differ:
+    interp_line for thermal inertia and soil temperature
+interp_horiz + gr_dyn_fi for thermal inertia and soil temperature
+FOR each 3D variable:
+    interp_vert(old vertical → new vertical)
+    interp_horiz(old horizontal → new horizontal)
+Convert winds: scal_wind → ucov = unat * cu, vcov = vnat * cv
+Compute potential temperature: h = t * (ps/preff)^kappa
+Deallocate all old-grid arrays</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>初始场读取与垂直重映射</td>
+<td>核心例程，完成全部 start_archive 读取和网格插值</td>
+</tr>
+<tr>
+<td>CO₂ 循环</td>
+<td>读取 co2ice/co2_surf，修正 CO₂ 冰帽质量守恒</td>
+</tr>
+<tr>
+<td>水冰帽初始化</td>
+<td>读取 watercap/watercaptag，必要时调用 locate_watercaptag</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>固定格式 Fortran 77/90 混合</strong>：<code>.F</code> 后缀，f77 列格式 + f90 <code>USE</code>/<code>allocate</code></li>
+<li><strong>多格式兼容</strong>：支持旧（<code>q01</code>/<code>Tg01</code>/<code>co2ice</code>/<code>sig_s</code>）和新（<code>tname</code>/<code>tsoil</code>/<code>co2_surf</code>/<code>bps</code>）两种 start_archive 格式</li>
+<li><strong><code>#ifdef NC_DOUBLE</code></strong>：条件编译支持单/双精度 NetCDF 读取</li>
+<li><strong>交互式输入</strong>：日期选择和缺失示踪剂值输入使用 <code>read(*,*)</code>（非脚本化）</li>
+<li><strong><code>no_slope</code> 兼容</strong>：旧归档无 <code>nslope</code> 维度时，读取后复制到 slope=1</li>
+<li><strong>100 元素 <code>tab_cntrl</code></strong>：与 <code>ini_archive</code> 写入的 <code>controle</code> 数组对应，<code>tab0=50</code> 偏移后读取 <code>ptotalold(99)</code> 和 <code>co2icetotalold(100)</code></li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>需要先由 <code>ini_archive</code> 写入对应格式的 <code>start_archive</code> 文件</li>
+<li><code>interp_vert</code> 处理垂直层不匹配，<code>interp_line</code> 处理土壤层不匹配</li>
+<li>质量守恒修正（<code>ps</code> 和 <code>co2ice</code>）确保插值后总质量不变</li>
+<li>需要 <code>interp_horiz</code>/<code>gr_dyn_fi</code>/<code>scal_wind</code> 辅助例程可用</li>
+<li><code>planete_h</code> 提供行星轨道参数用于日期计算</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>planete_h</code> 全模块 USE 的具体读写变量待确认</li>
+<li>交互式 <code>read(*,*)</code> 在批处理环境下的替代方案待确认</li>
+<li><code>no_slope</code> 分支在 nslope&gt;1 的模拟中的正确性待确认</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="newstart.html">newstart</a> — 唯一调用方，GCM 初始化入口</li>
+<li><a href="interp_vert.html">interp_vert</a> — 垂直插值例程，本例程调用 5 次</li>
+<li><a href="../phymars/interp_line.html">interp_line</a> — 一维线性插值例程，本例程调用 3 次</li>
+<li><a href="ini_archive.html">ini_archive</a> — 对应的归档写入例程（<code>controle</code> 数组格式一致）</li>
+<li><a href="../phymars/comsoil_h.html">comsoil_h</a> — 土壤参数共享模块</li>
+<li><a href="../phymars/surfini_mod.html">surfini_mod</a> — <code>locate_watercaptag</code> 水冰帽定位</li>
+<li><a href="index.html">dynphy_lonlat/index</a> — 所属目录概览</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

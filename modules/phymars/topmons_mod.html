@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>topmons_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/topmons_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="topmons_modf90">topmons_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\topmons_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>源码依据（第 8-16 行注释及整体结构）：实现"山顶地形尘流"（Mountain Top Dust Flows）参数化方案，模拟火星上亚格点尺度山脉的<strong>坡风驱动尘埃抬升</strong>机制。</p>
+<p>核心物理思想（第 211-214 行注释）：</p>
+<ul>
+<li>亚格点尺度山脉在白天产生上坡气流（热力坡风）</li>
+<li>山顶尖端的会聚气流将边界层（PBL）中的背景尘埃**裹挟（entrain）**至高空</li>
+<li>被裹挟的尘埃作为 <code>topdust</code> 示踪物在山脉上方垂直输运</li>
+<li><code>topdust</code> 在速度衰减或夜间时**脱轨（detrain）**回背景 <code>dust</code></li>
+</ul>
+<p>该模块与 <code>rocketduststorm_mod</code> 形成尘埃循环中两种<strong>集中垂直输运机制</strong>的互补：前者由辐射加热驱动（尘暴），后者由地形坡风驱动（山脉）。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>topmons_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>容器模块</td>
+</tr>
+<tr>
+<td><code>topmons</code></td>
+<td>subroutine</td>
+<td>18</td>
+<td>主例程：辐射加热 → 垂直速度 → PBL 裹挟 + Van Leer 输运 → 脱轨</td>
+</tr>
+<tr>
+<td><code>t_topmons</code></td>
+<td>subroutine</td>
+<td>705</td>
+<td>计算山脉上方和邻近环境的温度廓线</td>
+</tr>
+<tr>
+<td><code>van_leer</code></td>
+<td>subroutine</td>
+<td>792</td>
+<td>从 <code>lwmax</code> 层开始的 Van Leer 平流（含 PBL 注入边界条件）</td>
+</tr>
+<tr>
+<td><code>topmons_setup</code></td>
+<td>subroutine</td>
+<td>954</td>
+<td>初始化：检测含山格点、计算 <code>alpha_hmons</code>、<code>hsummit</code>；内置 19 座火星火山列表</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_topdust_mass/number</code>, <code>igcm_dust_mass/number</code>, <code>rho_dust</code></td>
+<td>topdust/dust 示踪物索引与密度（第 35-37 行）</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>r</code>, <code>g</code>, <code>cpp</code>, <code>rcp</code></td>
+<td>比气体常数、重力加速度、定压比热（第 38 行）</td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>naerkind</code></td>
+<td>气溶胶种类数（第 39 行）</td>
+</tr>
+<tr>
+<td><code>comsaison_h</code></td>
+<td><code>dist_sol</code>, <code>mu0</code>, <code>fract</code></td>
+<td>太阳距离、天顶角余弦、日照分数（第 40 行）</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>hmons</code>, <code>summit</code>, <code>alpha_hmons</code>, <code>hsummit</code>, <code>contains_mons</code>, <code>phisfi</code>, <code>base</code></td>
+<td>亚格点地形数据：山高、山顶、面积分数等（第 41-42、960-961 行）</td>
+</tr>
+<tr>
+<td><code>callradite_mod</code></td>
+<td><code>callradite</code></td>
+<td>辐射传输计算（第 43 行）</td>
+</tr>
+<tr>
+<td><code>write_output_mod</code></td>
+<td><code>write_output</code></td>
+<td>诊断输出（第 44 行，当前注释掉）</td>
+</tr>
+<tr>
+<td><code>planetwide_mod</code></td>
+<td><code>planetwide_maxval/minval</code></td>
+<td>全球地形极值（非介观尺度时，第 964 行）</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>nvertex</code></td>
+<td>网格顶点数（4=规则，6=二十面体，第 966 行）</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>longitude_deg</code>, <code>latitude_deg</code>, <code>boundslon</code>, <code>boundslat</code></td>
+<td>格点坐标与边界（第 967-968 行）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>callradite</code></td>
+<td><code>callradite_mod</code></td>
+<td>第 291 行</td>
+<td>计算含 topdust 的辐射加热率</td>
+</tr>
+<tr>
+<td><code>t_topmons</code></td>
+<td>本模块</td>
+<td>第 310 行</td>
+<td>计算山脉上方/邻近温度廓线</td>
+</tr>
+<tr>
+<td><code>van_leer</code></td>
+<td>本模块</td>
+<td>第 549-552 行</td>
+<td>topdust_mass/number 的 Van Leer 平流</td>
+</tr>
+<tr>
+<td><code>planetwide_maxval/minval</code></td>
+<td><code>planetwide_mod</code></td>
+<td>第 1046-1047 行</td>
+<td>获取全局地形极值用于计算 <code>alpha_hmons</code></td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td><code>abort_gcm.F</code></td>
+<td>第 1014、1070 行</td>
+<td>初始化异常时中止</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<h3 id="topmons-主例程">topmons 主例程</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>integer（in）</td>
+<td>—</td>
+<td>水平格点数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>integer（in）</td>
+<td>—</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>integer（in）</td>
+<td>—</td>
+<td>示踪物数</td>
+</tr>
+<tr>
+<td><code>ptime</code></td>
+<td>real（in）</td>
+<td>s</td>
+<td>当前时间</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>real（in）</td>
+<td>s</td>
+<td>物理时间步</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td>real(ngrid,nlayer,nq)（in）</td>
+<td>kg/kg</td>
+<td>示踪物混合比</td>
+</tr>
+<tr>
+<td><code>pdq</code></td>
+<td>real(ngrid,nlayer,nq)（in）</td>
+<td>kg/kg/s</td>
+<td>上游倾向</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td>real(ngrid,nlayer)（in）</td>
+<td>K</td>
+<td>层中点温度</td>
+</tr>
+<tr>
+<td><code>pdt</code></td>
+<td>real(ngrid,nlayer)（in）</td>
+<td>K/s</td>
+<td>上游温度倾向</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td>real(ngrid,nlayer+1)（in）</td>
+<td>Pa</td>
+<td>层间界面气压</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td>real(ngrid,nlayer)（in）</td>
+<td>Pa</td>
+<td>层中点气压</td>
+</tr>
+<tr>
+<td><code>pzlev</code></td>
+<td>real(ngrid,nlayer+1)（in）</td>
+<td>m</td>
+<td>层间界面高度</td>
+</tr>
+<tr>
+<td><code>pzlay</code></td>
+<td>real(ngrid,nlayer)（in）</td>
+<td>m</td>
+<td>层中点高度</td>
+</tr>
+<tr>
+<td><code>pdtsw</code> / <code>pdtlw</code></td>
+<td>real(ngrid,nlayer)（in）</td>
+<td>K/s</td>
+<td>短波/长波辐射加热（背景）</td>
+</tr>
+<tr>
+<td><code>totstormfract</code></td>
+<td>real(ngrid)（in）</td>
+<td>—</td>
+<td>风暴面积分数（辐射用）</td>
+</tr>
+<tr>
+<td><code>clearatm</code></td>
+<td>logical（in）</td>
+<td>—</td>
+<td>清空标志</td>
+</tr>
+<tr>
+<td><code>clearsky</code></td>
+<td>logical（in）</td>
+<td>—</td>
+<td>无云标志</td>
+</tr>
+<tr>
+<td><code>totcloudfrac</code></td>
+<td>real(ngrid)（in）</td>
+<td>—</td>
+<td>总云量</td>
+</tr>
+<tr>
+<td><code>nohmons</code></td>
+<td>logical（in）</td>
+<td>—</td>
+<td>无亚格点地形标志</td>
+</tr>
+</tbody>
+</table>
+<h3 id="topmons_setup">topmons_setup</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>integer（in）</td>
+<td>—</td>
+<td>水平格点数（1D 特殊处理）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<h3 id="topmons-主例程-1">topmons 主例程</h3>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdqtop</code></td>
+<td>real(ngrid,nlayer,nq)（out）</td>
+<td>kg/kg/s</td>
+<td>topdust 方案产生的示踪物倾向</td>
+</tr>
+<tr>
+<td><code>wfin</code></td>
+<td>real(ngrid,nlayer+1)（out）</td>
+<td>m/s</td>
+<td>最终垂直速度剖面（含坡风 + 辐射分量）</td>
+</tr>
+<tr>
+<td><code>dsodust</code> / <code>dsords</code> / <code>dsotop</code></td>
+<td>real(ngrid,nlayer)（out）</td>
+<td>—</td>
+<td>密度标度不透明度</td>
+</tr>
+<tr>
+<td><code>tau_pref_scenario</code> / <code>tau_pref_gcm</code></td>
+<td>real(ngrid)（out）</td>
+<td>—</td>
+<td>尘埃柱可见光不透明度</td>
+</tr>
+</tbody>
+</table>
+<h3 id="topmons_setup-1">topmons_setup</h3>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>contains_mons</code></td>
+<td><code>surfdat_h</code></td>
+<td>logical(ngrid)</td>
+<td>含山格点标志</td>
+</tr>
+<tr>
+<td><code>alpha_hmons</code></td>
+<td><code>surfdat_h</code></td>
+<td>real(ngrid)</td>
+<td>山脉面积分数（0-0.5）</td>
+</tr>
+<tr>
+<td><code>hsummit</code></td>
+<td><code>surfdat_h</code></td>
+<td>real(ngrid)</td>
+<td>山顶相对 GCM 地表的高度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong><code>firstcall</code></strong>（SAVE, THREADPRIVATE，第 115 行）：声明但未在主逻辑中使用（推断为保留接口）。</li>
+<li><strong><code>surfdat_h</code> 全局修改</strong>：<code>topmons_setup</code> 写入 <code>contains_mons</code>、<code>alpha_hmons</code>、<code>hsummit</code>，供后续 <code>topmons</code> 和其他模块读取。</li>
+<li><strong>硬编码常量</strong>：
+<ul>
+<li><code>wmax = 10.</code> m/s（第 164 行）：辐射驱动速度上限</li>
+<li><code>secu = 3.</code>（第 165 行）：子步安全系数</li>
+<li><code>k0 = 0.25</code>（第 166 行）：山顶会聚速度系数（对应最大约 3 m/s）</li>
+<li><code>k1 = 5e-4</code>（第 167 行）：动量衰减系数</li>
+<li><code>k2 = 5e-3</code>（第 168 行）：浮力加速度系数</li>
+<li><code>mu0lim = 0.001</code>（第 122 行）：白天判定阈值</li>
+</ul></li>
+<li><strong>内置火山列表</strong>（第 984-1001 行）：19 座火星火山的经纬度（Olympus Mons、Ascraeus Mons 等），<code>ntop_max = 19</code>。</li>
+<li><strong>1D 特殊值</strong>（第 1091 行）：<code>hmax = 23162.1</code> m（推断为 Olympus Mons 高度），<code>hsummit = 14000</code> m。</li>
+<li><strong>诊断输出</strong>：当前全部注释掉（第 647-695 行），包含 <code>wup_top</code>、<code>wfin_top</code>、<code>entr</code> 等 20+ 诊断量。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<p>按执行顺序（行号为源码行号）：</p>
+<h3 id="阶段-0初始化第-225-276-行">阶段 0：初始化（第 225-276 行）</h3>
+<ol type="1">
+<li>全部输出和中间变量清零。</li>
+<li><strong>温度更新</strong>（第 265 行）：<code>zt = pt + pdt * ptimestep</code>（用上游倾向推进）。</li>
+<li><strong>示踪物更新</strong>（第 271 行）：<code>zq0 = pq + pdq * ptimestep</code>（含火箭式尘暴后的背景尘埃）。</li>
+</ol>
+<h3 id="阶段-1辐射加热第-279-369-行">阶段 1：辐射加热（第 279-369 行）</h3>
+<ol type="1">
+<li><strong>辐射传输</strong>（第 291 行）：调用 <code>callradite</code> 计算含 topdust 的加热率 <code>zdtlw1</code>/<code>zdtsw1</code>。</li>
+<li><strong>对每列含山格点</strong>（<code>mu0 &gt; mu0lim</code> 且 <code>contains_mons(ig)</code> 为真）：
+<ul>
+<li><strong>山脉温度廓线</strong>（第 310 行）：调用 <code>t_topmons</code> 计算山脉上方温度 <code>t_top</code> 和环境温度 <code>t_env</code>。</li>
+<li><strong>加热率插值</strong>（第 322-346 行）：插值到界面，同 <code>rocketduststorm</code>。</li>
+<li><strong>辐射垂直速度</strong>（第 356-368 行）： <code>wrad = -deltahr / (g/cpp + max(zdtvert, -0.99*g/cpp))</code> 限幅 <code>|wrad| ≤ wmax</code>；<strong>向下分量强制置零</strong>（第 365-367 行：<code>if wrad &gt; 0 → wrad = 0</code>），因为山脉坡风只产生向上输运。</li>
+</ul></li>
+</ol>
+<h3 id="阶段-2垂直速度合成第-372-474-行">阶段 2：垂直速度合成（第 372-474 行）</h3>
+<p>对每列含山格点：</p>
+<ol type="1">
+<li><p><strong>浮力驱动速度</strong>（第 382-429 行）：</p>
+<ul>
+<li>若 <code>dt_top &gt; 0</code>（山脉上方比环境暖）：
+<ul>
+<li><strong>会聚速度</strong>（第 384 行）：<code>w0 = -k0 * g * sqrt(dt_top / T_env(lsummit))</code> 负值表示向上。</li>
+<li>若 <code>|w0| &gt; |wrad|</code>：从山顶层逐层向上推进，使用<strong>热羽流模型</strong>：
+<pre class="text"><code>wup²(l+1) = (1 - 2*k1*Δz) * wup²(l) + 2*k2*g*Δz * (newzt(l) - t_env(l)) / t_env(l)</code></pre>
+其中 <code>k1</code> 为动量衰减，<code>k2</code> 为浮力加速度。</li>
+<li>若 <code>wup² &gt; 0</code>：<code>wup = -sqrt(wup2)</code>，<code>wfin = wup</code>。</li>
+<li>若 <code>|wup| &lt; |wrad|</code> 或 <code>wup² ≤ 0</code>：退化到纯辐射方案 <code>wfin = wrad</code>。</li>
+</ul></li>
+<li>若 <code>dt_top ≤ 0</code>（山脉上方比环境冷）：退化到纯辐射方案。</li>
+</ul></li>
+<li><p><strong>最大速度层 <code>lwmax</code></strong>（第 447-450 行）：<code>lwmax = minloc(wup)</code> — 最大向上速度所在层，作为 PBL 尘埃注入层。</p></li>
+<li><p><strong>子步时间步</strong>（第 455-466 行）：同 <code>rocketduststorm</code>，<code>dtmax = min(Δz / (secu * |wfin|))</code>。</p></li>
+<li><p><strong>空气质量通量</strong>（第 468-471 行）：<code>w(l) = wfin(l) * pplev(l) / (r * ztlev(l)) * subtimestep</code>。</p></li>
+</ol>
+<h3 id="阶段-3pbl-裹挟--垂直输运第-476-586-行">阶段 3：PBL 裹挟 + 垂直输运（第 476-586 行）</h3>
+<ol type="1">
+<li><p><strong>密度与空气质量</strong>（第 480-490 行）：<code>rho = pplay / (r * pt)</code>；<code>masse = (pplev(l) - pplev(l+1)) / g</code>。</p></li>
+<li><p><strong>PBL 总空气质量</strong>（第 494-500 行）：从地表到 <code>lwmax-1</code> 层的气柱质量。</p></li>
+<li><p><strong>裹挟通量</strong>（第 516 行）：</p>
+<pre class="text"><code>entr = alpha_hmons * wup(lwmax) * rhobarz(lwmax) / masse_pbl</code></pre>
+<p>负值表示从 PBL 抽出空气质量。保护：<code>|entr| ≤ 1/ptimestep</code>（第 518-520 行）。</p></li>
+<li><p><strong>每个子步</strong>（第 525-553 行）：</p>
+<ul>
+<li><strong>PBL 内混合比</strong>（第 527-534 行）：加权平均 <code>qbar_pbl</code>。</li>
+<li><strong>PBL 尘埃抽出</strong>（第 538-544 行）：指数衰减模型 <code>dq = (1 - exp(entr*subtimestep)) * q * Δp/g</code>，每层逐层扣除。</li>
+<li><strong>Van Leer 平流</strong>（第 549-552 行）：从 <code>lwmax</code> 到 <code>nlayer</code>，调用本地 <code>van_leer</code>；额外传入 <code>masse_pbl</code>、<code>dqm_pbl</code>、<code>alpha_hmons</code>、<code>qbar_pbl</code> 作为 PBL 注入边界条件。</li>
+</ul></li>
+<li><p><strong>混合比反解</strong>（第 558-572 行）：同 <code>rocketduststorm</code>，用 <code>alpha_hmons</code> 做面积分数转换。</p></li>
+<li><p><strong>倾向计算</strong>（第 576-583 行）：<code>dqvl = (zq_after - zq0_before) / ptimestep</code>。</p></li>
+</ol>
+<h3 id="阶段-4脱轨第-588-624-行">阶段 4：脱轨（第 588-624 行）</h3>
+<ol type="1">
+<li><p><strong>脱轨系数</strong>（第 599-601 行，白天且含山时）：</p>
+<pre class="text"><code>coefdetrain = (rhobarz(l+1)*|wfin(l+1)| - rhobarz(l)*|wfin(l)|) / masse(l)</code></pre>
+<p>即质量通量散度除以层质量：<strong>散度为正时（质量减少）产生脱轨</strong>。</p></li>
+<li><p><strong>指数脱轨</strong>（第 603-612 行）： <code>dqdet = -(1 - exp(coefdetrain * ptimestep)) * topdust / ptimestep</code> 保护：不超过可用 topdust 量（第 608-612 行）。</p></li>
+<li><p><strong>夜间/非含山格点</strong>（第 618-622 行）：<strong>完全脱轨</strong>，<code>dqdet = -topdust / ptimestep</code>。</p></li>
+</ol>
+<h3 id="阶段-5最终倾向第-626-641-行">阶段 5：最终倾向（第 626-641 行）</h3>
+<pre class="text"><code>pdqtop(topdust) = dqdet_topdust + dqvl_topdust
+pdqtop(dust) = -dqdet_topdust + dqvl_dust</code></pre>
+<h3 id="t_topmons-子例程第-705-785-行">t_topmons 子例程（第 705-785 行）</h3>
+<ol type="1">
+<li><strong>山顶层定位</strong>（第 744-747 行）：<code>hsummit ≥ zlay(lsummit)</code> 的最高层。</li>
+<li><strong>山脉上方温度</strong>（第 749-753 行）：山顶层设为地表温度 <code>zt(1)</code>，向上按绝热递减率递减。</li>
+<li><strong>环境温度映射</strong>（第 756-774 行）：从 <code>lmons</code>（山坡高度对应层）开始，逐层向上映射环境温度。</li>
+<li><strong><code>t_top</code> 下界保护</strong>（第 776-781 行）：<code>t_top</code> 不低于 <code>t_env</code>。</li>
+<li><strong>温差输出</strong>（第 783 行）：<code>dt_top = t_top(lsummit) - t_env(lsummit)</code>。</li>
+</ol>
+<h3 id="topmons_setup-子例程第-954-1100-行">topmons_setup 子例程（第 954-1100 行）</h3>
+<ol type="1">
+<li><strong>19 座火山经纬度</strong>（第 984-1001 行）：硬编码列表，Olympus Mons 首位（lon=-134, lat=18.4）。</li>
+<li><strong>含山格点检测</strong>（第 1020-1042 行）：逐格点检查 <code>boundslon/lat</code> 是否包络任一火山坐标。</li>
+<li><strong><code>alpha_hmons</code> 计算</strong>（第 1062-1084 行）： <code>alpha_hmons = 0.5 * (hmons - hmin) / (hmax - hmin)</code>，范围 [0, 0.5]。 <code>alpha_hmons = 0</code> 时禁用（山脉已被格点分辨）。</li>
+<li><strong><code>hsummit</code> 计算</strong>（第 1087 行）：<code>hsummit = summit - phisfi/g</code>。</li>
+</ol>
+<h3 id="van_leer-子例程第-792-951-行">van_leer 子例程（第 792-951 行）</h3>
+<p>基于 <code>vlz_fi.F</code> 的本地副本（第 790 行注释明确），关键差异：</p>
+<ul>
+<li>从 <code>lwmax</code> 层开始（非从底层），第 823、828、838 行。</li>
+<li><strong><code>wq(lwmax) = -dqm_pbl / alpha_hmons</code></strong>（第 848 行）：PBL 注入边界条件，从 <code>lwmax</code> 层注入尘埃通量。</li>
+<li>扩展格式（多层穿越）被注释掉（第 867-893 行），仅保留常规格式。</li>
+</ul>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>subroutine topmons(..., pq, pdqtop, wfin, ...):
+
+  #--- 阶段 0: 初始化 ---
+  zt = pt + pdt * ptimestep
+  zq0 = pq + pdq * ptimestep
+
+  #--- 阶段 1: 辐射加热 ---
+  call callradite(..., zq, ..., zdtlw1, zdtsw1, ...)
+  for ig where daytime and contains_mons(ig):
+    call t_topmons(...) → t_top, dt_top, t_env, lsummit, lmons
+    插值加热率到界面
+    wrad = -deltahr / (g/cpp + max(zdtvert, -0.99*g/cpp))
+    wrad = clamp(wrad, -wmax, wmax)
+    if wrad &gt; 0: wrad = 0   # 仅保留向上分量
+
+  #--- 阶段 2: 垂直速度合成 ---
+  for ig where daytime and contains_mons(ig):
+    if dt_top &gt; 0:
+      w0 = -k0 * g * sqrt(dt_top / T_env(lsummit))   # 会聚速度
+      if |w0| &gt; |wrad|:
+        从山顶向上逐层: wup²(l+1) = (1-2k1Δz)*wup²(l) + 2k2*g*Δz*(newzt-T_env)/T_env
+        wup = -sqrt(wup2); wfin = wup
+      else:
+        wfin = wrad   # 退化为辐射方案
+    else:
+      wfin = wrad
+    lwmax = minloc(wup)   # 最大速度层 = PBL 注入层
+    dtmax = min(Δz / (secu*|wfin|)); nsubtimestep = ceil(ptimestep/dtmax)
+    w(l) = wfin(l) * pplev(l) / (r*ztlev(l)) * subtimestep
+
+  #--- 阶段 3: PBL 裹挟 + Van Leer 输运 ---
+  entr = alpha_hmons * wup(lwmax) * rhobarz(lwmax) / masse_pbl
+  for tsub=1..nsubtimestep:
+    qbar_pbl = Σ(dust * Δp/g) / masse_pbl    # PBL 平均浓度
+    for l=1..lwmax-1:                         # PBL 内逐层扣除
+      dqm = (1 - exp(entr*subtimestep)) * dust(l) * Δp/g
+      dust(l) = dust(l) - dqm
+    call van_leer(topdust_mass, lwmax, ..., dqm_pbl, qbar_pbl)  # lwmax→top
+    # van_leer 内: wq(lwmax) = -dqm_pbl / alpha_hmons
+  # 反解混合比
+  topdust = alpha_hmons * (mr_topdust - mr_dust)
+  dqvl = (zq_after - zq0_before) / ptimestep
+
+  #--- 阶段 4: 脱轨 ---
+  if daytime and contains_mons and topdust &gt; 0.01*dust:
+    coefdetrain = (rho*|w|(l+1) - rho*|w|(l)) / masse(l)  # 质量通量散度
+    dqdet = -(1 - exp(coefdetrain*ptimestep)) * topdust / ptimestep
+  else:
+    dqdet = -topdust / ptimestep   # 完全脱轨
+
+  #--- 阶段 5: 最终倾向 ---
+  pdqtop(topdust) = dqdet + dqvl_topdust
+  pdqtop(dust) = -dqdet + dqvl_dust
+
+subroutine t_topmons(nlayer, summit, hsummit, hmons, zt, zlay, t_top, dt_top, t_env, lsummit, lmons):
+  lsummit = 最高 zlay &lt; hsummit 的层
+  t_top(lsummit) = zt(1)   # 山顶温度 = 地表温度
+  向上: t_top(l+1) = t_top(l) - (zlay(l+1)-zlay(l)) * g/cpp   # 绝热递减
+  lmons = 最高 zlay &lt; hmons 的层
+  t_env(lsummit) = zt(lmons)   # 环境温度映射
+  dt_top = t_top(lsummit) - t_env(lsummit)
+
+subroutine topmons_setup(ngrid):
+  for each of 19 predefined volcanoes:
+    检查格点边界是否包络 → contains_mons(ig) = .true.
+  alpha_hmons = 0.5 * (hmons - hmin) / (hmax - hmin)
+  hsummit = summit - phisfi/g</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>尘埃循环</td>
+<td><code>physiq_mod.F:804</code> 调用 <code>topmons_setup</code>（初始化），<code>physiq_mod.F</code> 内通过 <code>topmons</code> 计算 <code>pdqtop</code> 倾向并加到 <code>pdq</code> 上（与 <code>rocketduststorm</code> 同级的集中垂直输运分支）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>19 座火山硬编码</strong>（第 984-1001 行）：包含 Olympus Mons、Ascraeus Mons、Arsia Mons 等，经纬度来自 Mars Global Surveyor 数据。添加新火山需修改源码。</li>
+<li><strong>坡风物理模型</strong>（第 384、406-409 行）：
+<ul>
+<li><code>w0 = -k0 * g * sqrt(dt_top / T_env)</code> — 基于温差的会聚速度</li>
+<li><code>wup² = (1-2k1Δz)*wup² + 2k2*g*Δz*(T_new-T_env)/T_env</code> — 热羽流方程，含动量衰减和浮力加速度</li>
+<li>参数 <code>k0=0.25, k1=5e-4, k2=5e-3</code>（第 166-168 行注释）：调试为最大约 3 m/s。</li>
+</ul></li>
+<li><strong>PBL 指数裹挟</strong>（第 540-544 行）：<code>dq = (1 - exp(entr*subtimestep)) * q * Δp/g</code>，比线性近似更保守（防止 PBL 内浓度变负）。</li>
+<li><strong><code>qbar_number_pbl</code> 赋值错误</strong>（第 534 行）：<code>qbar_number_pbl(ig) = masse_pbl_dust_mass(ig) / masse_pbl(ig)</code> — 此处使用了 <code>masse_pbl_dust_mass</code> 而非 <code>masse_pbl_dust_number</code>，推断为<strong>代码 bug</strong>，导致 number 分量的 PBL 平均混合比被错误地设为 mass 的值。</li>
+<li><strong>Van Leer 中 <code>wq(lwmax)</code> 边界条件</strong>（第 848 行）：<code>wq(lwmax) = -dqm_pbl / alpha_hmons</code>，从 PBL 注入的尘埃通量被注入到 <code>lwmax</code> 层；除以 <code>alpha_hmons</code> 是因为被输运变量已转换为山脉内部浓度。</li>
+<li><strong>辐射驱动速度向下分量被截断</strong>（第 365-367 行）：<code>wrad &gt; 0 → wrad = 0</code>，使辐射加热仅产生向上速度，这与 <code>rocketduststorm_mod</code> 不同（后者保留双向分量）。</li>
+<li><strong>夜间完全脱轨</strong>（第 618-622 行）：太阳落山后所有 topdust 立即脱轨回背景尘埃，不保留残余。</li>
+<li><strong><code>van_leer</code> 注释掉的扩展格式</strong>（第 867-893 行）：多层穿越格式被完全注释，仅保留常规格式，因为子步时间步已保证单步不穿越多层。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><strong>19 座火山列表</strong>（第 984-1001 行）：必须保持一致。任何遗漏或坐标偏差都会导致 <code>contains_mons</code> 判定不同，进而使 topdust 方案在错误格点触发或不触发。</li>
+<li><strong><code>alpha_hmons</code> 公式</strong>（第 1065 行）：<code>0.5 * (hmons - hmin) / (hmax - hmin)</code>，因子 0.5 是关键——范围被限制在 [0, 0.5]。重新实现时不可改为 1.0。</li>
+<li><strong><code>k0</code>, <code>k1</code>, <code>k2</code> 参数</strong>（第 166-168 行）：分别控制山顶会聚速度、动量衰减和浮力加速度。注释标注了不同速度上限的对应值（max 10 m/s vs max 3 m/s），当前使用 max 3 m/s 的配置。</li>
+<li><strong><code>wq(lwmax) = -dqm_pbl / alpha_hmons</code></strong>（第 848 行）：PBL 注入边界条件中的 <code>alpha_hmons</code> 除法是必须的，否则输运变量量纲不匹配。</li>
+<li><strong>PBL 指数裹挟</strong>（第 540 行）：<code>1 - exp(entr*subtimestep)</code> 而非线性 <code>entr*subtimestep</code>，确保不产生负浓度。</li>
+<li><strong>夜间完全脱轨</strong>（第 618-622 行）：日落后 topdust 在下一个时间步全部转回 dust，不能保留。</li>
+<li><strong><code>dt_top &gt; 0</code> 才产生坡风</strong>（第 382 行）：温度差为负时（山脉上方比环境冷），无浮力驱动。</li>
+<li><strong>复现风险</strong>：第 534 行 <code>qbar_number_pbl(ig) = masse_pbl_dust_mass(ig)/masse_pbl(ig)</code> 疑似 bug——应为 <code>masse_pbl_dust_number</code>。重新实现时需决定是按源码复制（保留 bug）还是修正。</li>
+<li><strong>复现风险</strong>：<code>van_leer</code> 的扩展格式（多层穿越）被注释掉。若子步数不足（例如 <code>nsubtimestep</code> 计算有误），单步穿越多层会因缺少扩展格式而产生不可预测结果。</li>
+<li><strong>复现风险</strong>：<code>topmons_setup</code> 在介观尺度模式（<code>MESOSCALE</code> 宏）下 <code>hmin=hmax=0</code>，导致全部 <code>contains_mons = .false.</code>，即 topflows 方案被完全禁用。重新实现时需注意此编译选项。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>待确认：第 534 行 <code>qbar_number_pbl(ig) = masse_pbl_dust_mass(ig)/masse_pbl(ig)</code> 是否为 bug（应为 <code>masse_pbl_dust_number</code>）。此 bug 影响 number 分量的 PBL 平均浓度的计算。</li>
+<li>待确认：<code>firstcall</code>（第 115 行）的原始用途——在当前主逻辑中未被使用，推断为残留代码或保留接口。</li>
+<li>待确认：1D 模式下 <code>hmax = 23162.1</code> m 的来源——推断为 Olympus Mons 海拔，但未找到文档确认。</li>
+<li>待确认：<code>k0=0.25, k1=5e-4, k2=5e-3</code> 的物理推导来源——注释仅提供"max 3 m/s"的目标速度信息，未引用原始文献。</li>
+<li>待确认：<code>t_topmons</code> 中 <code>t_env</code> 的映射逻辑（第 756-774 行）——环境温度取自更远层的温度再映射回 <code>lsummit</code>，该映射方法的物理依据和文献引用不明。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="rocketduststorm_mod.html">rocketduststorm_mod.md</a>：辐射驱动尘暴方案，与 topmons 互补——前者不需要山脉，后者需要亚格点地形。</li>
+<li><a href="vlz_fi.html">vlz_fi.md</a>：Van Leer 垂直输运格式的本源，本模块的 <code>van_leer</code> 从此复制但增加了 PBL 注入边界条件。</li>
+<li><a href="callsedim_mod.html">callsedim_mod.md</a>：重力沉降调度器，与 topmons 形成"沉降 vs 集中抬升"的互补。</li>
+<li><a href="newsedim_mod.html">newsedim_mod.md</a>：单示踪物沉降核心。</li>
+<li><a href="updaterad.html">updaterad.md</a>：尘埃/水冰有效半径反演模块。</li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle.md</a>：尘埃循环主题页。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

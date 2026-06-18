@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>initracer-co2-tracers - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>routines/initracer-co2-tracers.md</span>
+    </nav>
+    <article class="content">
+<h1 id="initracer--co2--co2-云-tracer-段">initracer — CO2 / CO2 云 tracer 段</h1>
+<p>本页只覆盖 <code>initracer</code> 中与 CO2 循环和 CO2 云相关的 tracer 识别、索引、物性初始化和一致性检查代码段。整个 <code>initracer</code> 还处理尘埃、水、化学、离子等 tracer，这些不在本页范围内。</p>
+<h2 id="所属文件">所属文件</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\initracer.F90</code></pre>
+<h2 id="所属模块">所属模块</h2>
+<pre class="text"><code>initracer_mod</code></pre>
+<h2 id="例程定位">例程定位</h2>
+<pre class="text"><code>SUBROUTINE initracer(ngrid,nq)   (行 7–1061)</code></pre>
+<p>本页聚焦其中的 CO2 相关代码段（行号见下）。</p>
+<h2 id="本段职责">本段职责</h2>
+<p>把动力核心通过 <code>infotrac</code> 提供的 tracer 名字数组 <code>noms(:)</code> 与 <code>tracer_mod</code> 中的 CO2 相关整数索引变量对应起来，设置对应的摩尔质量 <code>mmol</code>，并在 CO2 云方案开启时初始化 CO2 冰和 CCNCO2 粒子的物性（半径、密度、抬升系数），最后做存在性一致性检查。</p>
+<p>CO2 相关的索引变量（声明于 <code>tracer_mod</code>，见 <code>tracer_mod.F90:64-87</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>索引变量</th>
+<th>含义</th>
+<th>tracer 名字（<code>noms</code>）</th>
+<th>mmol</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>igcm_co2</code></td>
+<td>气态 CO2（化学/CO2 云所需主气体）</td>
+<td><code>co2</code></td>
+<td>44.</td>
+</tr>
+<tr>
+<td><code>igcm_co2_ice</code></td>
+<td>CO2 冰</td>
+<td><code>co2_ice</code></td>
+<td>44.</td>
+</tr>
+<tr>
+<td><code>igcm_ccnco2_mass</code></td>
+<td>CO2 云 CCN 质量混合比</td>
+<td><code>ccnco2_mass</code></td>
+<td>（未设，保持默认）</td>
+</tr>
+<tr>
+<td><code>igcm_ccnco2_number</code></td>
+<td>CO2 云 CCN 数混合比</td>
+<td><code>ccnco2_number</code></td>
+<td>（未设）</td>
+</tr>
+<tr>
+<td><code>igcm_ccnco2_meteor_mass</code></td>
+<td>流星尘 CCN 质量（<code>meteo_flux</code>）</td>
+<td><code>ccnco2_meteor_mass</code></td>
+<td>（未设）</td>
+</tr>
+<tr>
+<td><code>igcm_ccnco2_meteor_number</code></td>
+<td>流星尘 CCN 数（<code>meteo_flux</code>）</td>
+<td><code>ccnco2_meteor_number</code></td>
+<td>（未设）</td>
+</tr>
+<tr>
+<td><code>igcm_ccnco2_h2o_mass_ice</code></td>
+<td>水冰来源 CCN 的冰质量（<code>co2useh2o</code>）</td>
+<td><code>ccnco2_h2o_mass_ice</code></td>
+<td>（未设）</td>
+</tr>
+<tr>
+<td><code>igcm_ccnco2_h2o_mass_ccn</code></td>
+<td>水冰来源 CCN 的核质量（<code>co2useh2o</code>）</td>
+<td><code>ccnco2_h2o_mass_ccn</code></td>
+<td>（未设）</td>
+</tr>
+<tr>
+<td><code>igcm_ccnco2_h2o_number</code></td>
+<td>水冰来源 CCN 的数（<code>co2useh2o</code>）</td>
+<td><code>ccnco2_h2o_number</code></td>
+<td>（未设）</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>推断：<code>ccnco2_*</code> 与 <code>co2_ice</code> 未在本例程显式设置 <code>mmol</code>，因此保持 <code>tracer_mod</code> 中 <code>mmol(:)</code> 的分配后默认值（动力核心或未初始化值）。这些 tracer 是气溶胶/冰，不参与气相摩尔质量计算，所以未设 <code>mmol</code> 不影响 CO2 云物理。<code>co2_ice</code> 例外地被设为 44.（行 469）。</p>
+</blockquote>
+<h2 id="使用的-module-变量">使用的 module 变量</h2>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>来源模块</th>
+<th>读/写</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>noms(:)</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>各 tracer 名字，用于匹配</td>
+</tr>
+<tr>
+<td><code>mmol(:)</code></td>
+<td><code>tracer_mod</code></td>
+<td>写</td>
+<td>tracer 摩尔质量（g/mol）</td>
+</tr>
+<tr>
+<td><code>igcm_co2</code></td>
+<td><code>tracer_mod</code></td>
+<td>写</td>
+<td><code>co2</code> 索引</td>
+</tr>
+<tr>
+<td><code>igcm_co2_ice</code></td>
+<td><code>tracer_mod</code></td>
+<td>写</td>
+<td><code>co2_ice</code> 索引</td>
+</tr>
+<tr>
+<td><code>igcm_ccnco2_mass</code> / <code>_number</code></td>
+<td><code>tracer_mod</code></td>
+<td>写</td>
+<td>CO2 云核索引</td>
+</tr>
+<tr>
+<td><code>igcm_ccnco2_meteor_mass</code> / <code>_number</code></td>
+<td><code>tracer_mod</code></td>
+<td>写</td>
+<td>流星核索引</td>
+</tr>
+<tr>
+<td><code>igcm_ccnco2_h2o_mass_ice</code> / <code>_mass_ccn</code> / <code>_number</code></td>
+<td><code>tracer_mod</code></td>
+<td>写</td>
+<td>水冰来源核索引</td>
+</tr>
+<tr>
+<td><code>igcm_dust_mass</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>CO2 云初始化时复用其半径</td>
+</tr>
+<tr>
+<td><code>radius(:)</code></td>
+<td><code>tracer_mod</code></td>
+<td>写</td>
+<td>粒子半径（m）</td>
+</tr>
+<tr>
+<td><code>rho_q(:)</code></td>
+<td><code>tracer_mod</code></td>
+<td>写</td>
+<td>粒子密度（kg/m³）</td>
+</tr>
+<tr>
+<td><code>rho_ice_co2</code></td>
+<td><code>tracer_mod</code></td>
+<td>写</td>
+<td>CO2 冰密度，行 577 设为 1650.</td>
+</tr>
+<tr>
+<td><code>rho_dust</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>尘密度，作为 CCNCO2 密度</td>
+</tr>
+<tr>
+<td><code>alpha_lift(:)</code> / <code>alpha_devil(:)</code></td>
+<td><code>tracer_mod</code></td>
+<td>写</td>
+<td>抬升系数（CO2 相关 tracer 全置极小或 0）</td>
+</tr>
+<tr>
+<td><code>co2clouds</code></td>
+<td><code>callkeys_mod</code></td>
+<td>读</td>
+<td>是否开启 CO2 云方案</td>
+</tr>
+<tr>
+<td><code>co2useh2o</code></td>
+<td><code>callkeys_mod</code></td>
+<td>读</td>
+<td>CO2 云是否使用水冰作为核</td>
+</tr>
+<tr>
+<td><code>meteo_flux</code></td>
+<td><code>callkeys_mod</code></td>
+<td>读</td>
+<td>是否注入流星尘核</td>
+</tr>
+<tr>
+<td><code>count</code></td>
+<td>局部</td>
+<td>读写</td>
+<td>已识别 tracer 计数，用于最终核对</td>
+</tr>
+<tr>
+<td><code>idtracers(:)</code></td>
+<td>局部</td>
+<td>写</td>
+<td>记录已识别 tracer 名，供报错列出</td>
+</tr>
+</tbody>
+</table>
+<p><code>co2clouds</code>、<code>co2useh2o</code>、<code>meteo_flux</code> 三个开关在 <code>callkeys_mod.F90:86</code> 声明，由 <code>initracer</code> 的 <code>use callkeys_mod</code> 引入（行 12-15）。</p>
+<h2 id="调用的其他例程">调用的其他例程</h2>
+<p>本段只调用 <code>abort_physic</code>（GCM 内部异常终止），用于一致性检查失败时停机。无其他物理例程调用。</p>
+<h2 id="控制流程co2-相关分支">控制流程（CO2 相关分支）</h2>
+<p>CO2 tracer 处理分散在四处，按源码顺序：</p>
+<ol type="1">
+<li><p><strong>索引清零（行 77-84, 98, 467-472 涉及的变量在 76-137 块统一清零）</strong> 所有 <code>igcm_*</code> 在识别前先置 0；若某 tracer 不存在，索引保持 0，后续检查据此判断缺失。</p></li>
+<li><p><strong>化学/水 tracer 大循环内匹配 CO2 气体与冰（行 220-533，<code>do iq=1,nq</code>）</strong></p>
+<ul>
+<li>行 221-226：匹配 <code>"co2"</code> → <code>igcm_co2=iq</code>，<code>mmol=44.</code>，<code>count+1</code>。</li>
+<li>行 467-472：匹配 <code>"co2_ice"</code> → <code>igcm_co2_ice=iq</code>，<code>mmol=44.</code>，<code>count+1</code>。</li>
+<li>行 492-532：<code>if (co2clouds)</code> 嵌套块（在同一 <code>iq</code> 循环内）：
+<ul>
+<li>行 493-502：匹配 <code>ccnco2_mass</code>、<code>ccnco2_number</code>。</li>
+<li>行 503-514：<code>if (meteo_flux)</code> 内匹配 <code>ccnco2_meteor_mass</code>、<code>ccnco2_meteor_number</code>。</li>
+<li>行 515-531：<code>if (co2useh2o)</code> 内匹配 <code>ccnco2_h2o_number</code>、<code>ccnco2_h2o_mass_ice</code>、<code>ccnco2_h2o_mass_ccn</code>。</li>
+</ul></li>
+</ul></li>
+<li><p><strong>一致性检查（行 846-902，<code>if (co2clouds)</code>）</strong> 逐个检查 CO2 云所需 tracer 索引是否为 0，缺失即 <code>abort_physic</code>：</p>
+<ul>
+<li>行 848-852：<code>igcm_co2==0</code> → 停机。</li>
+<li>行 853-857：<code>igcm_co2_ice==0</code> → 停机。</li>
+<li>行 858-862：<code>igcm_ccnco2_number==0</code> → 停机。</li>
+<li>行 863-867：<code>igcm_ccnco2_mass==0</code> → 停机。</li>
+<li>行 868-884：<code>if (co2useh2o)</code> 内检查三个 <code>ccnco2_h2o_*</code> 索引。</li>
+<li>行 885-901：<code>if (meteo_flux)</code> 内检查 <code>ccnco2_meteor_number</code>、<code>ccnco2_meteor_mass</code>。</li>
+</ul>
+<blockquote>
+<p>复现风险（源码疑点）：<code>meteo_flux</code> 检查块（行 885-901）有两处问题。其一，行 891-895 检查 <code>igcm_ccnco2_meteor_mass==0</code>，但报错文案误印为 <code>"...without a ccnco2_h2o_mass_ice tracer!"</code>（拷贝自 <code>co2useh2o</code> 块，文案与实检变量不符）。其二，<code>igcm_ccnco2_meteor_mass==0</code> 被<strong>连续检查两次</strong>（行 891-895 与行 896-900），第二次文案才正确（<code>ccnco2_meteor_mass</code>）；而 <code>igcm_ccnco2_meteor_number</code> 仅在行 886-890 检查一次。两处均为冗余/文案 bug，不改变逻辑结果（缺任一 meteor tracer 仍会 <code>abort_physic</code>），但日志信息可能误导。待确认是否为已知问题。</p>
+</blockquote></li>
+<li><p><strong>物性初始化（行 1041-1059，<code>if (co2clouds)</code>）</strong></p>
+<ul>
+<li>CCNCO2 质量/数核：<code>radius(igcm_ccnco2_mass)=radius(igcm_dust_mass)</code>（复用尘半径），<code>alpha_lift=alpha_devil=1e-30</code>（实质禁止抬升），<code>rho_q=rho_dust</code>；数核继承质量核的半径/系数/密度。</li>
+<li>CO2 气体：<code>radius=0</code>、<code>alpha_lift=alpha_devil=0</code>。</li>
+<li>CO2 冰：<code>radius=1.e-8</code>（m），<code>rho_q=rho_ice_co2</code>（=1650），<code>alpha_lift=alpha_devil=0</code>。</li>
+</ul></li>
+</ol>
+<h2 id="核心计算步骤co2-段">核心计算步骤（CO2 段）</h2>
+<ol type="1">
+<li>把所有 CO2 相关 <code>igcm_*</code> 索引清零。</li>
+<li>遍历 <code>noms(:)</code>，按名字精确匹配设置索引、<code>mmol</code> 和 <code>count</code>。</li>
+<li>CO2 云核 tracer 只在 <code>co2clouds</code> 为真时识别；<code>meteo_flux</code>、<code>co2useh2o</code> 进一步控制流星核与水冰核子组的识别。</li>
+<li>全部识别后核对 <code>count==nq</code>（行 536，全 tracer 范围的检查，非仅 CO2）。</li>
+<li>CO2 云开启时逐项核对所需 tracer 存在，缺失即停机。</li>
+<li>CO2 云开启时设置 CO2 冰、气体、各类 CCNCO2 的半径/密度/抬升系数。</li>
+</ol>
+<h2 id="关键公式或算法">关键公式或算法</h2>
+<p>本段无数值公式，核心是「名字 → 索引」字符串匹配与开关驱动的条件识别。物性为常数赋值：</p>
+<ul>
+<li>CO2 冰密度 <code>rho_ice_co2 = 1650.</code> kg/m³（行 577）。与 <code>density_co2_ice</code> 中温度依赖密度不同：此处是初始化常数，运行中 CO2 冰密度可由 <code>density_co2_ice</code> 按温度更新（见 <a href="../modules/phymars/density_co2_ice.html">density_co2_ice.md</a>）。</li>
+<li>CO2 冰初始半径 <code>1.e-8</code> m（=10 nm），对应 CO2 云成核起始粒径。</li>
+<li>CCNCO2 半径复用尘 <code>dust_mass</code> 半径（<code>reff_lift</code>，doubleq 下为 <code>3.e-6</code> m）。</li>
+</ul>
+<h2 id="边界条件与保护逻辑">边界条件与保护逻辑</h2>
+<ul>
+<li>所有索引先清零，缺失 tracer 索引恒为 0，下游用 <code>==0</code> 判定缺失。</li>
+<li><code>co2clouds</code> 时若缺 <code>co2</code>、<code>co2_ice</code>、<code>ccnco2_mass</code>、<code>ccnco2_number</code> 任一即 <code>abort_physic</code>。</li>
+<li><code>co2useh2o</code> 子组、<code>meteo_flux</code> 子组各自有独立检查，只在对应开关为真时强制要求。</li>
+<li>物性初始化（行 1041-1059）在 <code>co2clouds</code> 为真时无条件访问 <code>igcm_ccnco2_mass</code> 等索引；若上面检查已通过，这些索引必非 0，故不会越界写 <code>radius(0)</code>。</li>
+</ul>
+<blockquote>
+<p>复现风险：物性初始化块对 <code>igcm_ccnco2_meteor_*</code> 和 <code>igcm_ccnco2_h2o_*</code> <strong>不</strong>赋半径/密度（行 1041-1059 只处理 <code>ccnco2_mass/number</code>、<code>co2</code>、<code>co2_ice</code>）。这些子核 tracer 的 <code>radius</code>/<code>rho_q</code> 保持默认 0。待确认：流星核与水冰核的物性是否在别处（如 <code>improvedco2clouds</code>/<code>co2cloud_mod</code>）按需赋值，还是设计上不需要全局 <code>radius</code>。</p>
+</blockquote>
+<h2 id="输入数据来源">输入数据来源</h2>
+<ul>
+<li>tracer 名字与数量：动力核心 <code>infotrac</code>，经 <code>noms(:)</code>、<code>nq</code> 传入；由 <code>traceur.def</code> 决定（如 <code>deftank/traceur.def.co2clouds.GCM5</code>）。</li>
+<li>开关 <code>co2clouds</code>/<code>co2useh2o</code>/<code>meteo_flux</code>：<code>callphys.def</code>，经 <code>callkeys_mod</code>。</li>
+</ul>
+<blockquote>
+<p>推断：<code>deftank</code> 下未找到包含 <code>ccnco2_meteor_*</code> 或 <code>ccnco2_h2o_*</code> 名字的 <code>traceur.def</code>（已 grep 全 deftank 无匹配）。意味着仓库自带的 <code>traceur.def.co2clouds.GCM5</code> 仅含基础 <code>ccnco2_mass/number</code>，启用 <code>meteo_flux</code>/<code>co2useh2o</code> 需用户自行补充对应 tracer，否则一致性检查会停机。</p>
+</blockquote>
+<h2 id="输出与副作用">输出与副作用</h2>
+<ul>
+<li>写 <code>tracer_mod</code> 中 CO2 相关 <code>igcm_*</code> 索引、<code>mmol</code>、<code>radius</code>、<code>rho_q</code>、<code>rho_ice_co2</code>、<code>alpha_lift</code>、<code>alpha_devil</code>。</li>
+<li>通过 <code>count</code>/<code>idtracers</code> 参与全局 tracer 计数核对。</li>
+<li>检查失败时调用 <code>abort_physic</code> 终止程序，并 <code>write(*,*)</code> 报错信息。</li>
+</ul>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>procedure initracer_co2_segment
+  ! 1. 清零
+  igcm_co2 = 0; igcm_co2_ice = 0
+  igcm_ccnco2_mass = igcm_ccnco2_number = 0
+  igcm_ccnco2_meteor_mass = igcm_ccnco2_meteor_number = 0
+  igcm_ccnco2_h2o_mass_ice = igcm_ccnco2_h2o_mass_ccn = igcm_ccnco2_h2o_number = 0
+
+  ! 2. 名字匹配（在化学/水 tracer 大循环内）
+  for iq in 1..nq:
+    if noms(iq)==&quot;co2&quot;:      igcm_co2=iq;     mmol(iq)=44; count++
+    if noms(iq)==&quot;co2_ice&quot;:  igcm_co2_ice=iq; mmol(iq)=44; count++
+    if co2clouds:
+      if noms(iq)==&quot;ccnco2_mass&quot;:   igcm_ccnco2_mass=iq;   count++
+      if noms(iq)==&quot;ccnco2_number&quot;: igcm_ccnco2_number=iq; count++
+      if meteo_flux:
+        match ccnco2_meteor_mass / ccnco2_meteor_number
+      if co2useh2o:
+        match ccnco2_h2o_number / ccnco2_h2o_mass_ice / ccnco2_h2o_mass_ccn
+
+  ! 3. 一致性检查
+  if co2clouds:
+    require igcm_co2, igcm_co2_ice, igcm_ccnco2_number, igcm_ccnco2_mass  != 0
+    if co2useh2o: require the three ccnco2_h2o_* != 0
+    if meteo_flux: require ccnco2_meteor_number, ccnco2_meteor_mass != 0
+    ! 否则 abort_physic
+
+  ! 4. 物性
+  if co2clouds:
+    radius(ccnco2_mass)=radius(dust_mass); alpha_*(ccnco2_mass)=1e-30; rho_q=rho_dust
+    ccnco2_number 继承 ccnco2_mass
+    radius(co2)=0; alpha_*=0
+    radius(co2_ice)=1e-8; rho_q(co2_ice)=rho_ice_co2(=1650); alpha_*=0
+end procedure</code></pre>
+<h2 id="复现注意事项">复现注意事项</h2>
+<ul>
+<li>CO2 云所需 tracer 必须在 <code>traceur.def</code> 中存在且名字精确匹配（区分大小写，<code>noms(iq)==...</code> 为严格相等），否则停机。</li>
+<li><code>traceur.def</code> 中 tracer 顺序不影响 CO2 索引识别（按名字而非位置），但 HDO 等同位素另有顺序约束（不在本段）。</li>
+<li>仓库自带 <code>traceur.def.co2clouds.GCM5</code> 含 10 个 tracer，列出 <code>ccnco2_number</code>、<code>ccnco2_mass</code>，但不含 <code>meteor</code>/<code>h2o</code> 子核；启用 <code>meteo_flux</code>/<code>co2useh2o</code> 需扩充 <code>traceur.def</code>。</li>
+<li><code>co2_ice</code> 与 CCNCO2 的物性常数（密度 1650、初始半径 1e-8）是 CO2 云微物理的输入起点，改动会影响 <a href="../modules/phymars/improvedco2clouds_mod.html">improvedco2clouds_mod.md</a> / <a href="../modules/phymars/co2cloud_mod.html">co2cloud_mod.md</a> 的成核与增长。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>流星核（<code>ccnco2_meteor_*</code>）和水冰核（<code>ccnco2_h2o_*</code>）的 <code>radius</code>/<code>rho_q</code> 是否需要在别处赋值（本段未设）。</li>
+<li><code>ccnco2_*</code> tracer 不设 <code>mmol</code> 是否对任何气相计算有影响（推断无，因其为气溶胶）。</li>
+<li>行 885-901 <code>meteo_flux</code> 检查块的文案拷贝错误与 <code>igcm_ccnco2_meteor_mass</code> 重复检查（见上文「控制流程」第 3 点复现风险）是否为已知 bug。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/phymars/co2cloud_mod.html">co2cloud_mod.md</a> — CO2 云总调度，消费这些 tracer 索引</li>
+<li><a href="../modules/phymars/improvedco2clouds_mod.html">improvedco2clouds_mod.md</a> — CO2 云微物理核心</li>
+<li><a href="../modules/phymars/nucleaco2.html">nucleaco2.md</a> — 三类 CCN 成核</li>
+<li><a href="../modules/phymars/density_co2_ice.html">density_co2_ice.md</a> — CO2 冰温度依赖密度（与此处常数 1650 对照）</li>
+<li><a href="../modules/phymars/co2-saturation-helpers.html">co2-saturation-helpers.md</a> — CO2 饱和/凝结温度</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

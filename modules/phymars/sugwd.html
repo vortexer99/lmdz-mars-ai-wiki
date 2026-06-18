@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>sugwd - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/sugwd.md</span>
+    </nav>
+    <article class="content">
+<h1 id="sugwdf90">sugwd.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\sugwd.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>sugwd.F90</code> 定义 <code>sugwd_mod</code> 和 <code>SUGWD</code>，是 Lott/Miller 地形重力波拖曳链的参数初始化层。它不直接计算风温 tendency，而是在 <code>calldrag_noro_mod.F90</code> 首次进入地形 GW 分支时，根据半层 sigma 坐标表 <code>sigtest</code> 写入 <code>yoegwd_h</code> 中的调参常量和安全阈值，供后续 <code>OROSETUP</code>、<code>GWSTRESS</code>、<code>GWPROFIL</code>、<code>ORODRAG</code> 使用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sugwd_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装地形重力波参数初始化例程。</td>
+</tr>
+<tr>
+<td><code>SUGWD</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>根据垂直层数和半层 sigma 坐标初始化 <code>yoegwd_h</code> 中的地形 GW 调参常量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>yoegwd_h</code></td>
+<td><code>GFRCRIT</code>, <code>GRCRIT</code>, <code>GVCRIT</code></td>
+<td>写入 Richardson 数、低层流和临界风速相关阈值。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>yoegwd_h</code></td>
+<td><code>GKDRAG</code>, <code>GKDRAGL</code>, <code>GHMAX</code></td>
+<td>写入地形 GW drag 强度、派生 drag 强度和最大地形高度阈值。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>yoegwd_h</code></td>
+<td><code>GRAHILO</code>, <code>GSIGCR</code>, <code>GSSEC</code></td>
+<td>写入高低层系数、低层流 sigma 阈值和稳定度安全下限。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>yoegwd_h</code></td>
+<td><code>GTSEC</code>, <code>GVSEC</code>, <code>GKWAKE</code></td>
+<td>写入 stress/地形各向异性、风速和 wake drag 安全或经验系数。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>yoegwd_h</code></td>
+<td><code>NKTOPG</code></td>
+<td>写入允许参与地形高度搜索的顶部层索引。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WRITE(*,*)</code></td>
+<td>Fortran intrinsic I/O</td>
+<td>行 60</td>
+<td>输出 <code>NKTOPG</code> 初始化结果到标准输出。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>calldrag_noro_mod.F90::calldrag_noro</code> 行 96</td>
+<td><code>integer, intent(in)</code></td>
+<td>层</td>
+<td>模型全层数；循环使用 <code>1:nlayer-1</code>。</td>
+</tr>
+<tr>
+<td><code>sigtest</code></td>
+<td><code>calldrag_noro_mod.F90::calldrag_noro</code> 行 92-96</td>
+<td><code>real, intent(in) :: sigtest(nlayer+1)</code></td>
+<td>无量纲</td>
+<td>半层 sigma 坐标；调用方用 <code>pplev(1,l)/pplev(1,1)</code> 从首个格点压力构造。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GHMAX</code></td>
+<td><code>yoegwd_h</code></td>
+<td>scalar real</td>
+<td>m，按注释语义</td>
+<td>地形高度相关最大阈值，设为 <code>10000.</code>。</td>
+</tr>
+<tr>
+<td><code>NKTOPG</code></td>
+<td><code>yoegwd_h</code></td>
+<td>scalar integer</td>
+<td>层索引</td>
+<td><code>sigtest</code> 中满足全层压力比例 <code>&gt;= 0.85</code> 的最后一个扫描层。</td>
+</tr>
+<tr>
+<td><code>GSIGCR</code></td>
+<td><code>yoegwd_h</code></td>
+<td>scalar real</td>
+<td>无量纲 sigma</td>
+<td><code>OROSETUP</code> 查找低层流高度时使用的 sigma 阈值，设为 <code>0.80</code>。</td>
+</tr>
+<tr>
+<td><code>GKDRAG</code>, <code>GKDRAGL</code></td>
+<td><code>yoegwd_h</code></td>
+<td>scalar real</td>
+<td>经验系数</td>
+<td>地形 GW drag 系数；<code>GKDRAG=0.1</code>，<code>GKDRAGL=4*GKDRAG</code>。</td>
+</tr>
+<tr>
+<td><code>GFRCRIT</code>, <code>GKWAKE</code>, <code>GRCRIT</code>, <code>GRAHILO</code>, <code>GVCRIT</code></td>
+<td><code>yoegwd_h</code></td>
+<td>scalar real</td>
+<td>经验阈值/系数</td>
+<td>低层流、wake drag、Richardson 数和风速阈值相关参数。</td>
+</tr>
+<tr>
+<td><code>GVSEC</code>, <code>GSSEC</code>, <code>GTSEC</code></td>
+<td><code>yoegwd_h</code></td>
+<td>scalar real</td>
+<td>保护阈值</td>
+<td>风速、Brunt-Vaisala 频率平方和次网格地形各向异性的数值安全下限。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p>本例程的主要副作用是写入 <code>yoegwd_h</code> 模块变量：<code>GHMAX</code>, <code>NKTOPG</code>, <code>GSIGCR</code>, <code>GKDRAG</code>, <code>GFRCRIT</code>, <code>GKWAKE</code>, <code>GRCRIT</code>, <code>GKDRAGL</code>, <code>GRAHILO</code>, <code>GVCRIT</code>, <code>GVSEC</code>, <code>GSSEC</code>, <code>GTSEC</code>。这些变量随后被地形 GW 链的预处理、应力初始化、应力廓线重算和阻塞层拖曳使用。</p>
+<p>另一个副作用是行 60 的标准输出：</p>
+<pre class="text"><code>In sugwd NKTOPG= &lt;value&gt;</code></pre>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>设置地形高度上限 <code>GHMAX=10000.</code>，并把局部 sigma 阈值 <code>ZSIGT</code> 固定为 <code>0.85</code>、参考压力 <code>ZPR</code> 固定为 <code>100000.</code>。</li>
+<li>在 <code>JK=1,nlayer-1</code> 上扫描相邻半层平均压力比例：<code>ZPM1R=0.5*ZPR*(sigtest(JK)+sigtest(JK+1))</code>。</li>
+<li>若 <code>(ZPM1R/ZPR) &gt;= ZSIGT</code>，把 <code>NKTOPG</code> 更新为当前 <code>JK</code>；因此最终结果是扫描范围内最后一个满足该阈值的层索引。</li>
+<li>打印 <code>NKTOPG</code>，再写入 <code>GSIGCR=0.80</code>、<code>GKDRAG=0.1</code>、<code>GFRCRIT=1.0</code>、<code>GKWAKE=1.0</code>、<code>GRCRIT=0.25</code>、<code>GKDRAGL=4*GKDRAG</code>、<code>GRAHILO=1.</code>、<code>GVCRIT=0.0</code>。</li>
+<li>写入安全阈值：<code>GVSEC=0.10</code>、<code>GSSEC=1.E-12</code>、<code>GTSEC=1.E-07</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>set GHMAX
+set local top sigma threshold ZSIGT = 0.85
+set local reference pressure ZPR = 100000
+
+for JK from 1 to nlayer-1:
+    compute midpoint sigma as 0.5 * (sigtest(JK) + sigtest(JK+1))
+    if midpoint sigma &gt;= 0.85:
+        NKTOPG = JK
+
+print NKTOPG
+write all remaining yoegwd_h tuning constants and safety thresholds</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>地形重力波 / 次网格地形拖曳</td>
+<td>在 <code>calldrag_noro</code> 首调用时初始化 <code>yoegwd_h</code>，为 <code>OROSETUP</code> 的层索引和低层流判据、<code>GWSTRESS/GWPROFIL</code> 的 stress 阈值、<code>ORODRAG</code> 的 wake drag 系数提供共享参数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>SUGWD</code> 没有显式输出参数，所有有效输出都通过 <code>yoegwd_h</code> module 变量传递。</li>
+<li><code>ZPR=100000.</code> 在公式中与分子分母同时出现，<code>NKTOPG</code> 实际只依赖相邻 <code>sigtest</code> 的平均值和 <code>ZSIGT=0.85</code>。</li>
+<li><code>NKTOPG</code> 只在满足阈值时赋值；若异常垂直坐标让所有扫描层都不满足 <code>&gt;=0.85</code>，<code>NKTOPG</code> 的既有值会保留。正常 Mars GCM 半层 sigma 坐标通常包含近地面层，调用方首列压力构造的 <code>sigtest</code> 会让低层满足该条件。</li>
+<li><code>WRITE(*,*)</code> 会在初始化时产生标准输出，批量运行日志中可据此确认本例程被触发。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>calldrag_noro</code> 只在 <code>firstcall</code> 分支调用 <code>sugwd</code>；若垂直网格或首列压力结构改变，必须确保初始化发生在使用地形 GW 链之前。</li>
+<li><code>sigtest</code> 由 <code>pplev(1,l)/pplev(1,1)</code> 构造，只使用第一个水平格点的半层压力比例。</li>
+<li><code>GKDRAGL</code> 是 <code>GKDRAG</code> 的派生值；修改 <code>GKDRAG</code> 时需同步派生关系。</li>
+<li>下游 <code>OROSETUP/GWSTRESS/GWPROFIL/ORODRAG</code> 对 <code>yoegwd_h</code> 的读取没有在本文件内做一致性检查。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>GHMAX</code> 的单位和下游使用位置需在 <code>yoegwd_h.F90</code> 及完整地形 GW 链中继续核验。</li>
+<li><code>NKTOPG</code> 无命中时保留旧值的行为是否为设计意图，需结合运行配置和历史 IFS 版本确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="calldrag_noro_mod.html">calldrag_noro_mod</a>：本例程的直接调用方，构造 <code>sigtest</code> 并在首调用时初始化 GW 参数。</li>
+<li><a href="drag_noro_mod.html">drag_noro_mod</a>：地形 GW 的 <code>ORODRAG</code> 包装层。</li>
+<li><a href="orodrag_mod.html">orodrag_mod</a>：地形 GW / 次网格地形拖曳核心，消费 <code>GKWAKE</code> 等参数。</li>
+<li><a href="orosetup.html">orosetup</a>：读取 <code>GFRCRIT</code>, <code>GRCRIT</code>, <code>GSIGCR</code>, <code>GSSEC</code>, <code>GTSEC</code>, <code>GVSEC</code>, <code>NKTOPG</code> 等参数。</li>
+<li><a href="gwstress_mod.html">gwstress_mod</a>：读取 <code>GKDRAG</code>, <code>GTSEC</code>, <code>GVCRIT</code> 等参数计算底层应力。</li>
+<li><a href="gwprofil_mod.html">gwprofil_mod</a>：读取 <code>GKDRAG</code>, <code>GRCRIT</code>, <code>GSSEC</code>, <code>GTSEC</code> 等参数重算应力廓线。</li>
+<li><a href="yoegwd_h.html">yoegwd_h</a>：记录这些共享变量的定义位置、<code>THREADPRIVATE</code> 属性和下游读取关系。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

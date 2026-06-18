@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>iniwritesoil - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/iniwritesoil.md</span>
+    </nav>
+    <article class="content">
+<h1 id="iniwritesoilf90">iniwritesoil.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\iniwritesoil.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>iniwritesoil.F90</code> 是土壤诊断 NetCDF 输出的<strong>初始化例程</strong>。它只在 <code>writediagsoil</code> 首次被调用时执行一次，负责在 <code>diagsoil.nc</code> 文件中创建经纬度、深度、时间四个维度及其坐标变量，并写入与时间无关的固定字段（网格面积 <code>area</code>、热惯量 <code>th_inertia</code>）。后续逐时步的土壤诊断数据由 <code>writediagsoil</code> 追加写入，不再经过本文件。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iniwritesoil_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>包裹 <code>iniwritesoil</code> 子程序的模块</td>
+</tr>
+<tr>
+<td><code>iniwritesoil</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>初始化土壤诊断 NetCDF 文件的维度与固定变量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>弧度→度转换因子 <code>180./pi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>regular_lonlat_mod</code></td>
+<td><code>lon_reg</code>, <code>lat_reg</code></td>
+<td>规则经纬度网格坐标（弧度），写入 NetCDF 前转为度</td>
+<td></td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>nbp_lon</code>, <code>nbp_lat</code></td>
+<td>物理网格经/纬点数，决定维度大小</td>
+<td></td>
+</tr>
+<tr>
+<td><code>netcdf.inc</code>（include）</td>
+<td>—</td>
+<td>NetCDF C 接口头文件，提供 <code>NF_*</code> 函数与常量</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NF_REDEF</code> / <code>NF_ENDDEF</code></td>
+<td>netcdf 库</td>
+<td>多处</td>
+<td>进入/退出 NetCDF 定义模式</td>
+</tr>
+<tr>
+<td><code>NF_DEF_DIM</code></td>
+<td>netcdf 库</td>
+<td>行 60–78</td>
+<td>定义 longitude/latitude/depth/time 维度</td>
+</tr>
+<tr>
+<td><code>NF_DEF_VAR</code></td>
+<td>netcdf 库</td>
+<td>行 89–254</td>
+<td>定义坐标变量与数据变量</td>
+</tr>
+<tr>
+<td><code>NF_PUT_ATT_TEXT</code></td>
+<td>netcdf 库</td>
+<td>行 99–203</td>
+<td>写入变量属性（long_name、units、positive）</td>
+</tr>
+<tr>
+<td><code>NF_PUT_VAR_DOUBLE</code> / <code>NF_PUT_VAR_REAL</code></td>
+<td>netcdf 库</td>
+<td>行 113–272</td>
+<td>写入变量数据（受 <code>NC_DOUBLE</code> 宏控制精度）</td>
+</tr>
+</tbody>
+</table>
+<p>本文件不调用其他 LMDZ 子程序。</p>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nid</code></td>
+<td>调用方 <code>writediagsoil</code></td>
+<td>integer</td>
+<td>—</td>
+<td>已打开的 NetCDF 文件 ID</td>
+</tr>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>水平网格点数（本文件未直接使用，保留接口一致性）</td>
+</tr>
+<tr>
+<td><code>inertia</code></td>
+<td>调用方（来自 <code>comsoil_h</code>）</td>
+<td>real(nbplon, nbplat, nsoilmx)</td>
+<td>J·s⁻¹/²·m⁻²·K⁻¹</td>
+<td>各层热惯量三维数组</td>
+</tr>
+<tr>
+<td><code>area</code></td>
+<td>调用方（来自 <code>geometry_mod</code>）</td>
+<td>real(nbplon, nbp_lat)</td>
+<td>m²</td>
+<td>水平网格面积</td>
+</tr>
+<tr>
+<td><code>nbplon</code>, <code>nbplat</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>经/纬方向点数（3D 时为 <code>nbp_lon+1</code>, <code>nbp_lat</code>；1D 时为 1, 1）</td>
+</tr>
+<tr>
+<td><code>nsoilmx</code></td>
+<td>调用方（来自 <code>comsoil_h</code>）</td>
+<td>integer</td>
+<td>—</td>
+<td>土壤层数</td>
+</tr>
+<tr>
+<td><code>mlayer</code></td>
+<td>调用方（来自 <code>comsoil_h</code>）</td>
+<td>real(nsoilmx)</td>
+<td>m</td>
+<td>各土壤层中间深度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NetCDF 文件 <code>nid</code></td>
+<td>磁盘 <code>diagsoil.nc</code></td>
+<td>—</td>
+<td>—</td>
+<td>写入维度定义、坐标变量和固定字段</td>
+</tr>
+</tbody>
+</table>
+<p>写入的 NetCDF 变量：</p>
+<table>
+<thead>
+<tr>
+<th>变量名</th>
+<th>维度</th>
+<th>单位</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>longitude</code></td>
+<td>(longitude)</td>
+<td>degrees_east</td>
+<td>经度坐标，含冗余 180° 点（3D）</td>
+</tr>
+<tr>
+<td><code>latitude</code></td>
+<td>(latitude)</td>
+<td>degrees_north</td>
+<td>纬度坐标</td>
+</tr>
+<tr>
+<td><code>depth</code></td>
+<td>(depth)</td>
+<td>m（positive: down）</td>
+<td>土壤层中间深度</td>
+</tr>
+<tr>
+<td><code>time</code></td>
+<td>(time)</td>
+<td>days since 0000-00-00 00:00:00</td>
+<td>仅定义，不写数据（由 <code>writediagsoil</code> 追加）</td>
+</tr>
+<tr>
+<td><code>area</code></td>
+<td>(longitude, latitude)</td>
+<td>m²</td>
+<td>网格面积</td>
+</tr>
+<tr>
+<td><code>th_inertia</code></td>
+<td>(longitude, latitude, depth)</td>
+<td>J·s⁻¹/²·m⁻²·K⁻¹</td>
+<td>热惯量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>写入 NetCDF 文件</strong>：通过 <code>nid</code> 文件 ID 写入 <code>diagsoil.nc</code>，这是唯一副作用。</li>
+<li><strong>无 module 变量修改</strong>：不修改任何 module 级变量。</li>
+<li><strong>1D vs 3D 分支</strong>：<code>nbp_lon*nbp_lat==1</code> 时走 1D 模型路径（维度大小为 1，无冗余经度点），否则走 3D 路径（经度维度为 <code>nbp_lon+1</code>，含冗余闭合点）。</li>
+<li><strong><code>NC_DOUBLE</code> 宏</strong>：编译时若定义 <code>NC_DOUBLE</code>，所有变量以 <code>NF_DOUBLE</code>（real<em>8）写入；否则以 <code>NF_FLOAT</code>（real</em>4）写入。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>分配扩展经度数组</strong>（行 46–52）：1D 时长度为 1，3D 时长度为 <code>nbp_lon+1</code>。</li>
+<li><strong>定义 4 个维度</strong>（行 56–78）：<code>longitude</code>（1D 时为 1，3D 时为 <code>nbp_lon+1</code>）、<code>latitude</code>（<code>nbp_lat</code>）、<code>depth</code>（<code>nsoilmx</code>）、<code>time</code>（<code>NF_UNLIMITED</code>）。</li>
+<li><strong>写经度坐标变量</strong>（行 84–120）：定义变量 → 写属性 → 从 <code>lon_reg</code> 复制到 <code>lon_reg_ext</code>，3D 时追加冗余点 <code>lon_reg_ext(nbp_lon+1) = -lon_reg_ext(1)</code>（即 180°）→ 弧度转度 → 写入。</li>
+<li><strong>写纬度坐标变量</strong>（行 122–151）：定义变量 → 写属性 → <code>lat_reg</code> 弧度转度 → 写入。</li>
+<li><strong>写深度坐标变量</strong>（行 153–184）：定义变量 → 写属性 → 直接写入 <code>mlayer</code>（已是米）。</li>
+<li><strong>定义时间变量</strong>（行 186–206）：定义变量 → 写属性 → <strong>不写数据</strong>（注释说明由 <code>writediagsoil</code> 追加）。</li>
+<li><strong>写网格面积</strong>（行 210–241）：定义 2D 变量 <code>(longitude, latitude)</code> → 写属性 → 写入 <code>area</code>。</li>
+<li><strong>写热惯量</strong>（行 243–275）：定义 3D 变量 <code>(longitude, latitude, depth)</code> → 写属性 → 写入 <code>inertia</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>allocate lon_reg_ext (1D: 长度1, 3D: 长度nbp_lon+1)
+
+! 定义维度
+NF_REDEF
+  定义 longitude (1D→1, 3D→nbp_lon+1)
+  定义 latitude  (nbp_lat)
+  定义 depth     (nsoilmx)
+  定义 time      (unlimited)
+NF_ENDDEF
+
+! 写经度坐标
+NF_REDEF → NF_DEF_VAR(&quot;longitude&quot;)
+  lon_reg_ext[1:nbp_lon] = lon_reg[1:nbp_lon]
+  if 3D: lon_reg_ext[nbp_lon+1] = -lon_reg_ext[1]   ! 冗余180°点
+NF_ENDDEF → NF_PUT_VAR (弧度→度)
+
+! 写纬度坐标
+NF_REDEF → NF_DEF_VAR(&quot;latitude&quot;)
+NF_ENDDEF → NF_PUT_VAR (弧度→度)
+
+! 写深度坐标
+NF_REDEF → NF_DEF_VAR(&quot;depth&quot;)
+NF_ENDDEF → NF_PUT_VAR (已是米)
+
+! 定义时间变量（不写数据）
+NF_REDEF → NF_DEF_VAR(&quot;time&quot;)
+NF_ENDDEF
+
+! 写固定字段
+NF_REDEF → NF_DEF_VAR(&quot;area&quot;, 2D)
+NF_ENDDEF → NF_PUT_VAR(area)
+
+NF_REDEF → NF_DEF_VAR(&quot;th_inertia&quot;, 3D)
+NF_ENDDEF → NF_PUT_VAR(inertia)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>土壤诊断输出</td>
+<td>为 <code>diagsoil.nc</code> 建立维度和固定字段框架，是土壤诊断时间序列输出的第一步</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>固定格式 Fortran</strong>：虽使用 <code>.F90</code> 扩展名，但代码风格偏旧式（implicit none 重复声明、无模块化接口块）。</li>
+<li><strong><code>#ifdef NC_DOUBLE</code> 条件编译</strong>：控制 NetCDF 变量精度，默认 <code>NF_FLOAT</code>（real<em>4），定义 <code>NC_DOUBLE</code> 后为 <code>NF_FLOAT</code>→<code>NF_DOUBLE</code>（real</em>8）。</li>
+<li><strong>冗余经度点</strong>：3D 模式下经度维度为 <code>nbp_lon+1</code>，最后一点为 <code>-lon_reg(1)</code>（即 180°），用于闭合经度环。</li>
+<li><strong>错误处理</strong>：每个 NetCDF 调用后检查 <code>ierr.ne.NF_NOERR</code>，但仅 <code>write(*,*)</code> 打印错误，不中止执行。</li>
+<li><strong>行 150 错误信息误写</strong>：写纬度变量失败时，错误信息写成 <code>"could not write longitude variable"</code>（应为 latitude），是复制粘贴遗留。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>本例程只在 <code>writediagsoil</code> 首次调用时执行一次；后续调用由 <code>writediagsoil</code> 内部的 <code>firstcall</code> 逻辑跳过。</li>
+<li><code>diagsoil</code> 全局开关（<code>writediagsoil_mod</code> 中的 <code>logical,save :: diagsoil</code>）在 <code>conf_phys()</code> 中初始化，控制是否生成 <code>diagsoil.nc</code>。</li>
+<li>1D 模型（<code>nbp_lon*nbp_lat==1</code>）走不同分支：经度维度为 1、无冗余点、<code>area</code> 和 <code>inertia</code> 为单点标量。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>行 150 错误信息 <code>"could not write longitude variable"</code> 应为 <code>"could not write latitude variable"</code>，推断为复制粘贴错误（待确认：不影响功能，仅为日志可读性问题）。</li>
+<li><code>ngrid</code> 参数在本子程序中未使用，仅作为接口一致性保留（待确认：是否为历史遗留参数）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="comsoil_h.html">comsoil_h</a> — 土壤共享参数文件，提供 <code>nsoilmx</code>、<code>mlayer</code>、<code>inertiedat</code> 等</li>
+<li><a href="writediagsoil.html">writediagsoil</a> — 本文件的唯一调用方，负责逐时步追加土壤诊断数据</li>
+<li><a href="soil.html">soil.md</a>：土壤热扩散求解文件页。</li>
+<li><a href="soilwater.html">soilwater</a> — 地下水吸附-扩散-相变求解器</li>
+<li><a href="waterice_tifeedback_mod.html">waterice_tifeedback_mod</a> — 水冰热惯量反馈，使用 <code>inertiedat</code></li>
+<li><a href="../../themes/water-cycle.html">water-cycle</a> — 水循环主题页</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

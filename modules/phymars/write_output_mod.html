@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>write_output_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/write_output_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="write_output_modf90">write_output_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\write_output_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>write_output_mod.F90</code> 提供 <code>write_output</code> 泛型接口，是物理代码向传统 <code>diagfi.nc</code>、土壤诊断和可选 XIOS 输出发送字段的薄封装层。调用方只传 <code>field_name/title/units/field</code>，本模块按字段类型和维度分派到 9 个具体过程：real、integer、logical 各支持 0D scalar、1D surface field 和 2D horizontal-vertical field。</p>
+<p>传统输出由全局开关 <code>output_diagfi</code> 控制；二维字段若第二维等于 <code>comsoil_h:nsoilmx</code>，则改走 <code>writediagsoil</code>，不受 <code>output_diagfi</code> 控制。启用 <code>CPP_XIOS</code> 时，每个具体过程还会调用 <code>send_xios_field</code>。源码中 <code>xios_is_active_field(field_name)</code> 检查被注释掉，实际 <code>is_active=.true.</code>，因此 XIOS 编译路径会无条件向 XIOS 发送本次调用的字段。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>write_output_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装传统诊断和 XIOS 输出的统一写字段接口。</td>
+</tr>
+<tr>
+<td><code>write_output</code></td>
+<td>generic interface</td>
+<td>7</td>
+<td>对外公开的泛型接口，按实参类型/维度分派到 9 个具体过程。</td>
+</tr>
+<tr>
+<td><code>output_diagfi</code></td>
+<td>logical public saved variable</td>
+<td>15</td>
+<td>控制是否写传统 <code>diagfi.nc</code>，源码注释说明由 <code>conf_phys()</code> 初始化。</td>
+</tr>
+<tr>
+<td><code>write_output_d0/d1/d2</code></td>
+<td>subroutines</td>
+<td>24/56/88</td>
+<td>写 real scalar、surface field、2D field。</td>
+</tr>
+<tr>
+<td><code>write_output_i0/i1/i2</code></td>
+<td>subroutines</td>
+<td>128/161/194</td>
+<td>写 integer scalar、surface field、2D field，传统和 XIOS 路径均转换为 real。</td>
+</tr>
+<tr>
+<td><code>write_output_l0/l1/l2</code></td>
+<td>subroutines</td>
+<td>233/269/307</td>
+<td>写 logical scalar、surface field、2D field，先转换为 0/1 real。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xios_output_mod</code></td>
+<td><code>xios_is_active_field</code>, <code>send_xios_field</code></td>
+<td>仅在 <code>CPP_XIOS</code> 下导入；实际活跃性检查被注释，发送由 <code>send_xios_field</code> 完成。</td>
+<td><code>xios_is_active_field</code> 当前未使用。</td>
+</tr>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>nsoilmx</code></td>
+<td><code>d2/i2/l2</code> 判断二维字段是否为土壤剖面字段。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>writediagsoil_mod</code></td>
+<td><code>writediagsoil</code></td>
+<td><code>d2/i2/l2</code> 的土壤字段传统输出。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>writediagfi</code></td>
+<td><code>writediagfi.F</code></td>
+<td>各具体过程</td>
+<td>写传统 <code>diagfi.nc</code> 字段；维度码为 0、2、3。</td>
+</tr>
+<tr>
+<td><code>writediagsoil</code></td>
+<td><code>writediagsoil_mod</code> / <code>writediagsoil.F90</code></td>
+<td><code>d2/i2/l2</code></td>
+<td>当 <code>size(field,2)==nsoilmx</code> 时写土壤诊断。</td>
+</tr>
+<tr>
+<td><code>send_xios_field</code></td>
+<td><code>xios_output_mod.F90</code></td>
+<td><code>CPP_XIOS</code> 分支</td>
+<td>向 XIOS 发送 scalar、1D 或 2D 字段。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>field_name</code></td>
+<td>调用方</td>
+<td>character</td>
+<td>-</td>
+<td>输出变量名，同时用于传统 NetCDF 和 XIOS field 名。</td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td>调用方</td>
+<td>character</td>
+<td>-</td>
+<td>传统 <code>diagfi</code>/<code>writediagsoil</code> 变量说明。</td>
+</tr>
+<tr>
+<td><code>units</code></td>
+<td>调用方</td>
+<td>character</td>
+<td>-</td>
+<td>传统输出变量单位属性。</td>
+</tr>
+<tr>
+<td><code>field</code></td>
+<td>调用方</td>
+<td>real/integer/logical scalar、1D 或 2D</td>
+<td>variable-dependent</td>
+<td>待写出的诊断字段。</td>
+</tr>
+<tr>
+<td><code>output_diagfi</code></td>
+<td><code>conf_phys</code> 初始化</td>
+<td>logical module variable</td>
+<td>-</td>
+<td>是否写传统 <code>diagfi.nc</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>diagfi.nc</code> 字段</td>
+<td><code>writediagfi</code></td>
+<td>scalar/surface/3D-like</td>
+<td>variable-dependent</td>
+<td>非土壤传统诊断输出，受 <code>output_diagfi</code> 控制。</td>
+</tr>
+<tr>
+<td>土壤诊断字段</td>
+<td><code>writediagsoil</code></td>
+<td>2D soil profile</td>
+<td>variable-dependent</td>
+<td>当二维字段第二维等于 <code>nsoilmx</code> 时写出。</td>
+</tr>
+<tr>
+<td>XIOS field</td>
+<td><code>send_xios_field</code></td>
+<td>scalar/1D/2D</td>
+<td>variable-dependent</td>
+<td><code>CPP_XIOS</code> 编译路径下发送给 XIOS。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>output_diagfi</code> 是 <code>public, save</code> 且 <code>THREADPRIVATE</code>，控制传统 <code>diagfi</code> 输出是否发生。</li>
+<li>每个具体过程都包含 <code>dimensions.h</code>，并用 <code>ngrid = 2 + (jjm - 1)*iim - 1/jjm</code> 计算传统输出网格点数。</li>
+<li>integer 和 logical 字段在写出前转换为 real；logical 使用 0/1 编码。</li>
+<li><code>write_output_l1</code> 分配 <code>field_real(size(field,1))</code> 后未显式 <code>deallocate</code>；过程退出时 Fortran allocatable 局部变量会自动释放。</li>
+<li><code>d2/i2/l2</code> 的土壤字段路径不检查 <code>output_diagfi</code>，只由 <code>size(field,2)==nsoilmx</code> 触发。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>泛型 <code>write_output</code> 根据 <code>field</code> 的类型和秩选择 <code>d/i/l</code> 与 <code>0/1/2</code> 具体过程。</li>
+<li>scalar real 传统输出以 <code>(/field/)</code> 包装为长度 1 数组，维度码用 0。</li>
+<li>1D surface field 传统输出维度码用 2。</li>
+<li>2D field 若第二维等于 <code>nsoilmx</code>，调用 <code>writediagsoil(...,3,field)</code>；否则在 <code>output_diagfi</code> 为真时调用 <code>writediagfi(...,3,field)</code>。</li>
+<li>integer 和 logical 在进入传统或 XIOS 输出前转为 real；logical <code>.true.</code> 写作 1，<code>.false.</code> 写作 0。</li>
+<li><code>CPP_XIOS</code> 下把 <code>is_active</code> 强制设为 <code>.true.</code>，然后调用 <code>send_xios_field(field_name, converted_field)</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>write_output(field_name, title, units, field):
+  dispatch by type and rank
+
+  if rank == 2 and size(field,2) == nsoilmx:
+      writediagsoil(ngrid, field_name, title, units, 3, real_field)
+  else if output_diagfi:
+      writediagfi(ngrid, field_name, title, units, dimension_code, real_field)
+
+  if CPP_XIOS:
+      is_active = true
+      if is_active:
+          send_xios_field(field_name, real_field)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>传统诊断输出</td>
+<td>为物理过程提供统一入口，最终写入 <code>diagfi.nc</code>。</td>
+</tr>
+<tr>
+<td>土壤诊断输出</td>
+<td>根据二维字段第二维是否等于 <code>nsoilmx</code> 自动改走 <code>writediagsoil</code>。</td>
+</tr>
+<tr>
+<td>XIOS 输出</td>
+<td><code>CPP_XIOS</code> 下把字段发送给 <code>xios_output_mod</code>，由 XIOS 配置决定文件输出。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>使用 Fortran 泛型接口隐藏具体类型/维度分派，调用方只需调用 <code>write_output(...)</code>。</li>
+<li>传统 <code>writediagfi</code> 的维度码在本模块硬编码为 0、2、3。</li>
+<li>XIOS 活跃字段检查目前被注释，<code>is_active=.true.</code> 是源码实际行为。</li>
+<li>2D 土壤字段用维度长度识别，而不是用变量名识别。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现传统输出时必须先确认 <code>output_diagfi</code> 的线程副本已由 <code>conf_phys</code> 正确初始化。</li>
+<li>若二维非土壤字段刚好第二维等于 <code>nsoilmx</code>，本模块会把它送入 <code>writediagsoil</code>；字段维度设计应避免误判。</li>
+<li>XIOS 路径当前不会过滤未激活字段；若重启 <code>xios_is_active_field</code> 检查，输出行为会改变。</li>
+<li>logical 输出不是 NetCDF logical 类型，而是 real 0/1。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>write_output_l1</code> 未显式释放 <code>field_real</code>，按 Fortran allocatable 局部变量退出自动释放解释；若目标编译器或编译选项有差异，需要确认运行时行为。</li>
+<li><code>output_diagfi</code> 的初始化调用点和 OpenMP <code>THREADPRIVATE</code> 副本同步需结合 <code>conf_phys.F</code> 与物理并行初始化流程继续核对。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../architecture/xios-config.html">xios-config</a></li>
+<li><a href="xios_output_mod.html">xios_output_mod</a></li>
+<li><a href="writediagfi.html">writediagfi</a>（TASK-0150）</li>
+<li><a href="writediagsoil.html">writediagsoil</a></li>
+<li><a href="comsoil_h.html">comsoil_h</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

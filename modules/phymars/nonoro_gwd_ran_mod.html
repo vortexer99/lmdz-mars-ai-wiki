@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nonoro_gwd_ran_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/nonoro_gwd_ran_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="nonoro_gwd_ran_modf90">nonoro_gwd_ran_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\nonoro_gwd_ran_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>nonoro_gwd_ran_mod.F90</code> 定义 FLott/J. Liu 系列的随机非地形重力波动量拖曳模块 <code>nonoro_gwd_ran_mod</code>。它在 <code>physiq_mod.F</code> 的 <code>calllott_nonoro</code> 分支中先于 <code>nonoro_gwd_mix_mod</code> 调用，按当前温度、风、压力、密度、Brunt-Vaisala 频率和网格面积构造一组离散重力波，沿垂直方向推进 EP flux，并把通量散度转换成纬向和经向风 tendency。</p>
+<p>这个文件只计算动量拖曳：<code>d_t</code> 在出口前被置零，<code>d_u</code> 和 <code>d_v</code> 才会回加到 <code>physiq</code> 的 <code>pdu/pdv</code>。跨时间步记忆由 <code>du_nonoro_gwd</code> 和 <code>dv_nonoro_gwd</code> 保存，并通过 <code>phyetat0_mod.F90</code> / <code>phyredem.F90</code> 从物理重启文件读取和写回。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nonoro_gwd_ran_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>保存非地形 GW 随机拖曳入口、记忆数组和分配/释放例程</td>
+</tr>
+<tr>
+<td><code>du_nonoro_gwd</code></td>
+<td>allocatable save array</td>
+<td>5</td>
+<td>纬向风非地形 GW tendency 的 AR(1) 记忆项</td>
+</tr>
+<tr>
+<td><code>dv_nonoro_gwd</code></td>
+<td>allocatable save array</td>
+<td>6</td>
+<td>经向风非地形 GW tendency 的 AR(1) 记忆项</td>
+</tr>
+<tr>
+<td><code>east_gwstress</code></td>
+<td>allocatable save array</td>
+<td>7</td>
+<td>东向波应力剖面诊断数组</td>
+</tr>
+<tr>
+<td><code>west_gwstress</code></td>
+<td>allocatable save array</td>
+<td>8</td>
+<td>西向波应力剖面诊断数组</td>
+</tr>
+<tr>
+<td><code>NONORO_GWD_RAN</code></td>
+<td>subroutine</td>
+<td>14</td>
+<td>主计算入口，返回 <code>d_u/d_v</code> 动量拖曳 tendency 和 <code>zustr/zvstr</code> 累积应力</td>
+</tr>
+<tr>
+<td><code>ini_nonoro_gwd_ran</code></td>
+<td>subroutine</td>
+<td>486</td>
+<td>按 <code>ngrid/nlayer</code> 分配模块保存数组</td>
+</tr>
+<tr>
+<td><code>end_nonoro_gwd_ran</code></td>
+<td>subroutine</td>
+<td>502</td>
+<td>释放模块保存数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code>, <code>pi</code>, <code>r</code></td>
+<td>重力加速度、圆周率和气体常数；用于高度、波数和密度相关计算</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td><code>getin_p</code></td>
+<td>首次调用时读取 <code>nonoro_gwd_*</code> 调参键</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>vertical_layers_mod</code></td>
+<td><code>presnivs</code></td>
+<td>用参考半层压力确定可复现的发射层 <code>LAUNCH</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>cell_area</code></td>
+<td>用水平网格面积约束最小可解析波数 <code>kstar</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>write_output_mod</code></td>
+<td><code>write_output</code></td>
+<td>输出 Brunt-Vaisala 频率、EP flux 和 <code>du/dv_nonoro_gwd</code> 诊断</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin_p</code></td>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td>167, 170, 176, 179, 182, 185</td>
+<td>读取 <code>nonoro_gwd_epflux_max/sat/rdiss/kmax/kmin/xlaunch</code></td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部物理错误处理例程</td>
+<td>191, 194</td>
+<td>当物理时间步超过 24 h 或 <code>nlayer &lt; NW</code> 时中止</td>
+</tr>
+<tr>
+<td><code>write_output</code></td>
+<td><code>write_output_mod</code></td>
+<td>274, 443-444, 468-469</td>
+<td>写出 <code>nonoro_bv</code>、U/V EP flux 和 U/V GW tendency</td>
+</tr>
+<tr>
+<td><code>ini_nonoro_gwd_ran</code></td>
+<td>本文件</td>
+<td><code>phys_state_var_init_mod.F90:176-177</code></td>
+<td>物理状态初始化阶段分配记忆数组</td>
+</tr>
+<tr>
+<td><code>end_nonoro_gwd_ran</code></td>
+<td>本文件</td>
+<td><code>phys_state_var_init_mod.F90:176</code></td>
+<td>重新分配前释放旧数组</td>
+</tr>
+<tr>
+<td><code>NONORO_GWD_RAN</code></td>
+<td>本文件</td>
+<td><code>physiq_mod.F:1776-1783</code></td>
+<td>在 <code>calllott_nonoro</code> 为真时计算非地形 GW 动量拖曳 tendency</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code>, <code>nlayer</code></td>
+<td><code>physiq</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>水平格点数和垂直层数</td>
+</tr>
+<tr>
+<td><code>DTIME</code></td>
+<td><code>physiq</code> 的 <code>ptimestep</code></td>
+<td>real scalar</td>
+<td>s</td>
+<td>物理时间步</td>
+</tr>
+<tr>
+<td><code>cpnew</code>, <code>rnew</code></td>
+<td><code>physiq</code> 当前热力属性</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>J kg-1 K-1</td>
+<td>层内比热和气体常数</td>
+</tr>
+<tr>
+<td><code>pp</code></td>
+<td><code>physiq</code> 的 <code>zplay</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>Pa</td>
+<td>全层压力</td>
+</tr>
+<tr>
+<td><code>zmax_therm</code></td>
+<td><code>physiq</code> 的 <code>zmax_th</code></td>
+<td>real <code>(ngrid)</code></td>
+<td>m</td>
+<td>热羽最大高度；当前源码接口保留但未参与计算</td>
+</tr>
+<tr>
+<td><code>pt</code>, <code>pu</code>, <code>pv</code></td>
+<td><code>physiq</code> 状态</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K, m s-1, m s-1</td>
+<td>当前温度、纬向风、经向风</td>
+</tr>
+<tr>
+<td><code>pdt</code>, <code>pdu</code>, <code>pdv</code></td>
+<td><code>physiq</code> 已累计 tendency</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K s-1, m s-2, m s-2</td>
+<td>用 <code>state + DTIME*tendency</code> 构造本方案看到的背景场</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zustr</code>, <code>zvstr</code></td>
+<td><code>physiq</code> 局部数组 <code>zustrhi/zvstrhi</code></td>
+<td>real <code>(ngrid)</code></td>
+<td>动量通量量纲</td>
+<td>垂直积分的 U/V 拖曳应力诊断</td>
+</tr>
+<tr>
+<td><code>d_t</code></td>
+<td><code>physiq</code> 的 <code>d_t_hin</code>，随后加到 <code>pdt</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K s-1</td>
+<td>接口保留；本文件出口前置零</td>
+</tr>
+<tr>
+<td><code>d_u</code></td>
+<td><code>physiq</code> 的 <code>d_u_hin</code>，随后加到 <code>pdu</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m s-2</td>
+<td>非地形 GW 对纬向风的拖曳 tendency</td>
+</tr>
+<tr>
+<td><code>d_v</code></td>
+<td><code>physiq</code> 的 <code>d_v_hin</code>，随后加到 <code>pdv</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m s-2</td>
+<td>非地形 GW 对经向风的拖曳 tendency</td>
+</tr>
+<tr>
+<td><code>du_nonoro_gwd</code>, <code>dv_nonoro_gwd</code></td>
+<td>模块保存状态 / 重启文件</td>
+<td>allocatable save arrays</td>
+<td>m s-2</td>
+<td>AR(1) 平滑后的 U/V tendency 记忆项</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>du_nonoro_gwd</code>、<code>dv_nonoro_gwd</code>、<code>east_gwstress</code>、<code>west_gwstress</code> 声明为 <code>SAVE</code> 并通过 OpenMP <code>THREADPRIVATE</code> 保存线程私有状态。</li>
+<li><code>firstcall</code>、<code>kmax</code>、<code>kmin</code>、<code>epflux_max</code>、<code>xlaunch</code>、<code>sat</code>、<code>rdiss</code> 和 <code>H0</code> 也是 <code>THREADPRIVATE</code>，首次进入主例程时读取配置并缓存。</li>
+<li><code>phyetat0_mod.F90:595-618</code> 会尝试从 <code>startphy_file</code> 读取 <code>du_nonoro_gwd</code> 和 <code>dv_nonoro_gwd</code>；字段缺失或无 startphy 时清零。</li>
+<li><code>phyredem.F90:370-372</code> 在 <code>calllott_nonoro</code> 为真时把 <code>du_nonoro_gwd</code> 和 <code>dv_nonoro_gwd</code> 写入物理重启文件。</li>
+<li>诊断输出包括 <code>nonoro_bv</code>、<code>nonoro_u_epflux_tot</code>、<code>nonoro_v_epflux_tot</code>、<code>du_nonoro_gwd</code> 和 <code>dv_nonoro_gwd</code>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>首次调用时设置默认调参：<code>epflux_max=5.E-4</code>、<code>sat=1.5</code>、<code>rdiss=0.07</code>、<code>kmax=1.E-4</code>、<code>kmin=7.E-6</code>、<code>xlaunch=0.6</code>，再用 <code>getin_p</code> 允许运行配置覆盖。</li>
+<li>检查 <code>DTIME &lt;= DELTAT</code> 且 <code>nlayer &gt;= NW</code>，其中 <code>DELTAT=24*3600</code>，<code>NW=NK*NP*NO=8</code>。</li>
+<li>用 <code>pt/pu/pv + DTIME*pdt/pdu/pdv</code> 得到本方案使用的当前背景温度和风，再由 <code>rho = pp/(rnew*tt)</code> 计算密度。</li>
+<li>构造半层压力 <code>PH</code>、参考半层压力 <code>HREF</code>、对数压力高度 <code>ZH</code>、半层风 <code>UH/VH</code> 和 Brunt-Vaisala 频率 <code>BV</code>。</li>
+<li>用 <code>HREF(LL)/HREF(1) &gt; xlaunch</code> 选择发射层 <code>LAUNCH</code>；用 <code>cell_area</code> 形成 <code>kstar=pi/sqrt(cell_area)</code>，并用 <code>max(kmin,kstar)</code> 限制波数下限。</li>
+<li>对 <code>NW=8</code> 个离散波，使用背景温度和风场的 <code>MOD(...)</code> 派生方位角、水平波数、相速度、内禀频率和发射层 EP flux。这里不是调用随机数发生器，而是用场变量构造可复现的“随机”特征。</li>
+<li>从 <code>LAUNCH</code> 向上推进 EP flux：每一层同时考虑守恒、<code>rdiss</code> 耗散、内禀频率变号的临界层截断，以及由 <code>sat</code> 控制的饱和上限。</li>
+<li>在发射层以下几层做通量补偿，使总发射通量在低层闭合。</li>
+<li>对 U/V EP flux 做垂直差分，换算为 <code>d_u</code> 和 <code>d_v</code>。</li>
+<li>用 <code>DTIME/DELTAT/REAL(NW)</code> 与上一时间步的 <code>du_nonoro_gwd/dv_nonoro_gwd</code> 做 AR(1) 平滑，更新模块记忆数组，并把 <code>d_t</code> 置零。</li>
+<li>对 <code>d_u/d_v</code>、密度和层厚积分，得到 <code>zustr/zvstr</code> 诊断应力。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if firstcall:
+    read nonoro_gwd_* parameters
+    abort if DTIME &gt; 24 h or nlayer &lt; 8
+
+background = state + DTIME * accumulated_tendencies
+rho = pressure / (gas_constant * temperature)
+build half-level pressure, log-pressure height, half-level winds, BV
+LAUNCH = highest reference level with HREF(level) / HREF(surface) &gt; xlaunch
+
+for each wave jw and grid column:
+    derive azimuth and horizontal wavenumber from MOD(background fields)
+    derive phase speed and intrinsic frequency
+    set launch EP flux from epflux_max and local wind magnitude
+
+for level from LAUNCH to model top:
+    update intrinsic frequency
+    limit EP flux by dissipation, critical level sign change, and saturation
+    accumulate zonal and meridional EP flux
+
+close flux below LAUNCH
+d_u, d_v = vertical divergence of U/V EP flux
+apply AR(1) memory using du_nonoro_gwd and dv_nonoro_gwd
+d_t = 0
+save updated memory arrays and compute diagnostic stresses</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>非地形重力波</td>
+<td><code>calllott_nonoro</code> 打开后，本文件计算随机非地形 GW 动量拖曳</td>
+</tr>
+<tr>
+<td>主物理时间步 <code>physiq</code></td>
+<td><code>physiq_mod.F:1774-1816</code> 调用本方案并把 <code>d_t_hin/d_u_hin/d_v_hin</code> 累加到 <code>pdt/pdu/pdv</code></td>
+</tr>
+<tr>
+<td>GW-induced mixing</td>
+<td><code>nonoro_gwd_mix_mod</code> 在同一 <code>calllott_nonoro</code> 分支内、且 <code>calljliu_gwimix</code> 为真时接着执行</td>
+</tr>
+<tr>
+<td>重启状态</td>
+<td><code>du_nonoro_gwd/dv_nonoro_gwd</code> 由 <code>phyetat0_mod.F90</code> 读取或清零，并由 <code>phyredem.F90</code> 写回</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>源码用大写入口 <code>NONORO_GWD_RAN</code>，但模块名和初始化/释放例程用小写命名。</li>
+<li>“随机”波特征由 <code>MOD(TT(...), 1.)</code>、<code>MOD(TT(...)**2, 1.)</code> 和 <code>MOD(100*(UU**2+VV**2), 1.)</code> 派生，目的是避免并行分解改变结果。</li>
+<li><code>zmax_therm</code> 仍保留在接口中，但当前主例程没有使用它决定发射层；发射层来自 <code>presnivs</code> 和 <code>xlaunch</code>。</li>
+<li><code>east_gwstress/west_gwstress</code> 在初始化时清零，主例程中用于累加东西向波应力剖面；页面按源码字面记录，未推断其下游消费路径。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须设置 <code>calllott_nonoro=.true.</code>，否则 <code>physiq</code> 不会调用本文件；该开关在 <code>conf_phys.F:365-367</code> 默认 <code>.false.</code>。</li>
+<li>可调键包括 <code>nonoro_gwd_epflux_max</code>、<code>nonoro_gwd_sat</code>、<code>nonoro_gwd_rdiss</code>、<code>nonoro_gwd_kmax</code>、<code>nonoro_gwd_kmin</code>、<code>nonoro_gwd_xlaunch</code>。</li>
+<li><code>nlayer</code> 必须不小于 <code>NW=8</code>，物理时间步不能超过 24 小时，否则 <code>abort_physic</code> 中止。</li>
+<li>重启可重复性依赖 <code>du_nonoro_gwd/dv_nonoro_gwd</code> 是否从 start/restart 物理文件恢复；缺失时 <code>phyetat0_mod.F90</code> 清零。</li>
+<li>水平网格面积会改变 <code>kstar</code>，从而改变允许的波数范围；不同网格分辨率不应期待完全一致的 GW forcing。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>east_gwstress</code> 和 <code>west_gwstress</code> 在本文件中维护，但本次检索未发现已写入重启文件或被其他源码文件读取。</li>
+<li><code>zmax_therm</code> 接口参数未参与当前计算；是否为历史热对流发射高度接口需要结合版本历史确认。</li>
+<li><code>abort_physic</code> 未在本文件显式 <code>use</code>，按当前源码字面视为外部可见的物理错误处理例程。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a>：本模块所属目录。</li>
+<li><a href="nonoro_gwd_mix_mod.html">nonoro_gwd_mix_mod</a>：同一 <code>calllott_nonoro</code> 分支内可选的 GW-induced mixing 方案。</li>
+<li><a href="comcstfi_h.html">comcstfi_h</a>：提供 <code>g/r/pi</code> 等公共物理常数。</li>
+<li><a href="iostart.html">iostart</a>：<code>phyetat0_mod.F90</code> / <code>phyredem.F90</code> 读写物理 start/restart 字段时使用的 I/O 层。</li>
+<li><a href="phyetat0_mod.html">phyetat0_mod.md</a>：记录本模块记忆项的读取与清零。</li>
+<li><a href="phyredem.html">phyredem</a>：记录本模块记忆项写回 restart 的路径。</li>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod</a>，记录本模块数组分配入口。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

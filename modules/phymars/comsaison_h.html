@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>comsaison_h - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/comsaison_h.md</span>
+    </nav>
+    <article class="content">
+<h1 id="comsaison_hf90">comsaison_h.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\comsaison_h.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>comsaison_h.F90</code> 定义 <code>comsaison_h</code>，是 <code>phymars</code> 中保存当前季节、太阳-火星距离、太阳赤纬、太阳天顶角余弦、日照时段比例和本地太阳时的共享状态模块。它本身不计算轨道或太阳几何，只声明 <code>SAVE</code> 变量、分配三个逐格点数组，并在结束时释放这些数组。</p>
+<p>复现上，这个模块是 <code>physiq</code> 中辐射、近红外 CO2 吸收、坡面辐射、山顶尘流、火箭尘暴、尘暴注入和边界层尘埃释放时间窗的共同状态入口。若只分配 <code>mu0/fract/local_time</code> 而没有由 <code>physiq_mod.F</code> 在当前物理步写入，后续过程会读取未定义或过期的太阳几何状态。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comsaison_h</code></td>
+<td>module</td>
+<td>1</td>
+<td>保存季节和太阳几何共享状态</td>
+</tr>
+<tr>
+<td><code>dist_sol</code></td>
+<td>real save module variable</td>
+<td>5</td>
+<td>Sun-Mars distance，单位 AU</td>
+</tr>
+<tr>
+<td><code>declin</code></td>
+<td>real save module variable</td>
+<td>6</td>
+<td>太阳赤纬，单位 rad</td>
+</tr>
+<tr>
+<td><code>zls</code></td>
+<td>real save module variable</td>
+<td>7</td>
+<td>太阳经度 Ls，单位 rad</td>
+</tr>
+<tr>
+<td><code>mu0</code></td>
+<td>real allocatable save module variable</td>
+<td>8</td>
+<td>每个物理格点的太阳天顶角余弦</td>
+</tr>
+<tr>
+<td><code>fract</code></td>
+<td>real allocatable save module variable</td>
+<td>9</td>
+<td>当前时间间隔内日照比例，0 为夜间，1 为整段白天</td>
+</tr>
+<tr>
+<td><code>local_time</code></td>
+<td>real allocatable save module variable</td>
+<td>10</td>
+<td>每个格点的本地太阳时，单位为 sol/day fraction，范围 <code>(0,1)</code></td>
+</tr>
+<tr>
+<td><code>ini_comsaison_h</code></td>
+<td>subroutine</td>
+<td>16</td>
+<td>按 <code>ngrid</code> 分配 <code>mu0/fract/local_time</code></td>
+</tr>
+<tr>
+<td><code>end_comsaison_h</code></td>
+<td>subroutine</td>
+<td>28</td>
+<td>若数组已分配则释放 <code>mu0/fract/local_time</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>本模块不 <code>use</code> 其他模块</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无外部例程</td>
+<td>-</td>
+<td>-</td>
+<td>本模块只使用 Fortran <code>allocate/deallocate/allocated</code> 机制</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>phys_state_var_init_mod.F90</code> 行 129 调用 <code>ini_comsaison_h(ngrid)</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>物理列数，也是 <code>mu0/fract/local_time</code> 的数组长度</td>
+</tr>
+<tr>
+<td><code>zday</code></td>
+<td><code>physiq_mod.F</code> 行 870</td>
+<td>real scalar</td>
+<td>sol</td>
+<td>当前物理步的日期，含小数日</td>
+</tr>
+<tr>
+<td><code>longitude_deg(ngrid)</code></td>
+<td><code>geometry_mod</code> 经 <code>physiq_mod.F</code> 使用</td>
+<td>real array</td>
+<td>degree</td>
+<td>计算 <code>local_time</code> 时的经度输入</td>
+</tr>
+<tr>
+<td><code>season</code> / <code>day_ini</code></td>
+<td><code>physiq_mod.F</code> 季节分支</td>
+<td>logical / integer</td>
+<td>- / sol</td>
+<td>控制 <code>zls</code> 用当前 <code>zday</code> 还是初始日计算</td>
+</tr>
+<tr>
+<td><code>diurnal</code></td>
+<td><code>physiq_mod.F</code> 太阳几何分支</td>
+<td>logical</td>
+<td>-</td>
+<td>控制 <code>mu0/fract</code> 用瞬时昼夜变化还是日平均修正</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zls</code></td>
+<td><code>physiq_mod.F</code> 下游辐射、CO2 凝结、冰盖反照率、诊断</td>
+<td>real scalar</td>
+<td>rad</td>
+<td>当前太阳经度</td>
+</tr>
+<tr>
+<td><code>dist_sol</code></td>
+<td><code>callradite</code>、<code>nirco2abs</code>、坡面辐射、thermosphere、topmons、rocketduststorm</td>
+<td>real scalar</td>
+<td>AU</td>
+<td>用于把 1 AU 太阳常数缩放为火星当前太阳常数</td>
+</tr>
+<tr>
+<td><code>declin</code></td>
+<td><code>solang</code> / <code>mucorr</code> 输入、坡面辐射、<code>nirco2abs</code></td>
+<td>real scalar</td>
+<td>rad</td>
+<td>太阳赤纬</td>
+</tr>
+<tr>
+<td><code>mu0(ngrid)</code></td>
+<td><code>callradite</code>、<code>topmons</code>、<code>rocketduststorm</code>、坡面辐射、<code>nirco2abs</code>、thermosphere、诊断</td>
+<td>real array</td>
+<td>-</td>
+<td>太阳天顶角余弦</td>
+</tr>
+<tr>
+<td><code>fract(ngrid)</code></td>
+<td><code>callradite</code>、<code>topmons</code>、<code>rocketduststorm</code>、<code>nirco2abs</code></td>
+<td>real array</td>
+<td>-</td>
+<td>当前辐射时间间隔中白天所占比例</td>
+</tr>
+<tr>
+<td><code>local_time(ngrid)</code></td>
+<td><code>compute_dtau</code>、<code>vdifc</code>、<code>write_output("local_time")</code></td>
+<td>real array</td>
+<td>sol fraction</td>
+<td>本地太阳时，驱动尘埃注入和诊断输出</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>dist_sol</code>、<code>declin</code>、<code>zls</code>、<code>mu0</code>、<code>fract</code>、<code>local_time</code> 都是 <code>SAVE</code> 模块状态。</li>
+<li>源码行 12 使用 OpenMP <code>THREADPRIVATE(dist_sol,declin,zls,mu0,fract,local_time)</code>，表示每个线程拥有独立副本。</li>
+<li><code>ini_comsaison_h(ngrid)</code> 只分配三个数组，不初始化数值；标量也没有在本模块中给默认值。</li>
+<li><code>end_comsaison_h</code> 对三个数组逐个 <code>allocated(...)</code> 检查后释放。</li>
+<li>本模块不写文件、不输出日志、不调用中止例程。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>phys_state_var_init_mod.F90</code> 行 38 导入 <code>ini_comsaison_h,end_comsaison_h</code>。</li>
+<li><code>phys_state_var_init_mod.F90</code> 行 127-129 在物理状态初始化时先调用 <code>end_comsaison_h</code>，再调用 <code>ini_comsaison_h(ngrid)</code>，确保三个逐格点数组按当前物理列数分配。</li>
+<li><code>physiq_mod.F</code> 行 63-64 导入 <code>dist_sol, declin, zls, mu0, fract, local_time</code>。</li>
+<li><code>physiq_mod.F</code> 行 870-875 计算 <code>zday=pday+ptime</code>，然后对每个格点用 <code>zday</code> 的小数部分和 <code>longitude_deg/15/24</code> 写入 <code>local_time(ig)</code>。</li>
+<li><code>physiq_mod.F</code> 行 878-882 按 <code>season</code> 分支调用 <code>solarlong(zday,zls)</code> 或 <code>solarlong(float(day_ini),zls)</code>。</li>
+<li>当 <code>callrad</code> 为真时，<code>physiq_mod.F</code> 行 1010 调用 <code>orbite(zls,dist_sol,declin)</code>，用当前 Ls 写入太阳-火星距离和赤纬。</li>
+<li>若 <code>diurnal</code> 为真，<code>physiq_mod.F</code> 行 1012-1018 用 <code>declin</code> 和 <code>zday</code> 构造太阳方向，并调用 <code>solang(...,mu0,fract)</code>；否则行 1021 调用 <code>mucorr(ngrid,declin,latitude,mu0,fract,10000.,rad)</code> 计算日平均辐射几何。</li>
+<li>之后 <code>physiq</code> 把 <code>mu0/fract/dist_sol/zls/declin/local_time</code> 传给辐射、近红外吸收、坡面、尘暴、边界层和诊断路径。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>module comsaison_h:
+    keep scalar SAVE state:
+        dist_sol, declin, zls
+    keep allocatable SAVE arrays:
+        mu0(ngrid), fract(ngrid), local_time(ngrid)
+    mark all state THREADPRIVATE
+
+ini_comsaison_h(ngrid):
+    allocate mu0(ngrid)
+    allocate fract(ngrid)
+    allocate local_time(ngrid)
+
+end_comsaison_h:
+    if mu0 is allocated:
+        deallocate mu0
+    if fract is allocated:
+        deallocate fract
+    if local_time is allocated:
+        deallocate local_time
+
+physiq step:
+    zday = pday + ptime
+    for each grid point:
+        local_time = modulo(1 + fractional_sol + longitude_deg / 360, 1)
+    compute zls from current day or initial day
+    if radiation is active:
+        compute dist_sol and declin from zls
+        if diurnal cycle is active:
+            compute mu0 and fract with solang
+        else:
+            compute mu0 and fract with mucorr</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>物理状态初始化</td>
+<td><code>phys_state_var_init</code> 负责释放并重新分配 <code>mu0/fract/local_time</code></td>
+</tr>
+<tr>
+<td>太阳几何 / 辐射</td>
+<td><code>physiq</code> 计算 <code>zls/dist_sol/declin/mu0/fract</code>，<code>callradite</code> 用 <code>dist_sol</code> 缩放太阳常数并把 <code>mu0/fract</code> 传入短波辐射</td>
+</tr>
+<tr>
+<td>尘暴与山顶尘流</td>
+<td><code>rocketduststorm_mod</code> 和 <code>topmons_mod</code> 读取 <code>dist_sol/mu0/fract</code> 做第二次辐射调用，<code>topmons</code> 还用 <code>mu0 &gt; mu0lim</code> 判定白天</td>
+</tr>
+<tr>
+<td>坡面辐射</td>
+<td><code>physiq</code> 坡面分支用 <code>mu0</code>、<code>declin</code> 和 <code>dist_sol</code> 计算直接辐射并调用 <code>param_slope</code></td>
+</tr>
+<tr>
+<td>尘埃注入</td>
+<td><code>compute_dtau</code> 用 <code>local_time</code> 穿越 <code>t_scenario_sol</code> 的时刻计算 <code>dtau</code>，<code>vdifc</code> 用 <code>local_time</code> 判断注入时间窗</td>
+</tr>
+<tr>
+<td>诊断输出</td>
+<td><code>physiq</code> 行 3423-3424 输出 <code>local_time</code> 字段</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>这是一个很小的自由格式 <code>.F90</code> 共享状态模块，采用 LMD 常见的 <code>SAVE</code> + <code>ALLOCATABLE</code> + <code>THREADPRIVATE</code> 写法。</li>
+<li><code>ini_comsaison_h</code> 没有 <code>.not.allocated(...)</code> 保护；调用方通过先执行 <code>end_comsaison_h</code> 避免重复分配。</li>
+<li>数组分配和数值填充分离；本模块只分配，实际填充集中在 <code>physiq_mod.F</code> 的每个物理步。</li>
+<li><code>local_time</code> 注释标明是 <code>(0,1)</code> 的日/sol fraction，不是小时；<code>physiq</code> 使用经度换算 <code>(longitude_deg/15)/24</code> 也等价于经度除以 360。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现任何读取 <code>mu0/fract/local_time</code> 的路径前，必须先执行 <code>phys_state_var_init</code> 的分配步骤，并在物理步中让 <code>physiq</code> 写入当前时刻的太阳几何。</li>
+<li><code>dist_sol/declin/zls</code> 在本模块内没有初始值；若绕过 <code>physiq</code> 直接调用 <code>topmons</code>、<code>rocketduststorm</code> 或 <code>callradite</code>，需要显式设置这些标量。</li>
+<li><code>mu0/fract</code> 只在 <code>callrad</code> 分支内由 <code>orbite</code> 后续的 <code>solang</code> 或 <code>mucorr</code> 更新；关闭辐射时仍读取这些数组的自定义流程需要单独确认其值来源。</li>
+<li><code>local_time</code> 是 sol fraction。把它当作小时会使 <code>compute_dtau</code> 和 <code>vdifc</code> 的尘埃注入时间窗错位。</li>
+<li><code>THREADPRIVATE</code> 表示并行运行中每个线程持有自己的状态副本；复现 OpenMP 运行时要确认分配和填充发生在实际执行物理过程的线程上下文中。</li>
+<li>如果网格大小变化，必须先释放再按新 <code>ngrid</code> 分配；直接重复调用 <code>ini_comsaison_h</code> 可能触发已分配数组再次分配错误。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>mu0/fract</code> 在 <code>callrad=.false.</code> 的运行配置下是否仍有其他路径需要有效值；本页只确认源码中字面更新发生在 <code>callrad</code> 分支。</li>
+<li>OpenMP 多线程运行时各线程何时获得并填充 <code>THREADPRIVATE</code> 副本，需要结合外层并行初始化约定进一步确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars/index</a>：<code>phymars</code> 目录总览。</li>
+<li><a href="topmons_mod.html">topmons_mod</a>：读取 <code>dist_sol/mu0/fract</code> 做山顶尘流辐射和白天判定。</li>
+<li><a href="rocketduststorm_mod.html">rocketduststorm_mod</a>：读取 <code>dist_sol/mu0/fract</code> 做火箭尘暴额外辐射调用。</li>
+<li><a href="../../themes/radiation.html">radiation</a>：辐射主题中太阳几何和太阳常数缩放的上游背景。</li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle</a>：尘暴、山顶尘流和尘埃注入使用这些太阳/本地时状态。</li>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod</a></li>
+<li><a href="physiq_mod.html">physiq_mod.md</a>：主物理时间步调度入口；section 页 <a href="../../routines/physiq-water-cycle-callpoints.html">physiq-water-cycle-callpoints</a> 和 <a href="../../routines/physiq-co2-cycle-callpoints.html">physiq-co2-cycle-callpoints</a> 也覆盖水/CO2 调用点。</li>
+<li><a href="orbite.html">orbite</a>：用 <code>zls</code> 计算 <code>dist_sol/declin</code>，为本模块的太阳几何状态提供标量输入。</li>
+<li><a href="mucorr.html">mucorr</a>：非日变化分支用 <code>declin</code> 计算日平均 <code>mu0/fract</code>。</li>
+<li><a href="solang.html">solang.md</a>、<a href="solarlong.html">solarlong.md</a>：太阳几何与太阳经度换算。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

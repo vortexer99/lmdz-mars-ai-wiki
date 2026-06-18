@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>swmain_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/swmain_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="swmain_modf">swmain_mod.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\swmain_mod.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars
+MODULE swmain_mod</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>swmain_mod.F</code> 是短波太阳辐射主程序模块。它由 <a href="callradite_mod.html">callradite_mod</a> 在每个辐射子域内调用，接收已经准备好的气溶胶可见光光学厚度、两太阳谱段的 <code>QVISsQREF3d/omegaVIS3d/gVIS3d</code>、地表反照率、太阳天顶角和日照分数；对两个太阳谱段分别调用 Fouquart 或 Toon solver，得到归一化上下行短波通量，再乘入当前日火距离下的太阳常数和日照几何因子，最后由谱段合计净通量差计算短波加热率。</p>
+<p>本文件只负责 <code>1:nlaylte</code> 的 LTE 短波层。<code>nlaylte</code> 由 <code>nlthermeq</code> 写入 <code>yomlw_h</code>，上游 <code>callradite</code> 会把 <code>nlaylte+1:nlayer</code> 的短波倾向置零。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>swmain_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>短波辐射主程序模块</td>
+</tr>
+<tr>
+<td><code>SWMAIN</code></td>
+<td>subroutine</td>
+<td>7-196</td>
+<td>调度两个太阳谱段的短波 solver，输出谱段上下行 flux 和合计短波加热率</td>
+</tr>
+</tbody>
+</table>
+<p>本文件没有 <code>SAVE</code>、<code>THREADPRIVATE</code> 或 common block。</p>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>ndlo2</code>, <code>ndlon</code>, <code>nflev</code>, <code>nsun</code>, <code>naerkind</code></td>
+<td>工作数组维度、太阳谱段数和气溶胶种类数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>yomlw_h</code></td>
+<td><code>nlaylte</code>, <code>gcp</code></td>
+<td>LTE 有效层数；<code>gcp=g/cpp</code> 用于 flux divergence 转 K/s</td>
+<td></td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>swrtype</code></td>
+<td>选择短波 solver：1 为 Fouquart，2 为 Toon</td>
+<td></td>
+</tr>
+<tr>
+<td><code>swr_fouquart_mod</code></td>
+<td><code>swr_fouquart</code></td>
+<td><code>swrtype=1</code> 的短波连续散射方案</td>
+<td></td>
+</tr>
+<tr>
+<td><code>swr_toon_mod</code></td>
+<td><code>swr_toon</code></td>
+<td><code>swrtype=2</code> 的 Toon two-stream 方案</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SWR_FOUQUART</code></td>
+<td><code>swr_fouquart.F</code></td>
+<td>151-154</td>
+<td>给定太阳谱段的 Fouquart 短波散射通量求解</td>
+</tr>
+<tr>
+<td><code>SWR_TOON</code></td>
+<td><code>swr_toon.F</code></td>
+<td>157-160</td>
+<td>给定太阳谱段的 Toon two-stream 通量求解</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>公共错误处理</td>
+<td>162-163</td>
+<td><code>swrtype</code> 不是 1 或 2 时终止</td>
+</tr>
+</tbody>
+</table>
+<h2 id="直接调用方">直接调用方</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>位置</th>
+<th>调用目的</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>callradite_mod.F::callradite</code></td>
+<td>547-551</td>
+<td>在每个 <code>ndomainsz</code> 子域内计算短波加热率和上下行短波通量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>KDLON</code>, <code>KFLEV</code></td>
+<td><code>callradite</code> 子域</td>
+<td>integer</td>
+<td>-</td>
+<td>当前子域列数和辐射垂直层维度</td>
+</tr>
+<tr>
+<td><code>PCST</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>W/m2</td>
+<td>当前日火距离下的太阳常数，<code>flux_1AU/dist_sol^2</code></td>
+</tr>
+<tr>
+<td><code>albedo(NDLO2,2)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>-</td>
+<td>两个太阳谱段地表半球反照率</td>
+</tr>
+<tr>
+<td><code>PRMU0(NDLO2)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>-</td>
+<td>原始太阳天顶角余弦</td>
+</tr>
+<tr>
+<td><code>PDP(NDLO2,KFLEV)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>Pa</td>
+<td>每层压力厚度</td>
+</tr>
+<tr>
+<td><code>PPLEV(NDLO2,KFLEV+1)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>Pa</td>
+<td>层界面压力；本文件用来算 sigma 厚度</td>
+</tr>
+<tr>
+<td><code>aerosol(NDLO2,KFLEV,naerkind)</code></td>
+<td><code>aeropacity</code> -&gt; <code>callradite</code></td>
+<td>real</td>
+<td>optical depth</td>
+<td>各类气溶胶逐层参考波长光学厚度</td>
+</tr>
+<tr>
+<td><code>PFRACT(NDLO2)</code></td>
+<td><code>physiq/callradite</code></td>
+<td>real</td>
+<td>-</td>
+<td>当前时间步白昼分数</td>
+</tr>
+<tr>
+<td><code>QVISsQREF3d</code>, <code>omegaVIS3d</code>, <code>gVIS3d</code></td>
+<td><code>aeroptproperties</code> -&gt; <code>callradite</code></td>
+<td>real</td>
+<td>-</td>
+<td>两太阳谱段的气溶胶消光比、单次散射反照率和不对称因子</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PHEAT(NDLO2,KFLEV)</code></td>
+<td><code>callradite</code> -&gt; <code>dtsw</code></td>
+<td>real</td>
+<td>K/s</td>
+<td>合计两个太阳谱段后的短波加热率</td>
+</tr>
+<tr>
+<td><code>PFLUXD(NDLON,NFLEV+1,2)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>W/m2</td>
+<td>每个界面、每个太阳谱段的向下短波通量</td>
+</tr>
+<tr>
+<td><code>PFLUXU(NDLON,NFLEV+1,2)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>W/m2</td>
+<td>每个界面、每个太阳谱段的向上短波通量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>读取 <code>callkeys_mod::swrtype</code> 选择 solver。</li>
+<li>读取 <code>yomlw_h::nlaylte</code> 限制循环层数；读取 <code>yomlw_h::gcp</code> 计算加热率。</li>
+<li>不写 module 状态，不做文件 I/O，不写诊断。</li>
+<li>当 <code>swrtype</code> 非 1/2 时打印错误并调用 <code>abort_physic</code>。</li>
+</ul>
+<h2 id="核心流程">核心流程</h2>
+<h3 id="1-太阳入射通量和修正太阳角">1. 太阳入射通量和修正太阳角</h3>
+<p>行 111-122 对每列计算：</p>
+<pre class="text"><code>ZFACT = PRMU0 * PCST * PFRACT
+ZRMU  = sqrt(1224*PRMU0^2 + 1) / 35   if PRMU0 &gt; 0
+      = 1/35                           otherwise
+ZSEC  = 1/ZRMU</code></pre>
+<p><code>ZFACT</code> 是把 solver 返回的归一化 flux 转成物理 W/m2 的列因子，含太阳天顶角、当前太阳常数和日照分数。<code>ZRMU</code> 是大太阳天顶角修正后的有效余弦，传给短波 solver。</p>
+<h3 id="2-sigma-层厚">2. Sigma 层厚</h3>
+<p>行 126-138 用界面压力构造 <code>ZDSIG</code>。从地表 <code>ZSIGO=1</code> 开始，对 <code>JK=1:nlaylte</code>：</p>
+<pre class="text"><code>ZSIGN = PPLEV(JK+1) / PPLEV(1)
+ZDSIG(JK) = ZSIGO - ZSIGN
+ZSIGO = ZSIGN</code></pre>
+<p>这把压力层厚转换成相对地表压力的 sigma 厚度，供 Fouquart/Toon solver 分配层光学量。</p>
+<h3 id="3-两个太阳谱段-solver">3. 两个太阳谱段 solver</h3>
+<p>行 147-173 对 <code>INU=1,2</code> 循环。源码注释说明两个太阳谱段分别是 <code>long1vis-long2vis</code> 和 <code>long2vis-long3vis</code>，具体边界在 <code>dimradmars_mod</code> 中定义。</p>
+<ul>
+<li><code>swrtype=1</code> 调 <code>SWR_FOUQUART</code>。</li>
+<li><code>swrtype=2</code> 调 <code>SWR_TOON</code>。</li>
+<li>其他值 abort。</li>
+</ul>
+<p>两个 solver 都返回归一化 <code>ZFD/ZFU</code>。<code>SWMAIN</code> 随后把每个界面的归一化 flux 乘 <code>ZFACT</code>，写入 <code>PFLUXD/PFLUXU(:,:,INU)</code>。</p>
+<h3 id="4-谱段合计和短波加热率">4. 谱段合计和短波加热率</h3>
+<p>行 179-185 先把两个谱段相加：</p>
+<pre class="text"><code>ZFUP   = PFLUXU(:,:,1) + PFLUXU(:,:,2)
+ZFDOWN = PFLUXD(:,:,1) + PFLUXD(:,:,2)</code></pre>
+<p>行 187-193 计算每层净通量散度：</p>
+<pre class="text"><code>ZDFNET = ZFUP(JK) - ZFDOWN(JK) - ZFUP(JK+1) + ZFDOWN(JK+1)
+PHEAT  = gcp * ZDFNET / PDP(JK)</code></pre>
+<p>这把 W/m2 的界面净通量差转为 K/s。符号按源码：层顶/层底上下行组合决定正加热或冷却。</p>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>SWMAIN:
+  for each column:
+    ZFACT = mu0 * solar_constant * daylight_fraction
+    ZRMU = high-zenith corrected solar angle cosine
+    ZSEC = 1 / ZRMU
+
+  build sigma layer thickness ZDSIG from pressure interfaces for 1:nlaylte
+
+  for INU in [1, 2]:
+    if swrtype == 1:
+      call SWR_FOUQUART(..., INU, aerosol, VIS optical properties, albedo, ZDSIG, ZRMU, ZSEC, ZFD, ZFU)
+    else if swrtype == 2:
+      call SWR_TOON(... same role ...)
+    else:
+      abort
+
+    PFLUXD(:,:,INU) = ZFD * ZFACT
+    PFLUXU(:,:,INU) = ZFU * ZFACT
+
+  for each interface:
+    ZFDOWN = sum downward flux over two bands
+    ZFUP   = sum upward flux over two bands
+
+  for each LTE layer:
+    PHEAT = (g/cpp) * net_flux_divergence / layer_pressure_thickness</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>短波辐射</td>
+<td>两太阳谱段主调度，输出短波加热率和上下行通量</td>
+</tr>
+<tr>
+<td>气溶胶辐射</td>
+<td>消费 <code>aerosol</code>、<code>QVISsQREF3d</code>、<code>omegaVIS3d</code>、<code>gVIS3d</code>，由下游 solver 合成层散射参数</td>
+</tr>
+<tr>
+<td>Rayleigh 散射</td>
+<td>本文件不直接读 <code>rayleigh</code>，但 <code>SWR_FOUQUART/SWR_TOON</code> 会在各自内部按开关调用 <code>swrayleigh</code></td>
+</tr>
+<tr>
+<td>LTE/NLTE 边界</td>
+<td>仅循环 <code>nlaylte</code> 层；高层短波倾向由 <code>callradite</code> 置零，后续由其他 NIR/NLTE 路径处理</td>
+</tr>
+<tr>
+<td>地表能量收支</td>
+<td>输出地表界面的上下行短波通量，供 <code>physiq</code> 的地表能量路径使用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran，例程名大写；<code>INTENT</code> 大小写不一致但语义明确。</li>
+<li><code>KFLEV</code> 是接口层维度，但主要物理循环受 <code>nlaylte</code> 控制。</li>
+<li>solver 输出是归一化通量；本文件统一乘 <code>ZFACT</code> 后才成为物理通量。</li>
+<li><code>ZRMU</code> 对夜侧也给出 <code>1/35</code>，但夜侧 <code>ZFACT=0</code>，所以实际 flux 为零。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>PCST</code> 必须已经由 <code>callradite</code> 按日火距离缩放；<code>SWMAIN</code> 不再处理 <code>dist_sol</code>。</li>
+<li><code>PFLUXD/PFLUXU</code> 第三维固定为两个太阳谱段，计算加热率时必须先对两个谱段求和。</li>
+<li><code>swrtype</code> 必须与尘埃场景处理保持一致；例如 <code>read_dust_scenario_mod</code> 中对旧 Fouquart 路径有 <code>swrtype==1</code> 修正。</li>
+<li><code>ZDSIG</code> 从压力界面按地表压力归一化，不是直接用 <code>PDP</code>；<code>PDP</code> 只在最终加热率分母出现。</li>
+<li>比较 Fouquart 和 Toon 结果时，应同时固定 <code>rayleigh</code>、<code>albedo</code>、<code>aerosol</code> 光学表和 <code>mu0/fract</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>ZDSIG</code> 循环中 <code>JKL=nlaylte+1-JK</code> 被赋值但未使用，可能是历史层序翻转遗留变量。</li>
+<li><code>KFLEV</code> 传入两个 solver，但本文件内部通量和加热率循环使用 <code>nlaylte</code>；<code>KFLEV/nflev/nlaylte</code> 的越界安全依赖上游维度配置。</li>
+<li><code>SWR_FOUQUART</code> 和 <code>SWR_TOON</code> 细节分别在已有页面说明；本页不展开其内部多层递推或 two-stream 线性系统。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="callradite_mod.html">callradite_mod</a> - 唯一直接调用方。</li>
+<li><a href="swr_fouquart.html">swr_fouquart</a> - <code>swrtype=1</code> 短波 solver。</li>
+<li><a href="swr_toon.html">swr_toon</a> - <code>swrtype=2</code> 短波 solver。</li>
+<li><a href="swrayleigh.html">swrayleigh</a> - Rayleigh 光学厚度辅助。</li>
+<li><a href="dimradmars_mod.html">dimradmars_mod</a> - 太阳谱段、维度和气溶胶数量。</li>
+<li><a href="yomlw_h.html">yomlw_h</a> - <code>gcp</code> 和 <code>nlaylte</code>。</li>
+<li><a href="callkeys_mod.html">callkeys_mod</a> - <code>swrtype</code>、<code>rayleigh</code> 等辐射开关。</li>
+<li><a href="../../themes/radiation.html">radiation</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

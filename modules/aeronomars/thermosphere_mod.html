@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>thermosphere_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/thermosphere_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="thermosphere_modf">thermosphere_mod.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\thermosphere_mod.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>热层物理过程总调度模块；在 <code>physiq_mod</code> 的 <code>callthermos</code> 分支下逐列调用，依次执行 EUV 加热、分子热传导、分子黏性扩散和分子扩散，把各子过程 tendency 累加回 <code>pdt</code>/<code>pdu</code>/<code>pdv</code>/<code>pdq</code>，并输出 H/H₂/D 逃逸通量。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>thermosphere_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>包装 <code>thermosphere</code> 子例程，保存 <code>moldiff_scheme</code></td>
+</tr>
+<tr>
+<td><code>moldiff_scheme</code></td>
+<td><code>integer, save</code></td>
+<td>5</td>
+<td>分子扩散方案选择（1=legacy <code>moldiff_red</code>，2=MPF <code>moldiff_MPF</code>），默认 2</td>
+</tr>
+<tr>
+<td><code>thermosphere</code></td>
+<td>subroutine</td>
+<td>10</td>
+<td>热层物理过程主调度；按开关依次调 EUV、传导、黏性、扩散并累加 tendency</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td><code>getin_p</code></td>
+<td>firstcall 读取 <code>moldiff_scheme</code> 配置</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>moldiff_red_mod</code></td>
+<td><code>moldiff_red</code></td>
+<td>legacy 分子扩散（<code>moldiff_scheme==1</code>）</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>moldiff_MPF_mod</code></td>
+<td><code>moldiff_MPF</code></td>
+<td>MPF 分子扩散（<code>moldiff_scheme==2</code>，默认）</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>euvheat_mod</code></td>
+<td><code>euvheat</code></td>
+<td>EUV 加热</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>conduction_mod</code></td>
+<td><code>conduction</code></td>
+<td>分子热传导</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>molvis_mod</code></td>
+<td><code>molvis</code></td>
+<td>分子黏性速度扩散</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>conc_mod</code></td>
+<td><code>rnew, cpnew</code></td>
+<td>各层气体常数和比热（传递给子过程）</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>r, cpp</code></td>
+<td>通用气体常数和比热常量</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code></td>
+<td>firstcall 日志输出</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>calleuv, callconduct, callmoldiff, callmolvis</code></td>
+<td>四个子过程开关</td>
+<td>无</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin_p</code></td>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td>行 68</td>
+<td>firstcall 读 <code>moldiff_scheme</code> 配置</td>
+</tr>
+<tr>
+<td><code>euvheat</code></td>
+<td><code>euvheat_mod</code></td>
+<td>行 83</td>
+<td><code>calleuv</code> 下计算 EUV 加热倾向 <code>zdteuv</code></td>
+</tr>
+<tr>
+<td><code>conduction</code></td>
+<td><code>conduction_mod</code></td>
+<td>行 90</td>
+<td><code>callconduct</code> 下计算分子热传导倾向 <code>zdtconduc</code></td>
+</tr>
+<tr>
+<td><code>molvis</code></td>
+<td><code>molvis_mod</code></td>
+<td>行 97, 99</td>
+<td><code>callmolvis</code> 下分别对 <code>pu</code>/<code>pv</code> 计算分子黏性倾向 <code>zdumolvis</code>/<code>zdvmolvis</code></td>
+</tr>
+<tr>
+<td><code>moldiff_red</code></td>
+<td><code>moldiff_red_mod</code></td>
+<td>行 109</td>
+<td><code>callmoldiff</code> 且 <code>moldiff_scheme==1</code> 时调用</td>
+</tr>
+<tr>
+<td><code>moldiff_MPF</code></td>
+<td><code>moldiff_MPF_mod</code></td>
+<td>行 114</td>
+<td><code>callmoldiff</code> 且 <code>moldiff_scheme==2</code>（默认）时调用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>水平格点数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>advected tracer 数</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real (ngrid,nlayer+1)</code></td>
+<td>Pa</td>
+<td>层界面气压</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real (ngrid,nlayer)</code></td>
+<td>Pa</td>
+<td>中层气压</td>
+</tr>
+<tr>
+<td><code>dist_sol</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real</code></td>
+<td>AU</td>
+<td>日火距离</td>
+</tr>
+<tr>
+<td><code>mu0</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real (ngrid)</code></td>
+<td>—</td>
+<td>太阳天顶角余弦</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real</code></td>
+<td>s</td>
+<td>物理时间步</td>
+</tr>
+<tr>
+<td><code>zday</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real</code></td>
+<td>sol</td>
+<td>自 Ls=0 起的日期</td>
+</tr>
+<tr>
+<td><code>tsurf</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real (ngrid)</code></td>
+<td>K</td>
+<td>地表温度</td>
+</tr>
+<tr>
+<td><code>zzlev</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real (ngrid,nlayer+1)</code></td>
+<td>m</td>
+<td>层界面高度</td>
+</tr>
+<tr>
+<td><code>zzlay</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real (ngrid,nlayer)</code></td>
+<td>m</td>
+<td>中层高度</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real (ngrid,nlayer)</code></td>
+<td>K</td>
+<td>当前温度</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real (ngrid,nlayer,nq)</code></td>
+<td>kg/kg</td>
+<td>tracer 混合比</td>
+</tr>
+<tr>
+<td><code>pu</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real (ngrid,nlayer)</code></td>
+<td>m/s</td>
+<td>纬向风</td>
+</tr>
+<tr>
+<td><code>pv</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real (ngrid,nlayer)</code></td>
+<td>m/s</td>
+<td>经向风</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zdteuv</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real (ngrid,nlayer)</code></td>
+<td>K/s</td>
+<td>EUV 加热温度倾向</td>
+</tr>
+<tr>
+<td><code>zdtconduc</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real (ngrid,nlayer)</code></td>
+<td>K/s</td>
+<td>分子热传导温度倾向</td>
+</tr>
+<tr>
+<td><code>zdumolvis</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real (ngrid,nlayer)</code></td>
+<td>m/s²</td>
+<td>纬向风分子黏性倾向</td>
+</tr>
+<tr>
+<td><code>zdvmolvis</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real (ngrid,nlayer)</code></td>
+<td>m/s²</td>
+<td>经向风分子黏性倾向</td>
+</tr>
+<tr>
+<td><code>zdqmoldiff</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real (ngrid,nlayer,nq)</code></td>
+<td>kg/kg/s</td>
+<td>分子扩散 tracer 倾向</td>
+</tr>
+<tr>
+<td><code>PhiEscH</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real*8</code></td>
+<td>s⁻¹</td>
+<td>H 总逃逸通量</td>
+</tr>
+<tr>
+<td><code>PhiEscH2</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real*8</code></td>
+<td>s⁻¹</td>
+<td>H₂ 总逃逸通量</td>
+</tr>
+<tr>
+<td><code>PhiEscD</code></td>
+<td><code>physiq_mod</code></td>
+<td><code>real*8</code></td>
+<td>s⁻¹</td>
+<td>D 总逃逸通量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入输出inout">输入输出（inout）</h2>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdt</code></td>
+<td><code>real (ngrid,nlayer)</code></td>
+<td>K/s</td>
+<td>温度倾向；子过程倾向依次累加</td>
+</tr>
+<tr>
+<td><code>pdq</code></td>
+<td><code>real (ngrid,nlayer,nq)</code></td>
+<td>kg/kg/s</td>
+<td>tracer 倾向；<code>callmoldiff</code> 后累加</td>
+</tr>
+<tr>
+<td><code>pdu</code></td>
+<td><code>real (ngrid,nlayer)</code></td>
+<td>m/s²</td>
+<td>纬向风倾向；<code>callmolvis</code> 后累加</td>
+</tr>
+<tr>
+<td><code>pdv</code></td>
+<td><code>real (ngrid,nlayer)</code></td>
+<td>m/s²</td>
+<td>经向风倾向；<code>callmolvis</code> 后累加</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>moldiff_scheme</code>（<code>integer, save</code>）：firstcall 由 <code>getin_p</code> 读取，默认 2（MPF），标记 <code>THREADPRIVATE</code>。</li>
+<li><code>firstcall</code>（<code>logical, save</code>）：初始化标志，标记 <code>THREADPRIVATE</code>。</li>
+<li>倾向累加顺序（影响后续子过程的预测温度/密度）：EUV → 热传导 → 分子黏性 → 分子扩散。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><p><strong>firstcall 初始化</strong>（行 65-73）：<code>moldiff_scheme</code> 默认 2，通过 <code>getin_p("moldiff_scheme",...)</code> 可覆盖；master 进程打印。</p></li>
+<li><p><strong>清零所有 tendency 缓存</strong>（行 76-80）：<code>zdteuv</code>/<code>zdtconduc</code>/<code>zdumolvis</code>/<code>zdvmolvis</code>/<code>zdqmoldiff</code> 全部置零，保证未开启的子过程不贡献 tendency。</p></li>
+<li><p><strong>EUV 加热</strong>（<code>calleuv</code>，行 82-87）：调 <code>euvheat</code> 得 <code>zdteuv</code>，累加到 <code>pdt</code>。</p></li>
+<li><p><strong>分子热传导</strong>（<code>callconduct</code>，行 89-94）：调 <code>conduction</code> 得 <code>zdtconduc</code>，累加到 <code>pdt</code>。此时 <code>pdt</code> 已含 EUV，故传导看到的预测温度包含 EUV 加热。</p></li>
+<li><p><strong>分子黏性</strong>（<code>callmolvis</code>，行 96-104）：分别对 <code>pu</code>/<code>pv</code> 调 <code>molvis</code>，得 <code>zdumolvis</code>/<code>zdvmolvis</code>，累加到 <code>pdu</code>/<code>pdv</code>。</p></li>
+<li><p><strong>分子扩散</strong>（<code>callmoldiff</code>，行 106-122）：按 <code>moldiff_scheme</code> 选择 <code>moldiff_red</code>（1）或 <code>moldiff_MPF</code>（2），得 <code>zdqmoldiff</code> 和逃逸通量 <code>PhiEscH/H2/D</code>，累加到 <code>pdq</code>。</p></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if firstcall:
+    moldiff_scheme = 2
+    moldiff_scheme = getin_p(&quot;moldiff_scheme&quot;)
+    firstcall = false
+
+zdteuv = zdtconduc = zdumolvis = zdvmolvis = zdqmoldiff = 0
+
+if calleuv:
+    euvheat(...) -&gt; zdteuv
+    pdt += zdteuv
+
+if callconduct:
+    conduction(...) -&gt; zdtconduc
+    pdt += zdtconduc
+
+if callmolvis:
+    molvis(..., pu) -&gt; zdumolvis
+    molvis(..., pv) -&gt; zdvmolvis
+    pdu += zdumolvis
+    pdv += zdvmolvis
+
+if callmoldiff:
+    if moldiff_scheme == 1:
+        moldiff_red(...) -&gt; zdqmoldiff, PhiEscH, PhiEscH2, PhiEscD
+    else:
+        moldiff_MPF(...) -&gt; zdqmoldiff, PhiEscH, PhiEscH2, PhiEscD
+    pdq += zdqmoldiff</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热层物理</td>
+<td>总调度入口，依次执行 EUV 加热、热传导、黏性扩散和分子扩散</td>
+</tr>
+<tr>
+<td>高层大气逃逸</td>
+<td>分子扩散子过程输出 H/H₂/D Jeans 逃逸通量</td>
+</tr>
+<tr>
+<td>光化学前驱</td>
+<td><code>physiq_mod</code> 中 <code>thermosphere</code> 在 <code>calchim</code> 之后调用；热层化学已写回 <code>zycol</code>，本例程追加物理过程 tendency</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran（<code>.F</code>），续行符 <code>$</code>/<code>&amp;</code>。</li>
+<li><code>moldiff_scheme</code> 和 <code>firstcall</code> 标记 <code>save</code> + <code>THREADPRIVATE</code>。</li>
+<li>倾向累加顺序固定：EUV → 传导 → 黏性 → 扩散；后续子过程看到的 <code>pdt</code>/<code>pdu</code>/<code>pdv</code> 已含上游贡献。</li>
+<li>未开启的子过程 tendency 缓存已预置为 0，调用方可安全使用诊断。</li>
+<li><code>molvis</code> 被调用两次（<code>pu</code> 和 <code>pv</code>），接口参数位置一致。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>需要 <code>callkeys_mod</code> 中 <code>calleuv</code>/<code>callconduct</code>/<code>callmolvis</code>/<code>callmoldiff</code> 四个开关正确设置。</li>
+<li><code>callthermos</code> 须为 <code>.true.</code> 才能进入 <code>physiq_mod</code> 的热层分支；<code>conf_phys.F</code> 检查四个子开关依赖 <code>callthermos</code>。</li>
+<li><code>moldiff_scheme</code> 由 <code>getin_p</code> 读取，可在 <code>callphys.def</code> 中覆盖。</li>
+<li><code>conc_mod::rnew/cpnew/Akknew</code> 需已由 <code>update_r_cp_mu_ak</code> 更新（<code>photochem.or.callthermos</code> 为真时）。</li>
+<li>EUV 加热先于热传导，复现时须保持该顺序。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>r</code>/<code>cpp</code>（<code>comcstfi_h</code>）是否在本例程中被使用，还是仅为传递给子过程而引入。</li>
+<li>四个子开关的具体默认值和 MCD5/MCD6 配置组合。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="euvheat.html">euvheat</a>：EUV 加热子过程</li>
+<li><a href="conduction.html">conduction</a>：分子热传导子过程</li>
+<li><a href="molvis.html">molvis</a>：分子黏性速度扩散子过程</li>
+<li><a href="moldiff_red.html">moldiff_red</a>：legacy 分子扩散方案</li>
+<li><a href="moldiff_MPF.html">moldiff_MPF</a>：MPF 分子扩散方案（默认）</li>
+<li><a href="../phymars/physiq_mod.html">physiq_mod</a>：调用方，<code>callthermos</code> 分支</li>
+<li><a href="../phymars/callkeys_mod.html">callkeys_mod</a>：四个子过程开关</li>
+<li><a href="../phymars/conc_mod.html">conc_mod</a>：提供 <code>rnew</code>/<code>cpnew</code></li>
+<li><a href="index.html">aeronomars/index</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

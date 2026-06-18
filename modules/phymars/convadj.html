@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>convadj - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/convadj.md</span>
+    </nav>
+    <article class="content">
+<h1 id="convadjf">convadj.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\convadj.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>convadj.F</code> 定义 <code>convadj_mod</code>，只提供一个入口 <code>convadj</code>，用于在 <code>physiq</code> 主物理时间步中执行干对流调整。调用方在 <code>calladj</code> 为真时把当前已累积的风、焓和 tracer tendency 传入；本例程先构造时间步末的工作副本，再查找对流不稳定柱，把不稳定层段混合到常值焓、平均水平风和平均 tracer 剖面，最后把调整量转换成 <code>pduadj/pdvadj/pdhadj/pdqadj</code> tendency 返回给 <code>physiq</code>。</p>
+<p>该实现还包含 CO2 大气成分修正：首次调用时扫描 <code>tracer_mod:noms</code> 查找名为 <code>"co2"</code> 的 tracer。如果存在 CO2 tracer，稳定度判断不直接用焓 <code>zh</code>，而用 <code>zhc = zh*(A*qco2+B)</code>，其中 <code>A=1/m_co2-1/m_noco2</code>、<code>B=1/m_noco2</code>，从而把 CO2 凝结导致的平均分子量变化纳入对流触发条件。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>convadj_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>干对流调整模块</td>
+</tr>
+<tr>
+<td><code>convadj</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>检测并混合对流不稳定层段，输出风、焓和 tracer 的调整 tendency</td>
+</tr>
+<tr>
+<td><code>ico2</code></td>
+<td>saved local integer</td>
+<td>75</td>
+<td>首次调用后缓存 <code>"co2"</code> tracer 索引；0 表示未找到</td>
+</tr>
+<tr>
+<td><code>A</code>, <code>B</code></td>
+<td>saved local real</td>
+<td>79</td>
+<td>CO2 平均分子量修正中 <code>1/Mair=A*qco2+B</code> 的系数</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td>saved local logical</td>
+<td>82</td>
+<td>控制 CO2 tracer 扫描只在每个 OpenMP 线程首次调用时执行</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>noms</code>, <code>igcm_h2o_vap</code></td>
+<td>用 <code>noms</code> 查找 <code>"co2"</code> tracer；在水汽守恒检查中定位 <code>h2o_vap</code> tracer</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code></td>
+<td>水汽守恒检查中把压力层厚转成单位面积质量 <code>masse=(pplev(l)-pplev(l+1))/g</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>water</code></td>
+<td>只在水循环开启时执行水汽守恒崩溃检查</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部错误处理例程</td>
+<td>371</td>
+<td>当 <code>water</code> 路径的水汽调整净损失低于阈值时中止运行</td>
+</tr>
+</tbody>
+</table>
+<h2 id="上游调用点">上游调用点</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>源码位置</th>
+<th>调用条件</th>
+<th>传入 / 接收关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>physiq_mod.F::physiq</code></td>
+<td><code>physiq_mod.F:22</code>, <code>1733-1768</code></td>
+<td><code>calladj</code> 为真</td>
+<td>传入 <code>pdu/pdv/pdh/pdq</code> 以及已累积的 <code>pdufi/pdvfi/pdhfi/pdqfi</code>；接收 <code>pduadj/pdvadj/pdhadj/pdqadj</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code>, <code>nlay</code>, <code>nq</code></td>
+<td><code>physiq</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>水平格点数、垂直层数、tracer 数</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td><code>physiq</code></td>
+<td>real scalar</td>
+<td>s</td>
+<td>物理时间步，用于把 tendency 转成步末状态</td>
+</tr>
+<tr>
+<td><code>pplay</code>, <code>pplev</code>, <code>ppopsk</code></td>
+<td><code>physiq</code></td>
+<td>real arrays</td>
+<td>Pa / Exner-like</td>
+<td>层中压力、层界压力、<code>p/p0</code> 相关权重；<code>pplay</code> 仅在崩溃诊断打印中使用</td>
+</tr>
+<tr>
+<td><code>lmax_th(ngrid)</code></td>
+<td><code>physiq</code></td>
+<td>integer array</td>
+<td>-</td>
+<td>热羽流或边界层相关的最低可调整层界；<code>l &lt;= lmax_th</code> 不触发本干调整</td>
+</tr>
+<tr>
+<td><code>pu</code>, <code>pv</code>, <code>ph</code></td>
+<td><code>physiq</code></td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>m/s, m/s, model enthalpy/potential variable</td>
+<td>时间步开始的水平风和焓/位温型热力变量</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td><code>physiq</code></td>
+<td>real <code>(ngrid,nlay,nq)</code></td>
+<td>kg/kg</td>
+<td>时间步开始的 tracer 质量混合比</td>
+</tr>
+<tr>
+<td><code>pdufi</code>, <code>pdvfi</code>, <code>pdhfi</code>, <code>pdqfi</code></td>
+<td><code>physiq</code></td>
+<td>real arrays</td>
+<td>per second</td>
+<td>调用前已累积的风、焓和 tracer tendency</td>
+</tr>
+<tr>
+<td><code>noms(:)</code></td>
+<td><code>tracer_mod</code></td>
+<td>character array</td>
+<td>-</td>
+<td>tracer 名称表，用于首次调用时查找 <code>"co2"</code></td>
+</tr>
+<tr>
+<td><code>water</code>, <code>igcm_h2o_vap</code>, <code>g</code></td>
+<td><code>callkeys_mod</code> / <code>tracer_mod</code> / <code>comcstfi_h</code></td>
+<td>logical / integer / real</td>
+<td>- / - / m s-2</td>
+<td>控制并执行水汽守恒检查</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pduadj</code>, <code>pdvadj</code></td>
+<td><code>physiq</code></td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>m/s/s</td>
+<td>对流调整产生的水平风 tendency</td>
+</tr>
+<tr>
+<td><code>pdhadj</code></td>
+<td><code>physiq</code></td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>source variable per second</td>
+<td>对流调整产生的焓/热力变量 tendency</td>
+</tr>
+<tr>
+<td><code>pdqadj</code></td>
+<td><code>physiq</code></td>
+<td>real <code>(ngrid,nlay,nq)</code></td>
+<td>kg/kg/s</td>
+<td>对流混合产生的 tracer tendency</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>ico2/A/B/firstcall</code> 是 <code>SAVE</code> 局部变量，并由 <code>!$OMP THREADPRIVATE</code> 声明为每线程私有缓存。</li>
+<li>例程不写 module 变量、common block 或文件；正常路径没有诊断输出。</li>
+<li>如果 <code>water</code> 为真且水汽守恒检查得到 <code>cadjncons &lt; -1.e-6</code>，例程会打印列号、层段、压力、焓和水汽剖面等调试信息，然后调用 <code>abort_physic("convadj","crashed",1)</code> 中止。</li>
+<li><code>pplay</code> 在计算调整时不参与物理公式，只用于上述崩溃诊断打印。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>首次调用时，扫描 <code>noms(1:nq)</code>。若某个 tracer 名称等于 <code>"co2"</code>，缓存其索引到 <code>ico2</code>，并用 <code>m_co2=44.01e-3 kg/mol</code>、<code>m_noco2=33.37e-3 kg/mol</code> 计算 <code>A</code> 和 <code>B</code>。</li>
+<li>构造时间步末工作场：<code>zh = ph + pdhfi*ptimestep</code>、<code>zu = pu + pdufi*ptimestep</code>、<code>zv = pv + pdvfi*ptimestep</code>、<code>zq = pq + pdqfi*ptimestep</code>，然后复制到可调整工作副本 <code>zh2/zu2/zv2/zq2</code>。</li>
+<li>如果存在 CO2 tracer，按 <code>zhc = zh2*(A*zq2(:,:,ico2)+B)</code> 构造稳定度检测变量；否则 <code>zhc=zh2</code>。</li>
+<li>从第 2 层到顶层寻找 <code>zhc(l) &lt; zhc(l-1)</code> 且 <code>l &gt; lmax_th(ig)</code> 的格点，把这些格点加入 <code>jadrs</code> 调整列表。</li>
+<li>对每个不稳定格点，从触发层向下和向上扩展不稳定层段 <code>[l1,l2]</code>。扩展时用 <code>sdsig=ppopsk*dsig</code> 权重更新层段平均焓 <code>zhm</code>，如果有 CO2 tracer，还用 <code>dsig</code> 权重更新层段平均 CO2 混合比 <code>zqco2m</code> 并重算 <code>zhmc=zhm*(A*zqco2m+B)</code>。</li>
+<li>对最终层段，设置 <code>zh2(i,l)=zhm</code>；用 <code>dsig</code> 权重计算水平风平均 <code>zum/zvm</code> 和每个 tracer 平均 <code>zqm(iq)</code>。</li>
+<li>计算调整强度 <code>zalpha</code>。源码先累积层段中 <code>zhc</code> 与平均焓的偏差，再除以 <code>zhm*(sig(l1)-sig(l2+1))</code>；<code>zalpha</code> 被限制在 <code>1.e-4</code> 到 <code>1</code>。</li>
+<li>对风场使用松弛更新：<code>zu2 += zalpha*(zum-zu2)</code>，<code>zv2 += zalpha*(zvm-zv2)</code>。对 tracer，当前源码直接设置 <code>zq2(i,l,iq)=zqm(iq)</code>，注释掉了按 <code>zalpha</code> 松弛的写法。</li>
+<li>如果有 CO2 tracer，更新层段内 <code>zhc</code>，然后继续向上寻找下一个不稳定层段。</li>
+<li>对 <code>water</code> 路径，积分 <code>zq2(h2o_vap)-zq(h2o_vap)</code> 的柱质量变化；若净损失低于阈值，打印调试信息并中止。</li>
+<li>例程结束前把工作副本与调用前工作场的差除以 <code>ptimestep</code>，得到 <code>pdhadj/pduadj/pdvadj/pdqadj</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>convadj:
+    if firstcall:
+        ico2 = index where noms(iq) == &quot;co2&quot;, or 0
+        if ico2 != 0:
+            A = 1/m_co2 - 1/m_noco2
+            B = 1/m_noco2
+        firstcall = false
+
+    zh, zu, zv = input state + incoming tendencies * ptimestep
+    zq = pq + pdqfi * ptimestep
+    zh2, zu2, zv2, zq2 = working copies
+
+    if ico2 != 0:
+        zhc = zh2 * (A*zq2(:,:,ico2) + B)
+    else:
+        zhc = zh2
+
+    mark columns where any layer has zhc(l) &lt; zhc(l-1)
+        and l &gt; lmax_th(ig)
+
+    for each marked column:
+        scan upward
+        when an unstable adjacent pair is found:
+            expand the mixed layer downward/upward while surrounding
+            layers remain unstable relative to the mixed mean
+
+            compute mean enthalpy, wind, and tracer mixing ratios
+            set zh2 to mean enthalpy in the mixed layer
+            relax wind toward its layer mean by zalpha
+            set all tracers in the mixed layer to zqm
+
+            if ico2 exists:
+                recompute zhc for the adjusted layer
+
+        if water:
+            integrate h2o_vap column change
+            abort if the column loses more than the threshold
+
+    output tendencies = (adjusted_working_state - pre_adjustment_working_state)
+                        / ptimestep</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>主物理时间步</td>
+<td><code>physiq</code> 在第 7 段干对流调整中根据 <code>calladj</code> 调用本例程</td>
+</tr>
+<tr>
+<td>对流</td>
+<td>对不稳定层段做干对流混合，返回风、热力变量和 tracer tendency</td>
+</tr>
+<tr>
+<td>CO2 循环 / 大气组成</td>
+<td>如果 tracer 表含 <code>"co2"</code>，对流触发变量包含平均分子量变化</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td>当 <code>water</code> 为真时，对 <code>h2o_vap</code> 调整结果做柱质量守恒检查</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran <code>.F</code>，但文件内部定义的是 <code>convadj_mod</code> 模块。</li>
+<li><code>ico2/A/B/firstcall</code> 使用 <code>SAVE + THREADPRIVATE</code>，每个 OpenMP 线程都会独立执行一次 CO2 tracer 扫描。</li>
+<li><code>lmax_th</code> 是对流触发的硬门槛之一，低于或等于该层号的层间不稳定不会触发本例程调整。</li>
+<li>风场按 <code>zalpha</code> 部分松弛到层段均值；tracer 场则直接替换为层段平均值。源码注释说明旧的部分松弛写法已被改成直接守恒混合，以避免相邻层段连续触发时破坏 tracer 守恒。</li>
+<li><code>zalpha</code> 的 CO2 分支表达式为 <code>ABS(zhc(i,l)/(A+B*zqco2m) - zhm)</code>。待确认：这与前面 <code>zhc=zh*(A*q+B)</code> 的形式不完全对称；本页按源码字面记录，不推断其物理意图。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>输入状态应先加上调用前已累积的 tendency；本例程不是从 <code>pu/pv/ph/pq</code> 原值直接判断稳定度。</li>
+<li>若存在 CO2 tracer，必须按 tracer 名称 <code>"co2"</code> 定位，不是按固定 tracer 序号。</li>
+<li><code>lmax_th</code> 会抑制较低层的干调整；复现实验中同一热力剖面在不同 <code>lmax_th</code> 下可能有不同结果。</li>
+<li>tracer 混合使用 <code>dsig</code> 权重，焓平均使用 <code>sdsig=ppopsk*dsig</code> 权重；不要把二者混成同一种权重。</li>
+<li>水汽守恒检查只在 <code>water=true</code> 时执行，且检查对象是 <code>igcm_h2o_vap</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>zalpha</code> 的 CO2 分支中 <code>zhc/(A+B*zqco2m)</code> 是否为有意写法；源码没有解释，本页按字面记录。</li>
+<li><code>water</code> 路径只在 <code>cadjncons &lt; -1.e-6</code> 时中止；正的净变化或较小负值是否可接受，需要由物理方案容差确认。</li>
+<li><code>firstcall</code> 缓存意味着运行中若动态改变 tracer 名称或顺序，本例程不会重新扫描；常规流程通常在初始化后固定 tracer 表。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars/index</a>：<code>phymars</code> 目录总览。</li>
+<li><a href="tracer_mod.html">tracer_mod</a>：提供 <code>noms</code> 和 <code>igcm_h2o_vap</code>。</li>
+<li><a href="comcstfi_h.html">comcstfi_h</a>：提供重力加速度 <code>g</code>。</li>
+<li><a href="../../routines/physiq-water-cycle-callpoints.html">physiq-water-cycle-callpoints</a>：同一 <code>physiq</code> 主流程中的水循环调用点。</li>
+<li><a href="physiq_mod.html">physiq_mod.md</a>：主物理时间步调度总入口。</li>
+<li><a href="callkeys_mod.html">callkeys_mod.F90</a> - 包含 <code>calladj</code> 和 <code>water</code> 等运行开关。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

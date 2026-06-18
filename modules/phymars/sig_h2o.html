@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>sig_h2o - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/sig_h2o.md</span>
+    </nav>
+    <article class="content">
+<h1 id="sig_h2of90">sig_h2o.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\sig_h2o.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>sig_h2o.F90</code> 定义 <code>sig_h2o_mod</code> 模块和 <code>sig_h2o(t)</code> 函数，用一个温度线性公式返回水冰与空气之间的表面张力。它本身不更新云微物理状态，而是被水冰云成核与冰晶增长公式读取：<code>nuclea</code> 用它计算临界胚胎半径 <code>rstar</code> 和形成能垒 <code>fistar</code>，<code>improvedclouds</code> 用它计算 Kelvin 平衡饱和修正 <code>seq</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sig_h2o_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>水冰表面张力辅助模块。</td>
+</tr>
+<tr>
+<td><code>sig_h2o</code></td>
+<td>double precision function</td>
+<td>8</td>
+<td>按温度 <code>t</code> 返回水冰-空气表面张力。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>-</td>
+<td>-</td>
+<td>本文件没有 <code>use</code> 依赖。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 来源</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dble</code></td>
+<td>Fortran intrinsic</td>
+<td>16</td>
+<td>把 real 输入温度转换为双精度后进入线性公式。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="下游调用点">下游调用点</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>源码位置</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nuclea.F</code></td>
+<td><code>use sig_h2o_mod</code> 在 12 行；调用在 119、141 行</td>
+<td>在水冰异质成核率计算中，表面张力进入临界胚胎半径 <code>rstar = 2*sig_h2o(temp)*vo1/(rgp*temp*log(sat))</code> 和形成能垒 <code>fistar</code>。</td>
+</tr>
+<tr>
+<td><code>improvedclouds_mod.F90</code></td>
+<td><code>use sig_h2o_mod</code> 在 21 行；调用在 324 行</td>
+<td>在冰晶增长分支中计算 Kelvin 修正 <code>seq = exp(2*sig_h2o(T)*mh2o/(rho_ice*rgp*T*max(rice,1.e-7)))</code>，再进入隐式 <code>dMice</code> 公式。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>t</code></td>
+<td>调用方</td>
+<td><code>real</code> scalar</td>
+<td>K</td>
+<td>水冰微物理当前位置的温度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sig_h2o</code></td>
+<td>调用方</td>
+<td><code>double precision</code> scalar</td>
+<td>N m-1</td>
+<td>水冰与空气之间的表面张力。源码注释写作 <code>N.m</code>，公式量纲按表面张力应理解为 <code>N/m</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="公式">公式</h2>
+<pre class="text"><code>sig_h2o(t) = (141. - 0.15*dble(t)) * 1.e-3</code></pre>
+<p>在常见火星水冰云温度范围内，该公式随温度升高线性降低表面张力。例如 <code>t=180 K</code> 时结果约为 <code>0.114 N/m</code>，<code>t=220 K</code> 时结果约为 <code>0.108 N/m</code>。</p>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>模块没有 <code>SAVE</code> 状态、分配数组、文件 I/O 或标准输出。</li>
+<li>函数只依赖输入温度，确定性返回标量。</li>
+<li>没有温度范围检查；极端高温下线性公式可能给出非物理结果。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>接收单精度实数温度 <code>t</code>。</li>
+<li>用 <code>dble(t)</code> 转为双精度。</li>
+<li>代入 <code>(141 - 0.15*T)*1e-3</code>。</li>
+<li>以双精度函数值返回。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>function sig_h2o(t):
+    return (141.0 - 0.15 * double(t)) * 1.0e-3</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>水冰异质成核</td>
+<td><code>nuclea</code> 通过 <code>sig_h2o(temp)</code> 改变临界胚胎半径和成核能垒，进而改变 dust 到 CCN 的激活率。</td>
+</tr>
+<tr>
+<td>水冰晶增长 / 升华</td>
+<td><code>improvedclouds</code> 通过 <code>seq</code> 的 Kelvin 修正改变小冰粒平衡饱和，影响 <code>dMice</code> 的正负和大小。</td>
+</tr>
+<tr>
+<td>水循环微物理可复现性</td>
+<td>该函数是成核和增长两段共享的表面张力入口，改公式会同时影响成核率和冰晶增长。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>文件非常小，只包含一个模块和一个函数。</li>
+<li>输出是双精度，但输入温度是单精度；调用方在公式外部仍多为 real 微物理状态。</li>
+<li>源码没有引用经验公式出处，页面按源码字面记录，不外推物理来源。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现 <code>nuclea</code> 或 <code>improvedclouds</code> 时应调用同一个 <code>sig_h2o(t)</code>，不要在两个下游公式中分别硬编码不同表面张力。</li>
+<li><code>sig_h2o</code> 不检查 <code>t</code> 的合理范围；若诊断高温或负温异常，应先检查上游温度场。</li>
+<li>单位注释写作 <code>N.m</code>，但下游公式按表面张力使用；复现文档中应按 <code>N/m</code> 处理。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>源码未注明该线性表面张力公式的文献来源或有效温度范围；如需高温、低温或与实验数据对比，应另行追溯公式出处。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a>：本模块所属目录。</li>
+<li><a href="nuclea.html">nuclea</a>：水冰异质成核率计算，使用 <code>sig_h2o</code> 构造 <code>rstar</code> 与 <code>fistar</code>。</li>
+<li><a href="improvedclouds_mod.html">improvedclouds_mod</a>：完整水冰云微物理方案，使用 <code>sig_h2o</code> 计算 Kelvin 修正 <code>seq</code>。</li>
+<li><a href="growthrate.html">growthrate</a>：与 <code>seq</code> 一起进入冰晶增长阻力公式的增长阻力例程。</li>
+<li><a href="../../themes/water-cycle.html">water-cycle</a>：水循环主题页。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

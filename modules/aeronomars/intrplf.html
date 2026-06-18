@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>intrplf - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/intrplf.md</span>
+    </nav>
+    <article class="content">
+<h1 id="intrplff">intrplf.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\intrplf.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>intrplf.F</code> 定义 <code>intrplf_mod</code>，提供例程 <code>intrplf</code>：一维线性插值器。给定已知数据 <code>(xd,yd)</code>（长度 <code>nd</code>），求查询点 <code>x</code> 处的 <code>y=f(x)</code>；超出 <code>xd</code> 范围时取端点常数外推。支持 <code>xd</code> 升序或降序排列。该例程自包含（无 <code>use</code> 依赖），由 <code>inichim_newstart</code> 在化学初始场构造中插值成分廓线。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>intrplf_mod</code></td>
+<td>module</td>
+<td>1（<code>END MODULE</code> 51）</td>
+<td>包装一维插值例程的模块</td>
+</tr>
+<tr>
+<td><code>intrplf</code></td>
+<td>subroutine</td>
+<td>8（<code>END SUBROUTINE</code> 49）</td>
+<td>一维线性插值，端点常数外推</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>自包含，无 <code>use</code> 依赖</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无外部例程</td>
+<td>-</td>
+<td>-</td>
+<td>仅线性搜索与算术运算</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>查询点</td>
+</tr>
+<tr>
+<td><code>xd(nd)</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>已知自变量数组（可升序或降序）</td>
+</tr>
+<tr>
+<td><code>yd(nd)</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>已知函数值数组</td>
+</tr>
+<tr>
+<td><code>nd</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>数据点数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>y</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>插值结果；<code>x</code> 超出范围时为端点常数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>无模块级共享变量、无 <code>SAVE/THREADPRIVATE</code>、无文件 I/O、无诊断打印、无 <code>abort</code>。</li>
+<li>哑元均有 <code>intent</code>（<code>x/xd/yd/nd</code> 为 <code>in</code>，<code>y</code> 为 <code>out</code>）。</li>
+<li>局部 <code>y_undefined=1.e20</code>（第 27 行）赋值后<strong>未被使用</strong>（见待确认）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>y=0.</code>（第 29 行）。</li>
+<li><strong>下界外推</strong>（第 30–32 行）：若 <code>x ≤ xd(1)</code> 且 <code>x ≤ xd(nd)</code>（低于两端）：升序取 <code>y=yd(1)</code>；降序取 <code>y=yd(nd)</code>。</li>
+<li><strong>上界外推</strong>（第 33–35 行）：若 <code>x ≥ xd(1)</code> 且 <code>x ≥ xd(nd)</code>（高于两端）：升序取 <code>y=yd(nd)</code>；降序取 <code>y=yd(1)</code>。</li>
+<li><strong>区间内线性插值</strong>（第 37–44 行）：<code>do i=1,nd-1</code>，找到包含 <code>x</code> 的区间（同时匹配升/降序方向）：<code>y=yd(i)+(x-xd(i))*(yd(i+1)-yd(i))/(xd(i+1)-xd(i))</code>，<code>goto 99</code> 退出。</li>
+<li><code>99 continue</code>（第 47 行）。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>intrplf(x,y,xd,yd,nd):
+  y = 0.
+  if x &lt;= xd(1) and x &lt;= xd(nd):        # below range
+    if xd(1) &lt;  xd(nd): y = yd(1)
+    if xd(1) &gt;= xd(nd): y = yd(nd)
+  else if x &gt;= xd(1) and x &gt;= xd(nd):   # above range
+    if xd(1) &lt;  xd(nd): y = yd(nd)
+    if xd(1) &gt;= xd(nd): y = yd(1)
+  else:                                  # within range
+    for i = 1..nd-1:
+      if x in [xd(i), xd(i+1)] (either direction):
+        y = yd(i) + (x-xd(i))*(yd(i+1)-yd(i))/(xd(i+1)-xd(i))
+        break</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>化学初始化</td>
+<td><code>inichim_newstart</code> 用其把初始成分体积混合比从参考气压网格插值到 GCM 气压层</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 <code>.F</code>，续行用第 6 列 <code>&amp;</code>。</li>
+<li>同时支持 <code>xd</code> 升序与降序（用 <code>(x.ge.xd(i)).and.(x.lt.xd(i+1))</code> 或反向区间判定）。</li>
+<li>边界外用<strong>常数外推</strong>（取邻近端点值），而非线性外推。</li>
+<li>线性搜索 O(nd)，无二分；<code>nd</code> 较大时效率低。</li>
+<li>局部 <code>y_undefined=1.e20</code> 赋值后未用（疑似遗留）。</li>
+<li>行 31–36 部分行尾注释（<code>! yd(1)</code>）与实际赋值不符，为陈旧拷贝注释。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>超出 <code>xd</code> 范围时返回端点常数，不外推斜率——复现边界行为时注意。</li>
+<li><code>xd</code> 可升可降，但须单调；非单调 <code>xd</code> 会使搜索取到第一个匹配区间，结果不确定。</li>
+<li>线性搜索，<code>nd</code> 大时性能差（化学初始化中 <code>nd</code> 为参考网格层数，通常不大）。</li>
+<li><code>goto 99</code> 控制流为固定格式 Fortran 风格。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>y_undefined=1.e20</code> 设值后未用，是否曾用于未定义标记（当前不影响结果）。</li>
+<li>行 31–36 陈旧注释是否反映早期不同实现。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览，本文件在其“加热与传导”分类下（实为插值工具）。</li>
+<li><a href="inichim_newstart.html">inichim_newstart</a>：调用方文件页，用 <code>intrplf</code> 把 <code>atmosfera_LMD_*</code> 初始成分廓线按 log pressure 插值到 GCM 层。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

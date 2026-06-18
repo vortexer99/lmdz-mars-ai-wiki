@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>z2sig-config - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a class="active" href="project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>architecture/z2sig-config.md</span>
+    </nav>
+    <article class="content">
+<h1 id="z2sigdef">z2sig.def</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\deftank\z2sig.def.MCD6  (74 行, 当前标准)
+LMDZ.MARS\deftank\z2sig.def.MCD5  (51 行, 旧版)
+LMDZ.MARS\deftank\z2sig.def.hr    (178 行, 高分辨率)</code></pre>
+<p>运行时由 <code>makegcm</code> 编译脚本或 GCM 初始化流程复制为工作目录中的 <code>z2sig.def</code>。</p>
+<h2 id="类型">类型</h2>
+<p>配置——定义大气垂直网格。</p>
+<h2 id="作用">作用</h2>
+<p>源码依据（<code>doc/io.tex:259-273</code>）：<code>z2sig.def</code> 定义用户期望的**伪高度（pseudo-altitude, km）**层分布，供编译脚本或初始化例程转换为 sigma/hybrid-sigma 坐标的界面与中层位置。</p>
+<p>源码依据（<code>doc/io.tex:260-265</code>）：</p>
+<blockquote>
+<p>The <code>Z2sig.def</code> file contains the pseudo-altitudes (in km) at which the user wants to set the vertical levels. Note that levels should be unevenly spread, with a higher resolution near the surface in order to capture the rapid variations of variables there.</p>
+</blockquote>
+<p>核心作用：决定 GCM 的垂直分辨率和顶层高度，直接影响所有物理过程（辐射传输、沉降、边界层、热层等）的垂直离散精度。</p>
+<h2 id="3-个变体对比">3 个变体对比</h2>
+<table>
+<thead>
+<tr>
+<th>变体</th>
+<th>行数</th>
+<th>nlayer (层数)</th>
+<th>顶层高度</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>z2sig.def.MCD5</code></td>
+<td>51</td>
+<td>~48</td>
+<td>~250 km</td>
+<td>GCM5 含化学/热层/电离层（源码依据：<code>deftank/README:20-22</code>）</td>
+</tr>
+<tr>
+<td><code>z2sig.def.MCD6</code></td>
+<td>74</td>
+<td>54 (水/尘埃) 或 73 (含化学/热层)</td>
+<td>~250 km</td>
+<td>GCM6 当前标准（源码依据：<code>deftank/README:17-19</code>）</td>
+</tr>
+<tr>
+<td><code>z2sig.def.hr</code></td>
+<td>178</td>
+<td>~176</td>
+<td>~250 km</td>
+<td>高分辨率研究用（源码依据：<code>deftank/README:28</code>）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="文件格式">文件格式</h2>
+<h3 id="第-1-行参考尺度高度">第 1 行：参考尺度高度</h3>
+<pre class="text"><code>10.00000     H: atmospheric scale height (km) (used as a reference only)</code></pre>
+<p>源码依据（MCD6 文件第 1 行）：<code>H = 10.0 km</code> 仅供编译时参考，不参与运行时计算。</p>
+<h3 id="后续行界面高度km">后续行：界面高度（km）</h3>
+<p><strong>单列格式</strong>（MCD5）：每行一个累积界面高度（km）</p>
+<pre class="text"><code>0.0020736
+0.015735
+...
+249.5</code></pre>
+<p><strong>双列格式</strong>（MCD6, hr）：第一列为累积界面高度（km），第二列为层厚（km，推断）</p>
+<pre class="text"><code>  2.0736000E-03  2.0736000E-03
+  1.5735000E-02  1.3661400E-02
+  ...
+  250.0856       7.000000</code></pre>
+<p>推断：第二列 = 本层高度 - 上层高度，即层厚（dZ）。MCD6 第 1 行的第二列与第一列相同（自洽），后续行的差值关系与数据吻合。</p>
+<h3 id="垂直结构特征mcd6">垂直结构特征（MCD6）</h3>
+<ul>
+<li><strong>近地表（0-7 km）</strong>：层厚从 0.002 km 指数增长，分辨率最高——捕捉边界层温度/风速/尘埃浓度的剧烈变化。</li>
+<li><strong>中层（7-50 km）</strong>：层厚线性增长 0.34-2.9 km，覆盖对流层/平流层。</li>
+<li><strong>高层（50-85 km）</strong>：层厚继续增长 3-7 km，覆盖中间层。</li>
+<li><strong>顶层（&gt;85 km）</strong>：层厚固定为 7 km，覆盖热层/外逸层至 250 km（源码依据：第 51-74 行第二列全部为 7.0）。</li>
+</ul>
+<h2 id="关键字段">关键字段</h2>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>示例值</th>
+<th>含义</th>
+<th>影响模块</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>第 1 行 <code>H</code></td>
+<td>10.0 km</td>
+<td>大气尺度高度（参考，不计算）</td>
+<td>编译工具</td>
+</tr>
+<tr>
+<td>z(k+1) - z(k)</td>
+<td>0.002-7 km</td>
+<td>第 k 层厚度</td>
+<td>全部物理模块（垂直差分精度）</td>
+</tr>
+<tr>
+<td>z(nlayer+1)</td>
+<td>250 km</td>
+<td>顶层高度</td>
+<td><code>aeronomars</code> 高层大气模块</td>
+</tr>
+<tr>
+<td>nlayer</td>
+<td>54 / 73 / 176</td>
+<td>垂直层数</td>
+<td>编译时确定数组维度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="被读取的位置">被读取的位置</h2>
+<table>
+<thead>
+<tr>
+<th>读取例程</th>
+<th>文件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>testphys1d</code></td>
+<td><code>libf/phymars/dyn1d/testphys1d.F90:35-37</code></td>
+<td>1D 主程序注释要求运行目录提供描述 sigma 层的文件，例如 <code>z2sig.def</code></td>
+</tr>
+<tr>
+<td><code>disvert_noterre</code></td>
+<td><code>libf/phymars/dyn1d/disvert_noterre.F</code> / LMDZ.COMMON 垂直离散路径</td>
+<td>1D 初始化经 <code>init_testphys1d_mod.F90:334-337</code> 调用，生成 <code>ap/bp/aps/bps/presnivs/pseudoalt</code>；详见 <a href="../modules/phymars/dyn1d/disvert_noterre.html">disvert_noterre</a></td>
+</tr>
+<tr>
+<td>编译维度链</td>
+<td><code>makegcm -d &lt;nlayer&gt;</code> 与运行目录 <code>z2sig.def</code></td>
+<td><code>z2sig.def</code> 行数必须与编译层数一致；3D 路径由 LMDZ.COMMON 构建/动力初始化链处理</td>
+</tr>
+</tbody>
+</table>
+<h2 id="影响的计算流程">影响的计算流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>尘埃循环</td>
+<td>沉降通量 <code>vlz_fi</code>、凝并 <code>dust_coagulation</code>、火箭式尘暴 <code>rocketduststorm</code> 全部依赖垂直层分布</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td>云微物理、水汽凝结/蒸发、HDO 同位素沉降的垂直分辨率受控于 nlayer</td>
+</tr>
+<tr>
+<td>辐射计算</td>
+<td><code>callradite</code> 的辐射传输积分在层界面上执行——层厚直接影响光学厚度积分精度</td>
+</tr>
+<tr>
+<td>热层/化学</td>
+<td><code>aeronomars</code> 模块覆盖 80-250 km，需要 z2sig.def 提供足够高的顶层（≥120 km）和合理间距</td>
+</tr>
+<tr>
+<td>重力波拖曳</td>
+<td><code>sugwd.F90</code> 等模块的垂直传播依赖 sigma 坐标系</td>
+</tr>
+<tr>
+<td>边界层</td>
+<td>近地表高分辨率（0.002 km 首层）是捕捉火星日变化/尘埃抬升的关键</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要求">复现要求</h2>
+<ul>
+<li><strong>编译时 nlayer 必须与 z2sig.def 行数一致</strong>（源码依据：<code>changelog.txt:1485</code> "using the updated z2sig.def with +1 vertical level during the compilation"）。改变 nlayer 必须重新编译。</li>
+<li><strong>GCM6 标准配置</strong>（源码依据：<code>deftank/README:17-19,26-28</code>）：
+<ul>
+<li>仅水/尘埃循环：用前 61 行数据（54 层，至 ~90 km）</li>
+<li>含化学/热层：用完整 73 行（73 层，至 ~250 km）</li>
+</ul></li>
+<li><strong>顶层高度 ≥120 km</strong> 才能触发高层大气模块（<code>aeronomars</code>），&lt;120 km 时高层模块可能行为异常。</li>
+<li><strong>近地表层厚 0.002 km</strong> 不可改为更大值，否则边界层/地表热惯量计算精度下降。</li>
+<li><strong>顶层间距 7 km 是硬上限</strong>（源码依据：MCD6 第 51 行之后全部为 7.0）——超过此值会损害高层辐射传输精度。</li>
+<li><strong>复现风险</strong>：MCD5 与 MCD6 网格不兼容——<code>start.nc</code> 初始场文件不能跨版本使用，必须用 <code>zrecast.F90</code> 重插值（源码依据：<code>deftank/README:20</code>）。</li>
+<li><strong>复现风险</strong>：<code>z2sig.def.hr</code> 的 176 层需要重新编译且时间步需大幅减小（CFL 条件），仅用于高分辨率研究。</li>
+</ul>
+<h2 id="已核验结论与运行边界">已核验结论与运行边界</h2>
+<ul>
+<li>1D 初始化路径已定位到 <code>init_testphys1d_mod</code> 调用 <code>disvert_noterre</code>，后者负责生成垂直坐标状态；3D 的完整读取链位于 LMDZ.COMMON/构建系统边界内，本仓库页面按已可见入口记录。</li>
+<li>MCD6 第二列与相邻高度差逐行一致，可作为层厚 <code>dZ</code> 使用；页面不再把它列为未处理事项。</li>
+<li>"用前 61 行得 54 层，用完整 73 行得 73 层"的机制来自编译层数选择和运行目录中实际提供的 <code>z2sig.def</code> 截断版本；复现时以 <code>makegcm -d &lt;nlayer&gt;</code>、<code>start*.nc</code> 维度和运行目录文件三者一致为准。</li>
+<li>第 1 行 <code>H = 10.0 km</code> 在样例文件注释中标明为 reference only；本页按参考尺度高度处理，不把它作为运行时公式输入。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../architecture/project-structure.html">project-structure.md</a>：项目结构中 <code>deftank/</code> 目录说明。</li>
+<li><a href="../architecture/config-system.html">config-system.md</a>：def 文件配置体系总览。</li>
+<li><a href="../themes/dust-cycle.html">dust-cycle.md</a>：尘埃循环主题页（依赖垂直网格）。</li>
+<li><a href="testphys1d-config.html">testphys1d-config.md</a>：1D 测试配置的 1D 版 <code>z2sig.def</code> 说明。</li>
+<li><a href="../modules/util/zrecast.html">zrecast.md</a>：重插值工具（跨版本垂直网格转换）。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

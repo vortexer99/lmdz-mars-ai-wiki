@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pbl_parameters_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/pbl_parameters_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="pbl_parameters_modf90">pbl_parameters_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\pbl_parameters_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>pbl_parameters_mod.F90</code> 是行星边界层（PBL）诊断参数计算模块。它从温度、风场和热羽流输出中计算摩擦速度 <code>ustar</code>、摩擦温度 <code>tstar</code> 和 Monin-Obukhov 长度，并基于 Monin-Obukhov 理论在地表层内插值位温和风速。这些是<strong>纯诊断量</strong>，不影响模型的物理倾向或时间推进。</p>
+<p>参考文献：Colaïtis et al. (2013), J. Geophys. Res. Planets, 118, 1468–1487, doi:10.1002/jgre.20104。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pbl_parameters_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>包裹 <code>pbl_parameters</code> 子程序的模块</td>
+</tr>
+<tr>
+<td><code>pbl_parameters</code></td>
+<td>subroutine</td>
+<td>21</td>
+<td>PBL 诊断参数计算主例程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td>（全导入）</td>
+<td>物理常数（<code>rcp</code>、<code>pi</code> 等）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>write_output_mod</code></td>
+<td><code>write_output</code></td>
+<td>诊断字段输出（<code>#ifndef MESOSCALE</code> 条件编译）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>turb_mod</code></td>
+<td><code>turb_resolved</code></td>
+<td>判断湍流是否被显式解析（注释行 226，未实际使用）</td>
+<td>行 226 被注释掉</td>
+</tr>
+<tr>
+<td><code>lmdz_atke_turbulence_ini</code></td>
+<td><code>smmin</code>, <code>ric</code>, <code>cinf</code>, <code>cepsilon</code>, <code>pr_slope</code>, <code>pr_asym</code>, <code>pr_neut</code>, <code>ri0</code>, <code>ri1</code>, <code>cn</code>, <code>rpi</code></td>
+<td>ATKE 湍流方案参数（<code>callatke=.true.</code> 时使用）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>watersat_mod</code></td>
+<td><code>watersat</code></td>
+<td>水汽饱和混合比计算（水浮力修正时使用）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>paleoclimate_mod</code></td>
+<td><code>include_waterbuoyancy</code></td>
+<td>控制是否考虑水汽浮力效应</td>
+<td></td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>calladj</code>, <code>calltherm</code>, <code>callatke</code></td>
+<td>物理过程开关</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>watersat</code></td>
+<td><code>watersat_mod</code></td>
+<td>行 208</td>
+<td>计算地表饱和混合比，用于水浮力修正</td>
+</tr>
+<tr>
+<td><code>write_output</code></td>
+<td><code>write_output_mod</code></td>
+<td>行 389–400</td>
+<td>输出诊断字段到 NetCDF（非 MESOSCALE 模式）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方 <code>physiq</code></td>
+<td>integer</td>
+<td>—</td>
+<td>水平网格点数</td>
+</tr>
+<tr>
+<td><code>nlay</code></td>
+<td>调用方 <code>physiq</code></td>
+<td>integer</td>
+<td>—</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>ps(ngrid)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>Pa</td>
+<td>地表气压</td>
+</tr>
+<tr>
+<td><code>pplay(ngrid,nlay)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>Pa</td>
+<td>各层气压</td>
+</tr>
+<tr>
+<td><code>pz0(ngrid)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>m</td>
+<td>地表粗糙度长度</td>
+</tr>
+<tr>
+<td><code>pg</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>m/s²</td>
+<td>重力加速度</td>
+</tr>
+<tr>
+<td><code>zzlay(ngrid,nlay)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>m</td>
+<td>各层中间高度</td>
+</tr>
+<tr>
+<td><code>zzlev(ngrid,nlay+1)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>m</td>
+<td>各层界面高度</td>
+</tr>
+<tr>
+<td><code>pu(ngrid,nlay)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>m/s</td>
+<td>u 风速分量</td>
+</tr>
+<tr>
+<td><code>pv(ngrid,nlay)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>m/s</td>
+<td>v 风速分量</td>
+</tr>
+<tr>
+<td><code>wstar_in(ngrid)</code></td>
+<td><code>physiq</code>（热羽流）</td>
+<td>real</td>
+<td>m/s</td>
+<td>自由对流速度</td>
+</tr>
+<tr>
+<td><code>hfmax(ngrid)</code></td>
+<td><code>physiq</code>（热羽流）</td>
+<td>real</td>
+<td>W/m²</td>
+<td>热羽流最大垂直湍流热通量</td>
+</tr>
+<tr>
+<td><code>zmax(ngrid)</code></td>
+<td><code>physiq</code>（热羽流）</td>
+<td>real</td>
+<td>m</td>
+<td>PBL 高度（热羽流达到的高度）</td>
+</tr>
+<tr>
+<td><code>tke(ngrid,nlay+1)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>J/kg</td>
+<td>湍流动能</td>
+</tr>
+<tr>
+<td><code>pts(ngrid)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>K</td>
+<td>地表温度</td>
+</tr>
+<tr>
+<td><code>ph(ngrid,nlay)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>K</td>
+<td>位温 T*(p/ps)^κ</td>
+</tr>
+<tr>
+<td><code>pqvap(ngrid,nlay)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>kg/kg</td>
+<td>水汽混合比</td>
+</tr>
+<tr>
+<td><code>pqsurf(ngrid)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>kg/m²</td>
+<td>地表水冰霜量</td>
+</tr>
+<tr>
+<td><code>mumean(ngrid)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>kg/mol</td>
+<td>大气平均分子量</td>
+</tr>
+<tr>
+<td><code>z_out(n_out)</code></td>
+<td><code>physiq</code>（硬编码 <code>[3.,2.,1.,0.5,0.1]</code>）</td>
+<td>real</td>
+<td>m</td>
+<td>地表层内插值高度</td>
+</tr>
+<tr>
+<td><code>n_out</code></td>
+<td><code>physiq</code>（硬编码 5）</td>
+<td>integer</td>
+<td>—</td>
+<td>插值高度数量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>T_out(ngrid,n_out)</code></td>
+<td><code>physiq</code> → <code>write_output</code></td>
+<td>real</td>
+<td>K</td>
+<td>插值后的位温</td>
+</tr>
+<tr>
+<td><code>u_out(ngrid,n_out)</code></td>
+<td><code>physiq</code> → <code>write_output</code></td>
+<td>real</td>
+<td>m/s</td>
+<td>插值后的风速</td>
+</tr>
+<tr>
+<td><code>ustar(ngrid)</code></td>
+<td><code>physiq</code> → <code>write_output</code></td>
+<td>real</td>
+<td>m/s</td>
+<td>摩擦速度</td>
+</tr>
+<tr>
+<td><code>tstar(ngrid)</code></td>
+<td><code>physiq</code> → <code>write_output</code></td>
+<td>real</td>
+<td>K</td>
+<td>摩擦温度</td>
+</tr>
+<tr>
+<td><code>vhf(ngrid)</code></td>
+<td><code>physiq</code> → <code>write_output</code></td>
+<td>real</td>
+<td>W/m²</td>
+<td>垂直湍流热通量（Spiga et al. 2010）</td>
+</tr>
+<tr>
+<td><code>vvv(ngrid)</code></td>
+<td><code>physiq</code> → <code>write_output</code></td>
+<td>real</td>
+<td>m/s</td>
+<td>垂直速度方差（Spiga et al. 2010）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong><code>karman</code>（=0.41）和 <code>nu</code>（=0.001）</strong>：<code>DATA</code> 初始化 + <code>SAVE</code> + <code>!$OMP THREADPRIVATE</code>（行 111–115），每个 OpenMP 线程独立副本。</li>
+<li><strong>诊断输出</strong>：非 MESOSCALE 模式下，通过 <code>write_output</code> 输出 10 个诊断字段（<code>tke_pbl</code>、<code>rib_pbl</code>、<code>cdn_pbl</code>、<code>fm_pbl</code>、<code>uv</code>、<code>uvtrue</code>、<code>chn_pbl</code>、<code>fh_pbl</code>、<code>B_pbl</code>、<code>zot_pbl</code>、<code>zz1</code>），以及 <code>physiq</code> 中追加的 <code>T_out_*</code>、<code>u_out_*</code>、<code>u_star</code>、<code>teta_star</code>、<code>vvv</code>、<code>vhf</code>。</li>
+<li><strong>不影响物理倾向</strong>：本模块是纯诊断，不修改任何物理状态变量。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="part-irichardsonreynolds热粗糙度稳定度系数行-162290">Part I：Richardson/Reynolds/热粗糙度/稳定度系数（行 162–290）</h3>
+<ol type="1">
+<li><strong>初始化</strong>（行 170–184）：清零 <code>ustar</code>、<code>tstar</code>、<code>reynolds</code>、<code>rib</code>、<code>pcdv</code>、<code>pcdh</code>；<code>pz0tcomp</code> 初始为 <code>0.1*pz0</code>；迭代参数 <code>itemax=10</code>、<code>tol_iter=0.01</code>。</li>
+<li><strong>稳定度函数参数</strong>（行 188–194）：Dyer 参数集（<code>bm=bh=16</code>、<code>alphah=1</code>、<code>betam=betah=5</code>）；<code>ric_colaitis = betah/(betam²)</code>。</li>
+<li><strong>ATKE vs Colaïtis 切换</strong>（行 196–200）：<code>callatke=.true.</code> 时用 ATKE 的 <code>ric</code>，否则用 <code>ric_colaitis</code>。</li>
+<li><strong>水浮力修正</strong>（行 204–217）：<code>include_waterbuoyancy=.true.</code> 时计算虚拟温度 <code>tsurf_v</code> 和 <code>temp_v</code>，考虑水汽浮力效应；地表有霜时用 <code>watersat</code> 计算饱和混合比。</li>
+<li><strong>迭代求 z0t</strong>（行 219–290）：对每个网格点：
+<ul>
+<li>计算中性拖曳系数 <code>cdn = (karman/ln(z1/z0))²</code></li>
+<li>近地表风速 <code>zu2 = u²+v² + (ln(1+0.7w*+2.3w*²))²</code>（含浮力修正）</li>
+<li><strong>迭代循环</strong>（最多 10 次，收敛阈值 <code>0.01*z0</code>）：
+<ul>
+<li>计算中性热拖曳系数 <code>chn</code></li>
+<li>计算 Bulk Richardson 数 <code>rib</code>（England et al. 1995 公式）</li>
+<li><strong>稳定度函数</strong>双路径：
+<ul>
+<li><strong>ATKE 路径</strong>（<code>callatke=.true.</code>）：稳定用 <code>sm = max(smmin, cn*(1-rib/ric))</code>，不稳定用 <code>sm = 2/π*(cinf-cn)*atan(-rib/ri0)+cn</code>；Prandtl 数从 Venayagamoorthy &amp; Stretch (2010)</li>
+<li><strong>Colaïtis 路径</strong>：稳定用 <code>fm = ((ric-rib)/ric)²</code>（<code>rib&lt;ric</code> 时），不稳定用 Dyer 公式 <code>fm = sqrt(1-λbm*rib)</code></li>
+</ul></li>
+<li>Reynolds 数 <code>reynolds = karman*sqrt(fm)*sqrt(zu2)*z0/(ln(z1/z0)*ν)</code></li>
+<li>热粗糙度 <code>z0t = z0*exp(-karman*7.3*Re^0.25*Pr^0.5+5*karman)</code></li>
+</ul></li>
+<li>拖曳系数 <code>pcdv = cdn*fm</code>、<code>pcdh = chn*fh</code></li>
+</ul></li>
+</ol>
+<h3 id="part-iiustartstar内插值行-294338">Part II：ustar/tstar/内插值（行 294–338）</h3>
+<ol type="1">
+<li><strong>摩擦量</strong>（行 299–308）：<code>rib ≥ ric</code> 时 <code>ustar=tstar=0</code>（稳定无湍流）；否则 <code>ustar = sqrt(cdv)*sqrt(zu2)</code>、<code>tstar = -cdh*(pts-ph[:,1])/sqrt(cdv)</code></li>
+<li><strong>MO 内插</strong>（行 310–326）：
+<ul>
+<li><code>zout &lt; z0t</code>：<code>u=0</code>、<code>theta=pts</code></li>
+<li><code>z0t ≤ zout &lt; z0</code>：<code>u=0</code></li>
+<li><code>zout ≥ z0</code>：<code>u = ustar*ln(zout/z0)/(karman*sqrt(fm))</code>、<code>theta = pts + tstar*sqrt(fm)*ln(zout/z0t)/(karman*fh)</code></li>
+</ul></li>
+<li><strong>无热羽流 + 对流调整特例</strong>（行 333–336）：<code>calltherm=.false. &amp;&amp; calladj=.true.</code> 时，位温直接取第一层值。</li>
+<li><strong>静力修正</strong>（行 337）：<code>T_out = theta * exp((zout/z1)*ln(p1/ps))^rcp</code></li>
+</ol>
+<h3 id="part-iii垂直速度方差热通量廓线行-341378">Part III：垂直速度方差/热通量廓线（行 341–378）</h3>
+<p>仅 <code>calltherm=.true.</code> 时执行，按 Spiga et al. (2010) QJRMS：</p>
+<ul>
+<li><code>x = zout/zmax</code></li>
+<li>无量纲热通量 <code>dvhf</code>：<code>x≤0.3</code> 用对数公式，<code>0.3&lt;x≤1</code> 用线性公式，<code>x&gt;1</code> 为 0</li>
+<li>无量纲速度方差 <code>dvvv</code>：<code>x≤1</code> 用 <code>2.05*x^(2/3)*(1-0.64x)²</code>，<code>x&gt;1</code> 为 0</li>
+<li><code>vhf = dvhf*hfmax</code>、<code>vvv = dvvv*wstar²</code></li>
+</ul>
+<h3 id="part-iv诊断输出行-381400">Part IV：诊断输出（行 381–400）</h3>
+<p>非 MESOSCALE 模式下输出 10+ 个诊断字段。</p>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>初始化 ustar=tstar=reynolds=rib=pcdv=pcdh=0
+z0tcomp = 0.1*z0
+设置 Dyer 参数 (bm=bh=16, alphah=1, betam=betah=5)
+ric_4interp = callatke ? ric_ATKE : ric_colaitis
+
+if include_waterbuoyancy:
+  计算虚拟温度 tsurf_v, temp_v（含水汽浮力）
+
+for each grid point:
+  cdn = (karman/ln(z1/z0))²
+  zu2 = u²+v² + (ln(1+0.7w*+2.3w*²))²   ! 浮力修正风速
+  while (z0t not converged, max 10 iter):
+    chn = cdn * ln(z1/z0) / ln(z1/z0t)
+    rib = (g/tsurf_v) * sqrt(z1*z0) * (ln(z1/z0))² / ln(z1/z0t) * (Tv-Tsurf)/zu2
+    if callatke:
+      稳定: sm=max(smmin, cn*(1-rib/ric)), Prandtl=...
+      不稳定: sm=2/π*(cinf-cn)*atan(-rib/ri0)+cn, Prandtl=...
+    else:
+      稳定: fm=((ric-rib)/ric)², fh=same
+      不稳定: fm=sqrt(1-λbm*rib), fh=...
+    Re = karman*sqrt(fm)*sqrt(zu2)*z0/(ln(z1/z0)*ν)
+    z0t = z0*exp(-karman*7.3*Re^0.25*Pr^0.5+5*karman)
+  cdv = cdn*fm; cdh = chn*fh
+
+for each z_out:
+  ustar = sqrt(cdv)*sqrt(zu2)
+  tstar = -cdh*(Ts-T1)/sqrt(cdv)
+  if zout &lt; z0t: u=0, theta=Ts
+  elif zout &lt; z0: u=0
+  else: u=ustar*ln(zout/z0)/(k*sqrt(fm)), theta=Ts+tstar*sqrt(fm)*ln(zout/z0t)/(k*fh)
+  T_out = theta * hydrostatic_correction
+
+if calltherm:
+  x = zout/zmax
+  dvhf = piecewise(x)    ! Spiga et al. 2010
+  dvvv = piecewise(x)
+  vhf = dvhf*hfmax; vvv = dvvv*wstar²</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>边界层参数化</td>
+<td>计算 PBL 诊断量（ustar、tstar、MO 内插值、热通量廓线）</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td><code>include_waterbuoyancy</code> 控制水汽浮力对 PBL 的影响</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>固定格式风格</strong>：虽为 <code>.F90</code>，但使用大写关键字、<code>DATA</code> 语句、列对齐注释等旧式风格。</li>
+<li><strong><code>!$OMP THREADPRIVATE</code></strong>：<code>karman</code> 和 <code>nu</code> 为线程私有（行 113）。</li>
+<li><strong><code>#ifndef MESOSCALE</code></strong>：诊断输出仅在非 MESOSCALE 模式下编译（行 388–400）。</li>
+<li><strong>双稳定度函数路径</strong>：<code>callatke</code> 开关切换 ATKE 方案与 Colaïtis (2013) 方案。</li>
+<li><strong>迭代求 z0t</strong>：热粗糙度长度通过 Reynolds 数和 Prandtl 数迭代求解（最多 10 次）。</li>
+<li><strong>硬编码插值高度</strong>：<code>z_out = [3., 2., 1., 0.5, 0.1]</code> m（行 2661 in <code>physiq_mod.F</code>）。</li>
+<li><strong>行 335 疑点</strong>：<code>u_out(:,n)=(sqrt(cdn(:))*sqrt(zu2(ig))/karman)*log(zout/pz0(:))</code> 中 <code>zu2(ig)</code> 应为 <code>zu2(:)</code>（循环变量 <code>ig</code> 在外层循环已结束，此处用标量索引可能为 bug）。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>本模块是纯诊断，不影响物理倾向或模型状态。</li>
+<li><code>callatke</code> 开关决定稳定度函数的计算路径：ATKE（湍流动能方案）vs Colaïtis (2013)。</li>
+<li><code>include_waterbuoyancy</code> 控制是否考虑水汽浮力（虚拟温度修正）。</li>
+<li><code>calltherm</code> 控制是否计算热羽流廓线（Part III）。</li>
+<li>迭代求 z0t 时，收敛阈值为 <code>0.01*z0</code>，最多 10 次迭代。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>行 335 <code>zu2(ig)</code> 中 <code>ig</code> 来自外层 <code>DO ig=1,ngrid</code> 循环，循环结束后 <code>ig</code> 的值取决于编译器（推断：Fortran 标准规定循环变量在循环结束后值为 <code>ngrid+1</code>，此处 <code>zu2(ig)</code> 越界或取最后一个元素，可能是 bug；待确认）。</li>
+<li>行 226 <code>IF(turb_resolved) zu2(ig)=MAX(zu2(ig),1.)</code> 被注释掉（待确认：是否因 <code>turb_resolved</code> 不再适用或效果不佳）。</li>
+<li>行 113 <code>karman</code> 和 <code>nu</code> 的 <code>THREADPRIVATE</code> 与 <code>SAVE</code> 共存（待确认：<code>SAVE</code> 在 OpenMP 并行时是否多余）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a> — <code>vdifc</code> 中水汽地表交换段，也涉及 PBL 参数</li>
+<li><a href="water-saturation-helpers.html">water-saturation-helpers</a> — <code>watersat</code> 模块，本文件调用以计算地表饱和混合比</li>
+<li><a href="../../themes/water-cycle.html">water-cycle</a> — 水循环主题页</li>
+<li><a href="soilwater.html">soilwater</a> — 土壤水求解器，与 PBL 地表交换相关</li>
+<li><a href="vdif_cd_mod.html">vdif_cd_mod</a> — 垂直扩散交换系数；<code>callatke</code> 与 <code>callrichsl</code> 决定地表层交换系数路径</li>
+<li><a href="vdif_kc.html">vdif_kc</a> — 垂直扩散 K 系数方案；在 <code>vdifc</code> fallback 路径中更新 <code>q2/km/kn</code></li>
+<li><a href="turb_mod.html">turb_mod</a> — 湍流/PBL 共享状态模块，提供 <code>turb_resolved</code>、<code>q2</code> 和 <code>wstar</code> 等数组语义</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>co2-saturation-helpers - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/co2-saturation-helpers.md</span>
+    </nav>
+    <article class="content">
+<h1 id="co2-饱和与凝结温度辅助函数页">CO2 饱和与凝结温度辅助函数页</h1>
+<h2 id="文件组">文件组</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>路径</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>co2sat.F</code></td>
+<td><code>LMDZ.MARS\libf\phymars\co2sat.F</code></td>
+</tr>
+<tr>
+<td><code>tcondco2.F90</code></td>
+<td><code>LMDZ.MARS\libf\phymars\tcondco2.F90</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件组定位">文件组定位</h2>
+<p>这两个文件提供 CO2 凝结的热力学基础计算：</p>
+<ul>
+<li><code>co2sat.F</code>：给定温度计算 CO2 饱和蒸汽压</li>
+<li><code>tcondco2.F90</code>：给定压力和 CO2 质量混合比反推凝结温度</li>
+</ul>
+<p>二者基于相同的 James et al. 1992 饱和蒸汽压公式，形式上互为逆运算，是 CO2 循环与 CO2 云微物理的核心热力学入口。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>文件</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>co2sat</code></td>
+<td>co2sat.F</td>
+<td>subroutine</td>
+<td>8</td>
+<td>计算饱和蒸汽压</td>
+</tr>
+<tr>
+<td><code>tcondco2</code></td>
+<td>tcondco2.F90</td>
+<td>subroutine</td>
+<td>7</td>
+<td>计算凝结温度</td>
+</tr>
+<tr>
+<td><code>tcondco2_mod</code></td>
+<td>tcondco2.F90</td>
+<td>module</td>
+<td>1</td>
+<td>封装 <code>tcondco2</code> 的模块</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>来源文件</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="conc_mod.html">conc_mod</a></td>
+<td>tcondco2.F90</td>
+<td>mmean</td>
+<td>获取平均分子量</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无外部调用</td>
+<td>-</td>
+<td>-</td>
+<td>纯函数式计算，无子例程调用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>naersize</code></td>
+<td>co2sat.F</td>
+<td>integer</td>
+<td>-</td>
+<td>数组维度</td>
+</tr>
+<tr>
+<td><code>t</code></td>
+<td>co2sat.F</td>
+<td>real(naersize)</td>
+<td>K</td>
+<td>温度数组</td>
+</tr>
+<tr>
+<td><code>ngrid</code></td>
+<td>tcondco2.F90</td>
+<td>integer</td>
+<td>-</td>
+<td>水平网格数</td>
+</tr>
+<tr>
+<td><code>nlay</code></td>
+<td>tcondco2.F90</td>
+<td>integer</td>
+<td>-</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>p</code></td>
+<td>tcondco2.F90</td>
+<td>real(ngrid,nlay)</td>
+<td>Pa</td>
+<td>总气压</td>
+</tr>
+<tr>
+<td><code>q</code></td>
+<td>tcondco2.F90</td>
+<td>real(ngrid,nlay)</td>
+<td>kg/kg</td>
+<td>CO2 质量混合比（tracer 值，经调用点核验：<code>pq(ig,l,igcm_co2)</code>）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>psat</code></td>
+<td>co2sat.F</td>
+<td>real(naersize)</td>
+<td>Pa</td>
+<td>饱和蒸汽压</td>
+</tr>
+<tr>
+<td><code>tcond</code></td>
+<td>tcondco2.F90</td>
+<td>double precision(ngrid,nlay)</td>
+<td>K</td>
+<td>CO2 凝结温度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>tcondco2</code> 通过 <code>conc_mod</code> 读取 <code>mmean(ig,l)</code>（平均分子量），但不修改</li>
+<li>无文件 I/O</li>
+<li>无全局变量写入</li>
+<li>纯函数式计算，无副作用</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="co2sat">co2sat</h3>
+<p>按 James et al. 1992 公式计算饱和蒸汽压：</p>
+<pre><code>psat = 1.382 × 10¹² × exp(-3182.48 / t)</code></pre>
+<ul>
+<li>对数组 <code>t(1:naersize)</code> 逐元素应用上述公式</li>
+<li>参数为固定常数：前置因子 1.382×10¹² Pa，活化能 3182.48 K</li>
+</ul>
+<h3 id="tcondco2">tcondco2</h3>
+<p>从饱和蒸汽压公式反解温度，给定气压和 CO2 混合比：</p>
+<ol type="1">
+<li><p>计算 CO2 分压：<code>pco2 = q(ig,l) * (mmean(ig,l)/44.01) * p(ig,l)</code></p>
+<ul>
+<li><code>mmean</code> 为当地平均分子量（通过 <code>conc_mod</code> 读取）</li>
+<li>44.01 为 CO2 分子量</li>
+<li><code>q</code> 为 CO2 tracer 质量混合比 (kg/kg)，调用点传入 <code>pq(:,:,igcm_co2)</code> 或 <code>pq+pdq*ptimestep</code></li>
+<li>公式含义：将质量混合比转换为体积混合比（<code>q * M_mean/M_CO2</code>），再乘以总压得分压</li>
+</ul></li>
+<li><p>反解温度：<code>tcond = B / (log(pco2) - A)</code></p>
+<ul>
+<li><code>A = log(1.382×10¹²)</code></li>
+<li><code>B = -3182.48</code></li>
+<li>推导：由 <code>psat = exp(A) × exp(B/t)</code> 得 <code>log(psat) = A + B/t</code>，故 <code>t = B / (log(psat) - A)</code></li>
+</ul></li>
+<li><p>对所有网格点和垂直层循环应用</p></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<h3 id="co2sat-1">co2sat</h3>
+<pre class="text"><code>对 i = 1 到 naersize:
+    psat(i) = 1.382e12 * exp(-3182.48 / t(i))</code></pre>
+<h3 id="tcondco2-1">tcondco2</h3>
+<pre class="text"><code>A = log(1.382e12)
+B = -3182.48
+
+对 l = 1 到 nlay:
+    对 ig = 1 到 ngrid:
+        pco2 = q(ig,l) * (mmean(ig,l) / 44.01) * p(ig,l)
+        tcond(ig,l) = B / (log(pco2) - A)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CO2 循环</td>
+<td>为 <code>co2cloud_mod</code>（TASK-0045）和 <code>improvedco2clouds_mod</code>（TASK-0046）提供热力学判据（<code>tcondco2</code> 判断 CO2 凝结温度、<code>co2sat</code> 计算饱和蒸汽压）</td>
+</tr>
+<tr>
+<td>CO2 云微物理</td>
+<td>为 <code>improvedco2clouds_mod</code>（TASK-0046）提供凝结温度和饱和蒸汽压，用于成核与增长计算</td>
+</tr>
+<tr>
+<td><a href="../../themes/co2-cycle.html">CO2 循环主题页</a></td>
+<td>TASK-0011</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>co2sat.F</code> 为固定格式 Fortran（F77 风格），<code>tcondco2.F90</code> 为自由格式（F90 风格）</li>
+<li>参数为硬编码常数，未从配置文件读取</li>
+<li>精度差异：<code>tcond</code> 输出为 <code>double precision</code>，<code>co2sat</code> 输出为 <code>real</code></li>
+<li>调用点核验：<code>co2cloud_mod.F90:515</code> 传入 <code>zq_co2vap = pq(ig,l,igcm_co2) + pdq*ptimestep</code>；<code>improvedco2clouds_mod.F90:316</code> 传入 <code>zq(:,:,igcm_co2) + zq(:,:,igcm_co2_ice)</code>——均为 tracer 质量混合比 kg/kg</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>确保 <code>conc_mod</code> 已正确初始化并提供 <code>mmean</code> 数组</li>
+<li><code>tcond</code> 输入 <code>q</code> 为 CO2 tracer 质量混合比 (kg/kg)，经调用点 <code>co2cloud_mod.F90:515</code> 和 <code>improvedco2clouds_mod.F90:316</code> 核验</li>
+<li>反解过程中 <code>pco2</code> 不能为零或负值，否则 <code>log(pco2)</code> 将出错（源码未含保护）</li>
+<li>参数 A、B 的常数源自 James et al. 1992，修改需同步两文件</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>pco2</code> 单位：推断为 Pa（与 <code>p</code> 同单位），与 <code>co2sat</code> 输出单位一致</li>
+<li><code>tcond</code> 是否需要在 <code>pco2</code> 接近零时设置保护（源码未含保护）</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li>当 <code>pco2</code> ≤ 0 时 <code>tcond</code> 中的 <code>log(pco2)</code> 会崩溃，需确认调用点是否有前置保护</li>
+<li>参数 A、B 的精度敏感性：直接使用双精度计算，但 <code>co2sat</code> 仅返回单精度 <code>real</code></li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="conc_mod.html">conc_mod</a> - 提供 <code>tcondco2</code> 使用的 <code>mmean</code> 平均摩尔质量数组</li>
+<li><a href="co2cloud_mod.html">co2cloud_mod — CO2 云主调度</a> - 调用 <code>tcondco2</code>（行 515）和 <code>co2sat</code>（行 1126）判断 CO2 凝结与饱和</li>
+<li><a href="improvedco2clouds_mod.html">improvedco2clouds_mod</a> - 调用 <code>co2sat</code>（行 315）和 <code>tcondco2</code>（行 316）用于成核与增长计算</li>
+<li><a href="../../routines/initracer-co2-tracers.html">initracer-co2-tracers</a> - CO2 tracer 索引与一致性检查</li>
+<li><a href="../../architecture/co2-cycle-config.html">co2-cycle-config</a> - CO2 循环配置页</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

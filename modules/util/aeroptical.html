@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>aeroptical - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/aeroptical.md</span>
+    </nav>
+    <article class="content">
+<h1 id="aeropticalf90">aeroptical.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util\aeroptical.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>util</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>aeroptical.F90</code> 是 LMD Mars GCM 输出的离线气溶胶不透明度计算工具。它读取 <code>diagfi.nc</code>、<code>stats.nc</code> 或 <code>concat.nc</code> 类 NetCDF 文件中的气溶胶质量混合比、有效半径和大气密度 <code>rho</code>，再读取外部 ASCII 光学性质表，在用户指定参考波长处计算每种 aerosol 的 extinction 或 absorption opacity，输出 <code>input_OPAext.nc</code> 或 <code>input_OPAabs.nc</code>。</p>
+<p>程序支持最多 20 种 aerosol。每种 aerosol 由一行输入指定：</p>
+<pre class="text"><code>&lt;aerosol_name&gt;,&lt;aerosol_mmr&gt;,&lt;aerosol_reff&gt;,&lt;aerosol_rho&gt;,&lt;optpropfile_name&gt;</code></pre>
+<p>其中 <code>aerosol_reff</code> 可以是 GCM 文件中的变量名，也可以是一个以 m 为单位的固定数值。若用户要求，还会计算柱积分光学厚度 <code>tau_&lt;aerosol_name&gt;</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>aeroptical</code></td>
+<td>program</td>
+<td>1</td>
+<td>主程序：读取用户配置、GCM 文件和光学表，计算 <code>opa_*</code> 和可选 <code>tau_*</code>。</td>
+</tr>
+<tr>
+<td><code>status_check</code></td>
+<td>subroutine</td>
+<td>577</td>
+<td>NetCDF 错误检查；非 <code>nf90_noerr</code> 时打印错误并停止。</td>
+</tr>
+<tr>
+<td><code>inidims</code></td>
+<td>subroutine</td>
+<td>598</td>
+<td>从输入 GCM 文件读取并复制经纬度、高度、时间、可选 <code>controle</code>，并定义输出维度。</td>
+</tr>
+<tr>
+<td><code>init2</code></td>
+<td>subroutine</td>
+<td>981</td>
+<td>复制 <code>aps/bps/ap/bp/sigma/aire/phisinit</code>，并在需要时计算 <code>delta_z</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖">依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>use netcdf</code></td>
+<td>使用现代 NetCDF Fortran <code>nf90_*</code> API 读写输入/输出文件。</td>
+</tr>
+<tr>
+<td><a href="aeropt_mod.html"><code>aeropt_mod</code></a></td>
+<td>读取 ASCII 光学性质表，插值 <code>Qext/omeg</code>，创建 aerosol 日志并释放缓存。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nf90_open</code> / <code>nf90_create</code> / <code>nf90_close</code></td>
+<td>NetCDF 库</td>
+<td>打开 GCM 文件、创建 <code>*_OPAext.nc</code> 或 <code>*_OPAabs.nc</code>、关闭文件。</td>
+</tr>
+<tr>
+<td><code>nf90_inq_varid</code> / <code>nf90_get_var</code> / <code>nf90_get_att</code></td>
+<td>NetCDF 库</td>
+<td>查找并读取 MMR、reff、rho、坐标、辅助变量和属性。</td>
+</tr>
+<tr>
+<td><code>nf90_def_dim</code> / <code>nf90_def_var</code> / <code>nf90_put_att</code> / <code>nf90_put_var</code></td>
+<td>NetCDF 库</td>
+<td>定义输出维度、坐标、opacity、tau 和辅助变量。</td>
+</tr>
+<tr>
+<td><code>create_logfile</code></td>
+<td><a href="aeropt_mod.html"><code>aeropt_mod</code></a></td>
+<td>为每种 aerosol 创建 <code>aeropt_log_&lt;name&gt;.txt</code>。</td>
+</tr>
+<tr>
+<td><code>read_optpropfile</code></td>
+<td><a href="aeropt_mod.html"><code>aeropt_mod</code></a></td>
+<td>读取对应 aerosol 的光学性质 ASCII 表。</td>
+</tr>
+<tr>
+<td><code>interp_wvl_reff</code></td>
+<td><a href="aeropt_mod.html"><code>aeropt_mod</code></a></td>
+<td>在参考波长和有效半径处插值得到 <code>Qext</code> 与 <code>omeg</code>。</td>
+</tr>
+<tr>
+<td><code>end_aeropt_mod</code></td>
+<td><a href="aeropt_mod.html"><code>aeropt_mod</code></a></td>
+<td>每种 aerosol 处理结束后释放光学表缓存。</td>
+</tr>
+<tr>
+<td><code>inidims</code> / <code>init2</code> / <code>status_check</code></td>
+<td>本文件</td>
+<td>输出文件初始化、辅助字段复制、层厚计算和错误处理。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GCM 输入文件名</td>
+<td>stdin / <code>aeroptical.def</code></td>
+<td>NetCDF 文件</td>
+<td>-</td>
+<td><code>diagfi.nc</code>、<code>stats.nc</code>、<code>concat.nc</code> 等。</td>
+</tr>
+<tr>
+<td><code>datadir</code></td>
+<td>stdin / <code>aeroptical.def</code></td>
+<td>目录</td>
+<td>-</td>
+<td>光学性质 ASCII 文件所在目录。</td>
+</tr>
+<tr>
+<td><code>wvl_val</code></td>
+<td>stdin / <code>aeroptical.def</code></td>
+<td>标量</td>
+<td>m</td>
+<td>输出不透明度校准的参考波长。</td>
+</tr>
+<tr>
+<td><code>opatype</code></td>
+<td>stdin / <code>aeroptical.def</code></td>
+<td><code>ext</code> 或 <code>abs</code></td>
+<td>-</td>
+<td>计算 extinction 或 absorption opacity。</td>
+</tr>
+<tr>
+<td><code>compute_col</code></td>
+<td>stdin / <code>aeroptical.def</code></td>
+<td><code>yes</code> 或 <code>no</code></td>
+<td>-</td>
+<td>是否计算柱积分光学厚度。</td>
+</tr>
+<tr>
+<td>aerosol 列表</td>
+<td>stdin / <code>aeroptical.def</code></td>
+<td>最多 20 行</td>
+<td>-</td>
+<td>每行指定 aerosol 名称、MMR 变量名、reff 变量名或固定值、粒子密度和光学表名。</td>
+</tr>
+<tr>
+<td>MMR 变量</td>
+<td>GCM NetCDF</td>
+<td><code>(lon,lat,alt,Time)</code></td>
+<td>kg/kg</td>
+<td>对应 aerosol 的质量混合比。</td>
+</tr>
+<tr>
+<td>reff 变量</td>
+<td>GCM NetCDF 或用户固定值</td>
+<td><code>(lon,lat,alt,Time)</code> 或标量</td>
+<td>m</td>
+<td>aerosol 有效半径。</td>
+</tr>
+<tr>
+<td><code>rho</code></td>
+<td>GCM NetCDF</td>
+<td><code>(lon,lat,alt,Time)</code></td>
+<td>kg m-3</td>
+<td>大气密度，opacity 公式必需。</td>
+</tr>
+<tr>
+<td><code>zzlev</code> / <code>altitude</code> / <code>ap,bp,ps,rho</code> / <code>zareoid</code></td>
+<td>GCM NetCDF</td>
+<td>多种</td>
+<td>m、km、Pa</td>
+<td>可选柱积分时用于构造层厚 <code>delta_z</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>input_OPAext.nc</code></td>
+<td>磁盘 NetCDF</td>
+<td>文件</td>
+<td>-</td>
+<td><code>opatype=ext</code> 时的输出文件。</td>
+</tr>
+<tr>
+<td><code>input_OPAabs.nc</code></td>
+<td>磁盘 NetCDF</td>
+<td>文件</td>
+<td>-</td>
+<td><code>opatype=abs</code> 时的输出文件。</td>
+</tr>
+<tr>
+<td><code>opa_&lt;aerosol&gt;</code></td>
+<td>输出 NetCDF</td>
+<td><code>(longitude,latitude,altitude,Time)</code></td>
+<td><code>opacity/km</code></td>
+<td>每层 extinction 或 absorption opacity。</td>
+</tr>
+<tr>
+<td><code>tau_&lt;aerosol&gt;</code></td>
+<td>输出 NetCDF</td>
+<td><code>(longitude,latitude,Time)</code></td>
+<td><code>/</code></td>
+<td>可选柱积分光学厚度。</td>
+</tr>
+<tr>
+<td><code>delta_z</code></td>
+<td>输出 NetCDF</td>
+<td><code>(longitude,latitude,altitude,Time)</code></td>
+<td>km</td>
+<td>可选；柱积分使用的层厚。</td>
+</tr>
+<tr>
+<td>坐标和辅助字段</td>
+<td>输出 NetCDF</td>
+<td>多种</td>
+<td>输入属性</td>
+<td><code>longitude/latitude/altitude/Time</code>，可选 <code>controle</code>、<code>aps/bps/ap/bp/sigma/aire/phisinit</code>。</td>
+</tr>
+<tr>
+<td><code>aeropt_log_&lt;name&gt;.txt</code></td>
+<td>磁盘 ASCII</td>
+<td>文本</td>
+<td>-</td>
+<td>每种 aerosol 的半径越界和相关缺测日志。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="副作用">副作用</h2>
+<ul>
+<li>输出 NetCDF 使用 <code>nf90_clobber</code>，同名 <code>*_OPAext.nc</code> 或 <code>*_OPAabs.nc</code> 会被覆盖。</li>
+<li>每种 aerosol 创建或覆盖一个 <code>aeropt_log_&lt;name&gt;.txt</code>。</li>
+<li>读写大型 4D 数组，内存随 <code>lon*lat*alt*time</code> 和 aerosol 数量增长。</li>
+<li>必需坐标、<code>rho</code>、选中 MMR 变量、光学表、参考波长范围或柱积分层厚路径失败时会停止。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>读取用户输入</strong>：输入 GCM 文件、光学表目录、参考波长、opacity 类型、是否柱积分，以及 aerosol 列表。</li>
+<li><strong>解析 aerosol 列表</strong>：
+<ul>
+<li><code>reffname_aer</code> 若能读成数值，视为固定有效半径并广播到全网格；</li>
+<li>否则视为 GCM 文件中的有效半径变量名。</li>
+</ul></li>
+<li><strong>创建输出文件</strong>：
+<ul>
+<li><code>ext</code> 输出 <code>*_OPAext.nc</code>；</li>
+<li><code>abs</code> 输出 <code>*_OPAabs.nc</code>。</li>
+</ul></li>
+<li><strong>复制坐标和辅助字段</strong>：
+<ul>
+<li><code>inidims</code> 复制 <code>longitude/latitude/altitude/Time</code> 和可选 <code>controle</code>。</li>
+<li><code>init2</code> 复制 hybrid 或 sigma 坐标、<code>aire</code>、<code>phisinit</code>。</li>
+</ul></li>
+<li><strong>可选计算层厚 <code>delta_z</code></strong>：
+<ul>
+<li>优先使用 <code>zzlev</code> 的界面高度，单位 m 转 km。</li>
+<li>若 altitude <code>long_name</code> 是 <code>pseudo-alt</code>，优先用 <code>ap/bp/ps/rho</code> 从层质量公式计算层厚，否则退到 pseudo-alt 中点差。</li>
+<li>若 altitude 单位是 <code>m</code>，用 altitude 层中心差估算层厚。</li>
+<li>若 altitude 单位是 <code>Pa</code>，要求 <code>zareoid</code> 存在，用 <code>zareoid</code> 层中心差估算层厚。</li>
+</ul></li>
+<li><strong>检查变量存在性</strong>：每种 aerosol 必须有 MMR；如果 reff 是变量名，也必须存在。不存在的 aerosol 被跳过；所有 aerosol 都不可算时停止。</li>
+<li><strong>读取 <code>rho</code></strong>：全局读取 atmospheric density，所有 aerosol 共用。</li>
+<li><strong>逐 aerosol 计算 opacity</strong>：
+<ul>
+<li>读取 MMR 和 reff。</li>
+<li>调 <code>aeropt_mod</code> 创建日志、读取光学表。</li>
+<li>对固定 reff，只插值一次 <code>Qext/omeg</code>；对 reff 变量，在每个格点/层/时间插值。</li>
+<li>若 <code>Qext</code> 或 MMR 缺测，输出缺测。</li>
+<li>extinction opacity 公式为：</li>
+</ul></li>
+</ol>
+<pre class="text"><code>opa = 750 * Qext * mmr * rho / (rho_aer * reff)</code></pre>
+<ul>
+<li>absorption opacity 进一步乘 <code>(1 - omeg)</code>。</li>
+</ul>
+<ol start="9" type="1">
+<li><strong>可选柱积分</strong>：累加 <code>tau += opa * delta_z</code>。若整列都是缺测，<code>tau</code> 设为 missing；若至少一个有效 opacity 为 0，允许 <code>tau=0</code>。</li>
+<li><strong>写输出并清理</strong>：写 <code>opa_*</code> 和可选 <code>tau_*</code>，释放 aerosol 数组和 <code>aeropt_mod</code> 缓存。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>read gcmfile, datadir, wvl_val, opatype, compute_col
+read aerosol lines until blank
+open gcmfile
+create output file by opatype
+inidims: copy lon/lat/alt/Time and define output dims
+init2: copy vertical/static auxiliaries and compute delta_z if requested
+for each aerosol:
+  verify MMR and optional reff variable
+read rho
+for each valid aerosol:
+  read MMR
+  read reff or fill constant reff
+  create aeropt log
+  read optical property table
+  define opa_&lt;aerosol&gt;
+  for time, lon, lat, alt:
+    interpolate Qext/omeg at wvl and reff
+    opa = 750 * Qext * mmr * rho / (rho_aer * reff)
+    if absorption: opa *= (1 - omeg)
+    if compute_col: tau += opa * delta_z
+  write opa_&lt;aerosol&gt;
+  if compute_col: define and write tau_&lt;aerosol&gt;
+  release arrays and optical table
+close files</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>util 气溶胶诊断链</td>
+<td>与 <a href="aeropt_mod.html"><code>aeropt_mod</code></a> 配套，把 GCM aerosol tracer 和外部光学表转换为可画图或比较的 opacity/tau。</td>
+</tr>
+<tr>
+<td>后处理与观测比较</td>
+<td>可接在 <a href="concatnc.html">concatnc</a>、<a href="localtime.html">localtime</a>、<a href="hrecast.html">hrecast</a> 或原始 <code>diagfi</code> 输出之后，为气溶胶光学厚度分析提供字段。</td>
+</tr>
+<tr>
+<td>柱量诊断</td>
+<td>与 <a href="gencol.html">gencol</a> 都属于从 tracer 派生柱量或光学量的 util 工具。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>aeroptical.def</code> 中每个 aerosol 行用逗号分隔；示例包括 <code>dust,dustq,reffdust,2500,optprop_dustvis_TM_n50.dat</code>。</li>
+<li><code>wvl_val</code> 和 reff 固定值都必须用 m。</li>
+<li><code>rho_aer</code> 是 aerosol 粒子材料密度，单位 kg/m3，直接进入分母。</li>
+<li>输入 GCM 文件必须含 <code>rho</code>；每个 aerosol 必须含 MMR 变量。</li>
+<li>如果选择柱积分，文件必须能通过 <code>zzlev</code>、<code>pseudo-alt + ap/bp/ps/rho</code>、m 单位高度、或 Pa 坐标加 <code>zareoid</code> 之一构造 <code>delta_z</code>。</li>
+<li>参考波长超出光学表范围会停止；有效半径超出表范围会输出 missing 并写日志。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>extinction opacity 公式中的常数 <code>750</code> 在源码中无推导注释；页面按源码记录，物理单位换算需开发者确认。</li>
+<li>压力坐标分支中 <code>delta_z(:,:,1,:) = ...</code> 出现在按单点循环内部，疑似应写单个 <code>(ilon,ilat,1,it)</code>；复现时按源码字面行为执行。</li>
+<li>若 MMR 无 <code>missing_value</code> 属性，默认 <code>missval=1.e+20</code>；不同输入文件约定可能导致缺测识别不一致。</li>
+<li><code>aeroptlogfile</code> 通过 internal write 生成，可能包含前导空格；实际文件名需按 Fortran 输出检查。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li>输出文件和日志会覆盖同名文件。</li>
+<li>光学表、reff、wavelength 单位混用会直接改变结果量级。</li>
+<li><code>compute_col=yes</code> 对层厚路径要求高；zrecast 后 pressure 坐标缺少 <code>zareoid</code> 会停止。</li>
+<li>多 aerosol 大文件会重复读取和分配 4D 数组，运行时间和内存需求较高。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="aeropt_mod.html">aeropt_mod.md</a> - 光学性质表读取与插值模块。</li>
+<li><a href="index.html">util/index.md</a> - util 后处理工具总览。</li>
+<li><a href="concatnc.html">concatnc.md</a> - 常见上游拼接工具。</li>
+<li><a href="gencol.html">gencol.md</a> - 柱含量重算工具。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

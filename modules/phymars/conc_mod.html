@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>conc_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/conc_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="conc_modf90">conc_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\conc_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>conc_mod.F90</code> 定义 <code>conc_mod</code>，是 <code>phymars</code> 中保存逐格点、逐层大气混合物热力学属性的共享模块。它维护四个二维数组：平均摩尔质量 <code>mmean</code>、热导率系数 <code>Akknew</code>、定压比热 <code>cpnew</code> 和比气体常数 <code>rnew</code>。</p>
+<p>初始化时，<code>phys_state_var_init_mod.F90</code> 只负责分配这些数组；<code>physiq_mod.F</code> 首次调用 <code>init_r_cp_mu</code> 把 <code>rnew/cpnew/mmean</code> 填成 <code>comcstfi_h</code> 的常数值。每个物理步中，只有 <code>photochem</code> 或 <code>callthermos</code> 为真时，<code>physiq</code> 才调用 <code>update_r_cp_mu_ak</code>，用当前 tracer 混合比和 tracer 摩尔质量重算 <code>mmean/rnew/cpnew/Akknew</code>。下游 CO2 云、CO2 饱和、NLTE、热层/化学和若干诊断路径读取这些数组，把质量混合比换成体积混合比、更新气体常数或比热。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>conc_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>保存大气混合物热力学属性数组并提供初始化/更新例程</td>
+</tr>
+<tr>
+<td><code>mmean</code></td>
+<td>protected allocatable module variable</td>
+<td>5</td>
+<td>平均分子/摩尔质量数组，源码注释单位 <code>amu</code>，实际按 <code>g/mol</code> 与 <code>tracer_mod:mmol</code> 一起使用</td>
+</tr>
+<tr>
+<td><code>Akknew</code></td>
+<td>protected allocatable module variable</td>
+<td>6</td>
+<td>热导率系数数组，由各 tracer 的数密度权重和 <code>aki</code> 系数计算</td>
+</tr>
+<tr>
+<td><code>cpnew</code></td>
+<td>protected allocatable module variable</td>
+<td>7</td>
+<td>混合物定压比热数组，单位 J/kg/K</td>
+</tr>
+<tr>
+<td><code>rnew</code></td>
+<td>protected allocatable module variable</td>
+<td>8</td>
+<td>混合物比气体常数数组，单位 J/kg/K</td>
+</tr>
+<tr>
+<td><code>ini_conc_mod</code></td>
+<td>subroutine</td>
+<td>14</td>
+<td>按 <code>ngrid,nlayer</code> 分配四个二维数组</td>
+</tr>
+<tr>
+<td><code>end_conc_mod</code></td>
+<td>subroutine</td>
+<td>28</td>
+<td>释放已分配的四个二维数组</td>
+</tr>
+<tr>
+<td><code>init_r_cp_mu</code></td>
+<td>subroutine</td>
+<td>39</td>
+<td>用 <code>comcstfi_h:r/cpp/mugaz</code> 把 <code>rnew/cpnew/mmean</code> 填成常数背景值</td>
+</tr>
+<tr>
+<td><code>update_r_cp_mu_ak</code></td>
+<td>subroutine</td>
+<td>65</td>
+<td>按 tracer 混合比、摩尔质量、比热和热导率系数动态更新 <code>mmean/rnew/cpnew/Akknew</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>r</code>, <code>cpp</code>, <code>mugaz</code></td>
+<td><code>init_r_cp_mu</code> 中给 <code>rnew/cpnew/mmean</code> 设置常数背景值</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_*</code> chemistry/aeronomy tracer 索引、<code>mmol</code></td>
+<td><code>update_r_cp_mu_ak</code> 中选择存在的 tracer，并用摩尔质量把质量混合比换成平均摩尔质量、体积分数和数密度</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无外部例程</td>
+<td>-</td>
+<td>-</td>
+<td>本模块只分配/释放数组并执行局部公式计算</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code>, <code>nlayer</code></td>
+<td><code>phys_state_var_init</code> / <code>physiq</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>物理列数和垂直层数，用作数组维度</td>
+</tr>
+<tr>
+<td><code>r</code>, <code>cpp</code>, <code>mugaz</code></td>
+<td><code>comcstfi_h</code></td>
+<td>real scalar</td>
+<td>J/kg/K, J/kg/K, g/mol</td>
+<td>常数背景气体属性，用于 <code>init_r_cp_mu</code></td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td><code>physiq</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>tracer 数量，用于分配本例程内部保存的 <code>aki/cpi/niq</code></td>
+</tr>
+<tr>
+<td><code>igcm_*</code> tracer 索引</td>
+<td><code>tracer_mod</code></td>
+<td>integer scalars</td>
+<td>-</td>
+<td>判断 CO2、CO、O、N2、Ar、H2O、离子和电子等 tracer 是否存在</td>
+</tr>
+<tr>
+<td><code>mmol(:)</code></td>
+<td><code>tracer_mod</code></td>
+<td>real allocatable</td>
+<td>g/mol</td>
+<td>tracer 摩尔质量</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td><code>physiq</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>Pa</td>
+<td>层中气压，用于数密度 <code>ntot=p/(kT)</code></td>
+</tr>
+<tr>
+<td><code>pt</code>, <code>pdt</code>, <code>ptimestep</code></td>
+<td><code>physiq</code></td>
+<td>real arrays/scalar</td>
+<td>K, K/s, s</td>
+<td>当前温度、已累计温度倾向和物理时间步；组成更新后温度 <code>zt</code></td>
+</tr>
+<tr>
+<td><code>pq</code>, <code>pdq</code></td>
+<td><code>physiq</code></td>
+<td>real <code>(ngrid,nlayer,nq)</code></td>
+<td>kg/kg, kg/kg/s</td>
+<td>tracer 质量混合比和已累计 tracer tendency；组成更新后 tracer <code>zq</code></td>
+</tr>
+<tr>
+<td><code>photochem</code>, <code>callthermos</code></td>
+<td><code>physiq</code> 物理开关</td>
+<td>logical</td>
+<td>-</td>
+<td>只有任一为真时，<code>physiq</code> 每步调用 <code>update_r_cp_mu_ak</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mmean</code></td>
+<td>CO2 饱和、CO2 云、水云、NLTE、诊断</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>g/mol</td>
+<td>混合物平均摩尔质量；用于把质量混合比换成体积混合比</td>
+</tr>
+<tr>
+<td><code>rnew</code></td>
+<td><code>physiq</code> 几何高度、密度、非地形重力波、CO2 云</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>J/kg/K</td>
+<td>更新后的比气体常数</td>
+</tr>
+<tr>
+<td><code>cpnew</code></td>
+<td>非地形重力波、NLTE/热层相关路径</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>J/kg/K</td>
+<td>更新后的定压比热</td>
+</tr>
+<tr>
+<td><code>Akknew</code></td>
+<td>热层/化学热传导相关路径</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>coefficient</td>
+<td>按 tracer 数密度加权的热导率系数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>mmean/Akknew/cpnew/rnew</code> 是 <code>SAVE, ALLOCATABLE, PROTECTED</code> 模块变量；模块外可读取，但不能直接写入。</li>
+<li>四个数组都用 OpenMP <code>THREADPRIVATE</code>，并行复现时需要确认每个线程完成分配和初始化。</li>
+<li><code>update_r_cp_mu_ak</code> 内部的 <code>nbq/niq/aki/cpi/firstcall</code> 也是 <code>SAVE + THREADPRIVATE</code>；首次调用时按当前 tracer 索引构造参与计算的 tracer 列表。</li>
+<li>首次调用 <code>update_r_cp_mu_ak</code> 会向标准输出打印 <code>nbq</code>、<code>niq(1:nbq)</code>、<code>aki(1:nbq)</code>、<code>cpi(1:nbq)</code>。</li>
+<li><code>ini_conc_mod</code> 只分配，不初始化数值；<code>init_r_cp_mu</code> 不写 <code>Akknew</code>。如果 <code>photochem</code> 和 <code>callthermos</code> 都为假，<code>Akknew</code> 可能未被本模块赋值，但通常也不会被需要动态热导率的路径读取。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>phys_state_var_init_mod.F90</code> 在初始化共享物理状态时，先调用 <code>end_conc_mod</code>，再调用 <code>ini_conc_mod(ngrid,nlayer)</code>，分配 <code>mmean/Akknew/cpnew/rnew</code>。</li>
+<li><code>physiq_mod.F</code> 的 firstcall 阶段调用 <code>init_r_cp_mu(ngrid,nlayer)</code>，把 <code>rnew(:,:)=r</code>、<code>cpnew(:,:)=cpp</code>、<code>mmean(:,:)=mugaz</code>。</li>
+<li>每个物理时间步先把 <code>pdt/pdq</code> 等 tendency 清零，再经过动力质量修正等前置步骤。</li>
+<li>若 <code>photochem.or.callthermos</code> 为真，<code>physiq</code> 调用 <code>update_r_cp_mu_ak(ngrid,nlayer,nq,zplay,pt,pdt,pq,pdq,ptimestep)</code>。</li>
+<li><code>update_r_cp_mu_ak</code> 首次调用时，遍历 <code>tracer_mod</code> 中的化学/热层 tracer 索引，凡 <code>igcm_* /= 0</code> 的 tracer 都加入 <code>niq(1:nbq)</code>，并为它们设置热导率系数 <code>aki</code> 和比热 <code>cpi</code>。源码中包含 30 类候选：CO2、CO、O、O(1D)、O2、O3、H、H2、OH、HO2、H2O2、N2、Ar、H2O vapor、N、NO、NO2、N2D、He、CO2+、O+、O2+、CO+、C+、N+、NO+、N2+、H+、HCO2+、electron。</li>
+<li>每次更新时，先构造当前有效温度 <code>zt=pt+pdt*ptimestep</code>；再只对参与计算的 tracer 构造 <code>zq=max(1.e-30, pq+pdq*ptimestep)</code>。</li>
+<li>对每个格点和层，按 <code>mmean = 1 / sum(zq(iq)/mmol(iq))</code> 计算平均摩尔质量，再按 <code>rnew = 8.314/mmean*1.e3</code> 转成比气体常数。</li>
+<li>继续按 <code>ntot = pplay/(1.381e-23*zt)*1.e-6</code> 计算总数密度（#/cm3），再按 <code>ni = ntot*zq*mmean/mmol</code> 得到各 tracer 数密度。</li>
+<li>按质量混合比加权求 <code>cpnew = sum(zq*cpi)</code>，按数密度加权求 <code>Akknew = sum(ni*aki)/ntot</code>。</li>
+<li>下游立即可用更新后的 <code>rnew</code> 计算 <code>zzlay/zzlev</code>，并用 <code>mmean</code> 做 CO2/H2O/化学 tracer 体积混合比诊断。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>ini_conc_mod(ngrid, nlayer):
+    allocate mmean(ngrid,nlayer), Akknew(ngrid,nlayer)
+    allocate cpnew(ngrid,nlayer), rnew(ngrid,nlayer)
+
+end_conc_mod:
+    deallocate each array if allocated
+
+init_r_cp_mu(ngrid, nlayer):
+    rnew = comcstfi_h:r
+    cpnew = comcstfi_h:cpp
+    mmean = comcstfi_h:mugaz
+
+update_r_cp_mu_ak(...):
+    if firstcall:
+        build compact tracer list niq(1:nbq) from nonzero igcm_* indices
+        assign aki/cpi coefficients for each selected tracer
+        print selected indices and coefficients
+        firstcall = false
+
+    zt = pt + pdt * ptimestep
+    for each selected tracer iq:
+        zq(:,:,iq) = max(1e-30, pq(:,:,iq) + pdq(:,:,iq) * ptimestep)
+
+    for each grid point and layer:
+        mmean = 1 / sum_over_selected_tracers(zq(iq) / mmol(iq))
+        rnew = 8.314 / mmean * 1000
+
+        ntot = pplay / (k_B * zt) converted from m-3 to cm-3
+        cpnew = sum_over_selected_tracers(zq(iq) * cpi(compact_index))
+        Akknew = sum_over_selected_tracers(
+                    ntot * zq(iq) * mmean / mmol(iq) * aki(compact_index)
+                 ) / ntot</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>物理初始化</td>
+<td><code>phys_state_var_init</code> 分配数组；<code>physiq</code> firstcall 填常数背景值</td>
+</tr>
+<tr>
+<td>光化学 / 热层</td>
+<td><code>photochem</code> 或 <code>callthermos</code> 开启时，每步用 tracer 组成动态更新气体常数、比热、平均摩尔质量和热导率</td>
+</tr>
+<tr>
+<td>几何高度与密度</td>
+<td><code>physiq</code> 用 <code>rnew</code> 计算 <code>zzlay/zzlev</code>，并用 <code>rho=p/(rnew*T)</code></td>
+</tr>
+<tr>
+<td>CO2 云与 CO2 饱和</td>
+<td><code>co2cloud_mod</code>、<code>improvedco2clouds_mod</code>、<code>tcondco2</code> 用 <code>mmean</code> 把 CO2 质量混合比换成分压或饱和比</td>
+</tr>
+<tr>
+<td>水云相关路径</td>
+<td><code>improvedclouds_mod</code> 和 <code>watercloud_mod</code> 读取 <code>conc_mod::mmean</code> 换算 H2O 分压或体积混合比；<code>vdifc_mod.F</code> 中同名 <code>mmean</code> 是局部数组</td>
+</tr>
+<tr>
+<td>NLTE 冷却</td>
+<td><code>nltecool</code>、<code>nlte_tcool_mod</code> 用 <code>mmean/cpnew</code> 做体积混合比和加热率换算</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 <code>.F90</code> 模块，使用 <code>PROTECTED</code> 防止模块外写共享数组。</li>
+<li><code>ini_conc_mod</code> 没有已分配保护；调用方通过先 <code>end_conc_mod</code> 再 <code>ini_conc_mod</code> 避免重复分配。</li>
+<li><code>update_r_cp_mu_ak</code> 的 tracer 系数表只在首次调用时构造，并受 <code>THREADPRIVATE</code> 影响。</li>
+<li>多个 <code>aki/cpi</code> 值旁边带 <code>!?</code> 或 0，源码注释说明这些值是估计值；这在复现实验中属于参数不确定来源。</li>
+<li><code>zq</code> 只为被选入 <code>niq(1:nbq)</code> 的 tracer 写值，后续也只读取这些 tracer。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须先执行 <code>ini_conc_mod</code> 分配数组，再执行 <code>init_r_cp_mu</code> 或 <code>update_r_cp_mu_ak</code> 填数值。</li>
+<li>如果 <code>photochem</code> 和 <code>callthermos</code> 都关闭，<code>mmean/rnew/cpnew</code> 保持常数背景；不要假定它们每步都会随 CO2/H2O tracer 改变。</li>
+<li><code>mmean</code> 使用 <code>tracer_mod:mmol</code> 的 <code>g/mol</code> 单位；<code>rnew=8.314/mmean*1.e3</code> 中的 <code>1.e3</code> 是从 g 转 kg 的换算。</li>
+<li><code>update_r_cp_mu_ak</code> 只纳入源码列出的化学/热层 tracer。若某个未列入的 tracer 在质量上不可忽略，它不会进入 <code>mmean/cpnew/Akknew</code>。</li>
+<li><code>zq</code> 对参与 tracer 设下限 <code>1.e-30</code>；极小或负 tracer tendency 不会让分子量求和变成零，但也可能掩盖非常小浓度下的符号问题。</li>
+<li><code>cpnew=sum(zq*cpi)</code> 未显式除以 <code>sum(zq)</code>；复现时应确认参与 tracer 的质量混合比总和接近 1，或接受这是源码定义的质量加权形式。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>Akknew</code> 在 <code>photochem/callthermos</code> 关闭时是否有任何运行路径读取；本页只确认 <code>init_r_cp_mu</code> 不初始化它。</li>
+<li>若 tracer 列表中没有任何 <code>igcm_*</code> 被选入，<code>mmean=1/sum(...)</code> 会发生除零；实际配置是否总保证 <code>nbq&gt;0</code> 需由 tracer 初始化约束确认。</li>
+<li><code>aki/cpi</code> 中标注 <code>!?</code> 或设为 0 的物种参数是否仍代表当前推荐值，需要对照热层/化学方案文档。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars/index</a>：<code>phymars</code> 目录总览。</li>
+<li><a href="comcstfi_h.html">comcstfi_h</a>：提供常数背景 <code>r/cpp/mugaz</code>。</li>
+<li><a href="tracer_mod.html">tracer_mod</a>：提供 tracer 索引和 <code>mmol</code> 摩尔质量数组。</li>
+<li><a href="co2-saturation-helpers.html">co2-saturation-helpers</a>：<code>tcondco2</code> 读取 <code>mmean</code> 计算 CO2 分压。</li>
+<li><a href="co2cloud_mod.html">co2cloud_mod</a>：读取 <code>mmean/rnew</code> 做 CO2 云饱和、分压和几何相关计算。</li>
+<li><a href="../aeronomars/conduction.html">conduction</a>：热层分子热传导，读取 <code>Akknew/cpnew/rnew</code> 构造传导系数与热容项。</li>
+<li><a href="improvedco2clouds_mod.html">improvedco2clouds_mod</a>：读取 <code>mmean</code> 做 CO2 云微物理分压和质量传输计算。</li>
+<li><a href="improvedclouds_mod.html">improvedclouds_mod</a>：读取 <code>mmean</code> 做水汽分压计算。</li>
+<li><a href="massflowrateco2.html">massflowrateco2</a>：其 <code>Matm</code> 输入来自 <code>mmean(ig,l)</code>。</li>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod</a></li>
+<li><a href="physiq_mod.html">physiq_mod.md</a>：主物理时间步调度总入口。</li>
+<li><a href="nlte_tcool_mod.html">nlte_tcool_mod.md</a>、<a href="nltecool.html">nltecool.md</a>：NLTE cooling-time 与冷却入口。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

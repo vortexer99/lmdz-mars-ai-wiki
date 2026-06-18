@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>avg_horiz_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/avg_horiz_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="avg_horiz_modf">avg_horiz_mod.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\avg_horiz_mod.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>水平空间平均插值模块；将高分辨率地表数据（如 <code>surface.nc</code> 中的 summit、base 等字段）从源网格（<code>imo×jmo</code>）复合平均到目标 GCM 网格（<code>imn+1 × jmn+1</code>）。由 <code>datareadnc.F</code> 在读取地表数据时调用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>avg_horiz_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>包装 <code>avg_horiz</code> 子例程</td>
+</tr>
+<tr>
+<td><code>avg_horiz</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>将源网格数据按空间搜索分箱平均到目标网格</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>—</td>
+<td>本模块无外部 <code>use</code> 依赖</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>—</td>
+<td>—</td>
+<td>本模块不调用任何外部例程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>imo</code></td>
+<td><code>datareadnc</code></td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>源网格经度方向点数</td>
+</tr>
+<tr>
+<td><code>jmo</code></td>
+<td><code>datareadnc</code></td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>源网格纬度方向点数</td>
+</tr>
+<tr>
+<td><code>imn</code></td>
+<td><code>datareadnc</code></td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>目标网格经度方向点数（输出维度 <code>imn+1</code>）</td>
+</tr>
+<tr>
+<td><code>jmn</code></td>
+<td><code>datareadnc</code></td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>目标网格纬度方向点数（输出维度 <code>jmn+1</code>）</td>
+</tr>
+<tr>
+<td><code>rlonuo</code></td>
+<td><code>datareadnc</code></td>
+<td><code>real (imo)</code></td>
+<td>rad</td>
+<td>源网格经度坐标</td>
+</tr>
+<tr>
+<td><code>rlatvo</code></td>
+<td><code>datareadnc</code></td>
+<td><code>real (jmo)</code></td>
+<td>rad</td>
+<td>源网格纬度坐标</td>
+</tr>
+<tr>
+<td><code>rlonv</code></td>
+<td><code>datareadnc</code></td>
+<td><code>real (imn+1)</code></td>
+<td>rad</td>
+<td>目标网格经度边界</td>
+</tr>
+<tr>
+<td><code>rlatu</code></td>
+<td><code>datareadnc</code></td>
+<td><code>real (jmn+1)</code></td>
+<td>rad</td>
+<td>目标网格纬度边界</td>
+</tr>
+<tr>
+<td><code>zdata</code></td>
+<td><code>datareadnc</code></td>
+<td><code>real (imo*jmo)</code></td>
+<td>—</td>
+<td>源网格数据（一维展开）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>outdata</code></td>
+<td><code>datareadnc::pfield</code></td>
+<td><code>real (imn+1, jmn+1)</code></td>
+<td>同 <code>zdata</code></td>
+<td>目标网格上的平均水平值</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>无 <code>save</code> 变量、无 <code>THREADPRIVATE</code>、无文件 I/O。</li>
+<li>纯计算模块，无副作用。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><p><strong>构建目标网格中间坐标</strong>（行 43-53）：<code>tmplon(2..imn+1)</code> 和 <code>tmplat(2..jmn+1)</code> 为相邻边界点的中点；边界值直接复制。这些中间点定义了目标网格单元的中心。</p></li>
+<li><p><strong>空间搜索</strong>（行 56-74）：对每个源网格点 <code>(i,j)</code>，遍历所有目标网格单元，找到满足经度在 <code>[tmplon(m), tmplon(m+1))</code> 且纬度在 <code>[tmplat(n+1), tmplat(n))</code> 范围内的目标单元 <code>(m,n)</code>。使用 <code>goto 1000</code> 在找到匹配后立即跳出内层循环。结果存储在 <code>iik(i,j)</code> 和 <code>jjk(i,j)</code> 中。</p></li>
+<li><p><strong>分箱平均</strong>（行 76-90）：对每个目标单元 <code>(m,n)</code>，累加所有映射到该单元的源数据值 <code>zdata(i+imo*(j-1))</code>，再除以落入该单元的源点数 <code>nmesh</code>，得到平均值写入 <code>outdata(m,n)</code>。</p></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>! 构建目标网格中间坐标
+tmplon(1) = rlonv(1)
+for m = 2 to imn+1:  tmplon(m) = (rlonv(m-1) + rlonv(m)) / 2
+tmplon(imn+2) = rlonv(imn+1)
+
+tmplat(1) = rlatu(1)
+for n = 2 to jmn+1:  tmplat(n) = (rlatu(n-1) + rlatu(n)) / 2
+tmplat(jmn+2) = rlatu(jmn+1)
+
+! 空间搜索：为每个源点找到对应的目标单元
+for each source point (i, j):
+    for each target cell (m, n):
+        if rlonuo(i) in [tmplon(m), tmplon(m+1)):
+            if rlatvo(j) in [tmplat(n+1), tmplat(n)):
+                iik(i,j) = m;  jjk(i,j) = n
+                break
+
+! 分箱平均
+for each target cell (m, n):
+    sum = 0;  count = 0
+    for each source point (i, j):
+        if iik(i,j) == m and jjk(i,j) == n:
+            sum += zdata(i + imo*(j-1))
+            count += 1
+    outdata(m, n) = sum / count</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>初始场与地表数据</td>
+<td>在 <code>datareadnc</code> 中将高分辨率地表数据插值到 GCM 网格</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran（<code>.F</code>），续行符 <code>.</code>，使用 <code>goto</code> 跳出嵌套循环。</li>
+<li>无外部依赖，纯算术实现。</li>
+<li>计算 <code>pi = 2*asin(1)</code> 但实际未在后续代码中使用（遗留代码）。</li>
+<li>四重嵌套循环（源点 × 目标单元）的时间复杂度为 O(imo×jmo×imn×jmn)，适合小规模网格。</li>
+<li>当目标单元内没有源点时 <code>nmesh=0</code>，存在除零风险（<code>outdata</code> 初始化为 0，但 <code>0/0</code> 仍为 NaN）。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>输入坐标 <code>rlonuo</code>/<code>rlatvo</code> 在调用前已由 <code>datareadnc</code> 从角度转换为弧度（<code>× π/180</code>）。</li>
+<li>源数据 <code>zdata</code> 为一维展开格式（Fortran 列主序：<code>zdata(i + imo*(j-1))</code>）。</li>
+<li>目标网格边界数组 <code>rlonv</code>/<code>rlatu</code> 维度为 <code>+1</code>（即网格边界数 = 网格单元数 + 1）。</li>
+<li>调用后 <code>datareadnc</code> 会处理周期性边界（<code>pfield(iimp1*j) = pfield(1+iimp1*(j-1))</code>）。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>纬度搜索条件 <code>rlatvo(j) &lt; tmplat(n)</code> 且 <code>rlatvo(j) &gt;= tmplat(n+1)</code> 暗示纬度从北极向南极递减排列，需确认。</li>
+<li>目标网格为空单元时的除零行为是否在实际运行中触发。</li>
+<li><code>pi</code> 变量是否曾被使用或仅为遗留代码。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="datareadnc.html">datareadnc</a>：调用方，读取 NetCDF 地表数据</li>
+<li><a href="grid_noro1.html">grid_noro1</a>：在 <code>datareadnc</code> 中先于 <code>avg_horiz</code> 调用，处理无旋转网格</li>
+<li><a href="index.html">dynphy_lonlat/index</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

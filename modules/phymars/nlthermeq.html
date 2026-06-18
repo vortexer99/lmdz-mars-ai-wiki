@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nlthermeq - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/nlthermeq.md</span>
+    </nav>
+    <article class="content">
+<h1 id="nlthermeqf">nlthermeq.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\nlthermeq.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>nlthermeq.F</code> 提供 <code>nlthermeq_mod</code> 模块和唯一入口 <code>nlthermeq</code>，负责在辐射调用链中计算 LTE 长波/短波辐射还需要覆盖到第几层。计算结果不作为参数返回，而是写入 <code>yomlw_h::nlaylte</code> 这个共享状态；随后 <code>callradite_mod.F</code> 只在 <code>1:nlaylte</code> 层运行 LTE 辐射，<code>blendrad.F</code> 在这些层内把 LTE 与 NLTE 倾向平滑混合，并在 <code>nlaylte+1:nlayer</code> 层放弃 LTE 倾向。</p>
+<p>它不是 NLTE 冷却率本体。<code>nltecool.F</code> 与 <code>nlte_tcool_mod.F</code> 计算 <code>zdtnlte</code>，<code>nlteparams_h.F90</code> 给出 <code>ptrans/zw/pminte/zwi</code>，而本文件只把 <code>pminte=0.04 Pa</code> 这类阈值投影到当前 GCM 垂直层索引 <code>nlaylte</code> 上。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlthermeq_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>封装 LTE 覆盖层选择入口。</td>
+</tr>
+<tr>
+<td><code>nlthermeq</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7</td>
+<td>根据当前层压强剖面和 <code>callnlte</code> 开关写入 <code>yomlw_h::nlaylte</code>。</td>
+</tr>
+<tr>
+<td><code>igpmax</code></td>
+<td>saved local integer</td>
+<td style="text-align: right;">29</td>
+<td>首次调用时记录表面压力最大的水平格点索引，后续调用沿用。</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td>saved local logical</td>
+<td style="text-align: right;">30</td>
+<td>控制首次调用初始化、打印过渡参数和 <code>igpmax</code> 搜索；与 <code>igpmax</code> 一起声明为 OpenMP <code>THREADPRIVATE</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>yomlw_h</code></td>
+<td><code>nlaylte</code></td>
+<td>保存 LTE 辐射计算的层数上限；本文件写入，长波/短波辐射和 <code>blendrad</code> 读取。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>nlteparams_h</code></td>
+<td><code>ptrans</code>, <code>pminte</code>, <code>zw</code></td>
+<td>首次调用时打印过渡中心和半宽；用 <code>pminte</code> 作为 <code>nlaylte</code> 搜索阈值。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>callnlte</code></td>
+<td>决定是否执行 NLTE 模式的阈值搜索；关闭时强制 <code>nlaylte=nlayer</code>。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ismax</code></td>
+<td>外部例程，未在本文件 <code>use</code></td>
+<td>44</td>
+<td>在 <code>pplev</code> 的第一列跨度上寻找最大表面压力格点索引，作为保守参考列。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>physiq_mod.F</code> 调用参数</td>
+<td>integer</td>
+<td>-</td>
+<td>水平格点数。</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>physiq_mod.F</code> 调用参数</td>
+<td>integer</td>
+<td>-</td>
+<td>GCM 垂直层数。</td>
+</tr>
+<tr>
+<td><code>pplev(ngrid,nlayer+1)</code></td>
+<td><code>physiq_mod.F::zplev</code></td>
+<td>real array</td>
+<td>Pa</td>
+<td>层界面压强；首次调用时用于寻找最大表面压力格点。</td>
+</tr>
+<tr>
+<td><code>pplay(ngrid,nlayer)</code></td>
+<td><code>physiq_mod.F::zplay</code></td>
+<td>real array</td>
+<td>Pa</td>
+<td>层中心压强；用于在参考列上从顶向下寻找 <code>pplay &gt; pminte</code> 的第一层。</td>
+</tr>
+<tr>
+<td><code>callnlte</code></td>
+<td><code>callkeys_mod</code></td>
+<td>logical saved config</td>
+<td>-</td>
+<td>NLTE 辐射开关；关闭时 LTE 覆盖全部层。</td>
+</tr>
+<tr>
+<td><code>pminte</code></td>
+<td><code>nlteparams_h</code></td>
+<td>real parameter</td>
+<td>Pa</td>
+<td>LTE 辐射至少应覆盖到的压强阈值，当前为 <code>0.4*ptrans=0.04 Pa</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlaylte</code></td>
+<td><code>yomlw_h</code></td>
+<td>saved integer</td>
+<td>层索引</td>
+<td>LTE 长波/短波辐射的有效层数上限；<code>callradite</code>、<code>lw*</code>、<code>sw*</code> 和 <code>blendrad</code> 读取。</td>
+</tr>
+<tr>
+<td>标准输出诊断</td>
+<td>运行日志</td>
+<td>text</td>
+<td>-</td>
+<td>首次调用打印 <code>ptrans/zw/pminte</code>，每次调用打印 <code>LTE rad. calculations up to layer</code> 和 <code>nlaylte</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>nlaylte</code> 是 <code>yomlw_h.F90</code> 中的 <code>integer,save</code>，并且在 <code>yomlw_h</code> 中声明为 OpenMP <code>THREADPRIVATE</code>。本文件的主要副作用就是写入该共享变量。</li>
+<li><code>igpmax</code> 与 <code>firstcall</code> 是本文件内部 <code>save</code> 状态，也声明为 <code>THREADPRIVATE(firstcall,igpmax)</code>。每个线程首次进入时都会重新找一次最大表面压力格点并打印过渡参数。</li>
+<li><code>physiq_mod.F</code> 在每个 sol 的第一个物理步附近调用 <code>nlthermeq</code>：源码注释写明 “done only once per sol”，调用条件是 <code>MOD((icount-1),steps_per_sol).EQ.0</code>。</li>
+<li>本文件不会读写外部文件，也不会分配数组；副作用集中在共享整数、局部缓存和标准输出。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>首次进入当前线程时，调用 <code>ismax(ngrid, pplev, 1)</code> 找到表面压力最大的水平格点 <code>igpmax</code>。源码注释把它称为 worst possible case，并说明在有地形时该位置变化不大。</li>
+<li>同一次首次调用打印 <code>ptrans</code>、<code>zw</code> 和 <code>pminte</code>，然后把 <code>firstcall</code> 置为 <code>.false.</code>。</li>
+<li>若 <code>callnlte=.true.</code>，从顶层 <code>nlayer</code> 向下扫描参考列 <code>pplay(igpmax,:)</code>，把循环变量本身作为 <code>nlaylte</code>。遇到第一层满足 <code>pplay(igpmax,nlaylte) &gt; pminte</code> 时跳出。</li>
+<li>若 <code>callnlte=.false.</code>，直接令 <code>nlaylte=nlayer</code>，表示 LTE 辐射覆盖全部层。</li>
+<li>打印最终 <code>nlaylte</code>。下游 <code>callradite_mod.F</code> 会把 <code>nlaylte+1:nlayer</code> 的 LTE 短波和长波倾向置零，<code>blendrad.F</code> 则在 <code>1:nlaylte</code> 计算 LTE/NLTE 权重混合。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if firstcall for this OpenMP thread:
+  igpmax = index of maximum pplev(:,1)
+  print ptrans, zw, pminte
+  firstcall = false
+
+if callnlte:
+  for nlaylte from nlayer down to 1:
+    if pplay(igpmax, nlaylte) &gt; pminte:
+      exit loop
+else:
+  nlaylte = nlayer
+
+print nlaylte</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>辐射计算</td>
+<td>在 <code>physiq</code> 的辐射调用前确定 LTE 辐射覆盖层数，限制 <code>callradite</code>、长波和短波辐射的有效层范围。</td>
+</tr>
+<tr>
+<td>LTE/NLTE 辐射过渡</td>
+<td>把 <code>nlteparams_h::pminte</code> 映射为层索引 <code>nlaylte</code>，供 <code>blendrad</code> 在 LTE 与 NLTE 倾向之间切换。</td>
+</tr>
+<tr>
+<td>高层大气 NLTE</td>
+<td>与 <code>nltecool</code> / <code>nlte_tcool_mod</code> 互补：它不计算 NLTE 冷却率，只决定 LTE 方案还需要算到哪里。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 文件，使用列 1 的 <code>c</code> 注释和标签 <code>100</code> / <code>10</code> / <code>20</code> / <code>30</code>。</li>
+<li>循环变量 <code>nlaylte</code> 直接是模块变量，不是局部临时量；<code>do nlaylte = nlayer, 1, -1</code> 结束或 <code>go to 100</code> 后，下游读取的就是该模块状态。</li>
+<li>首次调用缓存 <code>igpmax</code> 的策略刻意牺牲一般性来减少重复搜索。源码注释明确指出 MESOSCALE nesting 或并行 GCM 可能有问题，但又说明当前 <code>pminte=0.04</code> 和 hybrid 垂直坐标使过渡点处于纯压力层，因此通常相同。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>pplev</code> 和 <code>pplay</code> 必须使用 Pa，与 <code>nlteparams_h::pminte</code> 的单位一致。</li>
+<li><code>nlthermeq</code> 需要在 <code>callradite</code> 和 <code>blendrad</code> 之前运行；<code>physiq_mod.F</code> 当前调用顺序满足这一点。</li>
+<li>若 <code>callnlte=.false.</code>，<code>nlaylte=nlayer</code>，后续不应调用 <code>blendrad</code>，<code>physiq_mod.F</code> 当前也在该分支直接相加 <code>zdtsw+zdtlw+zdtnirco2</code>。</li>
+<li>复现风险：如果改用复杂地形、嵌套网格或并行域分解，<code>igpmax</code> 的线程私有首次缓存可能不再代表全局最保守列；源码自己把这一点标为待清理。</li>
+<li>复现风险：如果垂直层顶不足以出现 <code>pplay &gt; pminte</code> 的扫描命中，Fortran 循环结束后的 <code>nlaylte</code> 值依赖编译器对终止循环变量的处理；当前常规火星 GCM 垂直网格预期会命中该阈值。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>ismax</code> 的具体实现不在本文件内；本页只按调用语义和注释记录它用于寻找最大 <code>pplev(:,1)</code> 位置。</li>
+<li><code>pminte=0.04 Pa</code> 处于纯压力层这一稳健性假设来自本文件注释，未在本任务中用实际网格样例数值复算。</li>
+<li><code>nlthermeq</code> 是否在所有并行运行模式下都由每个线程以一致的 <code>pplev/pplay</code> 调用，需要结合运行时域分解继续确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a></li>
+<li><a href="nlteparams_h.html">nlteparams_h</a></li>
+<li><a href="blendrad.html">blendrad</a></li>
+<li><a href="nltecool.html">nltecool</a></li>
+<li><a href="nlte_tcool_mod.html">nlte_tcool_mod</a></li>
+<li><a href="../../themes/radiation.html">radiation</a></li>
+<li><a href="../../reference/file-index.html">file-index</a></li>
+<li><a href="../../reference/symbol-index.html">symbol-index</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

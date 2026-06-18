@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>water-saturation-helpers - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/water-saturation-helpers.md</span>
+    </nav>
+    <article class="content">
+<h1 id="水饱和与凝结温度辅助函数页">水饱和与凝结温度辅助函数页</h1>
+<h2 id="文件组">文件组</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>路径</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>watersat_mod.F90</code></td>
+<td><code>LMDZ.MARS\libf\phymars\watersat_mod.F90</code></td>
+</tr>
+<tr>
+<td><code>tcondwater.F90</code></td>
+<td><code>LMDZ.MARS\libf\phymars\tcondwater.F90</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件组定位">文件组定位</h2>
+<p>这两个文件提供水冰凝结的热力学基础计算：</p>
+<ul>
+<li><code>watersat_mod.F90</code>：给定温度和气压计算水饱和质量混合比 (kg/kg)</li>
+<li><code>tcondwater.F90</code>：给定气压和水质量混合比反推凝结温度 (K)</li>
+</ul>
+<p>二者基于同一参数化公式（Laurent Li / Murphy &amp; Koop 2005），形式上互为逆运算，是水循环、水云微物理和边界层的核心热力学入口。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>文件</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>watersat_mod</code></td>
+<td>watersat_mod.F90</td>
+<td>module</td>
+<td>1</td>
+<td>封装 <code>watersat</code> 的模块</td>
+</tr>
+<tr>
+<td><code>watersat</code></td>
+<td>watersat_mod.F90</td>
+<td>subroutine</td>
+<td>19</td>
+<td>给定 T、P 计算水饱和混合比</td>
+</tr>
+<tr>
+<td><code>tcondwater_mod</code></td>
+<td>tcondwater.F90</td>
+<td>module</td>
+<td>1</td>
+<td>封装 <code>tcondwater</code> 的模块</td>
+</tr>
+<tr>
+<td><code>tcondwater</code></td>
+<td>tcondwater.F90</td>
+<td>subroutine</td>
+<td>7</td>
+<td>给定 P、q 反推凝结温度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>来源文件</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无外部调用</td>
+<td>-</td>
+<td>-</td>
+<td>纯函数式计算，无子例程调用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<h3 id="watersat">watersat</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gridsize</code></td>
+<td>调用点</td>
+<td>INTEGER, scalar</td>
+<td>-</td>
+<td>数组维度</td>
+</tr>
+<tr>
+<td><code>T</code></td>
+<td>调用点</td>
+<td>REAL (gridsize)</td>
+<td>K</td>
+<td>温度数组</td>
+</tr>
+<tr>
+<td><code>p</code></td>
+<td>调用点</td>
+<td>REAL (gridsize)</td>
+<td>Pa</td>
+<td>总气压数组</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tcondwater">tcondwater</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用点</td>
+<td>INTEGER, scalar</td>
+<td>-</td>
+<td>水平网格数</td>
+</tr>
+<tr>
+<td><code>nlay</code></td>
+<td>调用点</td>
+<td>INTEGER, scalar</td>
+<td>-</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>p</code></td>
+<td>调用点</td>
+<td>REAL (ngrid,nlay)</td>
+<td>Pa</td>
+<td>总气压</td>
+</tr>
+<tr>
+<td><code>q</code></td>
+<td>调用点</td>
+<td>REAL (ngrid,nlay)</td>
+<td>kg/kg</td>
+<td>水质量混合比（<code>watercloud_mod</code> 传入 <code>h2o_vap + h2o_ice</code>）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<h3 id="watersat-1">watersat</h3>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>qsat</code></td>
+<td>调用点</td>
+<td>REAL (gridsize)</td>
+<td>kg/kg</td>
+<td>水饱和质量混合比</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tcondwater-1">tcondwater</h3>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tcond</code></td>
+<td>调用点</td>
+<td>REAL (ngrid,nlay)</td>
+<td>K</td>
+<td>水凝结温度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>无 module 变量读写</li>
+<li>无文件 I/O</li>
+<li>纯函数式计算，无副作用</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="watersat-2">watersat</h3>
+<ol type="1">
+<li>计算分子量比 <code>epsi = 18.0/44.0</code>（≈0.4091，H2O/CO2 分子量比）。</li>
+<li>按参数化公式计算冰面饱和蒸汽压（Pa）：
+<pre><code>psat = 100.0 × 10^(2.07023 − 0.00320991×T − 2484.896/T + 3.56654×log₁₀(T))</code></pre>
+<ul>
+<li>公式来源：Laurent Li 参数化，基于 Murphy &amp; Koop (2005)（QJRMS）</li>
+<li><code>100.0</code> 因子将 mbar 转换为 Pa</li>
+</ul></li>
+<li>若 <code>psat &gt; P</code>（总气压），设 <code>qsat = 1</code>（完全饱和保护）。</li>
+<li>否则 <code>qsat = epsi × psat / (P − (1−epsi) × psat)</code>，并取 <code>max(qsat, 1e-30)</code> 防止极小值。</li>
+</ol>
+<h3 id="tcondwater-2">tcondwater</h3>
+<ol type="1">
+<li>计算 <code>x = log₁₀(max(q, 1e-16) × p / (100 × 0.41))</code>。
+<ul>
+<li><code>100</code> 将 mbar 因子归一化，<code>0.41</code> ≈ <code>epsi</code> = 18/44</li>
+<li><code>max(q, 1e-16)</code> 防止非正数取对数</li>
+</ul></li>
+<li>用 5 阶多项式反解温度：
+<pre><code>tcond = 252.8466 + 23.9230×x + 2.21334×x² + 0.179978×x³ + 0.0100068×x⁴ + 0.000255145×x⁵</code></pre>
+<ul>
+<li>多项式系数通过数值拟合得到（源码注释记录了 5~12 阶的多组系数和最大误差）</li>
+<li>5 阶拟合最大绝对误差：0.0604 K</li>
+</ul></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<h3 id="watersat-3">watersat</h3>
+<pre class="text"><code>watersat(gridsize, T, p, qsat):
+    epsi = 18.0 / 44.0
+    对 i = 1 到 gridsize:
+        psat = 100.0 * 10^(2.07023 - 0.00320991*T(i) - 2484.896/T(i) + 3.56654*log10(T(i)))
+        if psat &gt; p(i):
+            qsat(i) = 1.0
+        else:
+            qsat(i) = epsi * psat / (p(i) - (1 - epsi) * psat)
+            qsat(i) = max(qsat(i), 1e-30)</code></pre>
+<h3 id="tcondwater-3">tcondwater</h3>
+<pre class="text"><code>tcondwater(ngrid, nlay, p, q, tcond):
+    对 i = 1 到 ngrid:
+        对 j = 1 到 nlay:
+            x = log10(max(q(i,j), 1e-16) * p(i,j) / (100.0 * 0.41))
+            tcond(i,j) = 252.8466 + 23.9230*x + 2.21334*x² + 0.179978*x³
+                        + 0.0100068*x⁴ + 0.000255145*x⁵</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>水循环 (water-cycle)</td>
+<td>为水云微物理和边界层提供饱和判据和凝结温度</td>
+</tr>
+<tr>
+<td>水冰云形成</td>
+<td><code>watercloud_mod</code> 调用 <code>tcondwater</code>（行 248）计算 CLFvarying 凝结温度，调用 <code>watersat</code>（行 564）检查过饱和</td>
+</tr>
+<tr>
+<td>边界层</td>
+<td><code>vdifc</code>、<code>vdif_cd</code>、<code>pbl_parameters</code> 调用 <code>watersat</code> 计算地表饱和混合比</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>watersat_mod.F90</code> 为自由格式 Fortran 90，<code>tcondwater.F90</code> 为自由格式 Fortran 90。</li>
+<li>无 <code>use</code>、<code>SAVE</code>、<code>THREADPRIVATE</code> 或编译宏。</li>
+<li><code>epsi = 18./44.</code> 为硬编码分子量比，注释提到"Perhaps should be recomputed properly if mu_dry changes"。</li>
+<li><code>tcondwater</code> 中 <code>0.41</code> 硬编码等同于 <code>epsi</code>，源码注释提到 2014 年 6 月 10 日调整了运算优先级。</li>
+<li><code>tcondwater</code> 源码注释保留了 5~12 阶多组多项式系数和误差对比，最终选用 5 阶（最大误差 0.06 K）。</li>
+<li><code>watersat</code> 的 <code>psat &gt; P</code> 保护直接返回 <code>qsat=1</code>，而非限制为某个最大值。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>watersat</code> 的饱和蒸汽压公式基于 Murphy &amp; Koop (2005)，是冰面饱和（非液面）。</li>
+<li><code>epsi = 18./44.</code> 硬编码假设干大气为纯 CO2；若干大气成分变化需同步修改。</li>
+<li><code>tcondwater</code> 的 5 阶多项式拟合最大误差 0.06 K，源码注释记录了更高阶系数（12 阶误差 2.7e-5 K）。</li>
+<li><code>tcondwater</code> 输入 <code>q</code> 在 <code>watercloud_mod</code> 中传入 <code>h2o_vap + h2o_ice</code>（气+冰相总水），而非仅水汽。</li>
+<li><code>tcondwater</code> 中 <code>max(q, 1e-16)</code> 保护防止非正数取对数。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>epsi = 18./44.</code> 假设干大气为纯 CO2——实际火星大气含 Ar、N2 等，<code>mmean</code> 不严格等于 44，但 <code>watersat</code> 不使用 <code>conc_mod::mmean</code>（与 <code>tcondco2</code> 不同）。</li>
+<li><code>tcondwater</code> 的多项式拟合适用温度/压力范围——源码注释未明确标注。</li>
+<li><code>watersat</code> 的 <code>psat &gt; P</code> 保护返回 <code>qsat=1</code> 是否为有意设计（物理上意味着总气压低于饱和蒸汽压，即真空升华场景）。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li><code>epsi</code> 硬编码假设纯 CO2 大气，非真实火星大气成分。</li>
+<li><code>tcondwater</code> 多项式拟合精度 0.06 K——对大多数应用足够，但极端过饱和检测可能受影响。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="watercloud_mod.html">watercloud_mod — 水云主调度</a> - 调用 <code>tcondwater</code>（行 248）和 <code>watersat</code>（行 564）</li>
+<li><a href="simpleclouds_mod.html">simpleclouds_mod</a>（TASK-0033）- 调用 <code>watersat</code>（行 128）</li>
+<li><a href="improvedclouds_mod.html">improvedclouds_mod</a>（TASK-0034）- 调用 <code>watersat</code>（行 237/253）</li>
+<li><a href="co2-saturation-helpers.html">co2-saturation-helpers — CO2 饱和与凝结温度</a> - CO2 对应物</li>
+<li><a href="../../themes/water-cycle.html">水循环主题页</a>（TASK-0010）</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

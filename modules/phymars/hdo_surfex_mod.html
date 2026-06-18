@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>hdo_surfex_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/hdo_surfex_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="hdo_surfex_modf">hdo_surfex_mod.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\hdo_surfex_mod.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>hdo_surfex_mod.F</code> 定义 <code>hdo_surfex_mod</code> 模块和 <code>hdo_surfex</code> 子程序，是水循环中 HDO（半重水）地表-大气通量计算的核心例程。它被 <code>vdifc_mod.F</code> 中的 <code>vdifc</code> 垂直湍流扩散例程调用，在 H2O 水汽地表交换段（行 1350）之后执行，基于已计算的 H2O 通量和地表冰储量计算 HDO 通量。</p>
+<p>本例程的核心功能是：在升华/凝结过程中考虑同位素分馏效应，计算 HDO 的地表通量。它使用平衡分馏系数（Lamb 公式）和动力学分馏系数（Jouzel &amp; Merlivat 1984），并处理永久冰盖（watercaptag）的特殊情况。</p>
+<p>源码注释表明作者为 L. Rossi 和 M. Vals（2019）。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hdo_surfex_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装 HDO 地表通量计算例程</td>
+</tr>
+<tr>
+<td><code>hdo_surfex</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>基于 H2O 通量计算 HDO 地表通量，含分馏效应</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_h2o_vap</code>, <code>igcm_h2o_ice</code>, <code>igcm_hdo_vap</code>, <code>igcm_hdo_ice</code>, <code>qparentmin</code></td>
+<td>tracer 索引和最小值阈值</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>watercaptag</code></td>
+<td>永久冰盖标记</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>longitude_deg</code>, <code>latitude_deg</code></td>
+<td>经纬度（本例程未使用）</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>圆周率，用于扩散系数公式</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>nav</code>, <code>kbz</code>, <code>mh2o</code>, <code>mco2</code>, <code>mhdo</code>, <code>molco2</code>, <code>molh2o</code>, <code>molhdo</code></td>
+<td>物理常数：阿伏伽德罗常数、玻尔兹曼常数、分子质量</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>write_output_mod</code></td>
+<td><code>write_output</code></td>
+<td>诊断输出（本例程已注释掉）</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>hdofrac</code></td>
+<td>HDO 分馏开关</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>本例程只使用内在函数，不调用其他用户例程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>vdifc</code></td>
+<td>integer scalar</td>
+<td>grid points</td>
+<td>大气列数</td>
+</tr>
+<tr>
+<td><code>nlay</code></td>
+<td><code>vdifc</code></td>
+<td>integer scalar</td>
+<td>layers</td>
+<td>大气层数（本例程只使用第 1 层）</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td><code>vdifc</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>tracer 总数</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td><code>vdifc</code></td>
+<td>real scalar</td>
+<td>s</td>
+<td>物理时间步长</td>
+</tr>
+<tr>
+<td><code>zt</code></td>
+<td><code>vdifc</code></td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>K</td>
+<td>温度（本例程只使用 <code>zt(:,1)</code>）</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td><code>vdifc</code></td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>Pa</td>
+<td>层压力（本例程只使用 <code>pplay(:,1)</code>）</td>
+</tr>
+<tr>
+<td><code>zq</code></td>
+<td><code>vdifc</code></td>
+<td>real <code>(ngrid,nlay,nq)</code></td>
+<td>kg/kg</td>
+<td>tracer 混合比（本例程只使用 <code>zq(:,1,igcm_hdo_vap)</code>）</td>
+</tr>
+<tr>
+<td><code>pqsurf</code></td>
+<td><code>vdifc</code></td>
+<td>real <code>(ngrid,nq)</code></td>
+<td>kg/m²</td>
+<td>地表 tracer 储量</td>
+</tr>
+<tr>
+<td><code>old_h2o_vap</code></td>
+<td><code>vdifc</code></td>
+<td>real <code>(ngrid)</code></td>
+<td>kg/kg</td>
+<td>子时间步前的 H2O 水汽混合比</td>
+</tr>
+<tr>
+<td><code>qsat</code></td>
+<td><code>vdifc</code></td>
+<td>real <code>(ngrid)</code></td>
+<td>kg/kg</td>
+<td>饱和混合比</td>
+</tr>
+<tr>
+<td><code>pdqsdif</code></td>
+<td><code>vdifc</code></td>
+<td>real <code>(ngrid,nq)</code>, intent(inout)</td>
+<td>kg/kg/s</td>
+<td>tracer 地表通量 tendency（输入 H2O 通量，输出 HDO 通量）</td>
+</tr>
+<tr>
+<td><code>dwatercap_dif</code></td>
+<td><code>vdifc</code></td>
+<td>real <code>(ngrid)</code></td>
+<td>kg/kg/s</td>
+<td>永久冰盖升华/凝结 tendency</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hdoflux</code></td>
+<td><code>vdifc</code></td>
+<td>real <code>(ngrid)</code></td>
+<td>kg/kg/s</td>
+<td>HDO 水汽地表通量</td>
+</tr>
+<tr>
+<td><code>pdqsdif(igcm_hdo_ice)</code></td>
+<td><code>vdifc</code></td>
+<td>real <code>(ngrid)</code>, intent(inout)</td>
+<td>kg/kg/s</td>
+<td>HDO 冰 tracer 地表通量 tendency</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本文件没有 <code>save</code> 变量、<code>COMMON</code>、<code>THREADPRIVATE</code>、文件 I/O 或配置读取。</li>
+<li>副作用是原地改写 <code>pdqsdif(:,igcm_hdo_ice)</code>（输入时为 H2O 通量，输出时为 HDO 通量）。</li>
+<li>诊断输出已注释掉（<code>write_output</code> 调用），不影响运行。</li>
+<li><code>geometry_mod</code> 中的 <code>longitude_deg</code> 和 <code>latitude_deg</code> 被 use 但未在例程中使用。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><p><strong>初始化</strong>：</p>
+<ul>
+<li>计算饱和比 <code>satu = old_h2o_vap / qsat</code></li>
+<li>初始化分馏系数 <code>alpha = 1.0</code>、<code>alpha_c = 1.0</code></li>
+</ul></li>
+<li><p><strong>主循环</strong>（对每个格点 <code>ig</code>）：</p>
+<ul>
+<li>计算总 H2O 通量：<code>h2oflux = pdqsdif(igcm_h2o_ice) + dwatercap_dif</code></li>
+</ul></li>
+<li><p><strong>升华分支</strong>（<code>h2oflux &lt;= 0</code>）：</p>
+<ul>
+<li>若地表冰储量 <code>pqsurf(igcm_h2o_ice) &gt; qparentmin</code>：
+<ul>
+<li>HDO 通量 = H2O 通量 × (HDO 冰储量 / H2O 冰储量)</li>
+</ul></li>
+<li>否则：HDO 通量 = 0</li>
+<li>约束：不能超过地表冰储量（<code>max</code> 操作）</li>
+<li>若在永久冰盖上且升华超过地表冰储量：
+<ul>
+<li>添加额外贡献：<code>dwatercap_dif × 2 × 155.76e-6 × 5</code>（D/H = 5 SMOW）</li>
+</ul></li>
+</ul></li>
+<li><p><strong>凝结分支</strong>（<code>h2oflux &gt; 0</code>）：</p>
+<ul>
+<li>若 <code>hdofrac</code> 为真（启用分馏）：
+<ul>
+<li>计算 H2O 扩散系数 <code>Dv</code>（基于分子运动论）</li>
+<li>计算 HDO 扩散系数 <code>Dv_hdo</code></li>
+<li>计算平衡分馏系数 <code>alpha = exp(13525/T² - 0.0559)</code>（Lamb 公式）</li>
+<li>计算动力学分馏系数 <code>alpha_c</code>（Jouzel &amp; Merlivat 1984）</li>
+</ul></li>
+<li>否则：<code>alpha_c = 1.0</code></li>
+<li>若 <code>old_h2o_vap &gt; qparentmin</code>：
+<ul>
+<li>HDO 通量 = <code>alpha_c × H2O 通量 × (HDO 水汽 / H2O 水汽)</code></li>
+</ul></li>
+<li>否则：HDO 通量 = 0</li>
+<li>若 <code>hdofrac</code> 为真：约束 HDO 通量不超过可用 HDO 水汽（<code>min</code> 操作）</li>
+</ul></li>
+<li><p><strong>输出</strong>：设置 <code>hdoflux = pdqsdif(igcm_hdo_ice)</code></p></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>hdo_surfex(ngrid, nlay, nq, ptimestep, zt, pplay, zq, pqsurf,
+           old_h2o_vap, qsat, pdqsdif, dwatercap_dif, hdoflux):
+
+    satu = old_h2o_vap / qsat  ! 饱和比
+    alpha = 1.0                 ! 平衡分馏系数
+    alpha_c = 1.0               ! 动力学分馏系数
+
+    for ig in 1..ngrid:
+        h2oflux = pdqsdif(igcm_h2o_ice) + dwatercap_dif
+
+        if h2oflux &lt;= 0:  ! 升华
+            if pqsurf(igcm_h2o_ice) &gt; qparentmin:
+                pdqsdif(igcm_hdo_ice) = pdqsdif(igcm_h2o_ice) * (pqsurf(igcm_hdo_ice) / pqsurf(igcm_h2o_ice))
+            else:
+                pdqsdif(igcm_hdo_ice) = 0
+
+            pdqsdif(igcm_hdo_ice) = max(pdqsdif(igcm_hdo_ice), -pqsurf(igcm_hdo_ice) / ptimestep)
+            hdoflux = pdqsdif(igcm_hdo_ice)
+
+            if watercaptag and (-h2oflux * ptimestep) &gt; pqsurf(igcm_h2o_ice):
+                ! 额外贡献：永久冰盖 D/H = 5 SMOW
+                hdoflux += dwatercap_dif * 2 * 155.76e-6 * 5
+
+        else:  ! 凝结
+            if hdofrac:  ! 启用分馏
+                Dv = f(zt, pplay, mh2o, molco2, molh2o)  ! H2O 扩散系数
+                Dv_hdo = f(zt, pplay, mhdo, molco2, molhdo)  ! HDO 扩散系数
+                alpha = exp(13525 / T² - 0.0559)  ! Lamb 公式
+                alpha_c = (alpha * satu) / (alpha * (Dv/Dv_hdo) * (satu - 1) + 1)
+            else:
+                alpha_c = 1.0
+
+            if old_h2o_vap &gt; qparentmin:
+                pdqsdif(igcm_hdo_ice) = alpha_c * pdqsdif(igcm_h2o_ice) * (zq(igcm_hdo_vap) / old_h2o_vap)
+            else:
+                pdqsdif(igcm_hdo_ice) = 0
+
+            if hdofrac:
+                pdqsdif(igcm_hdo_ice) = min(pdqsdif(igcm_hdo_ice), zq(igcm_hdo_vap) / ptimestep)
+
+            hdoflux = pdqsdif(igcm_hdo_ice)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>水循环 / HDO 同位素</td>
+<td><code>vdifc</code> 中 H2O 水汽地表交换段之后调用本例程，计算 HDO 的地表通量，用于追踪水循环中的同位素分馏</td>
+</tr>
+<tr>
+<td>垂直湍流扩散</td>
+<td><code>vdifc_mod.F</code> 在处理 <code>h2o_vap</code> tracer 时调用本例程，作为水汽地表边界条件的一部分</td>
+</tr>
+<tr>
+<td>永久冰盖</td>
+<td>当 <code>watercaptag(ig)</code> 为真且升华超过地表冰储量时，从永久冰盖补充 HDO（D/H = 5 SMOW）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran（<code>.F</code> 扩展名），使用传统 Fortran 77 风格的注释和续行符 <code>&amp;</code>。</li>
+<li>只使用大气第 1 层（近地层）的温度、压力和 HDO 水汽混合比。</li>
+<li><code>pdqsdif</code> 是 <code>intent(inout)</code>，输入时包含 H2O 通量，输出时被覆盖为 HDO 通量。</li>
+<li><code>geometry_mod</code> 中的经纬度被 use 但未在例程中使用，可能是历史遗留或调试用途。</li>
+<li>诊断输出（<code>write_output</code> 调用）已被注释掉。</li>
+<li>扩散系数公式基于分子运动论，考虑了 CO2-H2O 和 CO2-HDO 的二元扩散。</li>
+<li>分馏系数公式使用 Lamb 参数化（替代了注释掉的 Merlivat 1984 公式）。</li>
+<li>永久冰盖的 D/H 比值硬编码为 5 SMOW（<code>2 × 155.76e-6 × 5</code>）。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须确保 <code>tracer_mod</code> 中的 tracer 索引已正确初始化，特别是 <code>igcm_hdo_vap</code> 和 <code>igcm_hdo_ice</code>。</li>
+<li><code>qsat</code> 必须在调用前由 <code>watersat</code> 或等效例程计算。</li>
+<li><code>pdqsdif(:,igcm_h2o_ice)</code> 必须在调用前包含 H2O 冰通量信息。</li>
+<li><code>qparentmin</code> 是 tracer 最小值阈值，用于避免除零。</li>
+<li>若 <code>hdofrac</code> 为假，所有分馏效应被禁用，HDO 通量直接正比于 H2O 通量和 HDO/H2O 比值。</li>
+<li>永久冰盖逻辑依赖 <code>watercaptag</code> 标记和 <code>dwatercap_dif</code> 输入。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>geometry_mod</code> 中的经纬度被 use 但未使用，需确认是否为历史遗留或计划用于诊断输出。</li>
+<li>注释掉的 <code>write_output</code> 调用是否在调试版本中启用。</li>
+<li>永久冰盖 D/H = 5 SMOW 的假设是否适用于所有冰盖区域。</li>
+<li>Lamb 分馏系数公式（<code>exp(13525/T² - 0.0559)</code>）的适用温度范围。</li>
+<li>扩散系数公式中分子质量的组合方式（<code>(molco2+molh2o)²</code>）是否为标准二元扩散公式。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a>：调用本例程的 H2O 水汽地表交换段。</li>
+<li><a href="vdifc_mod.html">vdifc_mod</a> - 垂直湍流扩散主例程，调用本模块处理 HDO 地表通量。</li>
+<li><a href="../../themes/water-cycle.html">water-cycle</a>：水循环主题页。</li>
+<li><a href="tracer_mod.html">tracer_mod.md</a>：提供 tracer 索引。</li>
+<li><a href="microphys_h.html">microphys_h</a>：提供分子质量、有效分子半径和物理常数。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

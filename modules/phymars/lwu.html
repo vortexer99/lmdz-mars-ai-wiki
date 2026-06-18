@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lwu - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/lwu.md</span>
+    </nav>
+    <article class="content">
+<h1 id="lwuf">lwu.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\lwu.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>lwu.F</code> 定义 <code>lwu_mod</code> 模块，提供长波 LTE 辐射主流程中的吸收量预处理例程 <code>lwu</code>。它在 <code>lwmain</code> 调用 <code>lwxb</code>、<code>lwxd</code>、<code>lwxn</code>、<code>lwdiff</code> 和 <code>lwflux</code> 之前，把层压厚、层温、层界面压力和多类气溶胶光学性质整理成三组下游量：</p>
+<ul>
+<li>CO2 15 微米带的累积吸收量 <code>co2_u</code>。</li>
+<li>带压力效应的累积吸收量 <code>co2_up</code>。</li>
+<li>气溶胶吸收累计量对应的 CO2 带透过率 <code>aer_t</code>，以及所有 IR 带的总光学厚度、单次散射反照率和非对称因子 <code>tautotal/omegtotal/gtotal</code>。</li>
+</ul>
+<p>这些输出随后被 <code>lwxb</code>、<code>lwxd</code>、<code>lwxn</code> 分解成不同层对和边界交换路径，再交给 <a href="lwtt.html">lwtt</a> 计算 CO2 透过率；<code>tautotal/omegtotal/gtotal</code> 还会进入 <a href="lwdiff.html">lwdiff</a> 的带外散射通量计算。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lwu_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>封装长波吸收量和气溶胶光学预处理例程。</td>
+</tr>
+<tr>
+<td><code>lwu</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7</td>
+<td>计算 CO2 累积吸收量、压力缩放吸收量、气溶胶吸收透过率和 IR 带总单散射参数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>ndlo2</code>, <code>nir</code>, <code>nuco2</code>, <code>ndlon</code>, <code>nflev</code></td>
+<td>提供长波辐射数组的水平、垂直和谱带维度上限。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>naerkind</code></td>
+<td>提供气溶胶光学性质类别数。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>yomlw_h</code></td>
+<td><code>nlaylte</code>, <code>tref</code>, <code>at</code>, <code>bt</code>, <code>cst_voigt</code></td>
+<td>提供 LTE 长波层数、参考温度和 CO2 温度/Voigt 修正系数。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code></td>
+<td>把压力厚度换算为质量路径时使用重力加速度。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td><code>lwu</code> 只做本地数组循环和指数/除法计算，不调用其他用户例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kdlon</code></td>
+<td><code>lwmain</code></td>
+<td><code>integer</code></td>
+<td>column</td>
+<td>当前向量块内有效水平列数。</td>
+</tr>
+<tr>
+<td><code>kflev</code></td>
+<td><code>lwmain</code></td>
+<td><code>integer</code></td>
+<td>layer</td>
+<td>调用接口传入的垂直层数；实际循环使用 <code>yomlw_h::nlaylte</code>。</td>
+</tr>
+<tr>
+<td><code>dp</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(ndlo2,kflev)</code></td>
+<td>Pa</td>
+<td>层压厚，用于 CO2 吸收量质量路径换算。</td>
+</tr>
+<tr>
+<td><code>plev</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(ndlo2,kflev+1)</code></td>
+<td>Pa</td>
+<td>层界面压力，用其平方差构造压力缩放吸收量。</td>
+</tr>
+<tr>
+<td><code>tlay</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(ndlo2,kflev)</code></td>
+<td>K</td>
+<td>层温，用于相对 <code>tref</code> 的温度修正。</td>
+</tr>
+<tr>
+<td><code>aerosol</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(ndlo2,kflev,naerkind)</code></td>
+<td>optical depth</td>
+<td>每类气溶胶在参考波长的层光学厚度。</td>
+</tr>
+<tr>
+<td><code>QIRsQREF3d</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(ndlo2,kflev,nir,naerkind)</code></td>
+<td>-</td>
+<td>IR 谱带消光系数相对参考波长的比例。</td>
+</tr>
+<tr>
+<td><code>omegaIR3d</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(ndlo2,kflev,nir,naerkind)</code></td>
+<td>-</td>
+<td>每类气溶胶、每个 IR 谱带的单次散射反照率。</td>
+</tr>
+<tr>
+<td><code>gIR3d</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(ndlo2,kflev,nir,naerkind)</code></td>
+<td>-</td>
+<td>每类气溶胶、每个 IR 谱带的非对称因子。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>aer_t</code></td>
+<td><code>lwxb</code>/<code>lwxd</code>/<code>lwxn</code></td>
+<td><code>real(ndlo2,nuco2,kflev+1)</code></td>
+<td>-</td>
+<td>CO2 谱带用的累积气溶胶吸收透过率，底部向上累积并以 <code>1e-30</code> 为下限。</td>
+</tr>
+<tr>
+<td><code>co2_u</code></td>
+<td><code>lwxb</code>/<code>lwxd</code>/<code>lwxn</code></td>
+<td><code>real(ndlo2,nuco2,kflev+1)</code></td>
+<td>g cm-2 风格的吸收路径</td>
+<td>经温度修正、<code>pview</code> 斜路径和 CO2 体积分数修正后的累积 CO2 吸收量。</td>
+</tr>
+<tr>
+<td><code>co2_up</code></td>
+<td><code>lwxb</code>/<code>lwxd</code>/<code>lwxn</code></td>
+<td><code>real(ndlo2,nuco2,kflev+1)</code></td>
+<td>压力缩放吸收路径</td>
+<td>使用界面压力平方差和 <code>pref</code> 缩放后的累积 CO2 吸收量。</td>
+</tr>
+<tr>
+<td><code>tautotal</code></td>
+<td><code>lwdiff</code>/<code>lwflux</code></td>
+<td><code>real(ndlo2,kflev,nir)</code></td>
+<td>optical depth</td>
+<td>多类气溶胶按 <code>QIRsQREF3d * aerosol</code> 加权合并后的总 IR 光学厚度。</td>
+</tr>
+<tr>
+<td><code>omegtotal</code></td>
+<td><code>lwdiff</code>/<code>lwflux</code></td>
+<td><code>real(ndlo2,kflev,nir)</code></td>
+<td>-</td>
+<td>多类气溶胶消光加权平均后的单次散射反照率。</td>
+</tr>
+<tr>
+<td><code>gtotal</code></td>
+<td><code>lwdiff</code>/<code>lwflux</code></td>
+<td><code>real(ndlo2,kflev,nir)</code></td>
+<td>-</td>
+<td>多类气溶胶按散射光学厚度加权平均后的非对称因子。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p><code>lwu.F</code> 不定义保存型模块变量，不读写文件，也不打印诊断。它读取 <code>dimradmars_mod</code>、<code>yomlw_h</code> 和 <code>comcstfi_h</code> 中的共享常量/系数，副作用限于写入调用方提供的输出数组。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>设置硬编码常数：<code>pview=1.66</code>、<code>co2c=0.95</code>、<code>pref=101325.</code>，并把每个层界面压力预先平方到 <code>plev2</code>。</li>
+<li>对每类气溶胶 <code>n</code>、每个 IR 谱带 <code>ja</code>、每层 <code>jk</code>、每列 <code>jl</code> 累加 <code>tautotal</code>、<code>omegtotal</code> 和 <code>gtotal</code>。</li>
+<li>把 <code>gtotal</code> 除以散射光学厚度加权和 <code>omegtotal</code>，再把 <code>omegtotal</code> 除以总光学厚度 <code>tautotal</code>，得到有效非对称因子和单次散射反照率。</li>
+<li>从模型顶层向下累积气溶胶吸收量 <code>aer_a</code>，每层贡献为 <code>tautotal * (1 - omegtotal)</code>。</li>
+<li>初始化顶界 <code>co2_u/co2_up=0</code>、<code>aer_t=1</code>。</li>
+<li>从模型顶层向下遍历 CO2 谱带。温度偏差 <code>tx</code> 被限制在 <code>[-70,70] K</code>，用 <code>at/bt/cst_voigt</code> 生成 <code>phi</code> 和 <code>psi</code> 温度修正。</li>
+<li>更新 <code>co2_u += pview/(10*g) * phi * dp * co2c</code>，以及 <code>co2_up += pview/(10*g*2*pref) * psi * (plev2(jkl)-plev2(jkl+1)) * co2c</code>。</li>
+<li>输出 CO2 带气溶胶透过率 <code>aer_t=max(exp(-pview*aer_a),1e-30)</code>，避免很厚水冰云让透过率舍入到严格零并触发后续 NaN。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>pview = 1.66
+co2c = 0.95
+pref = 101325
+
+for level boundary jk:
+  plev2(:,jk) = plev(:,jk)^2
+
+tautotal = 0
+omegtotal = 0
+gtotal = 0
+
+for aerosol kind n:
+  for IR band ja:
+    for layer jk:
+      for column jl:
+        tau_n = QIRsQREF3d(jl,jk,ja,n) * aerosol(jl,jk,n)
+        tautotal += tau_n
+        omegtotal += tau_n * omegaIR3d(jl,jk,ja,n)
+        gtotal += tau_n * omegaIR3d(jl,jk,ja,n) * gIR3d(jl,jk,ja,n)
+
+gtotal = gtotal / omegtotal
+omegtotal = omegtotal / tautotal
+
+aer_a(top boundary) = 0
+for layers from top to bottom:
+  aer_a(layer bottom) = aer_a(layer top) + tautotal * (1 - omegtotal)
+
+co2_u(top boundary) = 0
+co2_up(top boundary) = 0
+aer_t(top boundary) = 1
+
+for layers from top to bottom:
+  tx = clamp(tlay - tref, -70, 70)
+  phi = exp((at(1)*tx + bt(1)*tx^2) / cst_voigt(2))
+  psi = exp(2 * (at(2)*tx + bt(2)*tx^2))
+
+  co2_u += pview/(10*g) * phi * dp * co2c
+  co2_up += pview/(10*g*2*pref) * psi * pressure_square_difference * co2c
+  aer_t = max(exp(-pview*aer_a), 1e-30)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">辐射计算</a></td>
+<td>在长波 LTE 主流程中准备 CO2 吸收路径和气溶胶光学输入，支撑后续 CO2 净交换率、带外散射通量和冷却率计算。</td>
+</tr>
+<tr>
+<td><a href="index.html">phymars 核心物理模块目录</a></td>
+<td>属于 <code>libf\phymars</code> 长波辐射辅助文件组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 文件，模块内只有一个公开子例程。</li>
+<li><code>kflev</code> 是接口维度参数，但主要垂直循环边界来自 <code>yomlw_h::nlaylte</code>；复现时二者必须与辐射维度初始化保持一致。</li>
+<li><code>pview</code>、<code>co2c</code>、<code>pref</code> 是例程内部硬编码常数，不从配置文件读取。</li>
+<li>源码注释明确 <code>10*g</code> 用于把 <code>kg m-2</code> 转成 <code>g cm-2</code> 风格的路径量。</li>
+<li>气溶胶透过率对下限做了 <code>1e-30</code> 钳制；但 <code>gtotal/omegtotal</code> 和 <code>omegtotal/tautotal</code> 的归一化没有显式零保护。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>yomlw_h::ini_yomlw_h</code> 必须先初始化 <code>nlaylte</code>、<code>tref</code>、<code>at</code>、<code>bt</code> 和 <code>cst_voigt</code>，否则 CO2 温度修正不可复现。</li>
+<li><code>dimradmars_mod</code> 的 <code>ndlo2/nir/nuco2/ndlon/nflev/naerkind</code> 必须与调用方数组形状一致。</li>
+<li><code>comcstfi_h::g</code> 必须已经由物理常数初始化路径赋值；<code>co2_u/co2_up</code> 直接除以 <code>g</code>。</li>
+<li>若某层某谱带 <code>tautotal=0</code> 或散射加权和 <code>omegtotal=0</code>，源码在第 134-135 行会直接除零；复现无气溶胶或全零光学厚度个例时需要按源码行为检查。</li>
+<li><code>dp</code> 和 <code>plev</code> 应保持正压厚与自上而下单调关系；<code>co2_up</code> 使用 <code>plev2(jkl)-plev2(jkl+1)</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>pview=1.66</code> 和 <code>co2c=0.95</code> 在当前流程中是否仍代表所有长波调用场景；本页只记录源码硬编码事实。</li>
+<li>气溶胶总性质归一化是否依赖上游保证 <code>tautotal</code> 和散射光学厚度非零；源码本身没有保护。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../themes/radiation.html">radiation</a></li>
+<li><a href="index.html">phymars/index</a></li>
+<li><a href="lwb.html">lwb</a></li>
+<li><a href="lwdiff.html">lwdiff</a></li>
+<li><a href="lwflux.html">lwflux</a></li>
+<li><a href="lwi.html">lwi</a></li>
+<li><a href="lwtt.html">lwtt</a></li>
+<li><a href="lwmain_mod.html">lwmain_mod</a> - 长波 LTE 主调度入口，直接调用本例程。</li>
+<li><a href="lwxb.html">lwxb</a></li>
+<li><a href="lwxd.html">lwxd</a></li>
+<li><a href="lwxn.html">lwxn</a></li>
+<li><a href="yomlw_h.html">yomlw_h.md</a>：长波辐射共享参数。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

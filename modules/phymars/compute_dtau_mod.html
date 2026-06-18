@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>compute_dtau_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/compute_dtau_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="compute_dtau_modf90">compute_dtau_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\compute_dtau_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>该文件定义尘埃地表注入（dust injection）调度模块 <code>compute_dtau_mod</code>（136 行），导出例程 <code>compute_dtau</code>，由 <code>physiq</code>（行 1526，<code>dustinjection&gt;0</code> 时）每物理步调用。它的职责是把 GCM 当前尘埃柱光学厚度 <code>tau_pref_gcm</code> 与尘埃场景目标值 <code>tau_pref_target</code> 的差额（<code>dtau</code>，在 610 Pa 处的可见光不透明度差）转换为地表尘埃注入速率 <code>dustliftday</code>，使模式尘埃量逐日向观测场景收敛。</p>
+<p>模块还保存注入时窗 <code>ti_injection_sol</code>/<code>tf_injection_sol</code>（供 <code>vdifc</code> 在地表交换段决定何时实际注入）和按格点的 <code>dtau</code> 数组（restart 经 <code>phyetat0</code>/<code>phyredem</code> 读写），并提供 <code>ini/end_compute_dtau_mod</code> 管理 <code>dtau</code> 分配。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>compute_dtau_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>尘埃地表注入调度模块</td>
+</tr>
+<tr>
+<td><code>ti_injection_sol</code></td>
+<td>real SAVE</td>
+<td>5</td>
+<td>注入开始时刻（sol 分数），由 <code>ti_injection/24</code> 得</td>
+</tr>
+<tr>
+<td><code>tf_injection_sol</code></td>
+<td>real SAVE</td>
+<td>6</td>
+<td>注入结束时刻（sol 分数），由 <code>tf_injection/24</code> 得</td>
+</tr>
+<tr>
+<td><code>dtau</code></td>
+<td>real SAVE ALLOCATABLE(:)</td>
+<td>8</td>
+<td>GCM 与场景在 610 Pa 处的尘埃不透明度差，按格点</td>
+</tr>
+<tr>
+<td><code>compute_dtau</code></td>
+<td>subroutine</td>
+<td>15</td>
+<td>计算 <code>dtau</code> 与注入速率 <code>dustliftday</code></td>
+</tr>
+<tr>
+<td><code>ini_compute_dtau_mod</code></td>
+<td>subroutine</td>
+<td>118</td>
+<td>分配 <code>dtau(ngrid)</code></td>
+</tr>
+<tr>
+<td><code>end_compute_dtau_mod</code></td>
+<td>subroutine</td>
+<td>128</td>
+<td>释放 <code>dtau</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>longitude_deg</code></td>
+<td>firstcall 计算每格点初始 <code>local_time_prev</code>（经度→本地时偏移）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>dtphys, daysec</code></td>
+<td>物理步长与一个 sol 秒数，算每日步数与注入速率分母</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code></td>
+<td>重力加速度（声明引入；本例程注入速率公式用 <code>pplev/odpref</code>）</td>
+<td>待确认其直接使用点</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>alpha_lift, igcm_dust_mass, igcm_dust_number</code></td>
+<td>尘埃升华系数与尘埃 tracer 索引（声明引入）</td>
+<td>待确认其直接使用点</td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>tauvis</code></td>
+<td><code>iaervar=1</code> 时目标厚度取常数 <code>tauvis</code></td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td><code>odpref, t_scenario_sol</code></td>
+<td>参考气压 610 Pa；场景厚度精确时刻（触发 <code>dtau</code> 更新）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>read_dust_scenario_mod</code></td>
+<td><code>read_dust_scenario</code></td>
+<td>读取次日（<code>zday+1</code>）场景目标厚度 <code>tau_pref_target</code></td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>write_output_mod</code></td>
+<td><code>write_output</code></td>
+<td>输出 <code>tau_pref_target</code>/<code>dtau</code>/<code>dustliftday</code> 诊断</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>iaervar, coeff_injection, ti_injection, tf_injection</code></td>
+<td>场景选择开关、注入系数、注入时窗（局地时 h）</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read_dust_scenario</code></td>
+<td><code>read_dust_scenario_mod</code></td>
+<td>行 78</td>
+<td>读次日场景目标尘埃柱厚度</td>
+</tr>
+<tr>
+<td><code>write_output</code></td>
+<td><code>write_output_mod</code></td>
+<td>行 83、105、107</td>
+<td>写 <code>tau_pref_target</code>/<code>dtau</code>/<code>dustliftday</code> 诊断</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid, nlayer</code></td>
+<td><code>physiq</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>水平格点数、垂直层数</td>
+</tr>
+<tr>
+<td><code>zday</code></td>
+<td><code>physiq</code></td>
+<td>real scalar</td>
+<td>sol</td>
+<td>lon=0 处日期（sol 分数）</td>
+</tr>
+<tr>
+<td><code>pplev(ngrid,nlayer+1)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>Pa</td>
+<td>层界面气压（取 <code>pplev(:,1)</code> 表压缩放）</td>
+</tr>
+<tr>
+<td><code>tau_pref_gcm(ngrid)</code></td>
+<td><code>physiq</code>（来自 <code>aeropacity</code>）</td>
+<td>real</td>
+<td>-</td>
+<td>GCM 在 610 Pa 的可见光尘埃柱厚度</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td><code>physiq</code></td>
+<td>real scalar</td>
+<td>s</td>
+<td>物理时间步</td>
+</tr>
+<tr>
+<td><code>local_time(ngrid)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>sol 分数</td>
+<td>各格点本地时</td>
+</tr>
+<tr>
+<td><code>IRtoVIScoef(ngrid)</code></td>
+<td><code>physiq</code>（来自 <code>aeropacity</code>）</td>
+<td>real</td>
+<td>-</td>
+<td>场景 IR→VIS 换算系数，传给 <code>read_dust_scenario</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dustliftday(ngrid)</code></td>
+<td><code>physiq</code>→<code>vdifc</code>（地表交换注入段）</td>
+<td>real (OUT)</td>
+<td>s⁻¹</td>
+<td>尘埃地表注入速率</td>
+</tr>
+<tr>
+<td><code>dtau(ngrid)</code></td>
+<td>module SAVE；restart <code>phyetat0</code>/<code>phyredem</code></td>
+<td>real</td>
+<td>-</td>
+<td>GCM 与场景在 610 Pa 的不透明度差（注入时刻更新）</td>
+</tr>
+<tr>
+<td><code>ti_injection_sol/tf_injection_sol</code></td>
+<td>module SAVE；<code>vdifc</code> 读</td>
+<td>real</td>
+<td>sol 分数</td>
+<td>注入时窗</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>module 级 <code>SAVE</code>+<code>THREADPRIVATE</code>：<code>ti_injection_sol</code>、<code>tf_injection_sol</code>、<code>dtau</code>（行 11）；例程内 <code>SAVE</code>+<code>THREADPRIVATE</code>：<code>nb_daystep</code>、<code>local_time_prev</code>、<code>firstcall</code>（行 55）。</li>
+<li>firstcall：分配 <code>local_time_prev</code> 并按 <code>zday-ptimestep/daysec</code> 与经度初始化；算 <code>nb_daystep=daysec/dtphys</code>；把 <code>ti_injection</code>/<code>tf_injection</code>（h）转 sol 分数。</li>
+<li><code>dtau</code> 只在“本地时跨过 <code>t_scenario_sol</code>（约 14:00）那一步”更新（行 89-92），其余步沿用上次值。</li>
+<li><code>local_time_prev</code> 每步末更新为当前 <code>local_time</code>（行 111）。</li>
+<li>标准诊断输出：<code>tau_pref_target</code>、<code>dtau</code>、<code>dustliftday</code>（<code>write_output</code>）。</li>
+<li><code>ini/end_compute_dtau_mod</code> 由 <code>phys_state_var_init</code> 管理 <code>dtau</code> 生命周期。</li>
+<li>不修改源码、不写文件（除诊断后端）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>firstcall（行 58-70）</strong>：分配并初始化 <code>local_time_prev</code>（用上一步时刻+经度偏移）；<code>nb_daystep=daysec/dtphys</code>；<code>ti_injection_sol=ti_injection/24</code>、<code>tf_injection_sol=tf_injection/24</code>。</li>
+<li><strong>取目标厚度（行 72-85）</strong>：<code>iaervar=1</code> 时 <code>tau_pref_target=tauvis</code>；否则取当日整数 sol +1（次日，场景在 14:00 测）调 <code>read_dust_scenario</code> 得 <code>tau_pref_target</code>；写诊断。</li>
+<li><strong>算 dtau 与注入速率（行 87-102）</strong>：逐格点，若本地时本步跨过 <code>t_scenario_sol</code>（<code>local_time&gt;=t_scenario_sol</code> 且 <code>local_time_prev&lt;t_scenario_sol</code>）则更新 <code>dtau=tau_pref_target-tau_pref_gcm</code>；若 <code>dtau&lt;0</code> 则 <code>dustliftday=0</code>，否则 <code>dustliftday=coeff_injection*(dtau*pplev(:,1)/odpref)/(daysec*(tf_injection_sol-ti_injection_sol))</code>。</li>
+<li><strong>写诊断、保存本地时（行 104-111）</strong>：输出 <code>dtau</code>/<code>dustliftday</code>；<code>local_time_prev=local_time</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if firstcall:
+    allocate local_time_prev; 初始化为 上一步时刻+经度偏移
+    nb_daystep = daysec/dtphys
+    ti_injection_sol = ti_injection/24 ; tf_injection_sol = tf_injection/24
+
+# 1. 目标厚度
+if iaervar==1: tau_pref_target = tauvis
+else:
+    zday_scenario = floor(zday) + 1     # 次日, 场景测于 14:00
+    tau_pref_target = read_dust_scenario(zday_scenario, ...)
+write_output(tau_pref_target)
+
+# 2. dtau 与注入速率
+for ig:
+    if local_time crosses t_scenario_sol this step:
+        dtau(ig) = tau_pref_target(ig) - tau_pref_gcm(ig)
+    if dtau(ig) &lt; 0: dustliftday(ig) = 0
+    else: dustliftday(ig) = coeff_injection*(dtau*pplev(:,1)/odpref)
+                            / (daysec*(tf_injection_sol-ti_injection_sol))
+
+write_output(dtau, dustliftday)
+local_time_prev = local_time</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>尘埃循环</td>
+<td>把 GCM 与场景的尘埃柱厚度差转为地表注入速率 <code>dustliftday</code>，驱动模式尘埃逐日向观测场景收敛；<code>vdifc</code> 在注入时窗内据此注入</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 Fortran 90（<code>.F90</code>）。</li>
+<li>module 级与例程内均大量使用 <code>SAVE</code>+<code>THREADPRIVATE</code>。</li>
+<li><code>dtau</code> 只在每日某一固定本地时刻（跨 <code>t_scenario_sol</code>）更新一次，是“每日校准”设计。</li>
+<li>场景目标读取次日值（<code>zday+1</code>），对应场景 DOD 在 14:00 测量的约定。</li>
+<li><code>end_compute_dtau_mod</code> 用 <code>if(allocated)</code> 幂等释放保护。</li>
+<li>注入速率分母 <code>daysec*(tf-ti)</code> 把当日注入量摊到注入时窗。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>仅 <code>physiq</code> 中 <code>dustinjection&gt;0</code> 时调用；注入实际发生在 <code>vdifc</code> 地表段且限于 <code>[ti_injection_sol, tf_injection_sol]</code> 时窗（vdifc 行 840-856）。</li>
+<li><code>dtau</code> 每 sol 仅在本地时跨过 <code>t_scenario_sol</code>（<code>dust_param_mod</code> 中 <code>=14/24</code>）的那一步更新。</li>
+<li>目标厚度来自次日场景（<code>floor(zday)+1</code>）；<code>iaervar=1</code> 退化为常数 <code>tauvis</code>。</li>
+<li>注入速率公式：<code>coeff_injection*(dtau*pplev(:,1)/odpref)/(daysec*(tf_injection_sol-ti_injection_sol))</code>，<code>dtau&lt;0</code> 时置 0。</li>
+<li><code>dtau</code> 按 <code>ngrid</code> 分配（<code>phys_state_var_init</code> 管理），restart 经 <code>phyetat0</code>/<code>phyredem</code> 读写，复现需保留其跨步状态。</li>
+<li>注入时窗 <code>ti_injection</code>/<code>tf_injection</code>（局地时小时）与 <code>coeff_injection</code> 来自 <code>callphys.def</code>（<code>callkeys_mod</code>）。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>use comcstfi_h, only: g</code> 与 <code>use tracer_mod, only: alpha_lift, igcm_dust_mass, igcm_dust_number</code> 被引入，但在本例程可见逻辑（行 58-111）中未见直接使用 <code>g</code>/<code>alpha_lift</code>/<code>igcm_dust_*</code>；推断为历史遗留或预留 import。复现时可忽略，但标注以免误以为参与注入速率公式（公式实际只用 <code>pplev/odpref</code>）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="dust_param_mod.html">dust_param_mod</a> — 提供 <code>odpref</code>、<code>t_scenario_sol</code></li>
+<li><a href="aeropacity_mod.html">aeropacity_mod</a> — 产出本例程输入 <code>tau_pref_gcm</code>、<code>IRtoVIScoef</code></li>
+<li><a href="time_phylmdz_mod.html">time_phylmdz_mod</a> — 提供 <code>dtphys</code>、<code>daysec</code></li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle 主题</a></li>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod</a> — 调用 <code>ini/end_compute_dtau_mod</code></li>
+<li><a href="read_dust_scenario_mod.html">read_dust_scenario_mod.md</a>：读取次日场景目标厚度。</li>
+<li><a href="vdifc_mod.html">vdifc_mod.md</a>：消费 <code>dustliftday</code>/注入时窗；section 页 <a href="../../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a> 已存在。</li>
+<li><a href="callkeys_mod.html">callkeys_mod.F90</a> - 提供 <code>coeff_injection</code>/<code>ti_injection</code>/<code>tf_injection</code>。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>run-scripts - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a class="active" href="project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>architecture/run-scripts.md</span>
+    </nav>
+    <article class="content">
+<h1 id="gcm-运行脚本链">GCM 运行脚本链</h1>
+<h2 id="路径">路径</h2>
+<p>本任务覆盖的脚本组分布在 <code>LMDZ.MARS\deftank/</code> 及其 6 个 HPC 子目录：</p>
+<table>
+<thead>
+<tr>
+<th>文件/目录</th>
+<th style="text-align: right;">行数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deftank/run0</code></td>
+<td style="text-align: right;">110</td>
+<td>原子级单段运行链——执行一次 GCM 并把 restart 推进到下一段</td>
+</tr>
+<tr>
+<td><code>deftank/run_mcd</code></td>
+<td style="text-align: right;">78</td>
+<td>MCD 生产模式的 12 个月串行编排——按火星月长度依次调 run0</td>
+</tr>
+<tr>
+<td><code>deftank/ciclad/run_month1</code></td>
+<td style="text-align: right;">80</td>
+<td>PBS 调度包装（法国 ciclad 集群）</td>
+</tr>
+<tr>
+<td><code>deftank/occigen/run_month1</code></td>
+<td style="text-align: right;">87</td>
+<td>SLURM 调度包装（法国 occigen 集群）</td>
+</tr>
+<tr>
+<td><code>deftank/irene/run_month1</code></td>
+<td style="text-align: right;">85</td>
+<td>另一集群包装（行数类似）</td>
+</tr>
+<tr>
+<td><code>deftank/adastra/run_month1</code>, <code>run_year1</code></td>
+<td style="text-align: right;">—</td>
+<td>年度包装（run_year1 特有）</td>
+</tr>
+<tr>
+<td><code>deftank/spirit/run_month1</code></td>
+<td style="text-align: right;">—</td>
+<td>类似结构</td>
+</tr>
+<tr>
+<td><code>deftank/mesu/run_month1</code></td>
+<td style="text-align: right;">—</td>
+<td>类似结构</td>
+</tr>
+</tbody>
+</table>
+<p>源码依据：<code>deftank/README:35-38</code> 明确说明 "run0" 用于单次或链式模拟；"run_mcd" 用 run0 并按火星月变化驱动链式模拟。</p>
+<h2 id="类型">类型</h2>
+<p>脚本输入（shell 链 + 调度器模板）——用于驱动 LMDZ.MARS 物理 GCM 进行多段串联模拟。</p>
+<h2 id="作用">作用</h2>
+<p>LMDZ.MARS GCM 的 3D 模拟需要长时间积分（数年 = 数千 sol），但 HPC 批处理系统对单作业墙钟时间有限制（典型 12-24 小时）。此脚本链解决：</p>
+<ol type="1">
+<li><strong>段间状态流转</strong>（<code>run0</code> 解决）：一次运行的 <code>restart.nc</code> / <code>restartfi.nc</code> 自动重命名为下一次运行的 <code>startN.nc</code> / <code>startfiN.nc</code>。</li>
+<li><strong>按月调度</strong>（<code>run_mcd</code> / <code>run_monthN</code> 解决）：火星 12 个太阳月长度不等（61/66/66/65/60/54/50/46/47/47/51/56 sol，共 669 sol），通过 <code>sed s/9999/&lt;NDAY&gt;/ run.def.ref &gt; run.def</code> 把 <code>nday</code> 占位符逐月替换写入 <code>run.def</code>。</li>
+<li><strong>批处理包装</strong>（HPC 子目录）：<code>#PBS</code> 或 <code>#SBATCH</code> 头指定节点/时间/MPI 配置，末尾通过 <code>qsub</code> / <code>sbatch</code> 提交下一个月的脚本（链式 job）。</li>
+<li><strong>崩溃自愈</strong>（<code>run0</code>）：崩溃时写 <code>num_run = 99999</code> 并保留 <code>num_run.crash</code>，下一段会报错拒绝继续，由外部脚本根据 <code>num_run.crash</code> 恢复。</li>
+</ol>
+<h2 id="关键脚本">关键脚本</h2>
+<h3 id="run0--原子级单段运行链">run0 —— 原子级单段运行链</h3>
+<p>源码依据：<code>deftank/run0:1-110</code>。</p>
+<pre class="text"><code>流程：
+1. 检查 gcm 可执行文件存在（第 22-25 行）
+2. 读 num_run 文件（不存在则置 0） → numold （第 30-36 行）
+3. numnew = numold + 1 （第 39 行）
+4. 若 numold == 99999 → 上一段崩溃，直接 exit 1 （第 47-49 行）
+5. 把 start${numold}.nc / startfi${numold}.nc 复制为 start.nc / startfi.nc （第 43-45 行）
+6. 调用 ./$gcm &gt; lrun${numnew} （第 58 行）
+7. 若生成 restart*.nc → 重命名为 start${numnew}.nc 并把 numnew 写回 num_run （第 62-102 行）
+8. 否则 → 把 num_run 备份为 num_run.crash，写 99999 到 num_run，发崩溃邮件（第 66-83 行）
+9. 移动 diagfi/diagsoil/stats/profiles* 为带 ${numnew} 编号的版本（第 86-98 行）
+10. 若 numnew+1 &gt; nummax 则退出；否则递归 ./exe_mars（run0 副本）继续（第 104-110 行）</code></pre>
+<table>
+<thead>
+<tr>
+<th>关键变量</th>
+<th>默认值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nummax</code></td>
+<td><code>1</code></td>
+<td>本脚本单次执行的最大链长（<strong>用户须改</strong>）（第 6 行）</td>
+</tr>
+<tr>
+<td><code>gcm</code></td>
+<td><code>gcm.e</code></td>
+<td>GCM 可执行文件名（<strong>用户须改</strong>）（第 9 行）</td>
+</tr>
+<tr>
+<td><code>numold</code> / <code>numnew</code></td>
+<td>自动计算</td>
+<td>段序号</td>
+</tr>
+</tbody>
+</table>
+<p><strong>文件读写</strong>（<code>deftank/run0</code>）:</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>读/写</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>num_run</code></td>
+<td>读+写</td>
+<td>段序号状态；崩溃时改为 <code>99999</code>（第 30-40、75、102 行）</td>
+</tr>
+<tr>
+<td><code>num_run.crash</code></td>
+<td>写</td>
+<td>崩溃时保留旧序号（第 69、73 行）</td>
+</tr>
+<tr>
+<td><code>start${old}.nc</code> / <code>startfi${old}.nc</code></td>
+<td>读</td>
+<td>输入初始场（第 43-45 行）</td>
+</tr>
+<tr>
+<td><code>restart.nc</code> / <code>restartfi.nc</code></td>
+<td>读+删/重命名</td>
+<td>输出重启场（第 62-65 行）</td>
+</tr>
+<tr>
+<td><code>diagfi.nc</code> / <code>diagsoil.nc</code> / <code>stats.nc</code> / <code>profiles.*</code></td>
+<td>读+重命名</td>
+<td>输出诊断（第 86-98 行）</td>
+</tr>
+<tr>
+<td><code>lrun${new}</code></td>
+<td>写</td>
+<td>GCM 标准输出日志（第 58 行）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="run_mcd--串行月级运行链非-hpc-用">run_mcd —— 串行月级运行链（非 HPC 用）</h3>
+<p>源码依据：<code>deftank/run_mcd:1-78</code>。</p>
+<pre class="text"><code>流程：
+1. 清理旧 error 文件（第 25 行）
+2. 按火星月表逐月用 sed 把 run.def.ref 中的 9999 替换为当月 sol 数 → 写入 run.def
+3. 调用 ./run0 &gt;&gt; error（第 28-39 行：12 月，对应 61/66/66/65/60/54/50/46/47/47/51/56）
+4. 重复 2 次可选（第 42-67 行：用于第 2、3 火星年的注释模板）
+5. 末尾：若 num_run == 99999 → 用 num_run.crash 恢复 num_run 并打印中止信息（第 72-78 行）</code></pre>
+<p><strong>12 火星月 sol 数</strong>（源码依据：<code>deftank/run_mcd:28-39</code>）：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">月</th>
+<th style="text-align: right;">sol 数</th>
+<th style="text-align: right;">月</th>
+<th style="text-align: right;">sol 数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">61</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">50</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">66</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">46</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">66</td>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">47</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">65</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">47</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">60</td>
+<td style="text-align: right;">11</td>
+<td style="text-align: right;">51</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">54</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">56</td>
+</tr>
+<tr>
+<td style="text-align: right;"><strong>合计</strong></td>
+<td style="text-align: right;"><strong>669 sol</strong>（= 1 火星年）</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+</tbody>
+</table>
+<p>源码依据：<code>deftank/run_mcd:27</code> 注释明确 "12 martian months (=30 ° Ls) of unequal length (excentric orbit)"。</p>
+<h3 id="run_monthn-hpc-子目录--批处理调度包装">run_monthN (HPC 子目录) —— 批处理调度包装</h3>
+<p>源码依据：<code>deftank/ciclad/run_month1</code>、<code>deftank/occigen/run_month1</code> 等。</p>
+<p><strong>通用结构</strong>（以 ciclad/run_month1 为例，第 1-80 行）：</p>
+<pre class="text"><code>#!/bin/bash
+#PBS -S /bin/bash
+#PBS -N run_month1
+#PBS -q day
+#PBS -l nodes=1:ppn=24
+#PBS -l walltime=20:00:00
+...
+cd $PBS_O_WORKDIR
+source ../trunk/LMDZ.COMMON/arch.env
+set -exv
+
+num_now=1              # 当前月序号（用户改）
+num_end=12             # 终止月序号（用户改）
+num_previous=$((num_now-1))
+echo &quot;$num_previous&quot; &gt; num_run
+num_next=$((num_now+1))
+true_num=$((num_now % 12))
+
+# 前置检查 run.def.ref、run0、run_month${num_now} 存在
+...
+# 根据 true_num 查火星月长度，调 run0
+case $true_num in
+  1 ) sed s/9999/61/ run.def.ref &gt; run.def ; ./run0 &gt;&gt; error ;;
+  2 ) sed s/9999/66/ run.def.ref &gt; run.def ; ./run0 &gt;&gt; error ;;
+  ...
+  0 ) sed s/9999/56/ run.def.ref &gt; run.def ; ./run0 &gt;&gt; error ;;
+  * ) exit 1 ;;
+esac
+
+# 若未到终月：复制当前脚本为 run_month${num_next}，sed 修改月号，提交
+if (( num_next &lt;= num_end )) ; then
+  cp -f run_month$num_now tmp
+  sed -e &quot;s@run_month${num_now}@run_month${num_next}@&quot; \
+      -e &quot;s@num_now=${num_now}@num_now=${num_next}@&quot; tmp &gt; run_month$num_next
+  rm tmp
+  qsub run_month$num_next   # slurm 版本此处为 sbatch
+fi</code></pre>
+<p><strong>调度器区分</strong>（源码依据：各 <code>run_month1</code> 首行注释）：</p>
+<table>
+<thead>
+<tr>
+<th>集群</th>
+<th>调度器</th>
+<th>提交命令</th>
+<th>头标志</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ciclad</td>
+<td>PBS/Torque</td>
+<td><code>qsub</code></td>
+<td><code>#PBS</code></td>
+</tr>
+<tr>
+<td>irene</td>
+<td>PBS/Torque</td>
+<td><code>qsub</code></td>
+<td><code>#PBS</code></td>
+</tr>
+<tr>
+<td>occigen</td>
+<td>SLURM</td>
+<td><code>sbatch</code></td>
+<td><code>#SBATCH</code></td>
+</tr>
+<tr>
+<td>adastra / mesu / spirit</td>
+<td>各自（SLURM 为主）</td>
+<td><code>sbatch</code></td>
+<td><code>#SBATCH</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>occigen 特有环境变量</strong>（源码依据：<code>deftank/occigen/run_month1:20-28</code>）：</p>
+<pre class="text"><code>export I_MPI_DOMAIN=auto
+export I_MPI_PIN_RESPECT_CPUSET=0
+export KMP_HW_SUBSET=1T
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+export OMP_STACKSIZE=400M
+export KMP_AFFINITY=granularity=fine,compact,1,0,verbose</code></pre>
+<p>用于 hybrid MPI+OpenMP 模式，与 <code>#SBATCH --nodes=6 --ntasks-per-node=4 --cpus-per-task=5</code> 配合。</p>
+<h2 id="关键字段">关键字段</h2>
+<table>
+<thead>
+<tr>
+<th>字段/文件</th>
+<th>作用</th>
+<th>影响脚本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>run0.nummax</code></td>
+<td>单次 run0 执行的最大链长</td>
+<td><code>run0:6, 105</code></td>
+</tr>
+<tr>
+<td><code>run0.gcm</code></td>
+<td>GCM 可执行文件名</td>
+<td><code>run0:9, 22, 58</code></td>
+</tr>
+<tr>
+<td><code>num_run</code></td>
+<td>段序号（纯数字 ASCII 文件）</td>
+<td><code>run0</code>、<code>run_mcd</code>、<code>run_monthN</code></td>
+</tr>
+<tr>
+<td><code>num_run = 99999</code></td>
+<td>崩溃哨兵值</td>
+<td><code>run0:47-49, 75</code>；<code>run_mcd:72-73</code></td>
+</tr>
+<tr>
+<td><code>run.def.ref</code></td>
+<td>含 <code>nday = 9999</code> 占位符的 run.def 模板</td>
+<td><code>run_mcd:28-39</code>、<code>run_monthN</code></td>
+</tr>
+<tr>
+<td><code>9999</code></td>
+<td><code>nday</code> 占位符，sed 替换为当月 sol 数</td>
+<td><code>run_mcd:28-39</code>、<code>run_monthN</code></td>
+</tr>
+<tr>
+<td><code>#PBS / #SBATCH</code> 头</td>
+<td>walltime/nodes/ppn 等资源请求</td>
+<td>各 <code>run_month1</code> 第 1-10 行</td>
+</tr>
+<tr>
+<td><code>num_now</code> / <code>num_end</code></td>
+<td>起止月序号（用户改）</td>
+<td><code>run_monthN:28-29, 35-36</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="被读取的位置">被读取的位置</h2>
+<table>
+<thead>
+<tr>
+<th>调用者</th>
+<th>场景</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>用户（shell）</td>
+<td>启动模拟</td>
+<td>直接 <code>./run_mcd</code> 或 <code>qsub run_month1</code></td>
+</tr>
+<tr>
+<td><code>run0</code> 自身</td>
+<td>链式递归</td>
+<td><code>cp -f run0 exe_mars; ./exe_mars</code>（第 108-109 行）实现链长 <code>nummax</code></td>
+</tr>
+<tr>
+<td><code>run_monthN</code></td>
+<td>自我复制</td>
+<td>cp + sed 生成下一月脚本，交调度器排队</td>
+</tr>
+<tr>
+<td>GCM (<code>gcm.e</code>)</td>
+<td>段内运行时</td>
+<td>读 <code>run.def</code>（已被 sed 生成）、<code>traceur.def</code>、<code>z2sig.def</code>、<code>callphys.def</code>、start*.nc</td>
+</tr>
+</tbody>
+</table>
+<h2 id="影响的计算流程">影响的计算流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>火星年生产模拟</td>
+<td><code>run_mcd</code> 是 MCD 数据库（Mars Climate Database）生产脚本链的基础</td>
+</tr>
+<tr>
+<td>长程气候自旋</td>
+<td><code>run0</code> 的 <code>nummax</code> 允许单脚本驱动数百段链</td>
+</tr>
+<tr>
+<td>多火星年模拟</td>
+<td><code>run_mcd</code> 内注释的第 2-3 火星年模板（第 42-67 行）启用后可持续到 36 月</td>
+</tr>
+<tr>
+<td>高分辨率 HPC 模拟</td>
+<td><code>run_monthN</code> 与 SLURM/PBS 配合实现跨集群链式月度模拟</td>
+</tr>
+<tr>
+<td>重启文件管理</td>
+<td><code>startN.nc</code> / <code>startfiN.nc</code> 的 N 编号由脚本链自动维护，复现时不可手动改</td>
+</tr>
+<tr>
+<td>崩溃恢复</td>
+<td><code>num_run = 99999</code> 强制停止后续段以避免脏链；<code>num_run.crash</code> 用于人工恢复</td>
+</tr>
+</tbody>
+</table>
+<h2 id="脚本调用链总览">脚本调用链总览</h2>
+<pre class="text"><code>用户
+ ├── ./run_mcd                          [串行模式]
+ │    ├── sed run.def.ref → run.def
+ │    ├── ./run0 → gcm.e
+ │    ├── sed run.def.ref → run.def
+ │    ├── ./run0 → gcm.e
+ │    └── ... (12 月)
+ └── qsub ./run_month1                  [HPC 模式]
+      ├── qsub 提交自身
+      ├── source arch.env
+      ├── sed run.def.ref → run.def + ./run0 → gcm.e
+      ├── cp+sed → run_month2
+      └── qsub ./run_month2
+           └── ... (至 run_month${num_end})</code></pre>
+<h2 id="复现要求">复现要求</h2>
+<ul>
+<li><strong><code>run.def.ref</code> 必须存在且含 <code>nday = 9999</code> 占位符</strong>（源码依据：<code>deftank/run_mcd:16</code> 注释，<code>run_monthN:41-44</code> 显式检查），否则 sed 无法替换，GCM 会因 <code>nday = 9999</code> 而超时崩溃。</li>
+<li><strong><code>num_run</code> 必须为纯 ASCII 单行整数</strong>（源码依据：<code>run0:32</code> <code>numold=$(cat num_run)</code>）；前导空格或换行会被 bash 算术运算误读。</li>
+<li><strong>崩溃后人工恢复</strong>：必须把 <code>num_run.crash</code> 重命名为 <code>num_run</code>；否则后续 <code>run0</code> 因 <code>numold = 99999</code> 直接 exit 1（第 47-49 行）。</li>
+<li><strong><code>start${numold}.nc</code> / <code>startfi${numold}.nc</code> 必须与 <code>num_run</code> 同步</strong>：手动改 <code>num_run</code> 但不动 start 文件会导致链断裂。</li>
+<li><strong>火星月长度 61/66/66/65/60/54/50/46/47/47/51/56 sol 不可改</strong>（源码依据：<code>deftank/run_mcd:28-39</code> 注释 "12 martian months of unequal length (excentric orbit)"）。修改任何一项都会破坏 Ls（太阳经度）与日历的对应关系。</li>
+<li><strong><code>run0</code> 的 <code>nummax</code> 必须为整数 ≥ 1</strong>：若设为 0 则首次执行后直接退出（第 105 行 <code>numnew+1 &gt; nummax</code>）。</li>
+<li><strong><code>gcm</code> 变量指向可执行文件</strong>（源码依据：<code>run0:22-25</code> 检查 <code>-x $gcm</code>）：重新编译后必须更新 <code>gcm=</code> 行或创建符号链接。</li>
+<li><strong>HPC 子目录中的 <code>run0</code> 通常被本地化</strong>（与顶层 <code>deftank/run0</code> 不同，可能含 MPI 调用包装）：复现时不要跨目录混用 <code>run0</code>。</li>
+<li><strong><code>lrun${numnew}</code> 日志文件</strong>：累积会占用大量磁盘空间（单次运行可达 GB），长链需配套清理策略。</li>
+<li><strong>复现风险</strong>：<code>run0</code> 中 <code>cp -f run0 exe_mars; ./exe_mars</code>（第 108-109 行）在递归链期间会创建 <code>exe_mars</code> 副本；若用户在链运行中更新 <code>run0</code> 本身，副本不会同步，导致链内行为不一致。</li>
+<li><strong>复现风险</strong>：<code>run_mcd:74</code> 写为 <code>set numold=`cat num_run.crash` </code>，这是 bash 语法错误（<code>set</code> 不接受赋值）——推断原意是 <code>numold=$(cat num_run.crash)</code> 或 <code>numold=`cat num_run.crash` </code>，但此脚本已长期未修复；复现时若依赖此恢复路径需手动修正。</li>
+<li><strong>复现风险</strong>：occigen 的 <code>OMP_STACKSIZE=400M</code> 是 Intel 编译器硬编码值；改用 GCC 编译链时需改为 <code>GOMP_STACKSIZE</code> 或 <code>ulimit -s</code>。</li>
+<li><strong>复现风险</strong>：<code>run_monthN</code> 用 <code>cp + sed</code> 自我复制产生下月脚本，<strong>所有月份的脚本都是派生文件</strong>；修改 <code>run_month1</code> 后只影响后续月份，当前正在跑的脚本不受影响。</li>
+</ul>
+<h2 id="已核验脚本边界">已核验脚本边界</h2>
+<ul>
+<li><code>run_mcd:74</code> 的 <code>set numold=`cat num_run.crash` </code> 已按 bash 语义确认为错误写法；页面在复现风险中给出可用替代写法，不再列为未处理事项。</li>
+<li><code>adastra/run_year1</code> 是年度包装：用 <code>sed s/9999/669/ run.def.ref &gt; run.def ; ./run0</code> 一次运行 669 sol，并通过 <code>sbatch run_yearN</code> 链接下一年；它不是逐月 <code>run_monthN</code> 变体。</li>
+<li><code>irene</code>、<code>adastra</code>、<code>mesu</code>、<code>spirit</code> 的资源申请和 MPI/OpenMP 环境并不保证与 <code>occigen</code> 完全一致；复现时应使用目标机器目录下的脚本，不跨集群复用。</li>
+<li><code>run0</code> 的 <code>nummax&gt;1</code> 通过 <code>./exe_mars</code> 进程递归实现，不是 shell 函数递归；实际限制来自作业墙钟、文件状态和进程启动开销，而不是 bash 函数栈深。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

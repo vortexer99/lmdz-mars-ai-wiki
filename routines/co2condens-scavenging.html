@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>co2condens-scavenging - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>routines/co2condens-scavenging.md</span>
+    </nav>
+    <article class="content">
+<h1 id="scavenging_by_co2">scavenging_by_co2</h1>
+<h2 id="所属文件">所属文件</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\co2condens_mod.F</code></pre>
+<h2 id="所属模块">所属模块</h2>
+<pre class="text"><code>co2condens_mod</code></pre>
+<h2 id="例程定位">例程定位</h2>
+<pre class="text"><code>SUBROUTINE scavenging_by_co2 (行 1017–1159)</code></pre>
+<h2 id="例程职责">例程职责</h2>
+<p>CO2 凝结过程中清除（scavenging）尘埃和水冰的子例程。当 CO2 在大气中凝结时，以指数衰减方式捕获尘埃质量/数量和水冰；当 CO2 升华时，按比例释放被清除的粒子。清除的粒子最终沉积到地表。</p>
+<p>仅在 <code>scavco2cond=.true.</code> 时由 <code>co2condens</code> 调用（行 358-361）。</p>
+<h2 id="被调用例程">被调用例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无外部调用</td>
+<td>-</td>
+<td>-</td>
+<td>纯计算逻辑</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>co2condens</td>
+<td>INT</td>
+<td>-</td>
+<td>格点数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>co2condens</td>
+<td>INT</td>
+<td>-</td>
+<td>层数</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>co2condens</td>
+<td>INT</td>
+<td>-</td>
+<td>tracer 数量</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>co2condens</td>
+<td>REAL</td>
+<td>s</td>
+<td>物理时间步长</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td>co2condens</td>
+<td>REAL (ngrid,nlayer+1)</td>
+<td>Pa</td>
+<td>层界面气压</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td>co2condens</td>
+<td>REAL (ngrid,nlayer,nq)</td>
+<td>kg/kg</td>
+<td>tracer 混合比</td>
+</tr>
+<tr>
+<td><code>rdust</code></td>
+<td>co2condens</td>
+<td>REAL (ngrid,nlayer)</td>
+<td>m</td>
+<td>尘埃有效半径</td>
+</tr>
+<tr>
+<td><code>pcondicea</code></td>
+<td>co2condens</td>
+<td>REAL (ngrid,nlayer)</td>
+<td>kg/m²/s</td>
+<td>CO2 凝结速率（&gt;0 凝结，&lt;0 升华）</td>
+</tr>
+<tr>
+<td><code>pfallice</code></td>
+<td>co2condens</td>
+<td>REAL (ngrid,nlayer+1)</td>
+<td>kg/m²/s</td>
+<td>CO2 冰从层 l 落下的通量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdq_scav</code></td>
+<td>co2condens</td>
+<td>REAL (ngrid,nlayer,nq)</td>
+<td>kg/kg/s</td>
+<td>清除产生的 tracer 倾向</td>
+</tr>
+<tr>
+<td><code>pdqsc</code></td>
+<td>co2condens</td>
+<td>REAL (ngrid,nq)</td>
+<td>kg/m²/s</td>
+<td>地表 tracer 沉积通量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>读取 <code>tracer_mod</code> 中的 tracer 索引和 <code>rho_dust</code>、<code>nuice_sed</code>、<code>nuice_ref</code>、<code>r3n_q</code>。</li>
+<li>读取 <code>dust_param_mod::freedust</code> 和 <code>callkeys_mod::water</code>、<code>microphys</code>。</li>
+<li>无文件 I/O，无 module 变量写入。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="硬编码参数">硬编码参数</h3>
+<ul>
+<li><code>scav_ratio_dust = 20</code>：尘埃清除比——注释说"20 是在极夜去除尘埃而不干涸水循环的好折衷"。</li>
+<li><code>scav_ratio_wice = scav_ratio_dust = 20</code>：水冰清除比，与尘埃相同。</li>
+</ul>
+<h3 id="算法">算法</h3>
+<p>对每个格点，从顶层向下循环（<code>l = nlayer → 1</code>）：</p>
+<p><strong>CO2 凝结时</strong>（<code>pcondicea &gt; 0</code>，行 1074-1095）：</p>
+<ul>
+<li>尘埃（<code>freedust</code>）：<code>pdq_scav(dust_mass) = -pq(dust_mass)/ptimestep * (1 - exp(-scav_ratio_dust*pcondicea*dt/massl))</code>
+<ul>
+<li>指数衰减模型：凝结的 CO2 冰按比例捕获周围尘埃</li>
+<li>数量由质量推导：<code>pdq_scav(dust_number) = pdq_scav(dust_mass) * r3n_q / rdust</code></li>
+</ul></li>
+<li>CCN（<code>freedust AND microphys</code>）：同理用 <code>scav_ratio_wice</code> 清除 ccn_mass/number</li>
+<li>水冰（<code>water</code>）：<code>pdq_scav(h2o_ice) = -pq(h2o_ice)/ptimestep * (1 - exp(-scav_ratio_wice*pcondicea*dt/massl))</code></li>
+</ul>
+<p><strong>CO2 升华时</strong>（<code>pcondicea &lt; 0</code>，行 1097-1117）：</p>
+<ul>
+<li>按比例释放：<code>pdq_scav(dust_mass) = -pcondicea/massl * scav_dust_mass(l+1)/pfallice(l+1)</code>
+<ul>
+<li>从上层落下的清除通量中，按 CO2 升华/总通量的比例释放</li>
+<li>尘埃/CCN/水冰分别计算</li>
+</ul></li>
+</ul>
+<p><strong>清打通量累积</strong>（行 1119-1137）：</p>
+<ul>
+<li><code>scav_dust_mass(l) = -pdq_scav(dust_mass)*massl + scav_dust_mass(l+1)</code></li>
+<li>逐层向下传递被清除的粒子质量/数量</li>
+</ul>
+<p><strong>地表沉积</strong>（行 1140-1157）：</p>
+<ul>
+<li><code>pdqsc(dust_mass) += scav_dust_mass(1)</code>——到达地面的清除粒子沉积</li>
+<li>水冰：<code>pdqsc(h2o_ice) = scav_h2o_ice(1)</code></li>
+</ul>
+<h3 id="质量守恒">质量守恒</h3>
+<ul>
+<li>凝结时：大气中尘埃/水冰减少（<code>pdq_scav &lt; 0</code>），清打通量增加</li>
+<li>升华时：清打通量中的粒子释放回大气（<code>pdq_scav &gt; 0</code>）</li>
+<li>地表：最终沉积量 = 从层 1 落下的清打通量</li>
+</ul>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>scavenging_by_co2(ngrid, nlayer, nq, ptimestep, pplev, pq, rdust,
+                  pcondicea, pfallice, pdq_scav, pdqsc):
+
+  scav_ratio = 20  // dust and water ice
+
+  for ig = 1 to ngrid:
+    scav_flux(l+1) = 0  // 初始化顶层以上
+
+    for l = nlayer to 1:
+      massl = (pplev(l) - pplev(l+1)) / g
+
+      if pcondicea &gt; 0:  // CO2 凝结，清除
+        pdq_scav(dust_mass) = -pq(dust_mass)/dt * (1-exp(-scav_ratio*pcondicea*dt/massl))
+        pdq_scav(dust_number) = pdq_scav(dust_mass) * r3n_q / rdust
+        // CCN 和 h2o_ice 同理
+
+      else if pcondicea &lt; 0:  // CO2 升华，释放
+        pdq_scav(dust_mass) = -pcondicea/massl * scav_dust_flux(l+1)/pfallice(l+1)
+        // CCN 和 h2o_ice 同理
+
+      // 累积清打通量
+      scav_flux(l) = -pdq_scav * massl + scav_flux(l+1)
+
+    // 地表沉积
+    pdqsc(dust_mass) += scav_dust_flux(1)
+    pdqsc(dust_number) += scav_dust_number(1)
+    pdqsc(h2o_ice) = scav_h2o_ice(1)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CO2 循环 (CO2-cycle)</td>
+<td>CO2 凝结时清除尘埃/水冰，升华时释放</td>
+</tr>
+<tr>
+<td>尘埃循环 (dust-cycle)</td>
+<td>尘埃被 CO2 冰捕获并沉积到地表</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>固定格式 Fortran 77</strong>（.F 后缀，续行用 <code>&amp;</code>）。</li>
+<li>指数衰减清除模型：<code>1-exp(-ratio*pcondicea*dt/massl)</code>——凝结量越大、层质量越小，清除效率越高。</li>
+<li>升华释放模型：按比例分配——<code>pcondicea/pfallice</code> 为升华占总通量的比例。</li>
+<li><code>scav_ratio_dust = scav_ratio_wice = 20</code> 硬编码——注释提到这是经验值。</li>
+<li>尘埃数量由质量推导：<code>dust_number = dust_mass * r3n_q / rdust</code>——假设 log-normal 分布。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>scav_ratio = 20</code> 是硬编码经验值——改变此值显著影响尘埃清除和水循环。</li>
+<li>指数衰减模型假设清除效率与凝结率成正比——物理上对应 CO2 冰晶包裹尘埃的效率。</li>
+<li>升华释放假设清除的粒子随 CO2 冰一起下落——<code>pfallice</code> 为 CO2 冰总通量。</li>
+<li><code>freedust</code> 和 <code>water</code> 开关控制是否清除尘埃和水冰——可独立关闭。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>scav_ratio = 20</code> 的物理来源——注释仅说"good compromise"，未引用文献。</li>
+<li>升华释放时 <code>pfallice(l+1)</code> 可能为零——代码未含除零保护（行 1101/1104/1108/1111/1115）。</li>
+<li><code>pdqsc(dust_mass)</code> 在行 1142 和 1148 累加了两部分（freedust 和 freedust+microphys 的 ccn）——是否会导致重复计数。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li><code>scav_ratio = 20</code> 硬编码——不同值会显著改变尘埃分布和水循环。</li>
+<li><code>pfallice</code> 为零时的除法可能导致 NaN——需确认调用点是否有保护。</li>
+<li>清除效率的指数衰减模型是参数化假设——不同微物理假设可能导致不同结果。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="co2condens.html">co2condens — CO2 凝结主例程</a> - 调用本例程</li>
+<li><a href="../modules/phymars/co2cloud_mod.html">co2cloud_mod — CO2 云主调度</a> - 提供 <code>pcondicea_co2microp</code> 和 <code>zdqssed_co2</code></li>
+<li><a href="../themes/co2-cycle.html">CO2 循环主题页</a>（TASK-0011）</li>
+<li><a href="../themes/dust-cycle.html">尘埃循环主题</a> - 尘埃清除背景</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

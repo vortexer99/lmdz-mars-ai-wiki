@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>callphysiq_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/callphysiq_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="callphysiq_modf90">callphysiq_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\callphysiq_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>lon-lat GCM 动力-物理耦合适配器。<code>callphysiq_mod</code> 模块封装唯一入口 <code>call_physiq</code>，在动力核心与 <a href="../phymars/physiq_mod.html"><code>physiq_mod</code></a> 之间传递状态数组和 tendency；首次调用时验证 <code>planet_type=="mars"</code>，随后将动力核心传入的 OMP 并行数组按 <code>physiq</code> 参数列表转发，并把物理 tendency 回写动力侧。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>callphysiq_mod</code></td>
+<td>module</td>
+<td>4</td>
+<td>动力-物理接口模块，封装 <code>call_physiq</code></td>
+</tr>
+<tr>
+<td><code>call_physiq</code></td>
+<td>subroutine</td>
+<td>10</td>
+<td>接收动力核心状态、调用 <code>physiq</code>、返回 tendency</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>control_mod</code></td>
+<td><code>planet_type</code></td>
+<td>首次调用时校验行星类型为 "mars"</td>
+<td></td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>nbp_lon, nbp_lat</code></td>
+<td>为 <code>pducov</code> 参数提供维度（<code>nbp_lon+1, nbp_lat</code>）</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="../phymars/physiq_mod.html"><code>physiq_mod</code></a></td>
+<td><code>physiq</code></td>
+<td>Mars 物理参数化主调度例程</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abort_gcm</code></td>
+<td>公共工具（待确认模块）</td>
+<td>行 62</td>
+<td><code>planet_type</code> 非 "mars" 时中止运行</td>
+</tr>
+<tr>
+<td><a href="../phymars/physiq_mod.html"><code>physiq</code></a></td>
+<td><code>physiq_mod</code></td>
+<td>行 69-89</td>
+<td>将动力状态转发给 Mars 物理包，接收 tendency</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>klon</code></td>
+<td>动力核心</td>
+<td><code>INTEGER</code></td>
+<td>—</td>
+<td>局地大气柱数</td>
+</tr>
+<tr>
+<td><code>llm</code></td>
+<td>动力核心</td>
+<td><code>INTEGER</code></td>
+<td>—</td>
+<td>大气层数</td>
+</tr>
+<tr>
+<td><code>nqtot</code></td>
+<td>动力核心</td>
+<td><code>INTEGER</code></td>
+<td>—</td>
+<td>示踪剂个数</td>
+</tr>
+<tr>
+<td><code>tname</code></td>
+<td>动力核心</td>
+<td><code>CHARACTER(len=*)</code> <code>(nqtot)</code></td>
+<td>—</td>
+<td>示踪剂名称</td>
+</tr>
+<tr>
+<td><code>debut_split</code></td>
+<td>动力核心</td>
+<td><code>LOGICAL</code></td>
+<td>—</td>
+<td>是否为物理过程首次调用</td>
+</tr>
+<tr>
+<td><code>lafin_split</code></td>
+<td>动力核心</td>
+<td><code>LOGICAL</code></td>
+<td>—</td>
+<td>是否为物理过程末次调用</td>
+</tr>
+<tr>
+<td><code>jD_cur</code></td>
+<td>动力核心</td>
+<td><code>REAL</code></td>
+<td>day</td>
+<td>儒略日</td>
+</tr>
+<tr>
+<td><code>jH_cur_split</code></td>
+<td>动力核心</td>
+<td><code>REAL</code></td>
+<td>day</td>
+<td>儒略小时（日分数）</td>
+</tr>
+<tr>
+<td><code>zdt_split</code></td>
+<td>动力核心</td>
+<td><code>REAL</code></td>
+<td>s</td>
+<td>物理过程时间步长</td>
+</tr>
+<tr>
+<td><code>zplev_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(klon,llm+1)</code></td>
+<td>Pa</td>
+<td>层间气压</td>
+</tr>
+<tr>
+<td><code>zplay_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(klon,llm)</code></td>
+<td>Pa</td>
+<td>中层气压</td>
+</tr>
+<tr>
+<td><code>zpk_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(klon,llm)</code></td>
+<td>—</td>
+<td>气压相关参数</td>
+</tr>
+<tr>
+<td><code>zphi_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(klon,llm)</code></td>
+<td>m²/s²</td>
+<td>中层位势</td>
+</tr>
+<tr>
+<td><code>zphis_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(klon)</code></td>
+<td>m²/s²</td>
+<td>地表位势</td>
+</tr>
+<tr>
+<td><code>presnivs_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(llm)</code></td>
+<td>Pa</td>
+<td>各层近似气压</td>
+</tr>
+<tr>
+<td><code>zufi_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(klon,llm)</code></td>
+<td>m/s</td>
+<td>纬向风</td>
+</tr>
+<tr>
+<td><code>zvfi_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(klon,llm)</code></td>
+<td>m/s</td>
+<td>经向风</td>
+</tr>
+<tr>
+<td><code>zrfi_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(klon,llm)</code></td>
+<td>s⁻¹</td>
+<td>相对涡度</td>
+</tr>
+<tr>
+<td><code>ztfi_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(klon,llm)</code></td>
+<td>K</td>
+<td>温度</td>
+</tr>
+<tr>
+<td><code>zqfi_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(klon,llm,nqtot)</code></td>
+<td>*/kg</td>
+<td>示踪剂混合比</td>
+</tr>
+<tr>
+<td><code>flxwfi_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(klon,llm)</code></td>
+<td>kg/s</td>
+<td>下界面垂直质量通量</td>
+</tr>
+<tr>
+<td><code>pducov</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(nbp_lon+1,nbp_lat,llm)</code></td>
+<td>—</td>
+<td>动力倾向（ucov）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zdufi_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(klon,llm)</code></td>
+<td>*/s</td>
+<td>纬向风 tendency</td>
+</tr>
+<tr>
+<td><code>zdvfi_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(klon,llm)</code></td>
+<td>*/s</td>
+<td>经向风 tendency</td>
+</tr>
+<tr>
+<td><code>zdtfi_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(klon,llm)</code></td>
+<td>*/s</td>
+<td>温度 tendency</td>
+</tr>
+<tr>
+<td><code>zdqfi_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(klon,llm,nqtot)</code></td>
+<td>*/s</td>
+<td>示踪剂 tendency</td>
+</tr>
+<tr>
+<td><code>zdpsrf_omp</code></td>
+<td>动力核心</td>
+<td><code>REAL</code> <code>(klon)</code></td>
+<td>*/s</td>
+<td>地表气压 tendency</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>firstcall</code>（<code>LOGICAL, SAVE, THREADPRIVATE</code>）：每线程私有标志，首次调用后置 <code>.false.</code>；OpenMP 并行区各线程独立跟踪。</li>
+<li>无文件 I/O、无 common block、无模块级全局变量写入。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>首次调用校验</strong>：<code>IF (firstcall)</code> 时检查 <code>planet_type</code> 是否为 <code>"mars"</code>，不是则调用 <code>abort_gcm</code> 中止，然后将 <code>firstcall</code> 置为 <code>.false.</code>。</li>
+<li><strong>转发物理调用</strong>：将动力核心传入的 22 个参数按 <code>physiq</code> 签名映射并调用，省略 <code>pducov</code>、<code>zpk_omp</code>、<code>zphis_omp</code>、<code>presnivs_omp</code>、<code>zrfi_omp</code>、<code>tname</code>、<code>jD_cur</code>、<code>jH_cur_split</code> 等 <code>physiq</code> 不直接使用的参数。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>SUBROUTINE call_physiq(状态参数..., tendency参数...)
+  USE control_mod  → planet_type
+  USE physiq_mod   → physiq
+
+  IF firstcall THEN
+    IF planet_type ≠ &quot;mars&quot; THEN abort
+    firstcall ← .false.
+  ENDIF
+
+  CALL physiq(klon, llm, nqtot, debut_split, lafin_split,
+              jD_cur, jH_cur_split, zdt_split,
+              zplev_omp, zplay_omp, zphi_omp,
+              zufi_omp, zvfi_omp, ztfi_omp, zqfi_omp,
+              flxwfi_omp,
+              zdufi_omp, zdvfi_omp, zdtfi_omp, zdqfi_omp, zdpsrf_omp)
+END SUBROUTINE</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/dust-cycle.html">动力-物理耦合</a></td>
+<td>作为 lon-lat GCM 动力核心到 phymars 物理包的唯一桥接点</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>OpenMP 线程私有</strong>：<code>firstcall</code> 使用 <code>SAVE</code> + <code>!$OMP THREADPRIVATE</code> 声明，确保并行区各线程独立执行首次校验。</li>
+<li><strong>参数过滤</strong>：<code>call_physiq</code> 接收 22 个参数，但只向 <code>physiq</code> 传递其中 21 个（<code>physiq</code> 不需要 <code>pducov</code>、<code>zpk_omp</code>、<code>zphis_omp</code>、<code>presnivs_omp</code>、<code>zrfi_omp</code>、<code>tname</code> 等动力侧专用参数）。</li>
+<li><strong>Free-form F90</strong>：使用 <code>&amp;</code> 续行和 <code>INTENT(IN/OUT)</code> 声明，与 dynphy_lonlat 中部分 fixed-form 文件不同。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>需要 <code>control_mod</code> 中 <code>planet_type</code> 已设置为 <code>"mars"</code>，否则首次调用即中止。</li>
+<li>需要 <code>physiq_mod</code> 已初始化（通过 <a href="iniphysiq_mod.html"><code>iniphysiq_mod</code></a>）。</li>
+<li><code>pducov</code> 维度依赖 <code>mod_grid_phy_lmdz</code> 中的 <code>nbp_lon</code> 和 <code>nbp_lat</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>call_physiq</code> 的直接调用方在源码矩阵范围内未找到；已核验 <a href="newstart.html"><code>newstart.F</code></a> 不 <code>USE callphysiq_mod</code>，实际调用应来自外部 LMDZ 动力驱动或未纳入本矩阵的耦合入口。</li>
+<li><code>abort_gcm</code> 所在模块未在此文件中显式 <code>USE</code>，可能通过隐式接口或 include 引入。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../phymars/physiq_mod.html"><code>physiq_mod</code></a> — Mars 物理参数化主调度，<code>call_physiq</code> 的直接下游</li>
+<li><a href="iniphysiq_mod.html"><code>iniphysiq_mod</code></a> — 物理初始化</li>
+<li><a href="caldyn0.html"><code>caldyn0</code></a> — lon-lat 动力倾向计算</li>
+<li><a href="index.html">dynphy_lonlat/index</a> — 所属目录概览</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

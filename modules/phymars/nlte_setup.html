@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nlte_setup - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/nlte_setup.md</span>
+    </nav>
+    <article class="content">
+<h1 id="nlte_setupf">nlte_setup.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\nlte_setup.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>nlte_setup.F</code> 是 CO2 15 微米 NLTE 快速参数化的运行时初始化文件。它把运行时数据目录 <code>datafile_mod::datadir</code> 下的 <code>NLTEDAT</code> 表文件读入 <a href="nlte_commons_h.html">nlte_commons_h</a> 的共享数组，并在非 <code>MESOSCALE</code> 编译路径下只让 <code>is_master</code> 进程执行文件 I/O，再用 <code>bcast</code> 把表数据广播到其他进程。</p>
+<p>本文件当前没有启用顶部注释中的 <code>MODULE nlte_setup_mod</code> 包装；源码实际提供三个外部子程序：<code>nlte_setup</code>、<code>LeeHISTOGRMS</code> 和 <code>GETK_dlvr11</code>。<code>physiq_mod.F</code> 在 <code>callnlte.and.nltemodel.eq.2</code> 时调用 <code>nlte_setup</code>，而 <code>nlte_tcool_mod.F</code> 在主网格和 CTS 网格计算中调用 <code>GETK_dlvr11</code> 生成温度相关的碰撞速率族。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlte_setup</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">10</td>
+<td>读取 NLTE 谱线、Tstar、VC 和历史谱线表，初始化若干固定跃迁系数。</td>
+</tr>
+<tr>
+<td><code>LeeHISTOGRMS</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">138</td>
+<td>依次设置 4 个 <code>hid26-*.dat</code> 历史谱线表路径，并调用 <code>rhist_03</code> 读入缓存。</td>
+</tr>
+<tr>
+<td><code>GETK_dlvr11</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">185</td>
+<td>按输入温度计算 k19/k20/k21/k33 及其反向碰撞速率，写入 <code>nlte_commons_h</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datafile_mod</code></td>
+<td><code>datadir</code></td>
+<td>构造 <code>datadir/NLTEDAT/...</code> 表文件路径。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code></td>
+<td>非 <code>MESOSCALE</code> 路径下限制文件读取只在主进程执行。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td><code>bcast</code></td>
+<td>非 <code>MESOSCALE</code> 路径下广播主进程读入的表数组和标量。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>nlte_paramdef_h</code></td>
+<td><code>nztabul</code>, <code>nb</code>, <code>nisot</code>, <code>indexisot</code>, <code>rf19</code>, <code>rf20</code>, <code>rf21a</code>, <code>rf21b</code>, <code>rf21c</code>, <code>rf33bc</code>, <code>ee</code>, <code>nu</code></td>
+<td>提供表维度、同位素编码、碰撞率缩放因子和波数常数。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>nlte_commons_h</code></td>
+<td><code>elow</code>, <code>deltanu</code>, <code>lnpnbtab</code>, <code>tstar*tab</code>, <code>vc*tab</code>, <code>hisfile</code>, <code>k*</code> 等</td>
+<td>保存本文件读入或计算出的共享 NLTE 表和碰撞速率。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td>81-82, 116-124</td>
+<td>广播 <code>elow/deltanu</code>、Tstar 表、VC 表和临时标量 <code>xx</code>。</td>
+</tr>
+<tr>
+<td><code>LeeHISTOGRMS</code></td>
+<td>本文件</td>
+<td>131</td>
+<td>读取 4 个历史谱线 histogram 表。</td>
+</tr>
+<tr>
+<td><code>rhist_03</code></td>
+<td><code>nlte_aux.F</code></td>
+<td>156, 164, 169, 174</td>
+<td>从 <code>hisfile</code> 指向的 <code>hid26-*.dat</code> 文件读取历史谱线缓存，并在非 <code>MESOSCALE</code> 路径下广播。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datadir</code></td>
+<td><code>datafile_mod</code></td>
+<td>string</td>
+<td>-</td>
+<td>运行时数据包根目录；本文件追加 <code>/NLTEDAT/...</code>。</td>
+</tr>
+<tr>
+<td><code>NLTEDAT/enelow26.dat</code>, <code>enelow28.dat</code>, <code>enelow36.dat</code>, <code>enelow27.dat</code></td>
+<td>文件系统</td>
+<td>每个同位素 <code>nb</code> 个数</td>
+<td>谱线能级相关量</td>
+<td>按 <code>indexisot=[26,28,36,27]</code> 顺序读取到 <code>elow(k,:)</code>。</td>
+</tr>
+<tr>
+<td><code>NLTEDAT/deltanu26.dat</code>, <code>deltanu28.dat</code>, <code>deltanu36.dat</code>, <code>deltanu27.dat</code></td>
+<td>文件系统</td>
+<td>每个同位素 <code>nb</code> 个数</td>
+<td>cm-1 推断</td>
+<td>按同位素读取到 <code>deltanu(k,:)</code>。</td>
+</tr>
+<tr>
+<td><code>NLTEDAT/parametp_Tstar_IAA1204.dat</code></td>
+<td>文件系统</td>
+<td><code>nztabul</code> 行</td>
+<td>混合</td>
+<td>读入 <code>lnpnbtab</code> 和 <code>tstar11/21/31/41tab</code>。</td>
+</tr>
+<tr>
+<td><code>NLTEDAT/parametp_VC_IAA1204.dat</code></td>
+<td>文件系统</td>
+<td><code>nztabul</code> 行</td>
+<td>混合</td>
+<td>读入 <code>vc210/310/410tab</code>；第一列读入局部变量 <code>xx</code> 后丢弃。</td>
+</tr>
+<tr>
+<td><code>NLTEDAT/hid26-1.dat</code> ... <code>hid26-4.dat</code></td>
+<td>文件系统</td>
+<td>历史谱线 histogram 表</td>
+<td>谱线表量</td>
+<td>由 <code>LeeHISTOGRMS</code> 逐个传给 <code>rhist_03</code>。</td>
+</tr>
+<tr>
+<td><code>tt</code></td>
+<td><code>GETK_dlvr11</code> 调用方</td>
+<td>scalar real</td>
+<td>K</td>
+<td>计算碰撞速率的温度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>elow</code>, <code>deltanu</code></td>
+<td><code>nlte_commons_h</code></td>
+<td><code>nisot x nb</code></td>
+<td>谱线表量</td>
+<td>同位素谱线能级和线宽/频宽表。</td>
+</tr>
+<tr>
+<td><code>a1_010_000</code>, <code>a2_010_000</code>, <code>a3_010_000</code>, <code>a4_010_000</code>, <code>a1_020_010</code></td>
+<td><code>nlte_commons_h</code></td>
+<td>scalars</td>
+<td>-</td>
+<td>源码硬编码的跃迁系数。</td>
+</tr>
+<tr>
+<td><code>lnpnbtab</code>, <code>tstar11tab</code>, <code>tstar21tab</code>, <code>tstar31tab</code>, <code>tstar41tab</code></td>
+<td><code>nlte_commons_h</code></td>
+<td><code>nztabul</code> arrays</td>
+<td>混合</td>
+<td>Tstar / 压力 tabulation。</td>
+</tr>
+<tr>
+<td><code>vc210tab</code>, <code>vc310tab</code>, <code>vc410tab</code></td>
+<td><code>nlte_commons_h</code></td>
+<td><code>nztabul</code> arrays</td>
+<td>混合</td>
+<td>VC tabulation。</td>
+</tr>
+<tr>
+<td>历史谱线缓存数组</td>
+<td><code>nlte_aux.F::rhist_03</code> / <code>nlte_commons_h</code></td>
+<td><code>nhist</code> 相关数组</td>
+<td>谱线表量</td>
+<td>4 个 <code>hid26-*</code> 文件读入后的历史谱线缓存。</td>
+</tr>
+<tr>
+<td><code>k19*</code>, <code>k20*</code>, <code>k21*</code>, <code>k23k21*</code>, <code>k24k21*</code>, <code>k34k21*</code>, <code>k33*</code></td>
+<td><code>nlte_commons_h</code></td>
+<td>scalars / <code>nisot</code> arrays</td>
+<td>碰撞速率</td>
+<td>温度相关的正向和反向碰撞速率族。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本文件会打开固定 Fortran unit <code>1</code>、<code>2</code>、<code>11</code>、<code>12</code> 读表，<code>LeeHISTOGRMS</code> 间接通过 <code>rhist_03</code> 使用其内部文件 I/O。</li>
+<li><code>nlte_setup</code> 直接写入 <a href="nlte_commons_h.html">nlte_commons_h</a> 的谱线表、Tstar/VC 表和固定系数；<code>GETK_dlvr11</code> 直接写入碰撞速率共享数组。</li>
+<li>非 <code>MESOSCALE</code> 编译路径下，只有 <code>is_master</code> 进程读文件；随后必须广播相关数组，否则非主进程会缺少 NLTE 表状态。</li>
+<li><code>xx=xx</code> 是源码字面上的自赋值，用于避免 <code>xx</code> 只在读表/广播路径中被使用而触发未使用警告；它不改变数值状态。</li>
+<li>文件没有显式检查 <code>open</code> 或 <code>read</code> 错误；缺失 <code>NLTEDAT</code> 文件会导致 Fortran 运行时 I/O 失败。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>nlte_setup</code> 设置本地 unit <code>lun1=1</code>、<code>lun2=2</code>。</li>
+<li>在非 <code>MESOSCALE</code> 路径下进入 <code>if(is_master)</code>，按 <code>indexisot(k)</code> 生成两位同位素代码，逐个打开 <code>enelow*.dat</code> 和 <code>deltanu*.dat</code>，跳过表头后读入 <code>elow(k,1:nb)</code> 与 <code>deltanu(k,1:nb)</code>。</li>
+<li>非 <code>MESOSCALE</code> 路径下广播 <code>elow</code> 和 <code>deltanu</code>。</li>
+<li>写入 5 个硬编码跃迁系数：<code>a1_010_000=1.3546d0</code>、<code>a2_010_000=1.3452d0</code>、<code>a3_010_000=1.1878d0</code>、<code>a4_010_000=1.2455d0</code>、<code>a1_020_010=4.35d0</code>。</li>
+<li>读取 <code>parametp_Tstar_IAA1204.dat</code> 的 <code>nztabul</code> 行到 <code>lnpnbtab</code> 和 4 个 <code>tstar*tab</code>；读取 <code>parametp_VC_IAA1204.dat</code> 的 <code>nztabul</code> 行到 <code>vc*tab</code>，首列读入 <code>xx</code>。</li>
+<li>非 <code>MESOSCALE</code> 路径下广播 Tstar/VC 相关数组。</li>
+<li>调用 <code>LeeHISTOGRMS</code>，后者依次把 <code>hisfile</code> 设为 <code>hid26-1.dat</code> 到 <code>hid26-4.dat</code>，并用 <code>rhist_03(1..4)</code> 读入历史谱线缓存。</li>
+<li><code>GETK_dlvr11(tt)</code> 把温度转为双精度 <code>tdt</code>，计算 k20、k19、k21 和 k33 族的正向速率，再用 <code>exp(-ee*anu/tdt)</code> 和 <code>nu</code> 波数差生成反向速率，逐项写入 <code>nlte_commons_h</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>nlte_setup:
+  for k in 1..nisot:
+    isotcode = two_digit(indexisot(k))
+    read datadir/NLTEDAT/enelow{isotcode}.dat into elow(k,1:nb)
+    read datadir/NLTEDAT/deltanu{isotcode}.dat into deltanu(k,1:nb)
+  if not MESOSCALE:
+    broadcast elow and deltanu
+
+  set fixed transition coefficients a1/a2/a3/a4/a1_020_010
+
+  read parametp_Tstar_IAA1204.dat into lnpnbtab and tstar tables
+  read parametp_VC_IAA1204.dat into vc tables
+  if not MESOSCALE:
+    broadcast Tstar and VC tables
+
+  LeeHISTOGRMS:
+    for ihist in 1..4:
+      hisfile = datadir/NLTEDAT/hid26-{ihist}.dat
+      rhist_03(ihist)
+
+GETK_dlvr11(tt):
+  tdt = dble(tt)
+  derive k20 and k19 families, including low-temperature clamps for k19xca/k19xcb
+  for each isotope:
+    write forward k19/k20 arrays
+    compute reverse k19/k20 rates from exp(-ee * wavenumber / tdt)
+  derive k21 family and pair ratios
+  derive k33c and k33cp for isotopes 2..nisot</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NLTE 15 微米 CO2 冷却</td>
+<td>初始化 <a href="nlte_calc.html">nlte_calc</a>、<a href="nlte_aux.html">nlte_aux</a> 和后续 <code>nlte_tcool_mod.F</code> 所需的谱线表、Tstar/VC 表、历史谱线缓存和碰撞速率。</td>
+</tr>
+<tr>
+<td>辐射计算</td>
+<td><code>physiq_mod.F</code> 的 NLTE 分支调用 <code>nlte_setup</code> 后，高层冷却参数化才能使用这些表状态。</td>
+</tr>
+<tr>
+<td>并行运行</td>
+<td>非 <code>MESOSCALE</code> 路径使用主进程读表再广播的模式，避免每个进程重复文件 I/O。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>文件是固定格式 Fortran，顶部和底部的 module 包装均被注释掉；当前符号以外部子程序方式参与链接。</li>
+<li>源码保留旧 1-D NLTE 模型片段说明：<code>SETTINGS</code>、<code>LeeESCTVCISO_dlvr11</code>、<code>GETK_dlvr11.f</code>。</li>
+<li><code>GETK_dlvr11</code> 使用硬编码经验公式和低温钳制：<code>tt&lt;=175.</code> 时分别把 <code>k19xca</code> 和 <code>k19xcb</code> 固定为 <code>3.3d-15</code> 与 <code>7.6d-16</code>。</li>
+<li>同位素文件名由 <code>indexisot</code> 控制，不是由循环号直接拼接；当前顺序来自 <a href="nlte_paramdef_h.html">nlte_paramdef_h</a>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>调用 <code>nlte_setup</code> 前，<code>datafile_mod::datadir</code> 必须已经指向包含 <code>NLTEDAT</code> 子目录的数据包。</li>
+<li><code>NLTEDAT</code> 目录至少需要 <code>enelow26/28/36/27.dat</code>、<code>deltanu26/28/36/27.dat</code>、<code>parametp_Tstar_IAA1204.dat</code>、<code>parametp_VC_IAA1204.dat</code> 和 <code>hid26-1..4.dat</code>。</li>
+<li>非 <code>MESOSCALE</code> 并行复现时要保留 <code>is_master</code> + <code>bcast</code> 语义；否则非主进程可能使用未初始化表。</li>
+<li><code>GETK_dlvr11</code> 必须在需要碰撞速率的温度剖面循环中按层调用；<code>nlte_setup</code> 只读表，不会预先填充所有温度的 <code>k*</code> 速率。</li>
+<li>修改 <a href="nlte_paramdef_h.html">nlte_paramdef_h</a> 中的 <code>nb</code>、<code>nisot</code>、<code>nztabul</code> 或 <code>indexisot</code> 会直接改变本文件读表循环的合法尺寸和文件名集合。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>parametp_Tstar_IAA1204.dat</code> 与 <code>parametp_VC_IAA1204.dat</code> 各列的物理单位需要结合外部 IAA/CSIC 数据文档确认；本页只按源码读取顺序记录。</li>
+<li><code>GETK_dlvr11</code> 中 <code>k19</code>、<code>k20</code>、<code>k21</code>、<code>k33</code> 经验公式的实验或文献来源未在本文件中给出。</li>
+<li><code>xx</code> 广播后又自赋值的真实意图按源码行为推断为抑制未使用警告，未找到注释说明。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a></li>
+<li><a href="datafile_mod.html">datafile_mod</a></li>
+<li><a href="nlte_paramdef_h.html">nlte_paramdef_h</a></li>
+<li><a href="nlte_commons_h.html">nlte_commons_h</a></li>
+<li><a href="nlte_aux.html">nlte_aux</a></li>
+<li><a href="nlte_calc.html">nlte_calc</a></li>
+<li><a href="nlte_tcool_mod.html">nlte_tcool_mod.md</a>：调用 <code>GETK_dlvr11</code> 并求解 NLTE cooling-time 矩阵。</li>
+<li><a href="nltecool.html">nltecool</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

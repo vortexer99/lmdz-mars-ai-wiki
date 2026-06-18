@@ -1,0 +1,800 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>radiation - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a class="active" href="index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>themes/radiation.md</span>
+    </nav>
+    <article class="content">
+<h1 id="辐射计算主题">辐射计算主题</h1>
+<h2 id="主题目标">主题目标</h2>
+<p>辐射计算是 LMDZ.MARS 物理包的核心过程之一，负责计算火星大气中的长波（热红外）和短波（太阳辐射）辐射传输过程。该主题的目标是：</p>
+<ol type="1">
+<li>计算大气层的辐射加热率和冷却率</li>
+<li>计算地表和大气顶的辐射通量</li>
+<li>处理气溶胶（尘埃、水冰、CO2冰）的散射和吸收</li>
+<li>为大气动力学提供辐射强迫</li>
+</ol>
+<p><strong>源码依据</strong>：<code>callradite_mod.F</code> 注释说明 "Subroutine designed to call the main canonic radiative transfer subroutine 'lwmain' et 'swmain' to compute radiative heating and cooling rate and radiative fluxes to the surface."</p>
+<h2 id="入口">入口</h2>
+<p>辐射计算的主入口是 <code>callradite()</code> 子例程，位于 <a href="../modules/phymars/callradite_mod.html"><code>libf/phymars/callradite_mod.F</code></a>。</p>
+<p><strong>调用位置</strong>：在 <a href="../modules/phymars/physiq_mod.html"><code>physiq_mod.F</code></a> 的 <code>physiq()</code> 主物理例程中被调用。</p>
+<p><strong>源码依据</strong>：<code>callradite_mod.F</code> 第 7-15 行定义了子例程接口。</p>
+<h2 id="参与文件">参与文件</h2>
+<h3 id="核心文件">核心文件</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/phymars/callradite_mod.html"><code>callradite_mod.F</code></a></td>
+<td>辐射计算主入口，调度气溶胶光学准备、长波和短波辐射</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/lwmain_mod.html"><code>lwmain_mod.F</code></a></td>
+<td>长波 LTE 辐射主程序；调度 Planck、吸收量、交换率、通量和半隐式冷却率修正</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/swmain_mod.html"><code>swmain_mod.F</code></a></td>
+<td>短波辐射主程序；对两太阳谱段调用 Fouquart 或 Toon solver，输出短波加热率和上下行短波通量</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/aeropacity_mod.html"><code>aeropacity_mod.F</code></a></td>
+<td>气溶胶光学厚度计算</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/aeroptproperties.html"><code>aeroptproperties.F</code></a></td>
+<td>气溶胶光学属性计算</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/updatereffrad_mod.html"><code>updatereffrad_mod.F</code></a></td>
+<td>更新气溶胶粒径分布</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/suaer.html"><code>suaer.F90</code></a></td>
+<td>加载光学属性查找表</td>
+</tr>
+</tbody>
+</table>
+<h3 id="长波辐射辅助文件">长波辐射辅助文件</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/phymars/lwb.html"><code>lwb.F</code></a></td>
+<td>普朗克函数计算</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/lwu.html"><code>lwu.F</code></a></td>
+<td>吸收物质量计算</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/lwxd.html"><code>lwxd.F</code></a></td>
+<td>远距离传输函数</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/lwxn.html"><code>lwxn.F</code></a></td>
+<td>邻近层传输函数</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/lwxb.html"><code>lwxb.F</code></a></td>
+<td>边界层传输函数</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/lwflux.html"><code>lwflux.F</code></a></td>
+<td>辐射通量和冷却率计算</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/lwi.html"><code>lwi.F</code></a></td>
+<td>半隐式格式计算</td>
+</tr>
+</tbody>
+</table>
+<h3 id="短波辐射辅助文件">短波辐射辅助文件</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/phymars/swr_fouquart.html"><code>swr_fouquart.F</code></a></td>
+<td>Fouquart 短波辐射算法</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/swr_toon.html"><code>swr_toon.F</code></a></td>
+<td>Toon 短波辐射算法</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/swrayleigh.html"><code>swrayleigh.F</code></a></td>
+<td>瑞利散射计算</td>
+</tr>
+</tbody>
+</table>
+<h3 id="配置和维度文件">配置和维度文件</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/phymars/dimradmars_mod.html"><code>dimradmars_mod.F90</code></a></td>
+<td>辐射计算维度定义</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/yomlw_h.html"><code>yomlw_h.F90</code></a></td>
+<td>长波辐射共享系数、<code>nlaylte</code> 和 <code>xi</code> 交换率缓存</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/callkeys_mod.html"><code>callkeys_mod.F90</code></a></td>
+<td>物理过程开关；提供 <code>callrad</code>、<code>rayleigh</code>、<code>swrtype</code>、<code>dustrefir</code>、<code>callnirco2</code>、<code>callnlte</code> 等辐射相关控制量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="主调用链">主调用链</h2>
+<pre><code>callradite()  (callradite_mod.F)
+├── updatereffrad()      更新气溶胶粒径分布
+│   ├── updaterdust()    更新尘埃粒径
+│   ├── updaterice_micro() 更新水冰粒径
+│   └── updaterice_microco2() 更新CO2冰粒径
+├── aeroptproperties()   计算3D散射参数
+├── aeropacity()         计算气溶胶光学厚度
+├── lwmain()             长波辐射主程序
+│   ├── lwb()            普朗克函数
+│   ├── lwu()            吸收物质量
+│   ├── lwxd()           远距离传输函数
+│   ├── lwxn()           邻近层传输函数
+│   ├── lwxb()           边界层传输函数
+│   ├── lwflux()         通量和冷却率
+│   └── lwi()            半隐式格式
+└── swmain()             短波辐射主程序
+    ├── swr_fouquart()   Fouquart算法
+    └── swr_toon()       Toon算法</code></pre>
+<h2 id="状态变量">状态变量</h2>
+<h3 id="输入变量">输入变量</h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>类型</th>
+<th>维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>icount</code></td>
+<td>INTEGER</td>
+<td>标量</td>
+<td>-</td>
+<td>物理调用计数器</td>
+</tr>
+<tr>
+<td><code>ngrid</code></td>
+<td>INTEGER</td>
+<td>标量</td>
+<td>-</td>
+<td>水平网格点数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>INTEGER</td>
+<td>标量</td>
+<td>-</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>INTEGER</td>
+<td>标量</td>
+<td>-</td>
+<td>示踪剂数量</td>
+</tr>
+<tr>
+<td><code>ls</code></td>
+<td>REAL</td>
+<td>标量</td>
+<td>rad</td>
+<td>太阳经度（Ls）</td>
+</tr>
+<tr>
+<td><code>zday</code></td>
+<td>REAL</td>
+<td>标量</td>
+<td>sol</td>
+<td>日期（自Ls=0起的火星日）</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td>REAL</td>
+<td>(ngrid,nlayer,nq)</td>
+<td>kg/kg</td>
+<td>示踪剂混合比</td>
+</tr>
+<tr>
+<td><code>albedo</code></td>
+<td>REAL</td>
+<td>(ngrid,2)</td>
+<td>-</td>
+<td>地表反照率（两个太阳波段）</td>
+</tr>
+<tr>
+<td><code>emis</code></td>
+<td>REAL</td>
+<td>(ngrid)</td>
+<td>-</td>
+<td>地表发射率</td>
+</tr>
+<tr>
+<td><code>mu0</code></td>
+<td>REAL</td>
+<td>(ngrid)</td>
+<td>-</td>
+<td>太阳天顶角余弦</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td>REAL</td>
+<td>(ngrid,nlayer+1)</td>
+<td>Pa</td>
+<td>层边界压力</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td>REAL</td>
+<td>(ngrid,nlayer)</td>
+<td>Pa</td>
+<td>层中点压力</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td>REAL</td>
+<td>(ngrid,nlayer)</td>
+<td>K</td>
+<td>大气温度</td>
+</tr>
+<tr>
+<td><code>tsurf</code></td>
+<td>REAL</td>
+<td>(ngrid)</td>
+<td>K</td>
+<td>地表温度</td>
+</tr>
+<tr>
+<td><code>fract</code></td>
+<td>REAL</td>
+<td>(ngrid)</td>
+<td>-</td>
+<td>时间间隔的白天分数</td>
+</tr>
+<tr>
+<td><code>dist_sol</code></td>
+<td>REAL</td>
+<td>标量</td>
+<td>AU</td>
+<td>火星-太阳距离</td>
+</tr>
+</tbody>
+</table>
+<h3 id="输出变量">输出变量</h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>类型</th>
+<th>维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dtlw</code></td>
+<td>REAL</td>
+<td>(ngrid,nlayer)</td>
+<td>K/s</td>
+<td>长波加热率</td>
+</tr>
+<tr>
+<td><code>dtsw</code></td>
+<td>REAL</td>
+<td>(ngrid,nlayer)</td>
+<td>K/s</td>
+<td>短波加热率</td>
+</tr>
+<tr>
+<td><code>fluxsurf_lw</code></td>
+<td>REAL</td>
+<td>(ngrid)</td>
+<td>W/m²</td>
+<td>地表向下长波通量</td>
+</tr>
+<tr>
+<td><code>fluxsurf_dn_sw</code></td>
+<td>REAL</td>
+<td>(ngrid,2)</td>
+<td>W/m²</td>
+<td>地表向下短波通量</td>
+</tr>
+<tr>
+<td><code>fluxsurf_up_sw</code></td>
+<td>REAL</td>
+<td>(ngrid,2)</td>
+<td>W/m²</td>
+<td>地表向上短波通量</td>
+</tr>
+<tr>
+<td><code>fluxtop_lw</code></td>
+<td>REAL</td>
+<td>(ngrid)</td>
+<td>W/m²</td>
+<td>大气顶向上长波通量</td>
+</tr>
+<tr>
+<td><code>fluxtop_dn_sw</code></td>
+<td>REAL</td>
+<td>(ngrid,2)</td>
+<td>W/m²</td>
+<td>大气顶向下短波通量</td>
+</tr>
+<tr>
+<td><code>fluxtop_up_sw</code></td>
+<td>REAL</td>
+<td>(ngrid,2)</td>
+<td>W/m²</td>
+<td>大气顶向上短波通量</td>
+</tr>
+<tr>
+<td><code>tau</code></td>
+<td>REAL</td>
+<td>(ngrid,naerkind)</td>
+<td>-</td>
+<td>各类气溶胶的可见光光学厚度</td>
+</tr>
+<tr>
+<td><code>aerosol</code></td>
+<td>REAL</td>
+<td>(ngrid,nlayer,naerkind)</td>
+<td>-</td>
+<td>各层各类气溶胶的光学厚度</td>
+</tr>
+</tbody>
+</table>
+<h3 id="内部变量">内部变量</h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>类型</th>
+<th>维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>reffrad</code></td>
+<td>REAL</td>
+<td>(ngrid,nlayer,naerkind)</td>
+<td>m</td>
+<td>气溶胶有效半径</td>
+</tr>
+<tr>
+<td><code>nueffrad</code></td>
+<td>REAL</td>
+<td>(ngrid,nlayer,naerkind)</td>
+<td>-</td>
+<td>气溶胶有效方差</td>
+</tr>
+<tr>
+<td><code>QVISsQREF3d</code></td>
+<td>REAL</td>
+<td>(ngrid,nlayer,nsun,naerkind)</td>
+<td>-</td>
+<td>可见光消光效率比</td>
+</tr>
+<tr>
+<td><code>omegaVIS3d</code></td>
+<td>REAL</td>
+<td>(ngrid,nlayer,nsun,naerkind)</td>
+<td>-</td>
+<td>可见光单次散射反照率</td>
+</tr>
+<tr>
+<td><code>gVIS3d</code></td>
+<td>REAL</td>
+<td>(ngrid,nlayer,nsun,naerkind)</td>
+<td>-</td>
+<td>可见光不对称因子</td>
+</tr>
+<tr>
+<td><code>QIRsQREF3d</code></td>
+<td>REAL</td>
+<td>(ngrid,nlayer,nir,naerkind)</td>
+<td>-</td>
+<td>红外消光效率比</td>
+</tr>
+<tr>
+<td><code>omegaIR3d</code></td>
+<td>REAL</td>
+<td>(ngrid,nlayer,nir,naerkind)</td>
+<td>-</td>
+<td>红外单次散射反照率</td>
+</tr>
+<tr>
+<td><code>gIR3d</code></td>
+<td>REAL</td>
+<td>(ngrid,nlayer,nir,naerkind)</td>
+<td>-</td>
+<td>红外不对称因子</td>
+</tr>
+</tbody>
+</table>
+<h2 id="配置开关">配置开关</h2>
+<h3 id="callphysdef-中的关键配置">callphys.def 中的关键配置</h3>
+<table>
+<thead>
+<tr>
+<th>开关</th>
+<th>默认值</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>naerkind</code></td>
+<td>-</td>
+<td>气溶胶种类数量</td>
+</tr>
+<tr>
+<td><code>tauvis</code></td>
+<td>-</td>
+<td>可见光光学厚度（场景模式）</td>
+</tr>
+<tr>
+<td><code>iaervar</code></td>
+<td>-</td>
+<td>尘埃光学厚度变化模式</td>
+</tr>
+<tr>
+<td><code>swrtype</code></td>
+<td>1</td>
+<td>短波辐射算法选择（1=Fouquart, 2=Toon）</td>
+</tr>
+<tr>
+<td><code>ilwb</code></td>
+<td>1</td>
+<td>边界层传输函数更新频率</td>
+</tr>
+<tr>
+<td><code>ilwd</code></td>
+<td>1</td>
+<td>远距离传输函数更新频率</td>
+</tr>
+<tr>
+<td><code>ilwn</code></td>
+<td>1</td>
+<td>邻近层传输函数更新频率</td>
+</tr>
+<tr>
+<td><code>water</code></td>
+<td>.true.</td>
+<td>是否包含水循环</td>
+</tr>
+<tr>
+<td><code>activice</code></td>
+<td>.true.</td>
+<td>是否激活水冰</td>
+</tr>
+<tr>
+<td><code>co2clouds</code></td>
+<td>.false.</td>
+<td>是否包含CO2云</td>
+</tr>
+<tr>
+<td><code>rdstorm</code></td>
+<td>.false.</td>
+<td>是否包含沙尘暴</td>
+</tr>
+<tr>
+<td><code>topflows</code></td>
+<td>.false.</td>
+<td>是否包含地形尘埃</td>
+</tr>
+</tbody>
+</table>
+<h3 id="dimradmars_mod-中的维度配置">dimradmars_mod 中的维度配置</h3>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ndomainsz</code></td>
+<td>子域大小（用于内存优化）</td>
+</tr>
+<tr>
+<td><code>nflev</code></td>
+<td>辐射计算的有效层数</td>
+</tr>
+<tr>
+<td><code>nsun</code></td>
+<td>太阳光谱区间数（通常为2）</td>
+</tr>
+<tr>
+<td><code>nir</code></td>
+<td>红外光谱区间数（通常为4）</td>
+</tr>
+<tr>
+<td><code>naerkind</code></td>
+<td>气溶胶种类数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="数据依赖">数据依赖</h2>
+<h3 id="外部数据">外部数据</h3>
+<table>
+<thead>
+<tr>
+<th>数据</th>
+<th>文件位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>光学属性查找表</td>
+<td><code>datadir/</code></td>
+<td>气溶胶的散射和吸收属性</td>
+</tr>
+<tr>
+<td>尘埃场景数据</td>
+<td><code>datadir/</code></td>
+<td>尘埃光学厚度的时间变化</td>
+</tr>
+<tr>
+<td>初始状态</td>
+<td><code>startfiles/</code></td>
+<td>初始尘埃和冰晶分布</td>
+</tr>
+</tbody>
+</table>
+<h3 id="模块依赖">模块依赖</h3>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td>示踪剂定义和索引</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td>物理常数（g, cpp等）</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td>时间相关参数</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td>网格几何信息</td>
+</tr>
+</tbody>
+</table>
+<h2 id="计算阶段">计算阶段</h2>
+<h3 id="阶段-1初始化firstcall">阶段 1：初始化（firstcall）</h3>
+<ol type="1">
+<li>识别气溶胶种类（尘埃、水冰、CO2冰）</li>
+<li>加载光学属性查找表（<code>SUAER</code>）</li>
+<li>设置维度参数</li>
+</ol>
+<h3 id="阶段-2气溶胶粒径更新">阶段 2：气溶胶粒径更新</h3>
+<ol type="1">
+<li>调用 <code>updatereffrad()</code> 更新各类气溶胶的粒径分布</li>
+<li>尘埃：根据质量和数量混合比计算几何平均半径</li>
+<li>水冰：根据微物理方案或典型值计算</li>
+<li>CO2冰：根据微物理方案计算</li>
+</ol>
+<h3 id="阶段-3光学属性计算">阶段 3：光学属性计算</h3>
+<ol type="1">
+<li>调用 <code>aeroptproperties()</code> 计算3D散射参数</li>
+<li>使用对数正态分布和高斯-勒让德积分</li>
+<li>计算可见光和红外的消光效率、单次散射反照率、不对称因子</li>
+</ol>
+<h3 id="阶段-4光学厚度计算">阶段 4：光学厚度计算</h3>
+<ol type="1">
+<li>调用 <code>aeropacity()</code> 计算各层各类气溶胶的光学厚度</li>
+<li>处理尘埃场景（Viking、MGS、TES等）</li>
+<li>处理沙尘暴和地形尘埃</li>
+<li>计算尘埃缩放系数</li>
+</ol>
+<h3 id="阶段-5长波辐射计算">阶段 5：长波辐射计算</h3>
+<ol type="1">
+<li>计算普朗克函数（<code>lwb</code>）</li>
+<li>计算吸收物质量（<code>lwu</code>）</li>
+<li>计算传输函数（<code>lwxd</code>、<code>lwxn</code>、<code>lwxb</code>）</li>
+<li>计算冷却率和通量（<code>lwflux</code>）</li>
+<li>应用半隐式格式（<code>lwi</code>）</li>
+</ol>
+<h3 id="阶段-6短波辐射计算">阶段 6：短波辐射计算</h3>
+<ol type="1">
+<li>计算火星太阳常数</li>
+<li>循环两个太阳光谱区间</li>
+<li>调用 Fouquart 或 Toon 算法</li>
+<li>计算加热率</li>
+</ol>
+<h3 id="阶段-7输出整理">阶段 7：输出整理</h3>
+<ol type="1">
+<li>将子域结果合并到全局数组</li>
+<li>设置高层大气（nlaylte以上）的加热率为零</li>
+<li>输出诊断信息</li>
+</ol>
+<h2 id="与其他主题的耦合">与其他主题的耦合</h2>
+<h3 id="与尘埃循环的耦合">与尘埃循环的耦合</h3>
+<ul>
+<li>尘埃粒径分布由尘埃循环模块提供</li>
+<li>尘埃光学厚度影响辐射加热</li>
+<li>辐射加热反过来影响大气动力和尘埃输送</li>
+</ul>
+<p><strong>源码依据</strong>：<code>callradite_mod.F</code> 使用 <code>dust_param_mod</code> 中的 <code>doubleq</code>、<code>active</code>、<code>submicron</code> 开关。</p>
+<h3 id="与水循环的耦合">与水循环的耦合</h3>
+<ul>
+<li>水冰粒径由水循环模块提供</li>
+<li>水冰云影响辐射传输</li>
+<li>辐射冷却影响水冰凝结</li>
+</ul>
+<p><strong>源码依据</strong>：<code>callradite_mod.F</code> 使用 <code>callkeys_mod</code> 中的 <code>water</code>、<code>activice</code> 开关。</p>
+<h3 id="与co2循环的耦合">与CO2循环的耦合</h3>
+<ul>
+<li>CO2冰粒径由CO2循环模块提供</li>
+<li>CO2云影响辐射传输</li>
+<li>辐射冷却影响CO2凝结</li>
+</ul>
+<p><strong>源码依据</strong>：<code>callradite_mod.F</code> 使用 <code>callkeys_mod</code> 中的 <code>co2clouds</code>、<code>activeco2ice</code> 开关。</p>
+<h3 id="与边界层的耦合">与边界层的耦合</h3>
+<ul>
+<li>辐射加热率影响边界层结构</li>
+<li>边界层湍流影响尘埃混合</li>
+</ul>
+<h3 id="与动力核心的耦合">与动力核心的耦合</h3>
+<ul>
+<li>辐射加热率作为动力核心的强迫项</li>
+<li>动力核心提供风场用于尘埃输送</li>
+</ul>
+<h2 id="输出结果">输出结果</h2>
+<h3 id="直接输出">直接输出</h3>
+<ol type="1">
+<li><strong>长波加热率</strong>（<code>dtlw</code>）：K/s，用于大气温度演化</li>
+<li><strong>短波加热率</strong>（<code>dtsw</code>）：K/s，用于大气温度演化</li>
+<li><strong>地表通量</strong>：用于地表能量平衡</li>
+<li><strong>大气顶通量</strong>：用于行星能量收支</li>
+</ol>
+<h3 id="诊断输出">诊断输出</h3>
+<ol type="1">
+<li><strong>气溶胶光学厚度</strong>（<code>tau</code>）：用于与观测比较</li>
+<li><strong>气溶胶粒径</strong>（<code>rdust</code>、<code>rice</code>、<code>riceco2</code>）：用于微物理诊断</li>
+<li><strong>密度缩放光学厚度</strong>（<code>dsodust</code>）：用于与TES观测比较</li>
+</ol>
+<h2 id="伪代码总览">伪代码总览</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> callradite(...)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="co">! 1. 初始化（firstcall）</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">IF</span> (firstcall) <span class="kw">THEN</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="co">! 识别气溶胶种类</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">! 加载光学属性查找表</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CALL</span> SUAER</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">END IF</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>  <span class="co">! 2. 更新气溶胶粒径分布</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> updatereffrad(...)</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  <span class="co">! 3. 计算3D散射参数</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> aeroptproperties(...)</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>  <span class="co">! 4. 计算光学厚度</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> aeropacity(...)</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>  <span class="co">! 5. 子域循环</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>  <span class="kw">DO</span> jd <span class="kw">=</span> <span class="dv">1</span>, ndomain</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    <span class="co">! 分割输入变量</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    <span class="co">! 6. 长波辐射计算</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CALL</span> lwmain(...)</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>    <span class="co">! 7. 短波辐射计算</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    cste_mars <span class="kw">=</span> flux_1AU <span class="kw">/</span> (dist_sol <span class="kw">*</span> dist_sol)</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CALL</span> swmain(...)</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>    <span class="co">! 8. 合并输出变量</span></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>  <span class="kw">END DO</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>  <span class="co">! 9. 设置高层大气加热率为零</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>  <span class="kw">IF</span> (nlayer <span class="op">&gt;</span> nlaylte) <span class="kw">THEN</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>    dtlw(:, nlaylte<span class="kw">+</span><span class="dv">1</span>:nlayer) <span class="kw">=</span> <span class="fl">0.</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>    dtsw(:, nlaylte<span class="kw">+</span><span class="dv">1</span>:nlayer) <span class="kw">=</span> <span class="fl">0.</span></span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>  <span class="kw">END IF</span></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a><span class="kw">END SUBROUTINE</span></span></code></pre></div>
+<h2 id="复现检查点">复现检查点</h2>
+<h3 id="必须保留的逻辑">必须保留的逻辑</h3>
+<ol type="1">
+<li><strong>气溶胶种类识别</strong>：必须正确匹配 <code>callphys.def</code> 中的 <code>naerkind</code> 和 <code>name_iaer</code></li>
+<li><strong>光学属性查找表</strong>：必须使用正确的查找表文件</li>
+<li><strong>子域分割</strong>：必须正确处理 <code>ndomainsz</code> 维度</li>
+<li><strong>LTE层限制</strong>：必须使用 <code>nlaylte</code> 限制辐射计算范围</li>
+</ol>
+<h3 id="关键公式">关键公式</h3>
+<ol type="1">
+<li><strong>火星太阳常数</strong>：<code>cste_mars = flux_1AU / (dist_sol * dist_sol)</code></li>
+<li><strong>光学厚度计算</strong>：<code>aerosol = 0.75 * QREFvis / (rho * reffrad) * mass * dp / g</code></li>
+<li><strong>加热率计算</strong>：<code>PHEAT = gcp * ZDFNET / PDP</code></li>
+</ol>
+<h3 id="验证检查点">验证检查点</h3>
+<ol type="1">
+<li><strong>光学厚度合理性</strong>：<strong>待确认</strong>：典型值 0.1-5.0（可见光）需补充观测、文档或测试依据</li>
+<li><strong>加热率量级</strong>：<strong>待确认</strong>：长波 ~1 K/solar day、短波 ~1-10 K/solar day 的量级需补充源码、文档或测试依据</li>
+<li><strong>能量守恒</strong>：<strong>待确认</strong>：大气顶入射短波、反射短波、向上长波与地表吸收的闭合检查需数值验证</li>
+</ol>
+<h2 id="相关模块">相关模块</h2>
+<ul>
+<li><strong>尘埃循环</strong>：<a href="../modules/phymars/dust_param_mod.html"><code>dust_param_mod.F90</code></a>、<a href="../modules/phymars/dust_windstress_lift.html"><code>dust_windstress_lift.F90</code></a></li>
+<li><strong>水循环</strong>：<a href="../modules/phymars/watercloud_mod.html"><code>watercloud_mod.F</code></a>、<a href="../modules/phymars/water-saturation-helpers.html"><code>watersat_mod.F90</code></a></li>
+<li><strong>CO2循环</strong>：<a href="../routines/co2condens.html"><code>co2condens_mod.F</code></a>、<a href="../modules/phymars/co2cloud_mod.html"><code>co2cloud_mod.F90</code></a></li>
+<li><strong>湍流</strong>：<a href="../modules/phymars/turb_mod.html"><code>turb_mod.F90</code></a></li>
+<li><strong>示踪剂</strong>：<a href="../modules/phymars/tracer_mod.html"><code>tracer_mod.F90</code></a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>各光谱区间的具体波长范围</li>
+<li>光学属性查找表的具体格式和内容</li>
+<li>不同尘埃场景（iaervar）的详细实现</li>
+<li>NLTE（非局部热力学平衡）处理的细节</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

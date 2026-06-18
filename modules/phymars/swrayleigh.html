@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>swrayleigh - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/swrayleigh.md</span>
+    </nav>
+    <article class="content">
+<h1 id="swrayleighf">swrayleigh.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\swrayleigh.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>swrayleigh.F</code> 定义短波辐射路径使用的 Rayleigh 柱光学厚度辅助例程。它按太阳谱段 <code>knu</code> 选择一组 <code>CRAY(2,6)</code> 多项式系数，并用修正后的太阳天顶角余弦 <code>prmu</code> 计算每个水平列的 <code>prayl</code>。源码注释说明这些系数来自 Earth model 的两个短波区间，后续用于 <a href="swr_fouquart.html">swr_fouquart</a> 和 <a href="swr_toon.html">swr_toon</a> 在 <code>rayleigh</code> 开关开启时把气体 Rayleigh 散射并入层光学量。</p>
+<p>重要复现差异：源码注释保留了把 Earth 101325 Pa 光学厚度按 Mars 地表压力、重力和 CO2 extinction factor 缩放的公式，但实际赋值行被注释掉。因此当前执行结果只依赖 <code>knu</code> 和 <code>prmu</code>，不随 <code>ppsol</code> 变化。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>swrayleigh_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装短波 Rayleigh 柱光学厚度辅助例程。</td>
+</tr>
+<tr>
+<td><code>swrayleigh</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>按太阳谱段和修正太阳天顶角余弦计算 <code>prayl(kdlon)</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>本文件没有 <code>use</code> 依赖；只使用 Fortran 基本语法和传入数组。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td><code>swrayleigh</code> 不调用其他例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="被调用位置">被调用位置</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SWR_FOUQUART</code></td>
+<td><code>swr_fouquart.F</code></td>
+<td>行 173</td>
+<td>在 <code>rayleigh</code> 为真时计算 <code>ZRAYL</code>，随后按 <code>PDSIG</code> 合并到 Fouquart 短波散射光学量。</td>
+</tr>
+<tr>
+<td><code>SWR_TOON</code></td>
+<td><code>swr_toon.F</code></td>
+<td>行 152</td>
+<td>在 <code>rayleigh</code> 为真时计算 <code>ZRAYL</code>，随后按 <code>PDSIG</code> 合并到 Toon two-stream 层光学量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kdlon</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>当前辐射水平列数。</td>
+</tr>
+<tr>
+<td><code>knu</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>短波太阳谱段编号；源码系数表只提供 1 和 2 两个谱段。</td>
+</tr>
+<tr>
+<td><code>ppsol(kdlon)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>Pa</td>
+<td>地表压力；当前执行语句未使用，仅出现在被注释的 Mars 缩放公式中。</td>
+</tr>
+<tr>
+<td><code>prmu(kdlon)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>-</td>
+<td>修正后的太阳天顶角余弦；源码注释说明它不同于原始 <code>mu0</code>，已针对大天顶角大气路径修正。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prayl(kdlon)</code></td>
+<td><code>swr_fouquart</code> / <code>swr_toon</code> 的 <code>ZRAYL</code></td>
+<td>real array</td>
+<td>optical depth</td>
+<td>每个水平列的 Rayleigh 柱光学厚度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p>本文件不读写文件、不输出诊断，也不修改外部 module 状态。内部 <code>cray(2,6)</code> 系数表通过 <code>DATA</code> 初始化并声明 <code>save</code>，同时用 <code>!$OMP THREADPRIVATE(cray)</code> 标注为 OpenMP 线程私有状态。<code>ppsol</code> 是形参但当前执行路径没有读取它的值。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>初始化 <code>CRAY(1,1:6)</code> 和 <code>CRAY(2,1:6)</code> 两组短波 Rayleigh 多项式系数。</li>
+<li>对每个水平列 <code>JL=1,KDLON</code>，按 <code>knu</code> 选择系数行。</li>
+<li>用 <code>prmu(JL)</code> 做五次嵌套 Horner 多项式，写出 <code>prayl(JL)</code>。</li>
+<li>保留但不执行 Mars 本地 Rayleigh 光学厚度缩放行。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>for each column JL:
+    prayl[JL] =
+        CRAY[knu,1] + prmu[JL] * (
+        CRAY[knu,2] + prmu[JL] * (
+        CRAY[knu,3] + prmu[JL] * (
+        CRAY[knu,4] + prmu[JL] * (
+        CRAY[knu,5] + prmu[JL] * CRAY[knu,6]))))
+
+    # Mars pressure/gravity/CO2 scaling is present in comments only</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>短波辐射</td>
+<td>为 Fouquart 和 Toon 两条短波散射路径提供可选 Rayleigh 柱光学厚度。</td>
+</tr>
+<tr>
+<td>Rayleigh 散射</td>
+<td><code>callkeys_mod::rayleigh</code> 在上游控制是否调用本例程；本例程本身不读取该开关。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran，模块内只有一个短例程。</li>
+<li><code>CRAY</code> 系数用 <code>DATA</code> 语句分两组写入，并带 <code>save</code> / <code>THREADPRIVATE</code>。</li>
+<li>多项式采用嵌套写法，避免显式计算 <code>prmu</code> 的各次幂。</li>
+<li><code>ppsol</code> 形参保留了接口兼容性，但当前 Mars 缩放行被注释。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>比较 <code>rayleigh=.true.</code> 与 <code>.false.</code> 的短波辐射时，需要同时记录 <code>swrtype</code>，因为 Fouquart 和 Toon 两条路径对 <code>ZRAYL</code> 的后续合并位置不同。</li>
+<li>当前代码的 <code>prayl</code> 不随地表压力变化；若实验期望 Mars 压力缩放，需要先确认是否恢复源码中被注释的缩放行。</li>
+<li><code>knu</code> 必须为 1 或 2；系数表没有其他谱段。</li>
+<li><code>prmu</code> 应来自上游修正后的太阳天顶角余弦，不能直接用未修正的 <code>mu0</code> 替代。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>CRAY</code> 系数注释标明来自 Earth model 且提示 Mars model 应修改；若要物理复现实验，应核对当前辐射谱段和 Mars CO2 Rayleigh 参数是否仍接受这套系数。</li>
+<li>被注释的 Mars 缩放行是否为有意保持的历史兼容行为，需要结合版本历史或实验说明确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="swr_fouquart.html">swr_fouquart</a>：<code>swrtype=1</code> 短波连续散射路径，调用本例程后把 <code>ZRAYL</code> 合并到层光学量。</li>
+<li><a href="swr_toon.html">swr_toon</a>：<code>swrtype=2</code> Toon two-stream 路径，调用本例程后把 <code>ZRAYL</code> 合并到层光学量。</li>
+<li><a href="../../themes/radiation.html">radiation</a>：辐射主题流程。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

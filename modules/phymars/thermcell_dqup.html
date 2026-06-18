@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>thermcell_dqup - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/thermcell_dqup.md</span>
+    </nav>
+    <article class="content">
+<h1 id="thermcell_dqupf90">thermcell_dqup.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\thermcell_dqup.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>thermcell_dqup.F90</code> 定义 Martian thermal plume model 的被动垂直输送算子。它不求解热羽流结构本身，而是在上游已经给定上升质量通量 <code>fm</code>、夹卷 <code>entr</code> 和退卷 <code>detr</code> 后，把任意层中心标量 <code>q_therm</code> 沿热羽流上升输送，最后返回整物理时间步的导数 <code>dq_therm=(q-q_initial)/ptimestep</code>。在 <a href="calltherm_interface_mod.html">calltherm_interface_mod</a> 中，它用于风、非 CO2 tracer 和可选 TKE；在 <a href="thermcell_main_mars.html">thermcell_main_mars</a> 中也用于内部变量输送。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>thermcell_dqup_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装热羽流被动变量输送例程。</td>
+</tr>
+<tr>
+<td><code>thermcell_dqup</code></td>
+<td>subroutine</td>
+<td>32</td>
+<td>用质量通量和夹卷/退卷通量计算标量的热羽流输送 tendency。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>本文件没有 <code>use</code> 依赖。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>本例程只使用数组运算和循环。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="被调用位置">被调用位置</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>calltherm_interface</code></td>
+<td><code>calltherm_interface_mod.F90</code></td>
+<td>行 315、321、331、341</td>
+<td>分别输送 <code>u</code>、<code>v</code>、非 CO2 tracer 和可选 TKE。</td>
+</tr>
+<tr>
+<td><code>thermcell_main_mars</code></td>
+<td><code>thermcell_main_mars.F90</code></td>
+<td>行 1193</td>
+<td>在热羽流主求解器内部复用同一输送算子。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code>, <code>nlayer</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>水平列数和垂直层数。</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>s</td>
+<td>物理时间步。</td>
+</tr>
+<tr>
+<td><code>fm(ngrid,nlayer+1)</code></td>
+<td>热羽流主求解器</td>
+<td>real array</td>
+<td>mass flux</td>
+<td>界面上升质量通量。</td>
+</tr>
+<tr>
+<td><code>entr(ngrid,nlayer)</code></td>
+<td>热羽流主求解器</td>
+<td>real array</td>
+<td>mass flux</td>
+<td>每层夹卷质量通量。</td>
+</tr>
+<tr>
+<td><code>detr(ngrid,nlayer)</code></td>
+<td>热羽流主求解器</td>
+<td>real array</td>
+<td>mass flux</td>
+<td>每层退卷质量通量。</td>
+</tr>
+<tr>
+<td><code>masse0(ngrid,nlayer)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>mass</td>
+<td>层质量，用于把通量收支转为混合比变化。</td>
+</tr>
+<tr>
+<td><code>q_therm(ngrid,nlayer)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>variable-dependent</td>
+<td>待输送的初始标量廓线。</td>
+</tr>
+<tr>
+<td><code>ndt</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>内部输送子步数。</td>
+</tr>
+<tr>
+<td><code>limz</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>layer index</td>
+<td>计算到的最高有效层。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dq_therm(ngrid,nlayer)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td><code>q</code> per second</td>
+<td>热羽流输送导致的标量 tendency。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p>本文件不读写共享模块变量、不做文件 I/O，也不打印诊断。所有状态变化都限制在局部数组 <code>q/qa/invflux0</code> 和输出实参 <code>dq_therm</code> 中。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>把环境标量 <code>q</code> 和上升流标量 <code>qa</code> 初始化为 <code>q_therm</code>。</li>
+<li>用 <code>ztimestep=ptimestep/ndt</code> 和 <code>invflux0=ztimestep/masse0</code> 准备子步长换算因子。</li>
+<li>每个子步先令底层 <code>qa(:,1)=q(:,1)</code>。</li>
+<li>从第 2 层到 <code>limz</code>，若 <code>(fm(k+1)+detr(k))*ptimestep</code> 足够大，则用上一层上升流和本层夹卷环境值计算 <code>qa(k)</code>；否则令 <code>qa(k)=q(k)</code>。</li>
+<li>对 1 到 <code>limz</code> 层更新环境 <code>q</code>：退卷加入、夹卷移除、下界面流出、上界面流入。源码第 90-94 行的更新式含 <code>fm(:,k+1)*q(:,k+1)</code>，因此 <code>k=limz</code> 时会读取 <code>q(:,limz+1)</code>；若调用方传入 <code>limz=nlayer</code>，这里等价读取 <code>q(:,nlayer+1)</code>。</li>
+<li>子步循环结束后输出整步导数。源码先把 <code>dq_therm=0.</code>，随后第 101-103 行只写 <code>1:limz</code>，所以 <code>limz+1:nlayer</code> 的输出保持为 0，而不是保持某个输入标量的初始化值。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>q = q_initial
+qa = q_initial
+for each transport substep:
+    qa[:,1] = q[:,1]
+    for k = 2..limz:
+        if flux is large enough:
+            qa[:,k] = (fm[:,k]*qa[:,k-1] + entr[:,k]*q[:,k]) /
+                      (fm[:,k+1] + detr[:,k])
+        else:
+            qa[:,k] = q[:,k]
+    for k = 1..limz:
+        q[:,k] += (detr*qa - entr*q - fm_down*q + fm_up*q[:,k+1]) * dt / mass
+dq = 0
+for k = 1..limz:
+    dq[:,k] = (q[:,k] - q_initial[:,k]) / ptimestep</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热羽流 / PBL 对流</td>
+<td>在质量通量已知后输送被动变量，补齐热羽流对风、tracer 和 TKE 的垂直输送。</td>
+</tr>
+<tr>
+<td>tracer 输送</td>
+<td><code>calltherm_interface</code> 跳过 CO2 tracer 后，对其他 tracer 调用本例程。</td>
+</tr>
+<tr>
+<td>湍流耦合</td>
+<td><code>dtke_thermals</code> 为真时，上游把 TKE 作为标量传入本例程输送。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>本文件没有模块依赖，便于被接口层和主热羽流求解器共同复用。</li>
+<li><code>limz</code> 限制了计算层范围；源码把 <code>dq_therm</code> 预置为 0 后只写 <code>1:limz</code>，因此 <code>limz+1:nlayer</code> 的输出为 0。</li>
+<li><code>do k=1,limz</code> 的环境标量更新会读取 <code>q(:,k+1)</code>。调用方若允许 <code>limz=nlayer</code>，必须保证实参或调用上下文不会让 <code>q(:,nlayer+1)</code> 访问越界。</li>
+<li>通量阈值 <code>1.e-5*masse0/ptimestep</code> 用来避免分母太小导致不稳定。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>ndt</code> 改变会改变内部显式输送的数值扩散和稳定性；接口层当前常用 <code>ndt=10</code>。</li>
+<li><code>masse0</code> 不能为零，否则 <code>invflux0=ztimestep/masse0</code> 会失效。</li>
+<li><code>limz</code> 必须与上游热羽流高度一致，否则会漏输送或越过有效层；特别是 <code>limz=nlayer</code> 时，源码第 90-94 行会访问 <code>q(:,nlayer+1)</code>，复现或移植时必须显式检查顶层边界数组是否可读。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>已随 <a href="thermcell_main_mars.html">thermcell_main_mars</a> 确认第 1193 行调用用于 CO2 tracer 内部输送；<code>thermcell_dqup</code> 本身不区分变量物理含义，仍需由调用方保证 <code>masse/fm/entr/detrmod/limz</code> 一致。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="calltherm_interface_mod.html">calltherm_interface_mod</a>：主调用方，负责把风、tracer 和 TKE 传入本例程。</li>
+<li><a href="thermcell_main_mars.html">thermcell_main_mars</a>：热羽流主求解器。</li>
+<li><a href="comtherm_h.html">comtherm_h</a>：热羽流配置和 <code>dtke_thermals</code> 开关。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

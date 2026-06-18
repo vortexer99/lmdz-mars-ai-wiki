@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>profile_temp_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../../index.html">主页</a>
+        <a href="../../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../../libf-overview.html">模块</a>
+        <a href="../../../themes/index.html">主题</a>
+        <a href="../../../routines/index.html">例程</a>
+        <a href="../../../reference/file-index.html">文件索引</a>
+        <a href="../../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dyn1d/profile_temp_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dyn1dprofile_temp_modf90">dyn1d/profile_temp_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d\profile_temp_mod.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>profile_temp_mod.F90</code> 是 1D <code>testphys1d</code> 初始化路径的温度廓线构造模块。它不读取 3D 初始场，也不更新物理公共状态；唯一例程 <code>profile_temp</code> 接收垂直层数和 km 高度数组，按 <code>getin</code> 配置生成温度数组，并无条件把结果写到 <code>profile_temp.out</code>。</p>
+<p>当前调用方是 <a href="init_testphys1d_mod.html">init_testphys1d_mod</a>：无 <code>start1D.txt</code> restart 时，初始化例程用 <code>zlay/1000</code> 构造 <code>zkm</code>，调用 <code>profile_temp(nlayer+1,zkm,teta)</code>，再把 <code>teta(0)</code> 写入 <code>tsurf</code>、<code>teta(1:)</code> 写入大气层温度 <code>temp</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>profile_temp_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>包装 1D 温度廓线构造例程。</td>
+</tr>
+<tr>
+<td><code>profile_temp</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7-223</td>
+<td>按配置生成 <code>temp(nlev)</code>，可从 ASCII 文件读取，也可叠加正弦扰动，并写出 <code>profile_temp.out</code>。</td>
+</tr>
+<tr>
+<td><code>tseiff(37)</code></td>
+<td>local DATA table</td>
+<td style="text-align: right;">57-62</td>
+<td>Seiff/Viking 标准温度表，按 2 km 间隔插值使用。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="接口">接口</h2>
+<table>
+<thead>
+<tr>
+<th>实参</th>
+<th>方向</th>
+<th>维度/单位</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlev</code></td>
+<td>输入</td>
+<td>integer</td>
+<td>温度数组长度；在 1D 初始化调用中是 <code>nlayer+1</code>，包含地表/界面用的第一项。</td>
+</tr>
+<tr>
+<td><code>zkm(nlev)</code></td>
+<td>输入</td>
+<td>km</td>
+<td>对应高度；调用方由 <code>zlay/1000</code> 派生。</td>
+</tr>
+<tr>
+<td><code>temp(nlev)</code></td>
+<td>输出</td>
+<td>K</td>
+<td>输出温度廓线。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="配置键">配置键</h2>
+<table>
+<thead>
+<tr>
+<th>键</th>
+<th style="text-align: right;">源码默认</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ichoice</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td>温度廓线类型；<code>run.def.1d</code> 可把它覆盖为标准 Seiff 选项。</td>
+</tr>
+<tr>
+<td><code>tref</code></td>
+<td style="text-align: right;"><code>200</code></td>
+<td>选项 1/6/7 的参考温度，单位 K。</td>
+</tr>
+<tr>
+<td><code>isin</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td>为 1 时，在基础廓线后追加正弦扰动。</td>
+</tr>
+<tr>
+<td><code>pic</code></td>
+<td style="text-align: right;"><code>26.522</code></td>
+<td>选项 6 中的层号中心，或选项 7 中的 km 高度中心。</td>
+</tr>
+<tr>
+<td><code>largeur</code></td>
+<td style="text-align: right;"><code>10</code></td>
+<td>高斯扰动宽度。</td>
+</tr>
+<tr>
+<td><code>hauteur</code></td>
+<td style="text-align: right;"><code>30</code></td>
+<td>高斯扰动幅度，单位 K。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="温度廓线分支">温度廓线分支</h2>
+<p><code>profile_temp</code> 先读取上述配置键，然后按 <code>ichoice</code> 选择基础温度：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;"><code>ichoice</code></th>
+<th>分支</th>
+<th>源码公式或行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>常温</td>
+<td>所有层 <code>temp=tref</code>。</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>Savidjari</td>
+<td><code>temp=max(219 - 2.5*zkm, 140)</code>。</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>Lindner 极区廓线</td>
+<td><code>z&lt;2.5 km</code> 时 <code>150 + 30*z/2.5</code>；<code>2.5&lt;=z&lt;5 km</code> 时 <code>180</code>；更高层 <code>max(180 - 2*(z-5), 130)</code>。</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>逆温</td>
+<td><code>z&lt;20 km</code> 时 <code>135</code>；更高层 <code>min(135 + 5*(z-20), 200)</code>。</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td>Seiff/Viking 表</td>
+<td><code>iseiff=int(zkm/2)+1</code>，低于约 70 km 时在 <code>tseiff</code> 2 km 表上做线性插值；更高层固定为 <code>tseiff(37)=139 K</code>。</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>常温 + 层号高斯扰动</td>
+<td><code>tmp=il-pic</code>，<code>temp=tref + hauteur*exp(-tmp*tmp/largeur/largeur)</code>。</td>
+</tr>
+<tr>
+<td style="text-align: right;">7</td>
+<td>常温 + 高度高斯扰动</td>
+<td><code>tmp=zkm-pic</code>，<code>temp=tref + hauteur*exp(-tmp*tmp*4/largeur/largeur)</code>。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>&gt;=8</code></td>
+<td>ASCII 文件</td>
+<td>打开运行目录文件 <code>profile_temp</code>，逐行读取 <code>nlev</code> 个温度值；打开失败则 <code>error stop 'File "profile_temp" not found!'</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>注意：源码注释写的是 <code>ichoice=8</code> 读取 ASCII profile，但条件是 <code>ichoice.GE.8</code>，所以 8 以上的值都会走同一文件读取分支。</p>
+<h2 id="扰动和输出">扰动和输出</h2>
+<p>基础廓线生成后，若 <code>isin==1</code>，每层追加：</p>
+<pre class="text"><code>(1 - 1000/(1000 + zkm^2)) * (6*sin(zkm*pi/6) + 9*sin(zkm*pi/10.3))</code></pre>
+<p>这个扰动使用 <a href="../comcstfi_h.html">comcstfi_h</a> 的 <code>pi</code>。扰动与 <code>ichoice</code> 分支无关；即使温度来自 <code>profile_temp</code> 文件，也会在文件读入后叠加。</p>
+<p>最后例程总是打开 <code>profile_temp.out</code> 并写出 <code>nlev</code> 行温度值。该文件是运行目录中的 ASCII 诊断/检查输出，不是后续源码中已发现的必需输入。</p>
+<h2 id="文件-io">文件 I/O</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>方向</th>
+<th>条件</th>
+<th>格式和内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>profile_temp</code></td>
+<td>输入</td>
+<td><code>ichoice&gt;=8</code></td>
+<td>运行目录 ASCII 文件，源码逐行 <code>READ(11,*) temp(il)</code>，需要至少 <code>nlev</code> 行单列温度值。</td>
+</tr>
+<tr>
+<td><code>profile_temp.out</code></td>
+<td>输出</td>
+<td>每次调用</td>
+<td>运行目录 ASCII 文件，逐行写出生成后的 <code>temp(il)</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用关系">调用关系</h2>
+<table>
+<thead>
+<tr>
+<th>方向</th>
+<th>符号/文件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>调用方</td>
+<td><a href="init_testphys1d_mod.html">init_testphys1d_mod</a></td>
+<td>无 <code>start1D.txt</code> 时调用，用生成的 <code>teta</code> 初始化 <code>tsurf</code> 和 <code>temp</code>。</td>
+</tr>
+<tr>
+<td>相关输入</td>
+<td><a href="../../../architecture/testphys1d-config.html">testphys1d 配置</a></td>
+<td><code>run.def.1d</code> 中的 <code>ichoice/tref/isin/pic/largeur/hauteur</code> 控制本例程。</td>
+</tr>
+<tr>
+<td>相邻 profile 读取</td>
+<td><a href="read_profile_mod.html">read_profile_mod</a></td>
+<td>读取 tracer 初始廓线；与本文件的温度廓线分开。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>本例程使用的是高度 <code>zkm</code>，单位为 km；调用方负责把 m 转成 km。</li>
+<li><code>profile_temp</code> 输入文件名不是 <code>profile</code>，而是字面文件名 <code>profile_temp</code>。</li>
+<li><code>ichoice</code> 的源码内默认值是 1，但 <code>run.def.1d</code> 样例可覆盖为 5；复现配置时以实际 <code>run.def</code> 为准。</li>
+<li><code>ichoice&gt;=8</code> 文件读取没有行数保护；文件少于 <code>nlev</code> 行时，后续 <code>READ</code> 行为取决于 Fortran 运行时错误处理。</li>
+<li><code>profile_temp.out</code> 每次调用都会被 <code>status='unknown'</code> 打开并覆盖或复用，复现实验时可用它核对实际温度初值。</li>
+<li>选项 5 的 Seiff 表高层分支在 <code>iseiff&gt;=nseiff-1</code> 时直接取 <code>tseiff(37)</code>；不要把它外推成继续线性递减。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>run.def.1d</code> 样例之外，实际生产 1D 个例是否常用 <code>ichoice=5</code> 或文件读取，需要结合运行目录确认。</li>
+<li><code>profile_temp</code> ASCII 样例文件未在本任务中定位；页面只按源码读取格式记录。</li>
+<li>选项 6/7 注释称为 Christophe 1998 高斯扰动，但物理意图未在源码中进一步说明。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn1d/index.md</a> - dyn1d 子目录索引。</li>
+<li><a href="init_testphys1d_mod.html">init_testphys1d_mod</a> - 调用本例程的 1D 初始化入口。</li>
+<li><a href="../../../architecture/testphys1d-config.html">testphys1d 配置</a> - <code>ichoice</code> 和扰动配置键说明。</li>
+<li><a href="../comcstfi_h.html">comcstfi_h</a> - <code>pi</code> 常数来源。</li>
+<li><a href="testphys1d.html">testphys1d.F90</a> - 1D 主程序。</li>
+<li><a href="read_profile_mod.html">read_profile_mod</a> - tracer 初始廓线读取。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

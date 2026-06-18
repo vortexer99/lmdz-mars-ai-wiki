@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nltecool - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/nltecool.md</span>
+    </nav>
+    <article class="content">
+<h1 id="nltecoolf">nltecool.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\nltecool.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>nltecool.F</code> 提供旧版 <code>nltemodel=0/1</code> 的 CO2 15 微米 NLTE cool-to-space 冷却参数化。它把文件内置的 68 点压强表、两组 escape function 表和三组成分 VMR 表插值到 GCM 层中，然后在每个水平格点和垂直层上求解两个激发能级、两条辐射通道的简化非 LTE 平衡，输出 <code>dtnlte(ngrid,nlayer)</code>，单位在源码注释中标为 K/s。</p>
+<p>这个文件与 <a href="nlte_tcool_mod.html">nlte_tcool_mod</a> 是互斥的 <code>physiq_mod.F</code> 分支：<code>physiq_mod.F</code> 在 <code>nltemodel.eq.0.or.nltemodel.eq.1</code> 时调用 <code>nltecool</code>，在 <code>nltemodel.eq.2</code> 时调用 <code>nlte_tcool</code> 并把其 K/day 输出除以 86400。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nltecool_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>封装旧版 NLTE 冷却入口、内置逃逸函数/成分表和两个本地插值 helper。</td>
+</tr>
+<tr>
+<td><code>np</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">9</td>
+<td>内置压强、escape function 和 VMR 表的点数，固定为 68。</td>
+</tr>
+<tr>
+<td><code>pnb</code></td>
+<td>saved real array</td>
+<td style="text-align: right;">10</td>
+<td>初始保存为压强指数；首次调用时转换为 Pa，并声明为 OpenMP <code>THREADPRIVATE</code>。</td>
+</tr>
+<tr>
+<td><code>ef1</code>, <code>ef2</code></td>
+<td>real parameter arrays</td>
+<td style="text-align: right;">36, 61</td>
+<td>两条 CO2 15 微米通道的预计算 escape function 表。</td>
+</tr>
+<tr>
+<td><code>co2vmr</code>, <code>o3pvmr</code>, <code>n2covmr</code></td>
+<td>real parameter arrays</td>
+<td style="text-align: right;">86, 111, 136</td>
+<td><code>nltemodel=0</code> 使用的 CO2、O 和 N2+CO 体积分数表。</td>
+</tr>
+<tr>
+<td><code>nltecool</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">164</td>
+<td>主入口；从 GCM 压强、温度和 tracer 混合比计算 NLTE 温度倾向。</td>
+</tr>
+<tr>
+<td><code>interp1</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">422</td>
+<td>把单个压强表剖面线性插值到 GCM 层压强。</td>
+</tr>
+<tr>
+<td><code>interp3</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">451</td>
+<td>同时把三组成分 VMR 表线性插值到 GCM 层压强。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_co2</code>, <code>igcm_co</code>, <code>igcm_o</code>, <code>igcm_n2</code>, <code>mmol</code></td>
+<td><code>nltemodel=1</code> 时从 <code>pq</code> 中按 tracer 索引取 CO2、CO、O、N2 质量混合比，并用摩尔质量换算为体积分数。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>conc_mod</code></td>
+<td><code>mmean</code></td>
+<td><code>nltemodel=1</code> 时把 tracer 质量混合比转换为体积分数。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>nltemodel</code></td>
+<td>在表成分方案 <code>0</code> 与动态成分方案 <code>1</code> 之间切换。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>interp1</code></td>
+<td>本文件</td>
+<td>314-315</td>
+<td>将 <code>ef2</code> 和 <code>ef1</code> 从内置 <code>pnb</code> 压强表插值到当前水平格点的 <code>pyy</code> 层压强。</td>
+</tr>
+<tr>
+<td><code>interp3</code></td>
+<td>本文件</td>
+<td>316-318</td>
+<td><code>nltemodel=0</code> 时将内置 CO2、O、N2+CO VMR 表插值到当前层压强。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>physiq_mod.F</code></td>
+<td>integer</td>
+<td>-</td>
+<td>水平格点数。</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>physiq_mod.F</code></td>
+<td>integer</td>
+<td>-</td>
+<td>GCM 垂直层数。</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td><code>physiq_mod.F</code></td>
+<td>integer</td>
+<td>-</td>
+<td>tracer 数量，用于第三维 <code>pq</code>。</td>
+</tr>
+<tr>
+<td><code>pplay(ngrid,nlayer)</code></td>
+<td><code>physiq_mod.F::zplay</code></td>
+<td>real array</td>
+<td>Pa</td>
+<td>层中心压强；<code>nltecool</code> 不再做 Pa/atm 转换。</td>
+</tr>
+<tr>
+<td><code>pt(ngrid,nlayer)</code></td>
+<td><code>physiq_mod.F::pt</code></td>
+<td>real array</td>
+<td>K</td>
+<td>层中心温度。</td>
+</tr>
+<tr>
+<td><code>pq(ngrid,nlayer,nq)</code></td>
+<td><code>physiq_mod.F::pq</code></td>
+<td>real array</td>
+<td>kg/kg_air</td>
+<td>tracer 质量混合比；仅 <code>nltemodel=1</code> 分支读取 CO2、O、CO、N2。</td>
+</tr>
+<tr>
+<td><code>mmean(ngrid,nlayer)</code></td>
+<td><code>conc_mod</code></td>
+<td>real array</td>
+<td>与 <code>mmol</code> 一致</td>
+<td>动态成分体积分数换算使用的平均分子量。</td>
+</tr>
+<tr>
+<td><code>mmol(*)</code></td>
+<td><code>tracer_mod</code></td>
+<td>real array</td>
+<td>与 <code>mmean</code> 一致</td>
+<td>tracer 摩尔质量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dtnlte(ngrid,nlayer)</code></td>
+<td><code>physiq_mod.F::zdtnlte</code></td>
+<td>real array</td>
+<td>K/s</td>
+<td>CO2 15 微米 NLTE 温度倾向；压强范围外置零。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>pnb</code> 是 <code>save</code> 数组，首次调用时从指数值转换为 Pa：<code>pnb(i)=1.0e-4*exp(pnb(i))</code>。它同时是 OpenMP <code>THREADPRIVATE</code>，每个线程需要依靠自己的 <code>firstcall</code> 副本完成一次转换。</li>
+<li><code>firstcall</code> 也是 <code>save</code> + <code>THREADPRIVATE</code> 逻辑量，用于防止同一线程重复转换 <code>pnb</code>。如果复现时手动重入或复制本模块，必须保留这对状态的一致性。</li>
+<li>文件不读外部 <code>NLTEDAT</code> 表，也不调用 <a href="nlte_setup.html">nlte_setup</a>。其表值直接内嵌在源码中，来源注释为历史 <code>nlte_escape.dat</code> / <code>nltedata.h</code>。</li>
+<li>本模块没有显式日志输出；旧的 <code>write(7,25)</code> 调试输出已注释。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>首次进入 <code>nltecool</code> 时，把 <code>pnb</code> 从压强指数转换为 Pa，之后保持转换后的表压强。</li>
+<li>对每个水平格点 <code>j</code>，把 <code>pplay(j,:)</code> 复制到一维 <code>pyy</code>，再把 <code>ef2</code>、<code>ef1</code> 插值为 <code>escf2(:)</code>、<code>escf1(:)</code>。</li>
+<li>若 <code>nltemodel=0</code>，调用 <code>interp3</code> 从内置 <code>co2vmr/o3pvmr/n2covmr</code> 表得到各层 VMR；若 <code>nltemodel=1</code>，后续逐层从 tracer <code>pq</code>、<code>mmean</code> 和 <code>mmol</code> 动态换算成 VMR。</li>
+<li>逐层检查压强：<code>pyy(i)&gt;1.0 Pa</code> 或 <code>pyy(i)&lt;4.0e-6 Pa</code> 时把 <code>hr(i)</code> 和 <code>dtnlte(j,i)</code> 置零。</li>
+<li>对有效压强层，用 <code>nt = p/(1.381e-17*T)</code> 计算数密度，再把 CO2、O、N2+CO VMR 转成 <code>cm-3</code> 数密度。</li>
+<li>用固定同位素丰度 <code>imr1=0.987</code>、<code>imr2=0.00408+0.0112</code> 得到两个基态族群 <code>n1/n2</code>，并根据温度计算 k19、k20、k21 碰撞速率族。</li>
+<li>把碰撞损失/产生项与 Einstein 自发辐射项 <code>ae1/ae2</code> 合并，求解两个能级耦合的代数系统，得到 <code>el1/el2</code> 和 <code>pl1/pl2</code>。</li>
+<li>计算两条通道冷却 <code>hr1/hr2</code>，求和后通过 <code>0.1*hr*T/(4.4*p)</code> 转成 <code>dtnlte</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if firstcall for this thread:
+  for each table point:
+    pnb = 1e-4 * exp(pnb)
+  firstcall = false
+
+for each horizontal grid point j:
+  pyy = pplay(j,:)
+  escf2 = interp1(ef2, pnb -&gt; pyy)
+  escf1 = interp1(ef1, pnb -&gt; pyy)
+
+  if nltemodel == 0:
+    co2, o3p, n2co = interp3(tabulated VMRs, pnb -&gt; pyy)
+
+  for each layer i:
+    if pyy(i) &gt; 1 Pa or pyy(i) &lt; 4e-6 Pa:
+      dtnlte(j,i) = 0
+    else:
+      nt = pyy(i) / (k_B_cgs * pt(j,i))
+      if nltemodel == 1:
+        derive CO2, O, CO+N2 VMRs from pq, mmean and mmol
+      convert VMRs to number densities
+      build two-level collisional production/loss terms
+      add radiative escape terms
+      solve the two coupled excitation equations
+      hr = hr1 + hr2
+      dtnlte(j,i) = 0.1 * hr * T / (4.4 * p)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CO2 15 微米 NLTE 冷却</td>
+<td>作为 <code>nltemodel=0/1</code> 的旧版 cool-to-space 参数化，直接输出 K/s 温度倾向。</td>
+</tr>
+<tr>
+<td>辐射倾向合成</td>
+<td><code>physiq_mod.F</code> 把 <code>zdtnlte</code> 传给 <code>blendrad</code>，后者在 LTE/NLTE 过渡层附近把长波 LTE、NIR CO2 与 NLTE 倾向合成。</td>
+</tr>
+<tr>
+<td>高层大气成分敏感性</td>
+<td><code>nltemodel=0</code> 使用内置标准成分表，<code>nltemodel=1</code> 使用当前 tracer 组成，因此 O、CO、N2 和 CO2 剖面对冷却率有直接影响。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 文件内含大段初始化数组；这些表是计算逻辑的一部分，不是运行时外部数据。</li>
+<li><code>pnb</code> 的含义会在首次调用后改变：源码顶部注释称其为 pressure exponent，首次调用后它变成 Pa。文档或调试时不能把转换后的 <code>pnb</code> 仍解释为指数。</li>
+<li><code>interp1</code> / <code>interp3</code> 对压强范围使用 <code>3.5 Pa</code> 与 <code>4.0e-6 Pa</code>，而主计算层过滤使用 <code>1.0 Pa</code> 与 <code>4.0e-6 Pa</code>；有效计算区间由主循环的 <code>1.0 Pa</code> 上限决定。</li>
+<li><code>nltemodel=1</code> 的成分换算使用 <code>pq*mmean/mmol</code>，这是从质量混合比到体积分数的源代码字面行为。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>调用 <code>nltecool</code> 时 <code>pplay</code> 必须是 Pa；不要像 <code>nlte_tcool</code> 分支那样先转为 atm。</li>
+<li><code>dtnlte</code> 在本模块内已经是 K/s；不要再像 <code>nltemodel=2</code> 输出那样除以 86400。</li>
+<li><code>callnlte</code> 打开且 <code>nltemodel</code> 为 0 或 1 时才会走本模块；<code>nltemodel=2</code> 使用 <a href="nlte_tcool_mod.html">nlte_tcool_mod</a>。</li>
+<li>若要复现 <code>nltemodel=1</code>，<code>igcm_co2/igcm_o/igcm_co/igcm_n2</code> 对应 tracer 必须存在，且 <code>mmean/mmol</code> 必须与 <code>pq</code> 的质量混合比一致。</li>
+<li>复现风险：主循环允许 <code>pyy(i) &gt;= 4.0e-6 Pa</code>，但转换后 <code>pnb</code> 表最后一点约为 <code>1e-4*exp(-3)</code> Pa，略高于 <code>4.0e-6 Pa</code>。若输入压强落在这两个下限之间，插值循环可能找不到包围区间。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>内置 <code>ef1/ef2/co2vmr/o3pvmr/n2covmr</code> 表的外部物理来源仅由源码注释追溯到 <code>nlte_escape.dat</code> / Miguel Lopez-Valverde 方案；本页未核验原始数据文件。</li>
+<li><code>0.1*hr*T/(4.4*p)</code> 中 <code>0.1</code> 和 <code>4.4</code> 的单位换算来源未在本文件内解释；本页按源码公式记录。</li>
+<li><code>interp1</code> / <code>interp3</code> 在有效压强但未命中任何表区间时没有显式初始化 <code>nm/np/wm/wp</code>，该边界行为需要运行或外部方案文档确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a></li>
+<li><a href="nlte_tcool_mod.html">nlte_tcool_mod</a></li>
+<li><a href="nlte_setup.html">nlte_setup</a></li>
+<li><a href="nlte_aux.html">nlte_aux</a></li>
+<li><a href="nlte_calc.html">nlte_calc</a></li>
+<li><a href="nlteparams_h.html">nlteparams_h</a></li>
+<li><a href="nlthermeq.html">nlthermeq</a></li>
+<li><a href="blendrad.html">blendrad</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

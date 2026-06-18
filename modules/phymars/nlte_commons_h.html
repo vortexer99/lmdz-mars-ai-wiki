@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nlte_commons_h - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/nlte_commons_h.md</span>
+    </nav>
+    <article class="content">
+<h1 id="nlte_commons_hf90">nlte_commons_h.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\nlte_commons_h.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>nlte_commons_h.F90</code> 定义真实 Fortran module <code>nlte_commons_h</code>，把旧 1-D NLTE 15 微米 CO2 参数化中的多个 <code>common</code> block 合并成一组 <code>save</code> module 变量。它本身不包含 <code>contains</code>、subroutine 或 function；作用是为 <code>nlte_setup.F</code>、<a href="nlte_aux.html">nlte_aux</a>、<a href="nlte_calc.html">nlte_calc</a> 和 <code>nlte_tcool_mod.F</code> 共享谱线常数、查表数据、主网格/CTS 网格大气剖面、Curtis matrices、escape probability、振动温度、碰撞率和历史谱线缓存。</p>
+<p>源文件几乎所有变量都声明为 <code>save</code> 并配套 <code>!$OMP THREADPRIVATE(...)</code>。因此它不是普通只读参数头文件，而是 NLTE 计算链的每线程共享状态仓库：上游初始化例程写入表和剖面，辅助/矩阵例程读写工作数组，下游 cooling-time 例程再读取结果矩阵和加热率。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlte_commons_h</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>NLTE 15 微米 CO2 参数化共享状态模块。</td>
+</tr>
+<tr>
+<td><code>elow</code>, <code>deltanu</code></td>
+<td>module variable</td>
+<td style="text-align: right;">17</td>
+<td>按同位素和谱带保存低能级能量与波数宽度。</td>
+</tr>
+<tr>
+<td><code>nu11</code>, <code>nu12</code>, <code>nu121</code>, <code>nu21</code>, <code>nu31</code>, <code>nu41</code></td>
+<td>module variable</td>
+<td style="text-align: right;">22-25</td>
+<td>110/121/210/310/410 等跃迁或谱带频率。</td>
+</tr>
+<tr>
+<td><code>a1_010_000</code>, <code>a1_020_010</code>, <code>a2_010_000</code>, <code>a3_010_000</code>, <code>a4_010_000</code></td>
+<td>module variable</td>
+<td style="text-align: right;">33-36</td>
+<td>Einstein A 系数。</td>
+</tr>
+<tr>
+<td><code>lnpnbtab</code>, <code>vc210tab</code>, <code>vc310tab</code>, <code>vc410tab</code>, <code>tstar11tab</code>, <code>tstar21tab</code>, <code>tstar31tab</code>, <code>tstar41tab</code></td>
+<td>module variable</td>
+<td style="text-align: right;">46-49</td>
+<td>NLTE 预计算表，供 escape probability / CTS 路径插值。</td>
+</tr>
+<tr>
+<td><code>input_cza</code></td>
+<td>module variable</td>
+<td style="text-align: right;">57</td>
+<td>标记 CZA/NLTE 输入是否可用，供 cooling-time 路径分支判断。</td>
+</tr>
+<tr>
+<td><code>v626t1</code>, <code>v628t1</code>, <code>v636t1</code>, <code>v627t1</code></td>
+<td>module variable</td>
+<td style="text-align: right;">65-68</td>
+<td>四组同位素振动温度剖面。</td>
+</tr>
+<tr>
+<td><code>vt11</code>, <code>vt12</code>, <code>vt21</code>, <code>vt31</code>, <code>vt41</code></td>
+<td>module variable</td>
+<td style="text-align: right;">73</td>
+<td>15 微米各带振动温度输出。</td>
+</tr>
+<tr>
+<td><code>hr110</code>, <code>hr121</code>, <code>hr210</code>, <code>hr310</code>, <code>hr410</code></td>
+<td>module variable</td>
+<td style="text-align: right;">77-78</td>
+<td>各带冷却/加热率剖面。</td>
+</tr>
+<tr>
+<td><code>el11</code>, <code>el12</code>, <code>el21</code>, <code>el31</code>, <code>el41</code></td>
+<td>module variable</td>
+<td style="text-align: right;">82-85</td>
+<td>15 微米带相关能级或源项数组。</td>
+</tr>
+<tr>
+<td><code>sl110</code>, <code>sl121</code>, <code>sl210</code>, <code>sl310</code>, <code>sl410</code></td>
+<td>module variable</td>
+<td style="text-align: right;">89-92</td>
+<td>15 微米谱线强度或源项数组。</td>
+</tr>
+<tr>
+<td><code>c110</code>, <code>c121</code>, <code>c210</code>, <code>c310</code>, <code>c410</code></td>
+<td>module variable</td>
+<td style="text-align: right;">102-105</td>
+<td>Curtis matrix 系数，供 <code>nlte_tcool_mod.F</code> 求解能级与冷却率。</td>
+</tr>
+<tr>
+<td><code>vc110</code>, <code>vc121</code>, <code>vc210</code>, <code>vc310</code>, <code>vc410</code></td>
+<td>module variable</td>
+<td style="text-align: right;">106-107</td>
+<td>Curtis matrix 边界向量。</td>
+</tr>
+<tr>
+<td><code>taustar11</code>, <code>taustar21</code>, <code>taustar31</code>, <code>taustar41</code>, <code>taustar12</code>, <code>taustar11_cts</code></td>
+<td>module variable</td>
+<td style="text-align: right;">115-117</td>
+<td>cool-to-space formulation 的 escape probability 光学厚度数组。</td>
+</tr>
+<tr>
+<td><code>zl</code>, <code>t</code>, <code>pl</code>, <code>nt</code>, <code>co2</code>, <code>n2</code>, <code>co</code>, <code>o3p</code>, <code>co2vmr</code>, <code>n2vmr</code>, <code>covmr</code>, <code>o3pvmr</code>, <code>hrkday_factor</code></td>
+<td>module variable</td>
+<td style="text-align: right;">128-131</td>
+<td>主 NLTE/GCM 垂直网格大气状态。</td>
+</tr>
+<tr>
+<td><code>zy</code>, <code>ty</code>, <code>py</code>, <code>nty</code>, <code>co2y</code></td>
+<td>module variable</td>
+<td style="text-align: right;">138</td>
+<td>高分辨率透过率/插值网格大气状态。</td>
+</tr>
+<tr>
+<td><code>deltaz</code>, <code>deltazy</code>, <code>deltaz_cts</code>, <code>deltazy_cts</code>, <code>jlowerboundary</code>, <code>jtopboundary</code>, <code>jtopCTS</code></td>
+<td>module variable</td>
+<td style="text-align: right;">144-145</td>
+<td>主网格、插值网格和 CTS 网格的步长与边界索引。</td>
+</tr>
+<tr>
+<td><code>zl_cts</code>, <code>t_cts</code>, <code>pl_cts</code>, <code>nt_cts</code>, <code>co2_cts</code>, <code>n2_cts</code>, <code>co_cts</code>, <code>o3p_cts</code>, <code>co2vmr_cts</code>, <code>n2vmr_cts</code>, <code>covmr_cts</code>, <code>o3pvmr_cts</code>, <code>hrkday_factor_cts</code>, <code>mmean_cts</code>, <code>cpnew_cts</code></td>
+<td>module variable</td>
+<td style="text-align: right;">154-160</td>
+<td>CTS 网格大气状态、平均分子量和热容。</td>
+</tr>
+<tr>
+<td><code>zy_cts</code>, <code>ty_cts</code>, <code>py_cts</code>, <code>nty_cts</code>, <code>co2y_cts</code></td>
+<td>module variable</td>
+<td style="text-align: right;">167-168</td>
+<td>CTS 高分辨率透过率/插值网格状态。</td>
+</tr>
+<tr>
+<td><code>k19*</code>, <code>k20*</code>, <code>k21*</code>, <code>k33*</code>, <code>k23k21*</code>, <code>k24k21*</code>, <code>k34k21*</code></td>
+<td>module variable</td>
+<td style="text-align: right;">177-193</td>
+<td>振动-平动、振动-振动和末级组合碰撞率系数。</td>
+</tr>
+<tr>
+<td><code>ibcode1</code>, <code>ka</code>, <code>alsa</code>, <code>alda</code>, <code>kr</code>, <code>hisfile</code>, <code>pp</code>, <code>ta</code>, <code>w</code>, <code>sk1</code>, <code>xls1</code>, <code>xld1</code>, <code>thist</code>, <code>no</code>, <code>nbox</code>, <code>eqw</code>, <code>aa</code>, <code>cc</code>, <code>dd</code>, <code>ddbox</code>, <code>ccbox</code>, <code>mr</code>, <code>mr_cts</code></td>
+<td>module variable</td>
+<td style="text-align: right;">200-228</td>
+<td>NLTE 历史谱线表、等效线宽和矩阵积分工作状态。</td>
+</tr>
+<tr>
+<td><code>sk1_stored</code>, <code>xls1_stored</code>, <code>xld1_stored</code>, <code>thist_stored</code>, <code>no_stored</code>, <code>nbox_stored</code>, <code>mm_stored</code></td>
+<td>module variable</td>
+<td style="text-align: right;">234-239</td>
+<td>按谱带缓存的历史谱线表，供 <code>rhist_03</code> 读入和 <code>gethist_03</code> 恢复。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlte_paramdef_h</code></td>
+<td><code>nb</code>, <code>nisot</code>, <code>nztabul</code>, <code>nl</code>, <code>nl_cts</code>, <code>nzy</code>, <code>nzy_cts</code></td>
+<td>定义谱带、同位素、表长和垂直网格维度。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>nlte_paramdef_h</code></td>
+<td><code>nbox_max</code>, <code>nhist</code></td>
+<td>定义历史谱线表缓存和 box 工作数组上限。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>本文件只声明共享 module 变量，不含可执行例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nl</code>, <code>nl_cts</code>, <code>nzy</code>, <code>nzy_cts</code></td>
+<td><code>nlte_paramdef_h</code></td>
+<td>integer parameter</td>
+<td>-</td>
+<td>决定主网格、CTS 网格和高分辨率透过率网格数组大小。</td>
+</tr>
+<tr>
+<td><code>nb</code>, <code>nisot</code>, <code>nztabul</code>, <code>nhist</code>, <code>nbox_max</code></td>
+<td><code>nlte_paramdef_h</code></td>
+<td>integer parameter</td>
+<td>-</td>
+<td>决定谱带、同位素、查表和历史谱线缓存维度。</td>
+</tr>
+<tr>
+<td>谱线、表、碰撞率和大气剖面数值</td>
+<td><code>nlte_setup.F</code>、<code>nlte_tcool_mod.F</code>、<code>nlte_aux.F</code>、<code>nlte_calc.F</code></td>
+<td>module variables</td>
+<td>混合</td>
+<td>本模块只分配共享存储；实际数值由上下游例程写入。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>elow/deltanu</code>、频率和 Einstein 系数</td>
+<td><code>nlte_calc.F</code>、<code>nlte_tcool_mod.F</code></td>
+<td>arrays / scalars</td>
+<td>谱线量</td>
+<td>谱线积分、能级方程和冷却矩阵的基本常数。</td>
+</tr>
+<tr>
+<td><code>zl/t/pl/nt/...</code>、<code>zy/ty/py/...</code>、CTS 剖面</td>
+<td><code>nlte_aux.F</code>、<code>nlte_calc.F</code>、<code>nlte_tcool_mod.F</code></td>
+<td>arrays</td>
+<td>高度、压力、温度、数密度等</td>
+<td>主网格与 CTS 网格上的大气状态。</td>
+</tr>
+<tr>
+<td><code>c*</code>、<code>vc*</code>、<code>taustar*</code></td>
+<td><code>nlte_tcool_mod.F</code></td>
+<td>matrices / vectors</td>
+<td>矩阵系数或无量纲光学厚度</td>
+<td><code>nlte_calc.F</code> 写入后，cooling-time 求解读取。</td>
+</tr>
+<tr>
+<td><code>hr*</code>、<code>vt*</code>、<code>el*</code>、<code>sl*</code></td>
+<td><code>nlte_tcool_mod.F</code> 和调用链下游</td>
+<td>arrays</td>
+<td>冷却率、温度或源项</td>
+<td>NLTE 各带计算结果缓存。</td>
+</tr>
+<tr>
+<td><code>*_stored</code> 和当前 <code>thist/no/sk1/xls1/xld1</code></td>
+<td><code>nlte_aux.F</code>、<code>nlte_calc.F</code></td>
+<td>arrays</td>
+<td>谱线表量</td>
+<td>历史谱线表读入、缓存和按谱带恢复的工作状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>所有主要变量均为 <code>save</code> module 状态，且每组变量后都有 <code>!$OMP THREADPRIVATE</code> 指令；OpenMP 运行时每个线程保留自己的副本。复现时不能假设一个线程写入后其他线程自动可见。</li>
+<li><code>nlte_setup.F</code> 写入谱线常数、预计算表、<code>hisfile</code> 和碰撞率；<code>nlte_aux.F::rhist_03</code> 再根据 <code>hisfile</code> 填充 <code>*_stored</code> 历史表缓存。</li>
+<li><code>nlte_tcool_mod.F</code> 的初始化/准备路径写入主网格、CTS 网格、边界索引、<code>mmean_cts/cpnew_cts</code> 等大气状态；同一文件后续读取这些状态并求解各带冷却。</li>
+<li><a href="nlte_calc.html">nlte_calc</a> 读取 <code>elow/deltanu</code>、大气剖面和历史谱线表工作数组，并写出 <code>c110/vc110/c121/vc121/taustar12/taustar11_cts</code> 等矩阵输入。</li>
+<li><a href="nlte_aux.html">nlte_aux</a> 的 <code>initial</code>、<code>gethist_03</code>、<code>rhist_03</code> 和插值例程会直接清零、恢复或读取 <code>eqw/aa/cc/dd</code>、<code>thist/no/sk1/xls1/xld1</code>、<code>mr/mr_cts</code> 等工作变量。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>编译期从 <code>nlte_paramdef_h</code> 取得所有数组维度，<code>nlte_commons_h</code> 据此声明旧 common block 对应的 module 变量。</li>
+<li><code>nlte_setup.F</code> 在初始化阶段读取或计算谱线常数、查表数据、历史表文件名和碰撞率，并写入本模块。</li>
+<li><code>nlte_tcool_mod.F</code> 把 GCM 输入剖面转换为 NLTE 主网格、CTS 网格和高分辨率插值网格状态，写入本模块的 <code>zl/t/pl/...</code>、<code>zy/ty/...</code>、<code>zl_cts/t_cts/...</code>。</li>
+<li><code>nlte_aux.F</code> 读取历史谱线表到 <code>*_stored</code>，再按当前谱带恢复为 <code>thist/no/sk1/xls1/xld1</code> 工作数组，并提供插值/等效线宽工具。</li>
+<li><code>nlte_calc.F</code> 用共享剖面、谱线表和工作数组构造 Curtis matrices、边界向量和 escape probability，并写回 <code>c*</code>、<code>vc*</code>、<code>taustar*</code>。</li>
+<li><code>nlte_tcool_mod.F</code> 读取这些矩阵和速率系数，计算 NLTE 振动温度、各带冷却率和最终冷却贡献。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>compile-time:
+  import NLTE dimensions from nlte_paramdef_h
+  allocate saved, threadprivate module variables
+
+setup phase:
+  nlte_setup writes spectral constants, tabulation arrays and rates
+  nlte_setup sets hisfile for each history table
+  nlte_aux.rhist_03 reads history tables into *_stored caches
+
+profile preparation:
+  nlte_tcool_mod writes main and CTS atmospheric profiles
+  nlte_tcool_mod sets grid spacing and boundary indices
+
+matrix construction:
+  nlte_aux.gethist_03 copies one stored table into current work arrays
+  nlte_calc reads profiles and line tables
+  nlte_calc writes Curtis matrices, boundary vectors and taustar arrays
+
+cooling solve:
+  nlte_tcool_mod reads rates, matrices, taustar and profiles
+  nlte_tcool_mod updates vt*, hr*, el* and sl* result arrays</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NLTE 15 微米 CO2 冷却</td>
+<td>保存从初始化、查表、矩阵构造到 cooling-time 求解之间传递的全部共享状态。</td>
+</tr>
+<tr>
+<td>辐射计算</td>
+<td><code>c*</code>、<code>vc*</code>、<code>taustar*</code>、<code>hr*</code> 等数组进入 CO2 15 微米非 LTE 冷却贡献计算。</td>
+</tr>
+<tr>
+<td>并行/OpenMP 运行</td>
+<td><code>THREADPRIVATE</code> 使 NLTE 状态按线程隔离，初始化和计算必须在每线程语义下保持一致。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>文件保留旧 <code>common /.../</code> 注释，下面用 module 变量替代，这使旧 1-D 模型命名仍可追溯。</li>
+<li>本文件没有 <code>public/private</code> 显式限制；下游通过 <code>use nlte_commons_h, only: ...</code> 选择需要的共享变量。</li>
+<li>同一物理流程的数组分散在多个旧 common block 分组中，例如谱线常数、矩阵、主网格、CTS 网格、碰撞率和历史谱线缓存，需要按上下游读写关系理解。</li>
+<li><code>real</code> 与 <code>real*8</code> 混用：大气剖面多为 <code>real</code>，谱线、矩阵、速率和历史表多为 <code>real*8</code>。复现或接口迁移时不能统一假设为双精度。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须先完成 <code>nlte_setup.F</code> 的表和速率初始化，再进入 <code>nlte_tcool_mod.F</code> / <code>nlte_calc.F</code> 计算；否则本模块中的 <code>save</code> 数组可能仍未初始化。</li>
+<li>历史谱线表必须通过 <code>rhist_03</code> 写入 <code>*_stored</code>，再由 <code>gethist_03</code> 恢复当前谱带工作数组；直接调用矩阵例程会依赖这些缓存状态。</li>
+<li><code>nbox_max</code>、<code>nhist</code>、<code>nb</code> 等维度来自 <code>nlte_paramdef_h</code>，输入表尺寸超过这些上限会在下游读表或积分阶段触发错误。</li>
+<li>OpenMP 复现时要确认每个线程都拥有正确初始化后的 <code>THREADPRIVATE</code> 副本；这类状态不会自动跨线程共享。</li>
+<li>主网格与 CTS 网格分别使用 <code>nl/nzy</code> 和 <code>nl_cts/nzy_cts</code> 维度，不能把 <code>taustar11_cts</code>、<code>*_cts</code> 剖面和主网格数组混用。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>input_cza</code> 的完整状态枚举和分支语义需要结合 <code>nlte_tcool_mod.F</code> 后续页面整理。</li>
+<li><code>k19*</code>、<code>k20*</code>、<code>k21*</code>、<code>k33*</code> 等碰撞率系数的物理来源需结合 <code>nlte_setup.F</code> 和旧 IAA/CSIC 文档确认。</li>
+<li><code>real</code> 主剖面与 <code>real*8</code> 谱线/矩阵数组混合精度是否有历史误差控制依据，源文件本身未解释。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a></li>
+<li><a href="nlte_aux.html">nlte_aux</a></li>
+<li><a href="nlte_calc.html">nlte_calc</a></li>
+<li><a href="nlte_setup.html">nlte_setup.md</a>：负责填充谱线表、历史表文件名和碰撞率。</li>
+<li><a href="nlte_tcool_mod.html">nlte_tcool_mod.md</a>：负责填充大气状态并读取本模块结果求解 NLTE cooling-time。</li>
+<li><a href="nlte_paramdef_h.html">nlte_paramdef_h.md</a>：定义本模块数组维度和谱线常数。</li>
+<li><a href="nltecool.html">nltecool</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>growthrate - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/growthrate.md</span>
+    </nav>
+    <article class="content">
+<h1 id="growthratef">growthrate.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\growthrate.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>growthrate.F</code> 定义 <code>growthrate_mod</code>，提供水冰晶增长/升华阻力的局部解析辅助例程。它不直接推进水冰质量，而是根据温度、层中压强、饱和水汽分压和当前冰晶半径，计算水汽扩散系数 <code>Dv</code> 以及总阻力 <code>res = Rk + Rd*(1+lambda*knudsen)</code>。</p>
+<p>当前源码搜索中，唯一外部调用点在 <code>improvedclouds_mod.F90</code> 的水冰增长段：<code>improvedclouds</code> 先用 <code>sig_h2o</code> 算 Kelvin 平衡饱和修正 <code>seq</code>，再调用 <code>growthrate</code> 得到 <code>res</code>，最后把 <code>res</code> 放入隐式 <code>dMice</code> 公式，决定本微物理子步内水汽和水冰之间交换多少质量。因此本文件是完整水云微物理中“单颗冰晶增长阻力/扩散系数”的计算部件，而不是云方案主调度器。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>growthrate_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>封装水冰晶增长阻力辅助例程。</td>
+</tr>
+<tr>
+<td><code>growthrate</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7</td>
+<td>计算热阻 <code>Rk</code>、扩散阻 <code>Rd</code>、Knudsen 修正和水汽扩散系数，输出总阻力 <code>res</code> 与 <code>Dv</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>rho_ice</code></td>
+<td>水冰密度，用于热阻、扩散阻和冰晶质量-半径关系。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>圆周率，进入平均自由程常数和扩散系数公式。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>kbz</code>, <code>mh2o</code>, <code>mco2</code>, <code>molco2</code>, <code>molh2o</code></td>
+<td>Boltzmann 常数、H2O/CO2 摩尔质量和有效分子半径。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>nav</code>, <code>rgp</code>, <code>To</code></td>
+<td>Avogadro 常数、理想气体常数和参考温度。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无显式 <code>CALL</code></td>
+<td>-</td>
+<td>-</td>
+<td>本例程只使用 Fortran 内建 <code>sqrt</code> 和算术表达式。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="上游调用点">上游调用点</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>所在文件</th>
+<th>调用位置</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>improvedclouds</code></td>
+<td><code>improvedclouds_mod.F90</code></td>
+<td>第 327 行</td>
+<td>在 <code>ccn_number*tauscaling &gt;= 1</code> 的冰增长分支中，计算 <code>res</code> 和 <code>Dv</code>，随后用于隐式 <code>dMice</code> 冰增长/升华公式。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>temp</code></td>
+<td>调用方；<code>improvedclouds</code> 中为 <code>zt(ig,l)</code></td>
+<td><code>REAL</code></td>
+<td>K</td>
+<td>当前格点/层的温度。</td>
+</tr>
+<tr>
+<td><code>pmid</code></td>
+<td>调用方；<code>improvedclouds</code> 中为 <code>pplay(ig,l)</code></td>
+<td><code>REAL</code></td>
+<td>Pa</td>
+<td>层中压强。源码注释误写为 temperature <code>(K)</code>，实际公式把它作为压力使用。</td>
+</tr>
+<tr>
+<td><code>psat</code></td>
+<td>调用方；<code>improvedclouds</code> 中为 <code>real(ph2o/satu)</code></td>
+<td><code>REAL</code></td>
+<td>Pa</td>
+<td>水汽饱和分压。</td>
+</tr>
+<tr>
+<td><code>rcrystal</code></td>
+<td>调用方；<code>improvedclouds</code> 中为 <code>rice(ig,l)</code></td>
+<td><code>REAL</code></td>
+<td>m</td>
+<td>冰晶增长前半径。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>res</code></td>
+<td>调用方局部变量；<code>improvedclouds</code> 还写入 <code>res_out(ig,l)</code></td>
+<td><code>REAL</code></td>
+<td>resistance factor</td>
+<td>总增长阻力；<code>improvedclouds</code> 把它放入 <code>res*zqsat/(cste*No*rice)+1</code> 的隐式分母。</td>
+</tr>
+<tr>
+<td><code>Dv</code></td>
+<td>调用方局部变量</td>
+<td><code>REAL</code></td>
+<td>推断：m2/s（按 SI 公式量纲）</td>
+<td>H2O 在 CO2 背景气体中的水汽扩散系数；当前 <code>improvedclouds</code> 调用后没有直接再用 <code>Dv</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p><code>growthrate_mod</code> 不定义保存型 module 变量，不读写文件，不打印日志，也不读取运行时配置。它只读取三个共享常数来源：<code>tracer_mod::rho_ice</code>、<code>comcstfi_h::pi</code>、<code>microphys_h</code> 的分子物理常数。副作用限于写入实参 <code>res</code> 和 <code>Dv</code>。</p>
+<p>需要注意的是，<code>rho_ice</code> 是 <code>tracer_mod</code> 中的 <code>save</code> 变量，并声明为 OpenMP <code>THREADPRIVATE</code>；本文件不初始化它。复现 <code>growthrate</code> 时必须保证上游 tracer 初始化已经给 <code>rho_ice</code> 赋值，否则阻力量级会错误。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>由温度计算 CO2 热导率 <code>k = (0.17913*temp - 13.9789) * 4.184e-4</code>。</li>
+<li>由温度和参考温度 <code>To</code> 计算水冰升华潜热 <code>Lv = (2834.3 - 0.28*(temp-To) - 0.004*(temp-To)^2) * 1.e3</code>。</li>
+<li>构造平均自由程常数 <code>afactor = 0.707*rgp/(4*pi*molco2^2*nav)</code>。</li>
+<li>用 H2O 热速度、H2O/CO2 碰撞截面和压强计算水汽扩散系数 <code>Dv</code>。</li>
+<li>用 <code>temp/pmid*afactor/rcrystal</code> 得到 Knudsen 数 <code>knudsen</code>。</li>
+<li>用 <code>(1.333+0.71/knudsen)/(1+1/knudsen)</code> 得到非连续修正系数 <code>lambda</code>。</li>
+<li>计算潜热释放热阻 <code>Rk = Lv^2*rho_ice*mh2o/(k*rgp*temp^2)</code>。</li>
+<li>计算水汽扩散阻力 <code>Rd = rgp*temp*rho_ice/(Dv*psat*mh2o)</code>。</li>
+<li>输出 <code>res = Rk + Rd*(1+lambda*knudsen)</code>；源码注释明确没有直接修正 <code>Dv</code>，而是把修正放入阻力项。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>growthrate(temp, pmid, psat, rcrystal):
+  k  = thermal_conductivity_CO2(temp)
+  Lv = latent_heat_H2O(temp)
+
+  afactor = 0.707 * R / (4*pi*molco2^2*Avogadro)
+
+  Dv = one_third * thermal_speed_H2O(temp)
+       * k_B * temp
+       / (pi * pmid * (molco2+molh2o)^2 * sqrt(1+mh2o/mco2))
+
+  knudsen = temp / pmid * afactor / rcrystal
+  lambda  = (1.333 + 0.71/knudsen) / (1 + 1/knudsen)
+
+  Rk = Lv^2 * rho_ice * mh2o / (k * R * temp^2)
+  Rd = R * temp * rho_ice / (Dv * psat * mh2o)
+
+  res = Rk + Rd * (1 + lambda * knudsen)
+  return res, Dv
+
+in improvedclouds:
+  seq = Kelvin_equilibrium_saturation(...)
+  growthrate(T, pplay, ph2o/satu, rice, -&gt; res, -&gt; Dv)
+  dMice = (h2o_vap - seq*zqsat) / (res*zqsat/(4*pi*rho_ice*dt*No*rice) + 1)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/water-cycle.html">水循环</a></td>
+<td>在 <code>microphys=.true.</code> 的完整水冰云微物理中提供冰晶增长/升华阻力，影响 <code>dMice</code> 和潜热反馈。</td>
+</tr>
+<tr>
+<td><a href="improvedclouds_mod.html">improvedclouds_mod</a></td>
+<td>唯一调用方；在冰增长分支中把 <code>growthrate</code> 输出接入隐式质量交换公式。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>文件扩展名为 <code>.F</code>，但内部使用 module/subroutine 结构；源码采用固定格式续行 <code>     &amp;</code>。</li>
+<li>Kelvin 平衡饱和项 <code>seq</code> 不在本文件计算，只在注释中保留公式；当前调用方 <code>improvedclouds</code> 已在调用前计算 <code>seq</code>。</li>
+<li>源码注释保留了旧方案的显式增长率公式 <code>growth = ...</code> 和半径更新公式，但当前实际运行路径只输出阻力 <code>res</code>。</li>
+<li><code>Dv</code> 的非连续修正行被注释掉；实际修正体现在 <code>res = Rk + Rd*(1+lambda*knudsen)</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>pmid</code> 必须按压力传入。虽然参数注释写了 <code>(K)</code>，<code>Dv</code> 和 <code>knudsen</code> 公式都把它作为 Pa 量级的压强。</li>
+<li><code>psat</code> 在当前主调用中来自 <code>ph2o/satu</code>，不是 Kelvin 修正后的 <code>seq*zqsat</code>；Kelvin 修正由 <code>improvedclouds</code> 单独处理。</li>
+<li>不要把 <code>Dv</code> 再除以 <code>(1+lambda*knudsen)</code>；源码明确把这一行注释掉，并把修正放在 <code>Rd</code> 的阻力乘子里。</li>
+<li><code>rcrystal</code> 不在本文件内部做下限保护；调用方在计算 <code>seq</code> 时对 <code>rice</code> 用了 <code>max(rice,1.e-7)</code>，但传给 <code>growthrate</code> 的仍是原始 <code>rice(ig,l)</code>。</li>
+<li><code>rho_ice</code> 由 <code>tracer_mod</code> 运行时状态提供，不是本文件常数；复现实验需先确认 tracer 物性初始化路径。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>res</code> 的严格物理量纲没有在源码注释中给出；本页只记录它在 <code>improvedclouds</code> 隐式分母中的实际用法。</li>
+<li><code>rcrystal</code> 若极小或为零时本文件没有保护，是否完全依赖 <code>updaterice_micro</code> 的输出保证正半径，需要在 <code>updaterad.F90</code> 专页或后续源码核验中确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="improvedclouds_mod.html">improvedclouds_mod</a></li>
+<li><a href="watercloud_mod.html">watercloud_mod</a></li>
+<li><a href="../../themes/water-cycle.html">water-cycle</a></li>
+<li><a href="../../architecture/water-cycle-config.html">water-cycle-config</a></li>
+<li><a href="tracer_mod.html">tracer_mod</a></li>
+<li><a href="comcstfi_h.html">comcstfi_h</a></li>
+<li><a href="microphys_h.html">microphys_h</a>：提供本例程读取的分子常数、参考温度和气体常数。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lwtt - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/lwtt.md</span>
+    </nav>
+    <article class="content">
+<h1 id="lwttf">lwtt.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\lwtt.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>lwtt.F</code> 定义 <code>lwtt_mod</code> 模块，提供长波 LTE 辐射中 CO2 15 微米带透过率的底层计算例程 <code>lwtt</code>。它不直接访问层温、压力或气溶胶光学厚度；这些上游准备工作由 <code>lwu.F</code> 生成累计 CO2 吸收量 <code>co2_u/co2_up</code> 和气溶胶透过率 <code>aer_t</code>，再由 <code>lwxd.F</code>、<code>lwxn.F</code>、<code>lwxb.F</code> 按远距离层、相邻层和边界交换几何构造 <code>u/up</code> 增量后调用 <code>lwtt</code>。</p>
+<p>本例程的职责很窄：对每个 CO2 谱带和水平列，把吸收量 <code>u</code> 与压力缩放吸收量 <code>up</code> 合成为 Voigt/Doppler 近似下的等效吸收量 <code>ueq</code>，再用 <code>yomlw_h</code> 中的 Padé 系数 <code>ga/gb</code> 通过 Horner 算法求有理函数 <code>tr=xn/xd</code>。输出 <code>tr</code> 随后与调用方已经准备好的气溶胶透过率相乘，进入净交换率 <code>xi</code> 的差分组合。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lwtt_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>封装长波 CO2 带透过率计算例程。</td>
+</tr>
+<tr>
+<td><code>lwtt</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7</td>
+<td>用 CO2 吸收量和压力缩放吸收量计算每个谱带的长波透过率 <code>tr</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>ndlon</code>, <code>ndlo2</code></td>
+<td>提供调用参数和局部工作数组的水平维度上限。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>yomlw_h</code></td>
+<td><code>ga</code>, <code>gb</code>, <code>cst_voigt</code></td>
+<td>提供 Padé 分子/分母系数和 Voigt 等效吸收量修正系数。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td><code>lwtt</code> 只做本地数组计算，不调用其他用户例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kdlon</code></td>
+<td><code>lwxd</code>/<code>lwxn</code>/<code>lwxb</code></td>
+<td><code>integer</code></td>
+<td>column</td>
+<td>当前向量化处理的水平列数，循环范围为 <code>1:kdlon</code>。</td>
+</tr>
+<tr>
+<td><code>u</code></td>
+<td>调用方由 <code>co2_u</code> 差分或子层累加构造</td>
+<td><code>real(ndlo2,nu)</code></td>
+<td>吸收量</td>
+<td>CO2 路径吸收量。<code>lwtt</code> 本身不换算单位，只按数值进入幂函数。</td>
+</tr>
+<tr>
+<td><code>up</code></td>
+<td>调用方由 <code>co2_up</code> 差分或子层累加构造</td>
+<td><code>real(ndlo2,nu)</code></td>
+<td>压力缩放吸收量</td>
+<td>压力效应修正后的 CO2 吸收量；源码用 <code>sqrt(up)</code>。</td>
+</tr>
+<tr>
+<td><code>nu</code></td>
+<td>调用方传入，当前调用均为 <code>nuco2</code></td>
+<td><code>integer</code></td>
+<td>band count</td>
+<td>需要计算的 CO2 谱带数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tr</code></td>
+<td><code>lwxd</code>/<code>lwxn</code>/<code>lwxb</code> 的 <code>zt_co2</code></td>
+<td><code>real(ndlo2,nu)</code></td>
+<td>-</td>
+<td>CO2 15 微米带透过率，调用方会再乘以气溶胶透过率并组合为 <code>xi</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p><code>lwtt.F</code> 不定义保存型模块变量，不读写文件，不打印诊断，也不修改 <code>yomlw_h</code> 的共享表。它只读取 <code>ga</code>、<code>gb</code>、<code>cst_voigt</code> 和维度常量，副作用限于写入调用方传入的 <code>tr</code> 数组。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>按谱带 <code>ja=1:nu</code> 和水平列 <code>jl=1:kdlon</code> 双循环处理所有输入路径。</li>
+<li>计算等效吸收量： <code>ueq = sqrt(up) + cst_voigt(1,ja) * u ** cst_voigt(2,ja)</code>。</li>
+<li>用 Horner 形式计算 Padé 分子： <code>xn = ga(1) + ueq * (ga(2) + ueq * ga(3))</code>。</li>
+<li>用 Horner 形式计算 Padé 分母： <code>xd = gb(1) + ueq * (gb(2) + ueq * (gb(3) + ueq))</code>。</li>
+<li>输出透过率 <code>tr = xn / xd</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>for each CO2 band ja:
+  for each active column jl:
+    ueq = sqrt(up(jl,ja)) + cst_voigt(1,ja) * u(jl,ja) ** cst_voigt(2,ja)
+
+    numerator = ga(1,ja) + ueq * (ga(2,ja) + ueq * ga(3,ja))
+    denominator = gb(1,ja) + ueq * (gb(2,ja) + ueq * (gb(3,ja) + ueq))
+
+    tr(jl,ja) = numerator / denominator</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">辐射计算</a></td>
+<td>为长波 LTE CO2 带内净交换率提供基础透过率；被 <code>lwxd</code>、<code>lwxn</code>、<code>lwxb</code> 反复调用。</td>
+</tr>
+<tr>
+<td><a href="index.html">phymars 核心物理模块目录</a></td>
+<td>属于 <code>libf\phymars</code> 的长波辐射辅助文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 文件，模块内只有一个子例程。</li>
+<li><code>lwtt</code> 名义上按 <code>nu</code> 泛化到多个吸收带，但共享系数来自 <code>ga/gb/cst_voigt(:,ja)</code>；当前源码调用点均传入 <code>nuco2</code>。</li>
+<li>Padé 分母的最高次项系数在源码中写成 <code>+ ueq</code>，等价于四次系数为 1；<code>ga</code> 的第四项虽在 <code>yomlw_h</code> 初始化，但本例程分子只使用 <code>ga(1:3,ja)</code>。</li>
+<li><code>u</code> 和 <code>up</code> 由调用方按几何路径差分或子层累加构造；本例程不检查物理范围。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>yomlw_h::ini_yomlw_h</code> 必须先初始化 <code>ga</code>、<code>gb</code>、<code>cst_voigt</code>；否则透过率系数未定义。</li>
+<li><code>up(jl,ja)</code> 必须非负；源码直接调用 <code>sqrt(up)</code>，负值会产生无效数。</li>
+<li><code>u(jl,ja)</code> 若为负，且 <code>cst_voigt(2,ja)</code> 不是整数，会使幂运算不可复现或产生无效数。</li>
+<li><code>xd</code> 不能为零；源码没有分母保护。</li>
+<li><code>nu</code> 不能超过 <code>ga/gb/cst_voigt</code> 的第二维可用范围；当前长波 CO2 调用链以 <code>nuco2</code> 为准。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>ga/gb/cst_voigt</code> 系数的物理拟合来源写在旧 <code>sulw.F</code> 注释中，本页只核验当前 <code>yomlw_h.F90</code> 的初始化数值和 <code>lwtt.F</code> 的使用方式。</li>
+<li><code>lwtt</code> 输出没有显式钳制到 <code>[0,1]</code>；调用方部分保留了注释掉的范围检查，是否需要恢复保护属于源码维护问题。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../themes/radiation.html">radiation</a></li>
+<li><a href="index.html">phymars/index</a></li>
+<li><a href="lwi.html">lwi</a></li>
+<li><a href="lwflux.html">lwflux</a></li>
+<li><a href="lwdiff.html">lwdiff</a></li>
+<li><a href="lwmain_mod.html">lwmain_mod</a> - 长波 LTE 主调度入口；通过 <code>lwxd/lwxn/lwxb</code> 间接进入本例程。</li>
+<li><a href="lwu.html">lwu</a></li>
+<li><a href="lwxb.html">lwxb</a></li>
+<li><a href="lwxd.html">lwxd</a></li>
+<li><a href="lwxn.html">lwxn</a></li>
+<li><a href="yomlw_h.html">yomlw_h.md</a>：长波辐射共享参数。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

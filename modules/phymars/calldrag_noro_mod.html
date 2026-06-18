@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>calldrag_noro_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/calldrag_noro_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="calldrag_noro_modf90">calldrag_noro_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\calldrag_noro_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>calldrag_noro_mod.F90</code> 定义 <code>calldrag_noro_mod</code> 模块和 <code>calldrag_noro</code> 包装例程。它不是重力波拖曳的完整物理核心，而是 <code>physiq_mod.F</code> 中 Lott 地形重力波/次网格地形拖曳方案的调用层：首调用时读取阈值并初始化 <code>sugwd</code> 参数，之后按 <code>dimradmars_mod:ndomainsz</code> 把水平网格切成子域，只对次网格地形标准差 <code>zstd</code> 超过阈值的格点标记调用 <code>drag_noro</code>，最后把 <code>drag_noro</code> 返回的温度、纬向风、经向风增量除以 <code>ptimestep</code> 变成 tendency。</p>
+<p><code>physiq</code> 只在 <code>callkeys_mod:calllott</code> 为真时调用本例程。<code>conf_phys.F</code> 中 <code>calllott</code> 默认 <code>.true.</code>，并通过 <code>getin_p("calllott", calllott)</code> 从 <code>callphys.def</code> 覆盖；它和 <code>calllott_nonoro</code> 是不同开关。本文件名中的 <code>noro</code> 不应直接解读为非地形重力波；源码注释、日志和下游 <code>orodrag</code> 链都表明这里处理的是 orographic GW / subgrid topography drag。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>calldrag_noro_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装 Lott 地形重力波拖曳调用层</td>
+</tr>
+<tr>
+<td><code>calldrag_noro</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>按子域筛选地形格点，调用 <code>drag_noro</code> 并返回 GW tendency</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>zstd</code>, <code>zsig</code>, <code>zgam</code>, <code>zthe</code></td>
+<td>读取次网格地形标准差、坡度、各向异性和主轴角，传给 <code>drag_noro</code>/<code>orodrag</code> 链</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>ndomainsz</code></td>
+<td>决定每个子域的最大水平点数和局部数组尺寸</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>drag_noro_mod</code></td>
+<td><code>drag_noro</code></td>
+<td>下游地形重力波拖曳核心包装，内部再调用 <code>ORODRAG</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>sugwd_mod</code></td>
+<td><code>sugwd</code></td>
+<td>首调用时根据垂直 sigma 坐标初始化 <code>yoegwd_h</code> 中的 GW 调参常量</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td><code>getin_p</code></td>
+<td>读取 <code>oro_gwd_zstdthread</code> 配置阈值</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin_p</code></td>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td>行 89</td>
+<td>用 <code>oro_gwd_zstdthread</code> 覆盖默认地形标准差阈值 50.0</td>
+</tr>
+<tr>
+<td><code>sugwd</code></td>
+<td><code>sugwd_mod.F90</code></td>
+<td>行 96</td>
+<td>初始化 <code>GHMAX</code>, <code>NKTOPG</code>, <code>GKDRAG</code>, <code>GRCRIT</code> 等地形 GW 参数</td>
+</tr>
+<tr>
+<td><code>drag_noro</code></td>
+<td><code>drag_noro_mod.F90</code></td>
+<td>行 165-168</td>
+<td>对当前子域执行地形 GW 拖曳计算，返回每步增量</td>
+</tr>
+<tr>
+<td><code>exit</code></td>
+<td>运行时 / 编译器提供</td>
+<td>行 105</td>
+<td>1D 运行但 <code>ndomainsz /= 1</code> 时中止</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方 <code>physiq</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>物理网格水平列数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>调用方 <code>physiq</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>大气垂直层数</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>调用方 <code>physiq</code></td>
+<td>real scalar</td>
+<td>s</td>
+<td>物理时间步长</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td><code>physiq</code> 中的 <code>zplay</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>Pa</td>
+<td>全层压力；传给下游前按子域复制</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td><code>physiq</code> 中的 <code>zplev</code></td>
+<td>real <code>(ngrid,nlayer+1)</code></td>
+<td>Pa</td>
+<td>半层压力；首调用时也用于构造 <code>sigtest</code></td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td><code>physiq</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K</td>
+<td>全层温度</td>
+</tr>
+<tr>
+<td><code>pu</code></td>
+<td><code>physiq</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m/s</td>
+<td>纬向风</td>
+</tr>
+<tr>
+<td><code>pv</code></td>
+<td><code>physiq</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m/s</td>
+<td>经向风</td>
+</tr>
+<tr>
+<td><code>zstd</code>, <code>zsig</code>, <code>zgam</code>, <code>zthe</code></td>
+<td><code>surfdat_h</code></td>
+<td>real allocatable <code>(ngrid)</code></td>
+<td>mixed</td>
+<td>次网格地形统计量；<code>zstd</code> 用于筛选，四者都传给 <code>drag_noro</code></td>
+</tr>
+<tr>
+<td><code>ndomainsz</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>integer scalar</td>
+<td>grid points</td>
+<td>子域水平块大小</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdtgw</code></td>
+<td><code>physiq:zdtgw</code> 后累加到 <code>pdt</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K/s</td>
+<td>地形 GW 对温度的 tendency</td>
+</tr>
+<tr>
+<td><code>pdugw</code></td>
+<td><code>physiq:zdugw</code> 后累加到 <code>pdu</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m/s/s</td>
+<td>地形 GW 对纬向风的 tendency</td>
+</tr>
+<tr>
+<td><code>pdvgw</code></td>
+<td><code>physiq:zdvgw</code> 后累加到 <code>pdv</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m/s/s</td>
+<td>地形 GW 对经向风的 tendency</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>首调用时向标准输出打印方案激活和 <code>oro_gwd_zstdthread</code> 数值。</li>
+<li><code>zstdthread</code>, <code>ll</code>, <code>firstcall</code> 为 <code>save</code> 且 <code>THREADPRIVATE</code>，每个 OpenMP 线程保留自己的首调用状态和阈值。</li>
+<li>调用 <code>getin_p("oro_gwd_zstdthread", zstdthread)</code> 读取配置；默认值是 50.0。</li>
+<li>调用 <code>sugwd</code> 会写入 <code>yoegwd_h</code> 中的地形 GW 调参常量，例如 <code>NKTOPG</code>, <code>GKDRAG</code>, <code>GRCRIT</code>。</li>
+<li>1D 运行且 <code>ndomainsz</code> 不是 1 时会打印警告并 <code>exit(1)</code>。</li>
+<li>本例程自身不写 NetCDF、不分配内存；局部子域数组按 <code>ndomainsz</code> 自动栈数组声明。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>首次进入时读取 <code>oro_gwd_zstdthread</code>，用 <code>pplev(1,l)/pplev(1,1)</code> 构造半层 sigma 坐标 <code>sigtest</code>，调用 <code>sugwd(nlayer,sigtest)</code> 初始化 GW 参数。</li>
+<li>若 <code>ngrid == 1</code>，检查 <code>ndomainsz == 1</code>；否则直接中止，因为 1D 不能使用更大的分块尺寸。</li>
+<li>每次调用都计算子域数：</li>
+</ol>
+<pre class="text"><code>ndomain = (ngrid - 1) / ndomainsz + 1</code></pre>
+<ol start="4" type="1">
+<li>对每个子域 <code>jd</code>，计算全局起点 <code>ig0</code> 和当前子域实际点数 <code>nd</code>。</li>
+<li>在当前子域中按 <code>zstd(ig) &gt; zstdthread</code> 标记 <code>ktest(ig)=1</code>，把局部格点编号写入 <code>kdx</code>，并统计 <code>kgwd</code>；<code>kgwdim = max(1, kgwd)</code> 保证下游接口维度至少为 1。</li>
+<li>把 <code>pplev</code>, <code>pplay</code>, <code>pt</code>, <code>pu</code>, <code>pv</code> 复制成局部子域数组 <code>zplev</code>, <code>zplay</code>, <code>zt</code>, <code>zu</code>, <code>zv</code>。</li>
+<li>调用 <code>drag_noro(nd,nlayer,ptimestep,...)</code>，传入地形数组切片 <code>zstd(ig0+1)</code>, <code>zsig(ig0+1)</code>, <code>zgam(ig0+1)</code>, <code>zthe(ig0+1)</code> 和筛选结果。</li>
+<li>将 <code>drag_noro</code> 输出的步长增量 <code>d_t</code>, <code>d_u</code>, <code>d_v</code> 除以 <code>ptimestep</code>，写回全局 tendency 数组。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>calldrag_noro(ngrid, nlayer, ptimestep, pplay, pplev, pt, pu, pv):
+    if firstcall:
+        zstdthread = 50.0
+        getin_p(&quot;oro_gwd_zstdthread&quot;, zstdthread)
+        sigtest(l) = pplev(1,l) / pplev(1,1)
+        sugwd(nlayer, sigtest)
+        if ngrid == 1 and ndomainsz != 1:
+            exit(1)
+        firstcall = false
+
+    ndomain = (ngrid - 1) / ndomainsz + 1
+    for each subdomain jd:
+        ig0 = (jd - 1) * ndomainsz
+        nd = remaining points or ndomainsz
+
+        kgwd = 0
+        for global ig in this subdomain:
+            ktest(ig) = 0
+            if zstd(ig) &gt; zstdthread:
+                ktest(ig) = 1
+                kgwd = kgwd + 1
+                kdx(kgwd) = ig - ig0
+        kgwdim = max(1, kgwd)
+
+        copy global pressure, temperature, wind fields into local arrays
+        drag_noro(nd, nlayer, ptimestep, local fields, local topography, kgwd data,
+                  d_t, d_u, d_v)
+
+        for each local level and point:
+            pdtgw(global,l) = d_t(local,l) / ptimestep
+            pdugw(global,l) = d_u(local,l) / ptimestep
+            pdvgw(global,l) = d_v(local,l) / ptimestep</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>主物理时间步 <code>physiq</code></td>
+<td><code>physiq_mod.F</code> 在 <code>calllott</code> 为真时调用本例程，并把返回的 <code>zdtgw/zdugw/zdvgw</code> 累加到总 tendency</td>
+</tr>
+<tr>
+<td>地形重力波 / 次网格地形拖曳</td>
+<td>本例程按地形标准差筛选格点、组织子域输入，实际拖曳由 <code>drag_noro</code> -&gt; <code>ORODRAG</code> 链完成</td>
+</tr>
+<tr>
+<td>配置系统</td>
+<td><code>calllott</code> 控制是否调用；<code>oro_gwd_zstdthread</code> 控制哪些格点进入 GW 计算</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>.F90</code> 自由格式模块，但保留较多历史注释和旧 LMD 风格命名。</li>
+<li><code>THREADPRIVATE</code> 用于 <code>firstcall</code>、阈值和临时逻辑变量；并行运行时每个线程会单独完成首调用初始化。</li>
+<li>子域数组维度固定为 <code>ndomainsz</code>，最后一个子域用实际 <code>nd</code> 避免越界。</li>
+<li>即使某个子域 <code>kgwd=0</code>，仍会调用 <code>drag_noro</code>；下游 <code>drag_noro</code> 会先把输出增量和 stress 初始化为 0。</li>
+<li>输出 tendency 没有在本例程入口整体清零；其值完全来自各子域回填。因此每个子域循环必须覆盖对应网格点的所有层。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须先保证 <code>surfdat_h</code> 中 <code>zstd/zsig/zgam/zthe</code> 已分配并填入地形统计量；否则筛选和下游参数均无有效输入。</li>
+<li><code>calllott</code> 是本方案进入 <code>physiq</code> 的主开关；<code>calllott_nonoro</code> 控制的是另一套非地形 GW 参数化。</li>
+<li><code>oro_gwd_zstdthread</code> 默认 50.0，只影响是否把格点加入 <code>kgwd/kdx/ktest</code>，不改变地形数组本身。</li>
+<li><code>drag_noro</code> 返回的是每个物理时间步的增量，本例程除以 <code>ptimestep</code> 后才成为 <code>physiq</code> 使用的 tendency；重复实现时不要漏掉这个单位转换。</li>
+<li>1D 运行需要 <code>ndomainsz=1</code>；源码在 <code>ngrid==1</code> 且 <code>ndomainsz/=1</code> 时直接退出。</li>
+<li><code>sugwd</code> 的参数依赖首列压力构造的 <code>sigtest</code>；垂直层结构变化时，首调用初始化结果也会变化。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>calldrag_noro_mod.F90</code>、<code>drag_noro_mod.F90</code> 和 <code>modules/phymars/index.md</code> 中对 <code>noro</code> 的文字表述不完全一致；本页按源码注释和 <code>physiq</code> 调用段落将其记录为地形 GW / subgrid topography drag。</li>
+<li><code>drag_noro_mod.F90</code> 中若未来取消 <code>ptimestep*pdudt</code> 的乘法，本例程行 173-175 的除法也需要同步复核；当前源码注释已提示这两个动作成对存在。</li>
+<li>当 <code>zstdthread</code> 设置过高导致 <code>kgwd=0</code> 时，下游 <code>ORODRAG</code> 是否完全跳过所有点由 <code>drag_noro</code>/<code>ORODRAG</code> 的 <code>ktest</code> 逻辑决定；本页只确认 <code>drag_noro</code> 初始化输出为 0。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../architecture/config-system.html">config-system</a>：记录 <code>calllott</code> / <code>calllott_nonoro</code> 等物理开关。</li>
+<li><a href="../../architecture/testphys1d-config.html">testphys1d-config</a>：记录 1D 中重力波开关的复现风险。</li>
+<li><a href="../../architecture/xios-config.html">xios-config</a>：记录非地形 GW 诊断字段；与本文件的地形 GW tendency 不同。</li>
+<li><a href="drag_noro_mod.html">drag_noro_mod</a>：下游包装层，翻转垂直层序并调用 <code>ORODRAG</code>。</li>
+<li><a href="orodrag_mod.html">orodrag_mod</a>：地形 GW 拖曳核心，计算 stress profile 到风温 tendency 的转换。</li>
+<li><a href="sugwd.html">sugwd</a>：初始化 <code>yoegwd_h</code> 中的地形 GW 调参常量和安全阈值。</li>
+<li><a href="surfdat_h.html">surfdat_h</a>：保存 <code>zstd/zsig/zgam/zthe</code> 等地形统计数组。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

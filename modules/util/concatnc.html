@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>concatnc - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/concatnc.md</span>
+    </nav>
+    <article class="content">
+<h1 id="concatncf90">concatnc.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util\concatnc.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>util</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>concatnc.F90</code> 是 LMD Mars GCM 输出的 NetCDF 时间拼接工具。它读取多个 <code>diagfi.nc</code>、<code>concat.nc</code>、<code>stats.nc</code> 类文件，把用户选择的时间相关变量沿输出 <code>Time</code> unlimited 维追加到固定输出文件 <code>concat.nc</code>，并复制首个输入文件中的经纬度、高度、垂直坐标、网格面积和地表位势等辅助变量。</p>
+<p>本文件是独立命令行 <code>program concatnc</code>，不是 GCM 运行时模块。程序通过 stdin 交互式读取输入文件列表、起始 sol 策略、输出时间轴类型和变量列表；典型用法是 <code>concatnc.e &lt; concatnc.def</code>。它通常位于 util 后处理链第一步，后续结果可交给 <a href="zrecast.html">zrecast</a>、<a href="localtime.html">localtime.F90</a>、<a href="lslin.html">lslin.F90</a> 或 <a href="extract.html">extract.F90</a>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>concatnc</code></td>
+<td>program</td>
+<td>1</td>
+<td>主程序：读取输入文件和变量选择，创建 <code>concat.nc</code>，沿时间轴追加 1D/3D/4D 变量。</td>
+</tr>
+<tr>
+<td><code>initiate</code></td>
+<td>subroutine</td>
+<td>729</td>
+<td>创建输出 NetCDF，定义 latitude/longitude/altitude/Time/GCM_layers 维度并写坐标变量。</td>
+</tr>
+<tr>
+<td><code>init2</code></td>
+<td>subroutine</td>
+<td>885</td>
+<td>从首个输入文件复制 <code>aps/bps</code>、<code>ap/bp</code>、<code>sigma</code>、<code>aire/area</code>、<code>phisinit/phisfi</code> 等静态辅助变量。</td>
+</tr>
+<tr>
+<td><code>def_var</code></td>
+<td>subroutine</td>
+<td>1234</td>
+<td>在打开的 NetCDF 中定义 float 变量并写 <code>long_name</code>、<code>units</code> 属性。</td>
+</tr>
+<tr>
+<td><code>change_time_axis</code></td>
+<td>subroutine</td>
+<td>1283</td>
+<td>将输出 <code>Time</code> 从 sol 转为 Ls；<code>adls</code> 模式下新增 <code>Ls</code> 一维变量。</td>
+</tr>
+<tr>
+<td><code>sol2ls</code></td>
+<td>subroutine</td>
+<td>1385</td>
+<td>用火星轨道近似和 Newton 迭代把 sol 转成太阳经度 Ls。</td>
+</tr>
+<tr>
+<td><code>missing_value</code></td>
+<td>subroutine</td>
+<td>1478</td>
+<td>将输入变量的 <code>valid_range</code> 和 <code>missing_value</code> 属性复制到输出变量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use/include</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>include "netcdf.inc"</code></td>
+<td>主程序和所有内部例程使用旧式 NetCDF Fortran <code>NF_*</code> 接口。</td>
+</tr>
+</tbody>
+</table>
+<p>无 LMDZ 物理模块依赖。程序只操作 NetCDF 文件和 stdin/stdout。</p>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NF_OPEN</code> / <code>NF_CREATE</code> / <code>NF_CLOSE</code></td>
+<td>NetCDF 库</td>
+<td>打开输入文件，创建 <code>concat.nc</code>，关闭文件。</td>
+</tr>
+<tr>
+<td><code>NF_INQ_DIMID</code> / <code>NF_INQ_VARID</code> / <code>NF_INQ_DIMLEN</code></td>
+<td>NetCDF 库</td>
+<td>查找 latitude/longitude/altitude/Time/controle 等维度和变量。</td>
+</tr>
+<tr>
+<td><code>NF_GET_VAR_REAL</code> / <code>NF_PUT_VARA_REAL</code></td>
+<td>NetCDF 库</td>
+<td>读取整块输入变量，并按时间片写入输出变量。</td>
+</tr>
+<tr>
+<td><code>initiate</code></td>
+<td>本文件</td>
+<td>首个输入文件确定输出坐标和维度后创建输出文件。</td>
+</tr>
+<tr>
+<td><code>init2</code></td>
+<td>本文件</td>
+<td>首个输入文件复制垂直坐标、面积和地形辅助量。</td>
+</tr>
+<tr>
+<td><code>def_var</code></td>
+<td>本文件</td>
+<td>定义输出变量及属性。</td>
+</tr>
+<tr>
+<td><code>missing_value</code></td>
+<td>本文件</td>
+<td>复制缺测和值域属性。</td>
+</tr>
+<tr>
+<td><code>change_time_axis</code> / <code>sol2ls</code></td>
+<td>本文件</td>
+<td>在 <code>ls</code> 或 <code>adls</code> 输出模式下转换或新增 Ls 轴。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入文件列表</td>
+<td>stdin</td>
+<td>文件名列表，空行结束</td>
+<td>-</td>
+<td>要拼接的 <code>diagfi</code>/<code>concat</code>/<code>stats</code> 类 NetCDF 文件。</td>
+</tr>
+<tr>
+<td>起始时间</td>
+<td>stdin</td>
+<td>数值或非数值输入</td>
+<td>sol</td>
+<td>数值输入时用于设置输出起始 sol；非数值输入时保留第一文件的季节/起点逻辑。源码变量名 <code>firstsol</code> 的注释与提示文字有歧义，见待确认。</td>
+</tr>
+<tr>
+<td><code>axis</code></td>
+<td>stdin</td>
+<td><code>sol</code> / <code>ls</code> / <code>adls</code></td>
+<td>-</td>
+<td>输出时间轴类型：sol、Ls，或保留 sol 并额外写 Ls。</td>
+</tr>
+<tr>
+<td>变量列表</td>
+<td>stdin</td>
+<td><code>all</code> 或逐行变量名，空行结束</td>
+<td>-</td>
+<td>要拼接的时间相关变量；坐标/静态变量由 <code>notconcat</code> 排除。</td>
+</tr>
+<tr>
+<td><code>latitude</code>/<code>lat</code></td>
+<td>输入 NetCDF</td>
+<td>1D</td>
+<td>degrees_north</td>
+<td>纬度坐标；各输入文件长度必须一致。</td>
+</tr>
+<tr>
+<td><code>longitude</code>/<code>lon</code></td>
+<td>输入 NetCDF</td>
+<td>1D</td>
+<td>degrees_east</td>
+<td>经度坐标；各输入文件长度必须一致。</td>
+</tr>
+<tr>
+<td><code>altitude</code></td>
+<td>输入 NetCDF</td>
+<td>1D</td>
+<td>随文件</td>
+<td>垂直坐标；各输入文件长度必须一致，属性复制到输出。</td>
+</tr>
+<tr>
+<td><code>Time</code>/<code>time_counter</code></td>
+<td>输入 NetCDF</td>
+<td>1D</td>
+<td>sol 或文件约定</td>
+<td>拼接维；输出 <code>Time</code> 为 unlimited。</td>
+</tr>
+<tr>
+<td><code>controle</code></td>
+<td>输入 NetCDF</td>
+<td><code>index</code> 或 <code>controle_axe</code> 维</td>
+<td>混合</td>
+<td>可选；存在时用 <code>ctl(4)</code> 和 <code>ctl(27)</code> 计算输出 sol，并在输出中写入重置后的 <code>controle</code>。</td>
+</tr>
+<tr>
+<td><code>aps/bps</code>、<code>ap/bp</code>、<code>sigma</code>、<code>aire/area</code>、<code>phisinit/phisfi</code></td>
+<td>输入 NetCDF</td>
+<td>静态坐标/辅助量</td>
+<td>随变量</td>
+<td>首个输入文件复制到输出。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>concat.nc</code></td>
+<td>磁盘</td>
+<td>NetCDF</td>
+<td>-</td>
+<td>固定输出文件名，<code>NF_CLOBBER</code> 覆盖已有文件。</td>
+</tr>
+<tr>
+<td><code>Time</code></td>
+<td><code>concat.nc</code></td>
+<td>unlimited 1D</td>
+<td>days 或 degrees</td>
+<td>追加后的时间轴；<code>ls</code> 模式最终写成 Ls，<code>sol/adls</code> 保持 sol。</td>
+</tr>
+<tr>
+<td><code>Ls</code></td>
+<td><code>concat.nc</code></td>
+<td>unlimited 1D</td>
+<td>degrees</td>
+<td>仅 <code>adls</code> 模式新增；源码通过 <code>change_time_axis</code> 写入。</td>
+</tr>
+<tr>
+<td>用户选择变量</td>
+<td><code>concat.nc</code></td>
+<td>1D(Time)、3D(lon,lat,Time) 或 4D(lon,lat,alt,Time)</td>
+<td>随变量</td>
+<td>从每个输入文件整块读取并按 <code>reptime</code> 追加。</td>
+</tr>
+<tr>
+<td>坐标和静态辅助变量</td>
+<td><code>concat.nc</code></td>
+<td>1D/2D</td>
+<td>随变量</td>
+<td>latitude、longitude、altitude、controle、aps/bps、ap/bp 或 sigma、aire、phisinit 等。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>固定输出文件名</strong>：<code>filename="concat.nc"</code>，<code>initiate</code> 用 <code>NF_CLOBBER</code> 创建，当前目录中同名文件会被覆盖。</li>
+<li><strong>stdin 交互</strong>：输入文件列表、时间策略、<code>axis</code> 和变量列表都通过 <code>read(*,...)</code> 获取；<code>.def</code> 文件必须严格匹配读取顺序。</li>
+<li><strong>stdout 进度与错误提示</strong>：程序打印文件打开、时间轴、变量名、Sol 和 NetCDF 错误。</li>
+<li><strong>硬停止</strong>：缺少输入文件、必要坐标、Time 维、请求变量或 NetCDF 写入失败时直接 <code>stop</code>。</li>
+<li><strong>输出时间状态</strong>：<code>reptime</code> 记录已写入时间长度；<code>previous_last_output_time</code> 用来处理跨年或文件时间倒退。</li>
+<li><strong>无线程安全要求</strong>：本程序为单进程命令行工具，内部没有 SAVE 缓存或并行状态。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>读取任务参数</strong>：stdin 读入多个输入文件名；读取起始 sol 策略；打开第一文件，读取变量总数；读取 <code>axis</code>，仅接受 <code>sol</code>、<code>ls</code>、<code>adls</code>。</li>
+<li><strong>筛选候选变量</strong>：<code>notconcat(1:24)</code> 排除坐标、控制和静态辅助量，包括 <code>Time</code>、<code>controle</code>、<code>latitude/longitude/altitude</code>、<code>aps/bps</code>、<code>ap/bp</code>、<code>aire/area</code>、<code>phisinit/phisfi</code> 和 XIOS 时间/边界变量。用户可输入 <code>all</code> 或逐项变量名。</li>
+<li><strong>逐输入文件循环</strong>：
+<ul>
+<li>打开文件，读取 <code>latitude/lat</code>、<code>longitude/lon</code>、<code>altitude</code>、可选 <code>GCM_layers</code>。</li>
+<li>查找 <code>index</code> 或 <code>controle_axe</code>，可用时读取 <code>controle</code> 并取 <code>ctlsol=ctl(4)</code>。</li>
+<li>查找 <code>Time</code> 或 <code>time_counter</code> 并读取时间数组。</li>
+</ul></li>
+<li><strong>首个文件初始化输出</strong>：
+<ul>
+<li>保存经纬高和 <code>controle</code> 长度，用于后续文件兼容性检查。</li>
+<li>计算 <code>starttimeoffset</code> 和 <code>previous_last_output_time</code>；有 <code>controle</code> 时还把输出 <code>ctl(4)</code>、<code>ctl(27)</code> 置零。</li>
+<li>调 <code>initiate</code> 定义输出维度和坐标；调 <code>init2</code> 复制垂直坐标与静态辅助量。</li>
+</ul></li>
+<li><strong>后续文件兼容性检查</strong>：纬度、经度、高度和 <code>controle</code> 长度必须与首文件一致，否则停止。</li>
+<li><strong>追加 Time</strong>：对当前文件每个时间样本计算 <code>output_time</code>。有 <code>controle</code> 时使用 <code>time(rep)+ctlsol-starttimeoffset</code>，若小于上一输出时间则加 <code>year_day=669</code> 直到连续；无 <code>controle</code> 时按当前文件时间间隔顺推。</li>
+<li><strong>追加变量</strong>：对每个用户变量查找变量 ID，只接受 1D、3D、4D；按维度构造 <code>dim/corner/edges</code>，首文件定义输出变量并复制 <code>long_name/title</code> 与 <code>units</code>，随后用 <code>NF_PUT_VARA_REAL</code> 追加数据块。</li>
+<li><strong>复制缺测属性</strong>：若输入变量有 <code>missing_value</code>，调用 <code>missing_value</code> 复制 <code>valid_range</code> 和 <code>missing_value</code> 属性。</li>
+<li><strong>后处理时间轴</strong>：所有文件处理后，如果 <code>axis=="ls"</code> 或 <code>axis=="adls"</code>，调用 <code>change_time_axis</code>。<code>sol2ls</code> 对每个 sol 做 Ls 转换，并修正相邻 Ls 跨 0/360 度导致的大跳变。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>program concatnc:
+  read input file list until blank
+  read optional startsol; read axis in {sol, ls, adls}
+  open first file; list variables except notconcat
+  read variable selection: all or names
+  filename = &quot;concat.nc&quot;; reptime = 0
+
+  for each input file:
+    open file if not first
+    read lat/lon/alt, optional GCM_layers
+    read optional controle from index/controle_axe
+    read Time or time_counter
+
+    if first file:
+      store reference dimension lengths
+      compute starttimeoffset and previous_last_output_time
+      initiate(concat.nc, coordinates, controle, axis)
+      init2(copy vertical coordinate, area, phisinit)
+    else:
+      require lat/lon/alt/controle lengths match first file
+
+    for rep in current file Time:
+      output_time = controle-aware sol, else sequential time
+      while output_time &lt; previous_last_output_time:
+        output_time += 669
+      append output_time at Time(reptime+rep)
+
+    for each selected variable:
+      require ndim in {1,3,4}
+      build output dimensions and write corner/edges
+      if first file: define output variable and attributes
+      read full input variable into var3d
+      append var3d block to output
+      copy missing_value/valid_range if present
+
+    reptime += timelen
+    close input file
+
+  if axis is ls or adls:
+    change_time_axis(output)
+  close output file</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>util 后处理链</td>
+<td>常作为第一步把多段 GCM 输出合成单个 <code>concat.nc</code>，再交给 <a href="zrecast.html">zrecast</a>、<a href="localtime.html">localtime.F90</a>、<a href="lslin.html">lslin.F90</a> 或 <a href="extract.html">extract.F90</a>。</td>
+</tr>
+<tr>
+<td>GCM 输出整理</td>
+<td>保留经纬高、垂直坐标、面积、地形和缺测属性，保证后续 NetCDF 工具仍能识别坐标契约。</td>
+</tr>
+<tr>
+<td>时间轴标准化</td>
+<td>支持 sol、Ls 和 sol+Ls (<code>adls</code>) 三种输出策略，并处理跨火星年拼接时的时间倒退。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>旧式 NetCDF API</strong>：全文件使用 <code>include "netcdf.inc"</code> 和 <code>NF_*</code> 接口。</li>
+<li><strong>固定静态变量排除表</strong>：<code>notconcat(1:24)</code> 既跳过经典 diagfi 坐标，也跳过 XIOS 的 <code>lat/lon/time_counter/time_instant_bounds/area/phisfi</code>。</li>
+<li><strong>维度只支持 1D/3D/4D</strong>：非这三类变量会被跳过，不能拼接 2D 静态变量；静态量由 <code>init2</code> 单独复制。</li>
+<li><strong><code>GCM_layers</code> 与 <code>altitude</code> 分离</strong>：若输入来自 <code>zrecast</code>，<code>GCM_layers</code> 可不同于 <code>altlen</code>，用于复制原始 hybrid/sigma 层。</li>
+<li><strong><code>adls</code> 模式意图</strong>：保留 <code>Time</code> 为 sol，并额外写 <code>Ls</code> 变量；待确认处见下。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>.def</code> 输入顺序必须是：文件名列表（空行结束）、起始 sol 策略、<code>axis</code>、变量列表（<code>all</code> 或逐行变量名，空行结束）。</li>
+<li>所有输入文件的 latitude、longitude、altitude 长度必须一致；<code>controle</code> 有无和长度也必须一致。</li>
+<li>若输入含 <code>controle</code>，输出 <code>controle(4)</code> 和 <code>controle(27)</code> 会被置零，输出 <code>Time</code> 由 <code>time + ctl(4) - starttimeoffset</code> 计算。</li>
+<li>若输入没有 <code>controle</code>，程序使用第一个文件的时间间隔顺推，依赖 <code>time(2)-time(1)</code>；单时间样本文件可能触碰数组边界，见待确认。</li>
+<li>输出文件固定为当前目录 <code>concat.nc</code>，批处理前应移动或删除旧文件以避免覆盖。</li>
+<li><code>ls</code>/<code>adls</code> 模式下 Ls 换算使用 <code>year_day=669</code>、<code>peri_day=485.0</code>、<code>timeperi=1.9082314</code>、<code>e_elips=0.093358</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>源码第 167-172 行的 <code>firstsol</code> 逻辑与注释/提示文字相反：<code>ierr.eq.0</code> 表示读到数值，但打印“使用第一输入文件起始日”；实际公式按数值 <code>startsol</code> 参与 <code>starttimeoffset</code>，页面按公式描述而未判断原意。</li>
+<li><code>change_time_axis</code> 在 <code>adls</code> 分支调用 <code>def_var(nout,...)</code> 和 <code>timedimout</code>，但子程序参数只有 <code>nid,ierr,axis</code>；这些名称来自主程序宿主作用域的内部过程 host association。此写法可读性差，移植时需确认编译器接受。</li>
+<li><code>init2</code> 中 <code>phisinit</code> 查找失败后尝试 <code>phisfi</code>，若两者都失败，源码仍在失败分支后设置 <code>phis=.true.</code>；这可能导致未初始化 <code>phisinit</code> 被写出。需用实际文件和编译器行为确认。</li>
+<li>无 <code>controle</code> 分支使用 <code>time(2)-time(1)</code> 推算首个文件前一时间；当 <code>timelen=1</code> 时是否越界取决于运行时检查设置。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li><code>NF_CLOBBER</code> 会覆盖已有 <code>concat.nc</code>。</li>
+<li><code>stop</code> 式错误处理会让批处理链在缺坐标、缺变量或维度不匹配时直接终止。</li>
+<li>请求变量必须存在于每个输入文件；任一文件缺变量会停止，不能自动跳过单个文件。</li>
+<li><code>all</code> 模式依赖第一输入文件变量清单，后续文件变量集合不同会失败。</li>
+<li><code>ls</code> 模式把 <code>Time</code> 内容改为 Ls，部分工具若期待 sol 轴应使用 <code>adls</code> 或保持 <code>sol</code>。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">util/index.md</a> - util 后处理工具总览。</li>
+<li><a href="zrecast.html">zrecast.md</a> - 常接在 <code>concatnc</code> 后，把 hybrid/sigma 垂直坐标转换成物理坐标。</li>
+<li><a href="simu_MCS.html">simu_MCS.md</a> - 下游观测比较工具，可读取 <code>concat.nc</code> 类 GCM 输出。</li>
+<li><a href="localtime.html">localtime.F90</a> - 本地时重排工具。</li>
+<li><a href="lslin.html">lslin.F90</a> - Ls 线性化重采样工具。</li>
+<li><a href="extract.html">extract.F90</a> - 点值/廓线 ASCII 抽取工具。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

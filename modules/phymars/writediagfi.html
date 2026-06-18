@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>writediagfi - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/writediagfi.md</span>
+    </nav>
+    <article class="content">
+<h1 id="writediagfif">writediagfi.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\writediagfi.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>writediagfi.F</code> 定义传统物理诊断文件 <code>diagfi.nc</code> 的逐字段写入后端。它可以被物理包任意例程多次调用；第一次通过 <code>diagfi.def</code> 可选筛选变量，第一次有效变量调用时创建 <code>diagfi.nc</code>、定义 <code>Time</code> 并调用 <code>iniwrite</code> 写经纬度、垂直层、地表位势、网格面积等固定头信息。后续调用按 <code>steps_per_sol/outputs_per_sol</code> 派生的采样间隔追加时间和变量。</p>
+<p>本例程处理四类维度码：<code>dim=3</code> 写经纬度-高度-时间场，<code>dim=2</code> 写地表经纬度-时间场，<code>dim=1</code> 写 1D column 的高度-时间剖面，<code>dim=0</code> 写时间标量。并行 GCM 路径先 <code>gather</code> 到全局物理网格并用 <code>Grid1Dto2D_glo</code> 重排，串行路径手工把物理网格复制到带冗余经度点的 <code>(nbp_lon+1,nbp_lat)</code> 网格。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>writediagfi</code></td>
+<td>subroutine</td>
+<td>1</td>
+<td>向 <code>diagfi.nc</code> 创建并追加写入诊断变量。</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td>saved logical</td>
+<td>105</td>
+<td>首次进入时读取 <code>diagfi.def</code> 并计算采样控制；其 <code>THREADPRIVATE</code> 声明在第 106 行。</td>
+</tr>
+<tr>
+<td><code>firstnom/prevnom/lastnom</code></td>
+<td>saved character</td>
+<td>83-85</td>
+<td>识别每个物理时刻的第一个和最后一个诊断变量名；对应 <code>THREADPRIVATE</code> 声明在第 86 行。</td>
+</tr>
+<tr>
+<td><code>zitau/ntime/nid/date</code></td>
+<td>saved state</td>
+<td>79-101</td>
+<td>管理输出步计数、NetCDF 时间索引、文件 id 和输出日期。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>phisfi</code></td>
+<td>初始化文件头时写地表位势。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>cell_area</code></td>
+<td>初始化文件头时写网格面积。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>steps_per_sol</code>, <code>outputs_per_sol</code>, <code>day_end</code>, <code>day_ini</code>, <code>slow_diagfi</code></td>
+<td>计算采样间隔、最后输出步和 1D 文件打开/关闭策略。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_parallel</code>, <code>is_mpi_root</code>, <code>is_master</code>, <code>gather</code></td>
+<td>并行收集和只允许 master/root 写 NetCDF。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>klon_glo</code>, <code>Grid1Dto2D_glo</code>, <code>nbp_lon</code>, <code>nbp_lat</code>, <code>nbp_lev</code>, <code>grid_type</code>, <code>unstructured</code></td>
+<td>网格维度、物理到经纬网格重排和 unstructured 网格早退。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iniwrite</code></td>
+<td><code>iniwrite.F</code></td>
+<td>首次有效变量调用</td>
+<td>写 <code>diagfi.nc</code> 固定头信息和坐标。</td>
+</tr>
+<tr>
+<td><code>def_var</code></td>
+<td><code>def_var.F90</code></td>
+<td>新变量首次写入</td>
+<td>在 NetCDF define mode 中创建变量并写 <code>title/units</code> 属性。</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部错误处理</td>
+<td>多处错误分支</td>
+<td>变量名过长、<code>diagfi.def</code> 超限、变量重复、写入失败或并行 <code>dim=1</code> 时中止。</td>
+</tr>
+<tr>
+<td>NetCDF <code>NF_*</code></td>
+<td>NetCDF F77 接口</td>
+<td>多处</td>
+<td>创建/打开/关闭文件，定义维度变量，追加时间和写变量。</td>
+</tr>
+<tr>
+<td><code>gather</code>, <code>Grid1Dto2D_glo</code></td>
+<td>并行/网格模块</td>
+<td>并行 <code>dim=2/3</code> 路径</td>
+<td>收集物理网格并重排到全局经纬网格。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>当前物理网格点数。</td>
+</tr>
+<tr>
+<td><code>nom</code>, <code>titre</code>, <code>unite</code></td>
+<td>调用方</td>
+<td>character</td>
+<td>-</td>
+<td>变量名、说明和单位属性。</td>
+</tr>
+<tr>
+<td><code>dim</code></td>
+<td>调用方</td>
+<td>integer 0/1/2/3</td>
+<td>-</td>
+<td>变量维度码。</td>
+</tr>
+<tr>
+<td><code>px(ngrid,nbp_lev)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>variable-dependent</td>
+<td>待写诊断场；低维变量也通过该二维实参承载。</td>
+</tr>
+<tr>
+<td><code>diagfi.def</code></td>
+<td>运行目录可选文件</td>
+<td>text file</td>
+<td>-</td>
+<td>若存在，仅输出列在其中的变量名。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>diagfi.nc</code></td>
+<td>当前运行目录</td>
+<td>NetCDF file</td>
+<td>-</td>
+<td>传统物理诊断文件。</td>
+</tr>
+<tr>
+<td><code>Time</code></td>
+<td><code>diagfi.nc</code></td>
+<td>unlimited coordinate</td>
+<td>days</td>
+<td>从 <code>zitau</code> 和 <code>steps_per_sol</code> 派生的输出时间。</td>
+</tr>
+<tr>
+<td><code>nom</code> 变量</td>
+<td><code>diagfi.nc</code></td>
+<td>0D/1D/2D/3D</td>
+<td><code>unite</code></td>
+<td>由调用方指定的诊断变量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>例程使用多组 <code>SAVE</code> 且 <code>THREADPRIVATE</code> 状态：<code>firstcall</code>、<code>diagfi_def</code>、<code>nom_def</code>、<code>zitau</code>、<code>ntime</code>、<code>nid</code>、<code>firstnom/lastnom</code> 等。</li>
+<li><code>grid_type==unstructured</code> 时直接 <code>return</code>，传统 <code>diagfi</code> 不处理 unstructured 网格。</li>
+<li><code>diagfi.def</code> 只在第一次调用时由 OpenMP master 读取；变量未列入时直接返回，不参与文件创建和时间推进。</li>
+<li>3D 或 <code>slow_diagfi=.true.</code> 路径每个输出频率打开/关闭文件；1D 且 <code>slow_diagfi=.false.</code> 时第一次输出打开，最后一次输出关闭。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>首次调用读取 <code>diagfi.def</code>，并计算 <code>isample=steps_per_sol/outputs_per_sol</code> 与 <code>lastzitau=(day_end-day_ini)*steps_per_sol-1</code>。</li>
+<li>若启用 <code>diagfi.def</code> 且当前变量名不在列表中，立即返回。</li>
+<li>第一次有效变量调用时创建 <code>diagfi.nc</code>，定义 unlimited <code>Time</code>，收集 <code>phisfi/cell_area</code>，调用 <code>iniwrite</code> 写文件头。</li>
+<li>用 <code>firstnom</code> 判断是否进入新的物理时刻；若当前变量名等于 <code>firstnom</code>，递增 <code>zitau</code>。</li>
+<li>仅当 <code>MOD(zitau+1,isample)==0</code> 时写出：master 打开文件，首变量追加 <code>Time</code>。</li>
+<li>根据 <code>dim</code> 创建变量（若尚不存在）并写入 <code>dx3/dx2/dx1/dx0</code>。</li>
+<li>根据 1D/3D 和 <code>slow_diagfi</code> 策略关闭文件。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>writediagfi(ngrid, nom, titre, unite, dim, px):
+  if unstructured grid: return
+  on first call:
+    read optional diagfi.def
+    compute isample and lastzitau
+  if diagfi.def exists and nom not listed: return
+  on first valid variable:
+    create diagfi.nc
+    define Time
+    write fixed header with iniwrite
+  if nom == firstnom:
+    zitau += 1
+  if output step:
+    open diagfi.nc
+    if nom == firstnom:
+      ntime += 1
+      write Time
+    recast/gather px according to dim
+    create variable with def_var if needed
+    write variable at ntime
+    close file according to slow_diagfi and 1D/3D mode</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>传统诊断输出</td>
+<td><code>write_output_mod</code> 或物理例程直接调用本例程写 <code>diagfi.nc</code>。</td>
+</tr>
+<tr>
+<td>文件初始化</td>
+<td>首次有效变量调用时调用 <code>iniwrite</code> 写固定坐标和控制字段。</td>
+</tr>
+<tr>
+<td>并行输出</td>
+<td>并行构建中通过 <code>gather</code> 和 <code>Grid1Dto2D_glo</code> 先集中到 root/master 再写 NetCDF。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>变量创建是懒加载：第一次写某个变量时才用 <code>def_var</code> 定义。</li>
+<li><code>firstnom</code> 决定时间步推进，调用顺序必须在每个物理时刻保持一致。</li>
+<li><code>dim=1</code> 在并行模式下直接中止，当前只支持 1D column 非并行写出。</li>
+<li>所有实际 NetCDF 写入都使用 <code>NF_PUT_VARA_REAL</code>，符合源码注释中“enforce outputs to be real*4”的修改历史。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>steps_per_sol/outputs_per_sol</code> 必须是合理整数采样关系；否则输出间隔会按整数除法结果运行。</li>
+<li>如果存在 <code>diagfi.def</code>，未列出的变量不会触发文件创建、变量定义或时间推进。</li>
+<li><code>firstnom</code> 与变量调用顺序绑定，新增诊断变量时不要改变每个物理时刻的首变量顺序。</li>
+<li>1D <code>slow_diagfi=.false.</code> 会长时间保持文件打开，异常退出时可能留下未关闭文件。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>diagfi_def/n_nom_def/nom_def</code> 的 <code>THREADPRIVATE</code> 声明在源码中被注释在同一行附近但未完全展开；OpenMP 下这些筛选状态是否所有线程一致需结合编译预处理结果确认。</li>
+<li><code>isample=steps_per_sol/outputs_per_sol</code> 未在本例程内检查整除性；上游配置是否总能保证需结合 <code>conf_phys</code> 页面确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="write_output_mod.html">write_output_mod</a></li>
+<li><a href="iniwrite.html">iniwrite</a></li>
+<li><a href="def_var.html">def_var</a></li>
+<li><a href="writediagsoil.html">writediagsoil</a></li>
+<li><a href="time_phylmdz_mod.html">time_phylmdz_mod</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

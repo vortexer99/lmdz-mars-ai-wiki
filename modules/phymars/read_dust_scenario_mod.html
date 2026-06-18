@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>read_dust_scenario_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/read_dust_scenario_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="read_dust_scenario_modf90">read_dust_scenario_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\read_dust_scenario_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>read_dust_scenario_mod.F90</code> 定义尘埃场景读取模块 <code>read_dust_scenario_mod</code>（第 1 行）和例程 <code>read_dust_scenario</code>（第 7 行）。它在第一次调用时从 <code>datadir</code> 下打开由 <code>iaervar</code> 选择的 <code>dust_*.nc</code> NetCDF 场景文件，缓存经纬度、时间轴和三维柱光学厚度场；之后每次调用按当前 GCM 网格经纬度和 <code>zday</code> 做时间线性插值、经纬双线性插值，返回参考气压 <code>odpref</code> 处的可见光尘埃柱厚度 <code>tau_pref_scenario(ngrid)</code>。</p>
+<p>该例程是尘埃观测场景约束的底层读表器：<code>compute_dtau_mod</code> 用它生成地表注入目标厚度，<code>dust_rad_adjust_mod</code> 用它生成仅辐射缩放目标厚度。它本身不修改 tracer 或辐射场，只把外部尘埃场景文件转换为当前物理网格上的可见光柱厚度。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read_dust_scenario_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装尘埃场景 NetCDF 读取与插值例程</td>
+</tr>
+<tr>
+<td><code>read_dust_scenario</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>读取/缓存尘埃场景，按时间、经纬度插值输出 <code>tau_pref_scenario</code></td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td>saved local logical</td>
+<td>52</td>
+<td>每线程首次调用时读取文件、分配并缓存场景数组</td>
+</tr>
+<tr>
+<td><code>lat/lon/time</code></td>
+<td>saved allocatable arrays</td>
+<td>49</td>
+<td>场景文件中的纬度、经度和时间坐标</td>
+</tr>
+<tr>
+<td><code>tautes</code></td>
+<td>saved allocatable array</td>
+<td>50</td>
+<td>场景文件中的三维尘埃柱光学厚度，维度为 <code>(lonlen,latlen,timelen)</code></td>
+</tr>
+<tr>
+<td><code>filename</code></td>
+<td>saved character</td>
+<td>52</td>
+<td>由 <code>iaervar</code> 派生的尘埃场景文件名</td>
+</tr>
+<tr>
+<td><code>IRscenario</code></td>
+<td>saved logical</td>
+<td>53</td>
+<td>标记输入场景是否为红外吸收厚度，需要用 <code>IRtoVIScoef</code> 转可见光消光厚度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>netcdf</code></td>
+<td>-</td>
+<td><code>nf90_open/inq_dimid/inquire_dimension/inq_varid/get_var/close/strerror</code> 读取 NetCDF 场景文件</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>latitude, longitude</code></td>
+<td>读取 GCM 物理网格经纬度，源码注释标明为弧度</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>datafile_mod</code></td>
+<td><code>datadir</code></td>
+<td>拼出 <code>trim(datadir)//"/"//trim(filename)</code> 场景文件路径</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td><code>odpref, dustscaling_mode</code></td>
+<td>TES 历史文件参考气压修正；<code>dustscaling_mode==2</code> 时改写时间轴为逐 sol 整数</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>planete_h</code></td>
+<td><code>year_day</code></td>
+<td><code>dustinjection&gt;0</code> 或 <code>dustscaling_mode==2</code> 时校验场景时间长度等于火星年 sol 数</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td><code>bcast</code></td>
+<td>非 <code>MESOSCALE</code> 路径下把 master 读取的维度、数组和 <code>IRscenario</code> 广播给其他进程</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>iaervar, dustinjection, swrtype</code></td>
+<td>选择场景文件、决定是否重写时间轴、应用 Fouquart 旧短波方案修正</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nf90_open</code> / <code>nf90_close</code></td>
+<td>NetCDF</td>
+<td>第 100、216 行</td>
+<td>打开并关闭尘埃场景 NetCDF 文件</td>
+</tr>
+<tr>
+<td><code>nf90_inq_dimid</code> / <code>nf90_inquire_dimension</code></td>
+<td>NetCDF</td>
+<td>第 112-124 行</td>
+<td>定位 <code>Time/time</code>、<code>latitude</code>、<code>longitude</code> 维度并读取长度</td>
+</tr>
+<tr>
+<td><code>nf90_inq_varid</code> / <code>nf90_get_var</code></td>
+<td>NetCDF</td>
+<td>第 142-213 行</td>
+<td>读取 <code>dustop</code>、<code>cdod</code> 或 <code>cdodext</code>，以及 <code>Time</code>、<code>latitude</code>、<code>longitude</code></td>
+</tr>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td>第 129-131、221-225 行</td>
+<td>并行路径下广播维度、场景数组、坐标轴和 IR/VIS 标志</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>全局物理错误处理例程</td>
+<td>第 109、149、160、168、181、191、205、213、246、299、372、382 行</td>
+<td>文件、变量、时间长度、坐标或插值结果非法时终止运行</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>当前物理网格点数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>调用方</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>垂直层数；本例程只用来声明 <code>pplev</code> 维度</td>
+</tr>
+<tr>
+<td><code>zday</code></td>
+<td>调用方</td>
+<td>real scalar</td>
+<td>sol</td>
+<td>当前火星日；内部用 <code>mod(zday,669.)</code> 得到年内日</td>
+</tr>
+<tr>
+<td><code>pplev(ngrid,nlayer+1)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>Pa</td>
+<td>层界面气压；当前源码中仅作为接口参数，未直接参与插值</td>
+</tr>
+<tr>
+<td><code>IRtoVIScoef(ngrid)</code></td>
+<td><code>aeropacity</code>/调用链</td>
+<td>real array</td>
+<td>-</td>
+<td>红外吸收柱厚度到可见光消光柱厚度的格点换算系数</td>
+</tr>
+<tr>
+<td><code>iaervar</code></td>
+<td><code>callkeys_mod</code></td>
+<td>integer</td>
+<td>-</td>
+<td>场景文件选择键：如 4/6/7/8/24-37/124-126</td>
+</tr>
+<tr>
+<td><code>dustinjection</code></td>
+<td><code>callkeys_mod</code></td>
+<td>integer/logical-style</td>
+<td>-</td>
+<td>大于 0 时要求场景每天一张图并把时间轴重写为整数 sol</td>
+</tr>
+<tr>
+<td><code>dustscaling_mode</code></td>
+<td><code>dust_param_mod</code></td>
+<td>integer</td>
+<td>-</td>
+<td>等于 2 时同样要求逐 sol 场景时间轴</td>
+</tr>
+<tr>
+<td><code>swrtype</code></td>
+<td><code>callkeys_mod</code></td>
+<td>integer</td>
+<td>-</td>
+<td>等于 1 时应用旧 Fouquart 短波方案补偿因子</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tau_pref_scenario(ngrid)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>无量纲</td>
+<td>当前 GCM 网格上、参考气压 <code>odpref</code> 处的可见光尘埃柱光学厚度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>首次调用读取外部 NetCDF 文件；文件路径为 <code>datadir/filename</code>，<code>datadir</code> 可由 <code>callphys.def</code> 配置路径覆盖。</li>
+<li><code>firstcall</code>、<code>lat</code>、<code>lon</code>、<code>time</code>、<code>tautes</code>、<code>timelen/lonlen/latlen</code>、<code>filename</code>、<code>IRscenario</code> 都是 <code>SAVE</code> 状态，并在第 56-59 行声明为 OpenMP <code>THREADPRIVATE</code>。</li>
+<li>非 <code>MESOSCALE</code> 编译路径下，只有 <code>OMP MASTER</code> 读取 NetCDF，再通过 <code>bcast</code> 分发给其他并行进程。</li>
+<li>错误处理会写标准输出并调用 <code>abort_physic</code>，包括找不到文件、缺少变量、时间长度不等于 <code>year_day</code>、经纬索引越界、负光学厚度和插值权重越界。</li>
+<li>本例程不写 wiki、restart 或诊断文件；运行时副作用主要是读外部场景文件和填充线程私有缓存。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>首次调用选择并读取场景文件</strong>：按 <code>iaervar</code> 映射 <code>dust_tes.nc</code>、<code>dust_cold.nc</code>、<code>dust_warm.nc</code>、<code>dust_clim.nc</code>、<code>dust_MYxx.nc</code> 或 <code>dust_tes_MYxx.nc</code>（第 70-94 行），再从 <code>datadir</code> 打开文件。</li>
+<li><strong>读取维度和坐标</strong>：识别 <code>Time</code> 或 <code>time</code> 维度，读取 <code>latitude</code>、<code>longitude</code> 和时间轴长度；非 <code>MESOSCALE</code> 路径广播维度后分配缓存数组。</li>
+<li><strong>读取尘埃柱厚度变量</strong>：优先读 <code>dustop</code> 并标记为可见光场景；若没有 <code>dustop</code>，依次读 <code>cdod</code> 或 <code>cdodext</code> 并标记为红外场景。<code>cdodext</code> 会先除以 1.3 转为红外吸收厚度。</li>
+<li><strong>按需要重写时间轴</strong>：当 <code>dustinjection&gt;0</code> 或 <code>dustscaling_mode==2</code> 时，要求 <code>timelen==year_day</code>，然后把 <code>time(iloop)</code> 写成 <code>0..timelen-1</code>，保证每日一张图的场景按整数 sol 索引。</li>
+<li><strong>逐 GCM 格点找四邻点</strong>：把 <code>geometry_mod</code> 的弧度经纬度转为度，纬度改成余纬；对略小于 -180 的经度做容差修正；定位上下纬度和左右经度，跨 180 经线时用 <code>xsup=1/xinf=lonlen</code>。</li>
+<li><strong>先时间插值、再水平双线性插值</strong>：对四个邻点分别在 <code>tinf/tsup</code> 两个时间层间线性插值，跨年时把分母写成 <code>time(tsup)+(669-time(tinf))</code>；随后用 <code>dlat/dlon</code> 做双线性插值生成 <code>tau</code>。</li>
+<li><strong>单位/历史方案修正</strong>：若 <code>IRscenario</code> 为真，将 <code>tau</code> 乘 <code>IRtoVIScoef(ig)</code> 转为可见光厚度；旧 TES 文件再乘 <code>1.3*(odpref/700.)</code>，<code>swrtype==1</code> 时再乘 <code>0.825/1.3</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>realday = mod(zday, 669)
+
+if firstcall:
+    filename = select_by_iaervar(iaervar)
+    open datadir/filename
+    read lon/lat/time dimensions
+    allocate tautes(lonlen,latlen,timelen), lon, lat, time
+
+    if variable dustop exists:
+        read tautes
+        IRscenario = false
+    else if variable cdod exists:
+        read tautes
+        IRscenario = true
+    else:
+        read cdodext into tautes
+        tautes = tautes / 1.3
+        IRscenario = true
+
+    read Time, latitude, longitude
+    if dustinjection&gt;0 or dustscaling_mode==2:
+        require timelen == year_day
+        time = [0, 1, ..., timelen-1]
+    broadcast cached fields on non-MESOSCALE builds
+
+for each GCM grid point ig:
+    convert latitude/longitude from radians to degrees
+    find enclosing scenario latitudes and longitudes
+    find enclosing scenario times, with wraparound across sol 669
+    interpolate tau at four horizontal neighbours in time
+    bilinear-interpolate the four tau values in latitude/longitude
+    if IRscenario:
+        tau_pref_scenario(ig) = tau * IRtoVIScoef(ig)
+    else:
+        tau_pref_scenario(ig) = tau
+
+if filename begins with &quot;dust_tes&quot;:
+    tau_pref_scenario *= 1.3 * (odpref / 700)
+if swrtype == 1:
+    tau_pref_scenario *= 0.825 / 1.3</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>尘埃循环</td>
+<td>为 prescribed dust scenario、dust injection 和 GCM v6 dust radiative adjustment 提供按格点插值后的目标柱厚度</td>
+</tr>
+<tr>
+<td>辐射/气溶胶</td>
+<td>输出可见光尘埃柱厚度，后续用于尘埃辐射缩放或目标约束；红外场景需通过 <code>IRtoVIScoef</code> 转换</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 Fortran 90；数据读取集中在 <code>firstcall</code>，后续调用复用缓存，避免每步重复打开 NetCDF。</li>
+<li>输入场景变量名有兼容路径：<code>dustop</code> 表示可见光消光，<code>cdod</code> 表示红外吸收，<code>cdodext</code> 表示红外消光并先除以 1.3。</li>
+<li>时间插值显式处理跨年首尾连接，但年长硬编码为 <code>669.</code>，而 <code>dustinjection/dustscaling_mode==2</code> 的逐日场景校验使用 <code>year_day</code>。</li>
+<li>旧 TES 文件有两个历史修正：700 Pa 参考气压改到当前 <code>odpref</code>，以及红外吸收到红外消光的 1.3 因子。</li>
+<li><code>pplev</code> 是接口输入但在当前源码可见逻辑中未直接使用；气压缩放只在旧 TES 文件尾部通过 <code>odpref/700.</code> 处理。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>iaervar</code> 必须选到实际存在于 <code>datadir</code> 的 <code>dust_*.nc</code> 文件；错误信息提示可用 <code>callfis.def/callphys.def</code> 的 <code>datadir</code> 指向数据目录。</li>
+<li>场景文件必须至少有 <code>Time</code> 或 <code>time</code> 维度、<code>latitude</code>、<code>longitude</code>，以及 <code>dustop</code>、<code>cdod</code>、<code>cdodext</code> 之一。</li>
+<li>若启用 <code>dustinjection&gt;0</code> 或 <code>dustscaling_mode==2</code>，场景时间长度必须等于 <code>planete_h::year_day</code>，否则运行会中止。</li>
+<li><code>geometry_mod::longitude</code> 进入本例程时以弧度给出，转成东经度后按场景经度表查找；跨 180 经线有专门分支。</li>
+<li>红外场景必须提供合理的 <code>IRtoVIScoef(ngrid)</code>，否则输出的可见光柱厚度会系统性偏离。</li>
+<li><code>swrtype==1</code> 的旧 Fouquart 路径会对最终厚度乘 <code>0.825/1.3</code>，复现实验时要确认短波辐射方案。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>realday=mod(zday,669.)</code> 和跨年时间插值分母中的 <code>669</code> 是硬编码火星年长度；而逐日场景校验使用 <code>year_day</code>。如果 <code>year_day</code> 在某些配置中不是 669，需确认是否存在边界不一致风险。</li>
+<li><code>pplev(ngrid,nlayer+1)</code> 当前未在可见逻辑中使用；保留在接口中可能是为与调用方签名或历史压力缩放路径兼容。</li>
+<li><code>abort_physic</code> 在本文件中被直接调用但未显式 <code>use</code>；推断依赖工程中的全局接口或包含路径，复现编译环境时需保留原工程构建上下文。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="dust_param_mod.html">dust_param_mod</a> - 提供 <code>odpref</code>、<code>dustscaling_mode</code> 等尘埃配置状态</li>
+<li><a href="compute_dtau_mod.html">compute_dtau_mod</a> - 通过本例程读取目标厚度并转为 <code>dustliftday</code></li>
+<li><a href="dust_rad_adjust_mod.html">dust_rad_adjust_mod</a> - 通过本例程读取相邻日目标厚度并生成辐射缩放系数</li>
+<li><a href="dust_scaling_mod.html">dust_scaling_mod</a> - 在 <code>dustscaling_mode==2</code> 路径消费辐射缩放结果</li>
+<li><a href="aeropacity_mod.html">aeropacity_mod</a> - 提供调用链中的尘埃柱厚度与 IR/VIS 转换背景</li>
+<li><a href="datafile_mod.html">datafile_mod</a> - 管理 <code>datadir</code> 外部数据目录</li>
+<li><a href="planete_h.html">planete_h</a> - 提供 <code>year_day</code></li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle 主题</a></li>
+<li><a href="callkeys_mod.html">callkeys_mod.F90</a> - 提供 <code>iaervar</code>、<code>dustinjection</code>、<code>swrtype</code> 配置入口。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

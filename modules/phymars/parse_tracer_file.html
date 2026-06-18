@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>parse_tracer_file - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/parse_tracer_file.md</span>
+    </nav>
+    <article class="content">
+<h1 id="parse_tracer_filef90">parse_tracer_file.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\parse_tracer_file.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>parse_tracer_file.F90</code> 是"新格式" <code>tracer.def</code> 配置文件的解析接口模块。它封装了外部库 <code>readtracfiles_mod</code> 的调用，向 LMDZ 物理层提供三个简洁的查询子程序：获取 tracer 数量、获取 tracer 名称列表、获取 tracer 父子关系。这些子程序仅在 <code>tracer_mod</code> 的 <code>ini_tracer_mod</code> 初始化阶段被调用一次。</p>
+<p>旧格式 <code>traceur.def</code> 由对应的 <code>parse_traceur_file_mod</code>（不同文件）处理。当两个文件都不存在时，<code>ini_tracer_mod</code> 会调用 <code>abort_physic</code> 终止执行。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>parse_tracer_file_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>包裹三个 tracer.def 解析子程序的模块</td>
+</tr>
+<tr>
+<td><code>get_nq_from_tracer_file</code></td>
+<td>subroutine</td>
+<td>11</td>
+<td>从 <code>tracer.def</code> 读取 tracer 总数 <code>nq</code></td>
+</tr>
+<tr>
+<td><code>get_names_from_tracer_file</code></td>
+<td>subroutine</td>
+<td>47</td>
+<td>从已解析的 <code>tracers</code> 数组提取所有 tracer 名称</td>
+</tr>
+<tr>
+<td><code>get_children_from_tracer_file</code></td>
+<td>subroutine</td>
+<td>69</td>
+<td>统计每个 tracer 的子 tracer 数量（parent 字段匹配）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>strings_mod</code></td>
+<td><code>maxlen</code>（别名 <code>strings_mod_max_len</code>）</td>
+<td>字符串最大长度常量，用于声明 <code>type_trac</code> 和 <code>parent</code> 数组</td>
+<td>外部库，不在本源码树中</td>
+</tr>
+<tr>
+<td><code>readtracfiles_mod</code></td>
+<td><code>trac_type</code>（派生类型）、<code>tracers</code>（全局对象）、<code>readTracersFiles</code>（函数）、<code>getKey</code>（函数）</td>
+<td>解析 <code>tracer.def</code> 文件并填充 <code>tracers</code> 数组；<code>getKey</code> 提取 tracer 属性</td>
+<td>外部库，不在本源码树中</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code>, <code>bcast</code></td>
+<td>MPI 并行：仅主进程解析文件，再广播结果</td>
+<td></td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>grid_type</code>, <code>regular_lonlat</code></td>
+<td>判断网格类型以选择 <code>tracer.def</code> 的解析段（<code>lmdz</code> vs <code>dynamico</code>）</td>
+<td>仅 <code>get_nq_from_tracer_file</code> 使用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>readTracersFiles</code></td>
+<td><code>readtracfiles_mod</code>（外部库）</td>
+<td>行 34</td>
+<td>解析 <code>tracer.def</code> 文件，填充全局 <code>tracers</code> 数组</td>
+</tr>
+<tr>
+<td><code>getKey</code></td>
+<td><code>readtracfiles_mod</code>（外部库）</td>
+<td>行 90</td>
+<td>从已解析的 tracer 属性中提取指定 key（如 <code>parent</code>）的值</td>
+</tr>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_para</code></td>
+<td>行 42, 63–64, 112–113</td>
+<td>广播整数/字符串到所有 MPI 进程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<h3 id="get_nq_from_tracer_file">get_nq_from_tracer_file</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>（无显式输入）</td>
+<td>内部：<code>grid_type</code> module 变量</td>
+<td>—</td>
+<td>—</td>
+<td>决定解析段为 <code>"lmdz"</code> 或 <code>"dynamico"</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="get_names_from_tracer_file">get_names_from_tracer_file</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nq</code></td>
+<td>调用方（来自 <code>get_nq_from_tracer_file</code>）</td>
+<td>integer</td>
+<td>—</td>
+<td>tracer 数量</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get_children_from_tracer_file">get_children_from_tracer_file</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nq</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>tracer 数量</td>
+</tr>
+<tr>
+<td><code>noms</code></td>
+<td>调用方（来自 <code>get_names_from_tracer_file</code>）</td>
+<td>character(len=*)(nq)</td>
+<td>—</td>
+<td>tracer 名称数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<h3 id="get_nq_from_tracer_file-1">get_nq_from_tracer_file</h3>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nq</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>tracer 总数（= <code>size(tracers)</code>）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get_names_from_tracer_file-1">get_names_from_tracer_file</h3>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>noms</code></td>
+<td>调用方</td>
+<td>character(len=*)(nq)</td>
+<td>—</td>
+<td>所有 tracer 名称（从 <code>tracers(:)%name</code> 复制）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get_children_from_tracer_file-1">get_children_from_tracer_file</h3>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nqparents</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>parent 为 <code>"air"</code> 的 tracer 数量（即顶层 tracer 数）</td>
+</tr>
+<tr>
+<td><code>nqchildren</code></td>
+<td>调用方</td>
+<td>integer(nq)</td>
+<td>—</td>
+<td>每个 tracer 拥有的子 tracer 数量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>读取外部全局对象</strong> <code>tracers</code>（<code>readtracfiles_mod</code> 中的 module 变量）：<code>readTracersFiles</code> 填充该对象后，三个子程序从中提取数据。</li>
+<li><strong><code>readTracersFiles</code> 非线程安全</strong>：代码注释明确说明（行 15–16），因此仅由 <code>is_master</code> 调用，再通过 <code>bcast</code> 广播结果。</li>
+<li><strong><code>getKey</code> 同样非线程安全</strong>：注释说明（行 72–73），同样仅主进程调用。</li>
+<li><strong>不修改任何 module 变量</strong>：所有输出通过子程序参数返回。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="get_nq_from_tracer_file行-1144">get_nq_from_tracer_file（行 11–44）</h3>
+<ol type="1">
+<li>仅 <code>is_master</code> 执行：
+<ul>
+<li>根据 <code>grid_type</code> 选择解析段：<code>regular_lonlat</code> → <code>"lmdz"</code>，否则 → <code>"dynamico"</code>。</li>
+<li>调用 <code>readTracersFiles(type_trac)</code> 解析 <code>tracer.def</code>。</li>
+<li><code>nq = size(tracers)</code>。</li>
+</ul></li>
+<li><code>bcast(nq)</code> 广播到所有进程。</li>
+</ol>
+<h3 id="get_names_from_tracer_file行-4766">get_names_from_tracer_file（行 47–66）</h3>
+<ol type="1">
+<li>仅 <code>is_master</code>：<code>noms(:) = tracers(:)%name</code>。</li>
+<li>逐个 <code>bcast(noms(i))</code> 广播所有名称。</li>
+</ol>
+<h3 id="get_children_from_tracer_file行-69115">get_children_from_tracer_file（行 69–115）</h3>
+<ol type="1">
+<li>仅 <code>is_master</code>：
+<ul>
+<li>调用 <code>getKey('parent', parent)</code> 提取所有 tracer 的 parent 属性（<code>getKey</code> 负责分配 <code>parent</code> 数组）。</li>
+<li>统计 <code>nqparents</code>：遍历所有 tracer，parent 为 <code>"air"</code> 的计数。</li>
+<li>统计 <code>nqchildren(i)</code>：对每个 tracer i，遍历所有 tracer j，若 <code>noms(i) == parent(j)</code> 则 i 的子计数 +1。</li>
+</ul></li>
+<li><code>bcast(nqparents)</code> 和 <code>bcast(nqchildren)</code> 广播。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>! get_nq_from_tracer_file
+if master:
+  if regular_lonlat: type_trac = &quot;lmdz&quot;
+  else:              type_trac = &quot;dynamico&quot;
+  readTracersFiles(type_trac)        ! 解析 tracer.def → 填充 tracers
+  nq = size(tracers)
+bcast(nq)
+
+! get_names_from_tracer_file
+if master:
+  noms = tracers.name
+for i in 1..nq: bcast(noms[i])
+
+! get_children_from_tracer_file
+if master:
+  getKey(&#39;parent&#39;, parent)           ! 提取 parent 属性数组
+  nqparents = count(parent == &quot;air&quot;)
+  for each tracer i:
+    nqchildren[i] = count(noms[i] == parent[j] for all j)
+bcast(nqparents)
+bcast(nqchildren)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tracer 配置体系</td>
+<td>为 <code>tracer_mod</code> 提供 tracer 数量、名称和父子关系，是 tracer 初始化的第一步</td>
+</tr>
+<tr>
+<td>水循环配置</td>
+<td>间接：tracer 名称决定水相关 tracer（h2o_vap, h2o_ice 等）的索引</td>
+</tr>
+<tr>
+<td>CO2 循环配置</td>
+<td>间接：tracer 名称决定 CO2 相关 tracer（co2, co2_ice 等）的索引</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>外部库依赖</strong>：<code>readtracfiles_mod</code> 和 <code>strings_mod</code> 不在本源码树中，属于 LMDZ 共享基础设施。</li>
+<li><strong>非线程安全</strong>：<code>readTracersFiles</code> 和 <code>getKey</code> 明确标注非线程安全，代码强制仅 <code>is_master</code> 调用。</li>
+<li><strong>旧/新格式双轨</strong>：<code>tracer_mod</code> 先查 <code>traceur.def</code>（旧格式），不存在时再查 <code>tracer.def</code>（新格式），两者由不同模块处理。</li>
+<li><strong>奇怪的返回值约定</strong>：<code>readTracersFiles</code> 和 <code>getKey</code> 返回 <code>.false.</code> 表示成功（行 36, 92 注释），代码中 <code>result</code> 变量被赋值但未检查。</li>
+<li><strong><code>getKey</code> 自动分配</strong>：注释说明 <code>getKey</code> 负责 <code>parent</code> 数组的内存分配（行 91），调用方使用 <code>allocatable</code> 声明。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须有 <code>tracer.def</code> 或 <code>traceur.def</code> 文件存在于运行目录，否则 <code>ini_tracer_mod</code> 调用 <code>abort_physic</code> 终止。</li>
+<li><code>tracer.def</code> 中必须包含名为 <code>"co2"</code> 的 tracer，否则 <code>ini_tracer_mod</code> 同样终止（行 220）。</li>
+<li><code>grid_type</code> 决定解析段：<code>regular_lonlat</code> 网格用 <code>"lmdz"</code> 段，其他（如 <code>dynamico</code>）用 <code>"dynamico"</code> 段。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>readtracfiles_mod</code> 和 <code>strings_mod</code> 的具体实现不在本源码树中，推断来自 LMDZ 共享库（待确认：需查编译系统 <code>Makefile</code> 或 <code>fcm</code> 配置）。</li>
+<li><code>getKey</code> 返回值 <code>.false.</code> 表示成功的约定是否为历史遗留（待确认：可能与早期 Fortran 库的错误码约定有关）。</li>
+<li><code>result</code> 变量在 <code>get_nq_from_tracer_file</code>（行 25）和 <code>get_children_from_tracer_file</code>（行 84）中被赋值但从未检查（推断：错误处理依赖 <code>readtracfiles_mod</code> 内部的 <code>write(*,*)</code> 打印）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="tracer_mod.html">tracer_mod</a> — 唯一调用方，使用本模块的三个子程序初始化 tracer 系统</li>
+<li><a href="../../routines/initracer-co2-tracers.html">initracer-co2-tracers</a> — CO2 tracer 初始化段页，与本模块提供名称后的 CO2 检查逻辑相关</li>
+<li><a href="../../architecture/config-system.html">config-system</a> — 配置体系总览，含 <code>tracer.def</code>/<code>traceur.def</code> 说明</li>
+<li><a href="../../architecture/water-cycle-config.html">water-cycle-config</a> — 水循环配置，水 tracer 定义</li>
+<li><a href="../../architecture/co2-cycle-config.html">co2-cycle-config</a> — CO2 循环配置，CO2 tracer 定义</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

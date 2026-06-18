@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>gwprofil_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/gwprofil_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="gwprofil_modf90">gwprofil_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\gwprofil_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>gwprofil_mod.F90</code> 定义 <code>gwprofil_mod</code> 模块和 <code>GWPROFIL</code> 子程序，是 <code>orodrag_mod.F90::ORODRAG</code> 中地形重力波参数化链的应力廓线重算步骤。上游 <code>GWSTRESS</code> 已给出低层或初始的 <code>ZTAU</code>，本例程沿垂直半层从高层向低层扫描，按 <code>IKNU2</code>、临界层 <code>ICRIT</code>、波 Richardson 数和 <code>GRCRIT</code> 破碎阈值改写 <code>ZTAU(:,jk)</code>，最后在阻塞层顶 <code>IKENVH</code> 与动力混合高度 <code>IKCRITH</code> 之间做压力线性插值。</p>
+<p>它不计算风、温度 tendency，也不读取配置；下游 <code>ORODRAG</code> 用本例程返回的 <code>ZTAU</code> 垂直差分来计算 <code>pdudt/pdvdt/pdtdt</code>。源文件注释把本例程称为 stress profile for gravity waves，并说明其源自 Lott/IFS 地形重力波拖曳方案。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gwprofil_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装地形重力波 stress profile 计算例程。</td>
+</tr>
+<tr>
+<td><code>GWPROFIL</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>根据阻塞层、临界层、稳定度和波破碎判据重算 <code>ZTAU</code> 半层应力廓线。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>ndomainsz</code></td>
+<td>固定局部子域数组第一维；<code>kdx</code> 把 <code>kgwd</code> 个有效地形 GW 点映射回 <code>1..ndomainsz</code>。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>yoegwd_h</code></td>
+<td><code>gkdrag</code>, <code>grcrit</code>, <code>gssec</code>, <code>gtsec</code></td>
+<td><code>gkdrag</code> 进入 <code>ZNORM</code> stress 归一化；<code>grcrit</code> 是波 Richardson 数破碎阈值；<code>gssec</code>/<code>gtsec</code> 是除零和小 stress 保护阈值。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>本例程只使用内在函数 <code>sqrt</code>、<code>max</code>、<code>min</code> 和数组循环，不调用其他用户例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>ORODRAG</code></td>
+<td>integer scalar</td>
+<td>grid points</td>
+<td>大气列数；本例程接口保留但源码内未使用。</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>ORODRAG</code></td>
+<td>integer scalar</td>
+<td>layers</td>
+<td>大气全层数；半层数组使用 <code>nlayer+1</code>。</td>
+</tr>
+<tr>
+<td><code>kgwd</code></td>
+<td><code>calldrag_noro</code> -&gt; <code>drag_noro</code> -&gt; <code>ORODRAG</code></td>
+<td>integer scalar</td>
+<td>points</td>
+<td>当前子域中进入地形 GW 计算的格点数。</td>
+</tr>
+<tr>
+<td><code>kdx</code></td>
+<td><code>calldrag_noro</code> 筛选结果</td>
+<td>integer <code>(ndomainsz)</code></td>
+<td>-</td>
+<td>第 <code>ji</code> 个 GW 点在局部子域中的格点编号 <code>jl</code>。</td>
+</tr>
+<tr>
+<td><code>ktest</code></td>
+<td><code>calldrag_noro</code> 筛选结果</td>
+<td>integer <code>(ndomainsz)</code></td>
+<td>-</td>
+<td>GW 点开关图；接口保留但源码内未读取。</td>
+</tr>
+<tr>
+<td><code>IKCRITH</code></td>
+<td><code>OROSETUP</code></td>
+<td>integer <code>(ndomainsz)</code></td>
+<td>level index</td>
+<td>重力波破碎的动力混合高度。</td>
+</tr>
+<tr>
+<td><code>ICRIT</code></td>
+<td><code>OROSETUP</code></td>
+<td>integer <code>(ndomainsz)</code></td>
+<td>level index</td>
+<td>地形重力波遇到临界层的位置。</td>
+</tr>
+<tr>
+<td><code>IKENVH</code></td>
+<td><code>OROSETUP</code></td>
+<td>integer <code>(ndomainsz)</code></td>
+<td>level index</td>
+<td>阻塞层顶。</td>
+</tr>
+<tr>
+<td><code>IKNU</code></td>
+<td><code>OROSETUP</code></td>
+<td>integer <code>(ndomainsz)</code></td>
+<td>level index</td>
+<td><code>4*pvar</code> 对应层；本例程只用来缓存 <code>ZTAU(:,IKNU+1)</code>。</td>
+</tr>
+<tr>
+<td><code>IKNU2</code></td>
+<td><code>OROSETUP</code></td>
+<td>integer <code>(ndomainsz)</code></td>
+<td>level index</td>
+<td><code>3*pvar</code> 对应层；控制从高层常值段转入递推段。</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td><code>drag_noro</code> 传入的翻转半层压力</td>
+<td>real <code>(ndomainsz,nlayer+1)</code></td>
+<td>Pa</td>
+<td>半层压力；末段用于在 <code>IKCRITH</code> 到 <code>IKENVH</code> 之间压力线性插值 <code>ZTAU</code>。</td>
+</tr>
+<tr>
+<td><code>ZRHO</code></td>
+<td><code>OROSETUP</code></td>
+<td>real <code>(ndomainsz,nlayer+1)</code></td>
+<td>kg/m3，按上游语义</td>
+<td>半层密度，用于 <code>ZNORM</code>。</td>
+</tr>
+<tr>
+<td><code>BV</code></td>
+<td><code>OROSETUP</code></td>
+<td>real <code>(ndomainsz,nlayer+1)</code></td>
+<td>s-1，按上游语义</td>
+<td>Brunt-Vaisala 频率，用于 <code>ZNORM</code> 和波位移。</td>
+</tr>
+<tr>
+<td><code>ZVPH</code></td>
+<td><code>OROSETUP</code></td>
+<td>real <code>(ndomainsz,nlayer+1)</code></td>
+<td>m/s，按上游语义</td>
+<td>半层低层风速或相位速度尺度，用于 <code>ZALFA</code>。</td>
+</tr>
+<tr>
+<td><code>PRI</code></td>
+<td><code>OROSETUP</code></td>
+<td>real <code>(ndomainsz,nlayer+1)</code></td>
+<td>-</td>
+<td>半层平均流 Richardson 数。</td>
+</tr>
+<tr>
+<td><code>zdmod</code></td>
+<td><code>OROSETUP</code></td>
+<td>real <code>(ndomainsz)</code></td>
+<td>-</td>
+<td>地形各向异性组合幅度；参与 <code>zoro</code>。</td>
+</tr>
+<tr>
+<td><code>psig</code></td>
+<td><code>surfdat_h:zsig</code> 经上游传入</td>
+<td>real <code>(ndomainsz)</code></td>
+<td>-</td>
+<td>次网格坡度。</td>
+</tr>
+<tr>
+<td><code>pvar</code></td>
+<td><code>surfdat_h:zstd</code> 经上游传入</td>
+<td>real <code>(ndomainsz)</code></td>
+<td>m</td>
+<td>次网格地形标准差；参与 <code>zoro</code> 并用 <code>max(pvar,1.0)</code> 保护。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ZTAU</code></td>
+<td>返回 <code>ORODRAG</code></td>
+<td>real <code>(ndomainsz,nlayer+1)</code>, intent(inout)</td>
+<td>stress，按上游 GW 链语义</td>
+<td>地形重力波半层应力廓线；输入来自 <code>GWSTRESS</code>，输出被 <code>ORODRAG</code> 用于风和温度 tendency。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本文件没有 <code>save</code> 变量、<code>COMMON</code>、<code>THREADPRIVATE</code>、文件 I/O、配置读取或诊断输出。</li>
+<li>唯一副作用是原地改写 <code>ZTAU</code>。调用方必须先让 <code>GWSTRESS</code> 或等效步骤初始化 <code>ZTAU</code>，否则本例程会在 <code>ZTAU(JL,IKNU+1)</code>、<code>ZTAU(JL,nlayer+1)</code> 和递推段读取未定义输入。</li>
+<li><code>ngrid</code> 与 <code>ktest</code> 是接口参数但在当前源码中未使用；实际循环只覆盖 <code>ji=1..kgwd</code> 对应的 <code>jl=kdx(ji)</code>。</li>
+<li>局部数组 <code>Z_TAU</code> 只在若干索引处赋值，随后只读取这些已赋值位置：<code>IKNU+1</code> 当前源码未再读取，<code>nlayer+1</code> 用于高层常值段，<code>IKENVH/IKCRITH</code> 用于末段插值。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>令 <code>ilevh=nlayer/3</code>，但该变量只出现在注释掉的打印片段中，不影响计算。</li>
+<li>对每个 GW 点 <code>jl=kdx(ji)</code>，计算地形尺度：
+<ul>
+<li><code>zoro = psig * zdmod / 4 / max(pvar,1.0)</code></li>
+<li>缓存 <code>ZTAU(jl,IKNU(jl)+1)</code> 与顶半层 <code>ZTAU(jl,nlayer+1)</code> 到 <code>Z_TAU</code>。</li>
+</ul></li>
+<li>从 <code>jk=nlayer</code> 向 <code>2</code> 递减扫描半层。</li>
+<li>当 <code>jk &gt;= IKNU2(jl)</code> 时，把 <code>ZTAU(jl,jk)</code> 设为顶半层缓存 <code>Z_TAU(jl,nlayer+1)</code>，形成上部常值 stress 段。</li>
+<li>当 <code>jk &lt; IKNU2(jl)</code> 时，计算局地归一化量与上一半层波位移：
+<ul>
+<li><code>ZNORM = gkdrag * ZRHO * sqrt(BV) * ZVPH * zoro</code></li>
+<li><code>ZDZ2 = ZTAU(jl,jk+1) / max(ZNORM, gssec)</code></li>
+</ul></li>
+<li>对 <code>jk &lt; IKNU2(jl)</code> 的层，如果上一层 stress 小于 <code>gtsec</code> 或已到/低于临界层 <code>jk &lt;= ICRIT(jl)</code>，直接把 <code>ZTAU(jl,jk)=0</code>。</li>
+<li>否则用 <code>PRI</code>、<code>BV</code>、<code>ZDZ2</code> 和 <code>ZVPH</code> 计算波 Richardson 数 <code>ZRIW</code>。若 <code>ZRIW &lt; GRCRIT</code>，按二次方程根得到新的 <code>ZALPHA</code> 和 <code>ZDZ2N</code>，用 <code>ZNORM*ZDZ2N</code> 限制破碎后的 stress；否则沿用 <code>ZNORM*ZDZ2</code>。</li>
+<li>每层递推末尾执行 <code>ZTAU(jl,jk)=min(ZTAU(jl,jk), ZTAU(jl,jk+1))</code>，保证向下递推时 stress 不超过上一半层。</li>
+<li>扫描完成后，缓存 <code>IKENVH</code> 与 <code>IKCRITH</code> 两处的 <code>ZTAU</code>。</li>
+<li>对 <code>jk=1..nlayer</code>，若 <code>IKCRITH(jl) &lt; jk &lt; IKENVH(jl)</code>，按压力差在两个缓存 stress 之间线性插值，重新组织低层破碎时的 stress profile。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>GWPROFIL(..., ZTAU):
+    for each active GW point jl = kdx(ji):
+        zoro(jl) = psig(jl) * zdmod(jl) / 4 / max(pvar(jl), 1)
+        cache top stress Z_TAU(jl,nlayer+1)
+
+    for jk from nlayer down to 2:
+        for each active point jl:
+            if jk &gt;= IKNU2(jl):
+                ZTAU(jl,jk) = cached_top_stress
+
+        for each active point jl:
+            if jk &lt; IKNU2(jl):
+                ZNORM = gkdrag * ZRHO(jl,jk) * sqrt(BV(jl,jk)) * ZVPH(jl,jk) * zoro(jl)
+                ZDZ2 = ZTAU(jl,jk+1) / max(ZNORM, gssec)
+
+        for each active point jl:
+            if jk &lt; IKNU2(jl):
+                if ZTAU(jl,jk+1) &lt; gtsec or jk &lt;= ICRIT(jl):
+                    ZTAU(jl,jk) = 0
+                else:
+                    compute wave Richardson number ZRIW
+                    if ZRIW &lt; grcrit:
+                        solve limited displacement ZDZ2N
+                        ZTAU(jl,jk) = ZNORM * ZDZ2N
+                    else:
+                        ZTAU(jl,jk) = ZNORM * ZDZ2
+                    ZTAU(jl,jk) = min(ZTAU(jl,jk), ZTAU(jl,jk+1))
+
+    for each active point jl:
+        cache ZTAU at IKENVH and IKCRITH
+
+    for jk in 1..nlayer:
+        for each active point jl:
+            if IKCRITH(jl) &lt; jk &lt; IKENVH(jl):
+                interpolate ZTAU linearly in pressure between IKENVH and IKCRITH</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>地形重力波 / 次网格地形拖曳</td>
+<td><code>calldrag_noro</code> 筛选地形格点，<code>drag_noro</code> 调用 <code>ORODRAG</code>，<code>ORODRAG</code> 调用本例程重算应力廓线，然后用 <code>ZTAU</code> 垂直差分生成风和温度 tendency。</td>
+</tr>
+<tr>
+<td>主物理时间步 <code>physiq</code></td>
+<td><code>physiq_mod.F</code> 在 <code>calllott</code> 为真时进入 <code>calldrag_noro</code> 链；本例程是该链内部的 stress profile 环节。</td>
+</tr>
+<tr>
+<td>垂直坐标 / 层序转换</td>
+<td>调用前 <code>drag_noro</code> 已翻转垂直层序；因此本文中的 <code>jk</code> 与注释里的高低层含义要按 <code>ORODRAG</code> 接口层序理解。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>.F90</code> 自由格式模块，但保留 ECMWF/IFS 历史标签式注释和未使用的 <code>CONTINUE</code> 标签。</li>
+<li>接口里有若干历史保留或注释掉的参数，例如 <code>IKCRIT</code>、<code>ZTAUf</code>、<code>ZTFR</code>、<code>znu</code>、<code>pgam</code>；当前可执行接口没有这些参数。</li>
+<li><code>ngrid</code>、<code>ktest</code>、<code>ilevh</code> 和格式标签 <code>99</code> 在当前源码路径中不参与计算。</li>
+<li><code>ZTAU</code> 是 <code>intent(inout)</code>，不是纯输出；复现时必须保留上游 <code>GWSTRESS</code> 对 <code>ZTAU</code> 的初始化顺序。</li>
+<li>源码在 <code>ZALFA=SQRT(BV*ZDZ2)/ZVPH</code>、<code>ZRIW</code> 和插值分母 <code>ZDELPT</code> 处未额外检查负值或零分母，依赖上游 <code>OROSETUP/GWSTRESS</code> 给出物理一致的层索引和正值。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须按 <code>kdx(1:kgwd)</code> 遍历局部点；不能对 <code>1..ngrid</code> 或 <code>1..ndomainsz</code> 全量格点直接套用，否则会改变未筛选格点的 <code>ZTAU</code>。</li>
+<li><code>IKNU2</code> 把应力廓线分成上部常值段和下部递推段；临界层 <code>ICRIT</code> 会把其下方或到达临界层的 stress 置零。</li>
+<li><code>ZNORM</code> 使用 <code>max(ZNORM, gssec)</code> 防止除零，但 <code>sqrt(BV)</code> 仍要求 <code>BV</code> 非负。</li>
+<li>破碎判据使用 <code>ZRIW &lt; GRCRIT</code>，不是 <code>&lt;=</code>；触发后通过二次方程根重新计算受限位移。</li>
+<li>末段压力插值只作用在严格满足 <code>IKCRITH &lt; jk &lt; IKENVH</code> 的层；两个端点层本身使用此前缓存的 <code>ZTAU</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>IKNU(jl)+1</code> 被缓存到 <code>Z_TAU</code> 但当前源码没有再读取；保留它可能来自旧 IFS 版本或调试路径，需结合历史版本确认。</li>
+<li><code>ZTAU(jl,jk+1) &lt; GTSEC</code> 时置零的物理含义按“stress 太小则截断”记录；具体阈值量纲来自 <code>yoegwd_h</code> 与 <code>sugwd</code> 初始化，需在对应专页继续核验。</li>
+<li><code>ZDELPT=pplev(IKCRITH)-pplev(IKENVH)</code> 未做零保护；若上游层索引重合或压力序异常，会影响插值复现。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="calldrag_noro_mod.html">calldrag_noro_mod</a>：<code>physiq</code> 中 <code>calllott</code> 地形 GW 链的调度层。</li>
+<li><a href="drag_noro_mod.html">drag_noro_mod</a>：<code>ORODRAG</code> 包装层，负责翻转层序、构造 <code>zgeom</code> 并返回每步增量。</li>
+<li><a href="orodrag_mod.html">orodrag_mod</a>：本例程的直接调用方，用 <code>ZTAU</code> 垂直差分生成风和温度 tendency。</li>
+<li><a href="gwstress_mod.html">gwstress_mod</a>：本例程的上游 stress 初始化步骤。</li>
+<li><a href="orosetup.html">orosetup</a>：提供 <code>IK*</code> 层索引和阻塞层预处理。</li>
+<li><a href="sugwd.html">sugwd</a>：提供 GW 调参常量初始化来源。</li>
+<li><a href="yoegwd_h.html">yoegwd_h</a>：提供这些共享变量的定义位置和 <code>THREADPRIVATE</code> 属性。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

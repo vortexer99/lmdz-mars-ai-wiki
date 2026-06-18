@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>jthermcalc - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/jthermcalc.md</span>
+    </nav>
+    <article class="content">
+<h1 id="jthermcalcf">jthermcalc.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\jthermcalc.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>基础版热层光吸收系数计算器：按 36 个光谱区间对 13 种大气物种的柱密度做查表插值，把结果写入共享数组 <code>jfotsout(ninter, 物种槽位, nlayer)</code>。本文件是早期版本（2002 年 FGG 初版，2003 年 MAC 修改），当前代码中未发现任何直接调用点，已被 E107 增强版 <a href="jthermcalc_e107_mod.html">jthermcalc_e107_mod.F</a>（TASK-0190）取代。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>jthermcalc_mod</code></td>
+<td>module</td>
+<td>第 1 行</td>
+<td>模块定义，仅含一个子例程</td>
+</tr>
+<tr>
+<td><code>jthermcalc</code></td>
+<td>subroutine</td>
+<td>第 9 行</td>
+<td>主例程：热层光吸收系数插值计算</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>param_v4_h</code></td>
+<td><code>jfotsout, crscabsi2, c1_16, c17_24, c25_29, c30_31, c32, c33, c34, c35, c36, co2crsc195, co2crsc295, t0, jabsifotsintpar, ninter, nz2</code></td>
+<td>光吸收输出缓存、吸收截面参数、插值查找表、温度参考值、光谱区间维度</td>
+<td></td>
+</tr>
+<tr>
+<td><code>jthermcalc_util</code></td>
+<td><code>column, interfast</code></td>
+<td>柱密度计算与快速线性插值</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>column</code></td>
+<td><a href="jthermcalc_util.html">jthermcalc_util.F</a></td>
+<td>第 118 行</td>
+<td>计算 13 种物种的柱密度（cm⁻²），含光学路径几何</td>
+</tr>
+<tr>
+<td><code>interfast</code></td>
+<td><a href="jthermcalc_util.html">jthermcalc_util.F</a></td>
+<td>第 192/298/402/487/588/681/766/840/900/960/1013 行</td>
+<td>在柱密度查找表中做快速线性插值，返回权重 <code>wm</code>/<code>wp</code> 和索引 <code>auxind</code></td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部</td>
+<td>第 211 行</td>
+<td>插值越界时中止（仅在非 <code>MESOSCALE</code> 编译条件下）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ig</code></td>
+<td>调用方</td>
+<td><code>integer</code></td>
+<td>-</td>
+<td>格点索引</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>调用方</td>
+<td><code>integer</code></td>
+<td>-</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>chemthermod</code></td>
+<td>调用方</td>
+<td><code>integer</code></td>
+<td>-</td>
+<td>热层化学模式；≥2 时启用扩展物种（N/NO/NO₂）</td>
+</tr>
+<tr>
+<td><code>rm</code></td>
+<td>调用方</td>
+<td><code>real*8(nlayer, nesptherm)</code></td>
+<td>cm⁻³</td>
+<td>各物种数密度矩阵</td>
+</tr>
+<tr>
+<td><code>nesptherm</code></td>
+<td>调用方</td>
+<td><code>integer</code></td>
+<td>-</td>
+<td>考虑的物种数</td>
+</tr>
+<tr>
+<td><code>tx</code></td>
+<td>调用方</td>
+<td><code>real(nlayer)</code></td>
+<td>K</td>
+<td>温度剖面</td>
+</tr>
+<tr>
+<td><code>iz</code></td>
+<td>调用方</td>
+<td><code>real(nlayer)</code></td>
+<td>待确认</td>
+<td>各层高度</td>
+</tr>
+<tr>
+<td><code>zenit</code></td>
+<td>调用方</td>
+<td><code>real</code></td>
+<td>°</td>
+<td>太阳天顶角</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>jfotsout</code></td>
+<td><code>param_v4_h</code> 共享数组</td>
+<td><code>real(ninter, 物种槽位, nlayer)</code></td>
+<td>s⁻¹（待确认）</td>
+<td>各光谱区间×各物种×各层的光吸收系数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>读</strong>：<code>param_v4_h</code> 中的 <code>crscabsi2</code>（吸收截面）、<code>jabsifotsintpar</code>（查表光吸收系数）、<code>c1_16</code>/<code>c17_24</code>/<code>c25_29</code>/<code>c30_31</code>/<code>c32</code>–<code>c36</code>（各区间查表柱密度）、<code>co2crsc195</code>/<code>co2crsc295</code>（CO₂ 截面温度端点）、<code>t0</code>（参考温度）、<code>ninter</code>/<code>nz2</code>（维度参数）。</li>
+<li><strong>写</strong>：<code>param_v4_h::jfotsout</code>（光吸收系数输出缓存），全量覆盖写入。</li>
+<li><strong>无 SAVE / THREADPRIVATE</strong>：本文件自身不声明 SAVE 或 THREADPRIVATE 变量。</li>
+<li><strong>标准输出</strong>：插值越界时打印诊断信息（第 199–209 行）。</li>
+<li><strong>MESOSCALE 编译宏</strong>：<code>abort_physic</code> 仅在 <code>#ifndef MESOSCALE</code> 条件下调用。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>日/夜判断</strong>（第 97–104 行）：<code>zenit &gt; 140°</code> 为夜间，设 <code>dn='n'</code> 并立即 <code>return</code>，<code>jfotsout</code> 不被更新。</li>
+<li><strong>初始化 <code>jfotsout</code> 为零</strong>（第 107 行）：日间情形下把整个三维数组清零。</li>
+<li><strong>温度截断</strong>（第 111–115 行）：构造辅助温度 <code>t2</code>，截断到 [195 K, 295 K]，用于 CO₂ 截面温度修正。</li>
+<li><strong>柱密度计算</strong>（第 118–120 行）：调用 <code>column</code> 计算 13 个物种的柱密度数组 <code>co2colx</code>、<code>o2colx</code>、<code>o3pcolx</code>、<code>h2colx</code>、<code>h2ocolx</code>、<code>h2o2colx</code>、<code>o3colx</code>、<code>n2colx</code>、<code>ncolx</code>、<code>nocolx</code>、<code>cocolx</code>、<code>hcolx</code>、<code>no2colx</code>。</li>
+<li><strong>CO₂ 温度修正辅助列</strong>（第 124–129 行）：从顶层向下累积，用 <code>rm(i,i_co2)</code> 与 <code>|t2(i) - t0(i)|</code> 构造 <code>coltemp</code>。注意第 126 行有一行被注释掉的累积项。</li>
+<li><strong>CO₂ 截面温度系数</strong>（第 132–138 行）：为区间 24–32 计算 <code>sigma</code>（195 K 截面）和 <code>alfa</code>（温度线性修正系数）。</li>
+<li><strong>分区间插值</strong>（第 148–1031 行）：按 36 个光谱区间分组，每组：
+<ul>
+<li>构造加权柱密度输入 <code>auxcolinp</code>（不同区间吸收物种组合不同）；</li>
+<li>从 <code>jabsifotsintpar</code> 和对应查表柱密度数组中取出参考值；</li>
+<li>调用 <code>interfast</code> 做线性插值；</li>
+<li>把插值结果写入 <code>jfotsout(indexint, 物种槽位, 层)</code>；</li>
+<li>区间 24–32 施加 CO₂ 温度修正因子 <code>cortemp * (1 + alfa * (t2 - t0))</code>。</li>
+</ul></li>
+</ol>
+<h2 id="光谱区间分组">光谱区间分组</h2>
+<table>
+<thead>
+<tr>
+<th>区间</th>
+<th>波长范围 (nm)</th>
+<th>主要吸收物种</th>
+<th>查表柱密度来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0.1–5.0</td>
+<td>CO₂, O₂, O, H₂, N</td>
+<td><code>c1_16</code></td>
+</tr>
+<tr>
+<td>2–15</td>
+<td>5–80.5</td>
+<td>CO₂, O₂, O, H₂, N₂, N, NO, CO, H, NO₂</td>
+<td><code>c1_16</code></td>
+</tr>
+<tr>
+<td>16</td>
+<td>80.6–90.8</td>
+<td>CO₂, O₂, O, N₂, N, NO, CO, H, NO₂</td>
+<td><code>c1_16</code></td>
+</tr>
+<tr>
+<td>17–24</td>
+<td>90.9–119.5</td>
+<td>CO₂, O₂, N₂, NO, CO, NO₂</td>
+<td><code>c17_24</code></td>
+</tr>
+<tr>
+<td>25–29</td>
+<td>119.6–167.0</td>
+<td>CO₂, O₂, H₂O, H₂O₂, NO, CO, NO₂</td>
+<td><code>c25_29</code></td>
+</tr>
+<tr>
+<td>30–31</td>
+<td>167.1–202.5</td>
+<td>CO₂, O₂, H₂O, H₂O₂, NO, NO₂</td>
+<td><code>c30_31</code></td>
+</tr>
+<tr>
+<td>32</td>
+<td>202.6–210.0</td>
+<td>CO₂, O₂, H₂O₂, NO, NO₂</td>
+<td><code>c32</code></td>
+</tr>
+<tr>
+<td>33</td>
+<td>210.1–231.0</td>
+<td>O₂, H₂O₂, NO₂</td>
+<td><code>c33</code></td>
+</tr>
+<tr>
+<td>34</td>
+<td>231.1–240.0</td>
+<td>O₂, H₂O₂, O₃, NO₂</td>
+<td><code>c34</code></td>
+</tr>
+<tr>
+<td>35</td>
+<td>240.1–337.7</td>
+<td>H₂O₂, O₃, NO₂</td>
+<td><code>c35</code></td>
+</tr>
+<tr>
+<td>36</td>
+<td>337.8–800.0</td>
+<td>O₃, NO₂</td>
+<td><code>c36</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>jthermcalc(ig, nlayer, chemthermod, rm, nesptherm, tx, iz, zenit):
+  if zenit &gt; 140°:
+    return                          # 夜间，不更新 jfotsout
+
+  jfotsout = 0                      # 全清零
+
+  t2 = clamp(tx, 195, 295)          # 温度截断用于 CO₂ 修正
+
+  call column(...) → 13 个柱密度数组
+
+  coltemp = 从顶向下累积 rm(CO₂) × |t2 - t0| × Δz   # CO₂ 温度修正辅助列
+
+  sigma, alfa = CO₂ 截面温度系数（区间 24–32）
+
+  for 每个光谱区间 indexint in 1..36:
+    auxcolinp = 按区间吸收物种加权组合柱密度
+    auxj* = jabsifotsintpar 查表光吸收系数
+    auxcoltab = 对应区间查表柱密度
+    call interfast(auxcolinp, auxcoltab) → wm, wp, auxind
+    for 每个物种:
+      jfotsout(indexint, 物种, 层) = wm × auxj(ind+1) + wp × auxj(ind)
+    if indexint in 24..32:
+      cortemp = exp(-sigma × alfa × coltemp)     # CO₂ 温度修正
+      jfotsout(CO₂) *= cortemp × (1 + alfa × (t2 - t0))
+
+    if chemthermod &gt;= 2:
+      写入 N / NO / NO₂ 扩展物种的 jfotsout</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热层化学与加热</td>
+<td>基础版光吸收系数计算器；当前已被 <code>jthermcalc_e107</code> 取代，未发现直接调用点</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 77 风格（<code>.F</code> 扩展名但使用 <code>module</code>/<code>end module</code> 结构）。</li>
+<li>硬编码 <code>i_co2=1</code>（第 92 行），注释明确要求必须与 <code>chemthermos.F90</code> 保持一致。</li>
+<li><code>chemthermod &gt;= 2</code> 条件门控扩展物种（N/NO/NO₂）——低模式下只计算基础 10 种。</li>
+<li>层序反转：<code>auxcolinp(nlayer-i+1)</code> 从底向上排列供 <code>interfast</code> 使用，写回 <code>jfotsout</code> 时再次反转。</li>
+<li>插值越界保护：<code>ind+1 &gt; nz2</code> 或 <code>ind &lt;= 0</code> 时打印诊断并在非 MESOSCALE 模式下 <code>abort_physic</code>。</li>
+<li>CO₂ 温度修正的 <code>cortemp</code> 限幅：<code>sigma × alfa × coltemp &lt; 60</code> 时取指数衰减，否则置零。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>jfotsout</code> 维度由 <code>param_v4_h::ninter</code>（光谱区间数，应 ≥ 36）和物种槽位最大索引（应 ≥ 13）决定。</li>
+<li>夜间 <code>zenit &gt; 140°</code> 时不更新 <code>jfotsout</code>，调用方须自行处理旧值或零值。</li>
+<li><code>coltemp</code> 构造中第 126 行注释掉的 <code>coltemp(i+1)+</code> 累积项——当前实现不包含层间累积，每层独立计算。</li>
+<li>本文件与 <a href="jthermcalc_e107_mod.html">jthermcalc_e107_mod.F</a>（TASK-0190）的光谱区间分组和物种槽位编号完全一致，但后者额外引入了 E107 太阳活动参数化、日火距离修正和 <code>callkeys_mod</code> 开关。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>iz</code> 的物理含义与单位（米？千米？几何高度还是位势高度？）。</li>
+<li><code>jfotsout</code> 的物理单位（s⁻¹ 光吸收率还是其他）。</li>
+<li>第 126 行注释掉的 <code>coltemp(i+1)+</code> 是否为历史 bug 修复，还是有意移除层间累积。</li>
+<li>本文件是否仍被编译进当前版本（源码中未发现任何 <code>call jthermcalc</code> 或 <code>use jthermcalc_mod</code>）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="jthermcalc_e107_mod.html">jthermcalc_e107_mod.F</a>（TASK-0190，E107 增强版，当前使用中的替代）。</li>
+<li><a href="jthermcalc_util.html">jthermcalc_util.F</a>（TASK-0191，共享工具例程 <code>column</code> 和 <code>interfast</code>）。</li>
+<li><a href="param_v4_h.html">param_v4_h.F90</a>（TASK-0200，共享参数模块）</li>
+<li><a href="hrtherm.html">hrtherm.F</a>（上游调用方，调用 <code>jthermcalc_e107</code>）</li>
+<li><a href="euvheat.html">euvheat.F90</a>（间接上游）</li>
+<li><a href="chemthermos.html">chemthermos.F90</a>（热层化学主例程，<code>i_co2</code> 一致性要求）</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

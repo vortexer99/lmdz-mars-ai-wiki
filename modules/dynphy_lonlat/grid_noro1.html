@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>grid_noro1 - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/grid_noro1.md</span>
+    </nav>
+    <article class="content">
+<h1 id="grid_noro1f">grid_noro1.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\grid_noro1.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>亚网格地形参数计算例程（无旋转网格）。<code>grid_noro1</code> 从高分辨率 US Navy（USN）高程数据计算 GCM 每个网格单元的 5 个亚网格地形统计参数：平均高程（zmea）、标准差（zstd）、坡度（zsig）、各向异性（zgam）和主方向角（zthe），用于中尺度山脉参数化方案。由 <a href="datareadnc.html"><code>datareadnc</code></a> 在处理 k=4（亚网格地形统计）时调用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>grid_noro1</code></td>
+<td>subroutine</td>
+<td>1</td>
+<td>从 USN 高程数据计算亚网格地形参数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>rad</code></td>
+<td>角度到弧度转换因子</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>INCLUDE 头文件</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>头文件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimensions.h</code></td>
+<td>网格维度参数 <code>iim, jjm</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ABORT</code></td>
+<td>系统</td>
+<td>行 111, 116, 122</td>
+<td>维度校验失败时中止运行</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>imdep</code></td>
+<td>调用方</td>
+<td><code>INTEGER</code></td>
+<td>—</td>
+<td>源数据 X 维度（固定 360）</td>
+</tr>
+<tr>
+<td><code>jmdep</code></td>
+<td>调用方</td>
+<td><code>INTEGER</code></td>
+<td>—</td>
+<td>源数据 Y 维度（固定 180）</td>
+</tr>
+<tr>
+<td><code>xdata</code></td>
+<td>调用方</td>
+<td><code>REAL</code> <code>(imdep)</code></td>
+<td>rad</td>
+<td>源网格经度坐标</td>
+</tr>
+<tr>
+<td><code>ydata</code></td>
+<td>调用方</td>
+<td><code>REAL</code> <code>(jmdep)</code></td>
+<td>rad</td>
+<td>源网格纬度坐标</td>
+</tr>
+<tr>
+<td><code>entree</code></td>
+<td>调用方</td>
+<td><code>REAL</code> <code>(imdep,jmdep)</code></td>
+<td>m</td>
+<td>USN 高程数据（km，调用方已 ×1000 转 m）</td>
+</tr>
+<tr>
+<td><code>imar</code></td>
+<td>调用方</td>
+<td><code>INTEGER</code></td>
+<td>—</td>
+<td>目标网格 X 维度（<code>iim</code>）</td>
+</tr>
+<tr>
+<td><code>jmar</code></td>
+<td>调用方</td>
+<td><code>INTEGER</code></td>
+<td>—</td>
+<td>目标网格 Y 维度（<code>jjp1</code>）</td>
+</tr>
+<tr>
+<td><code>x</code></td>
+<td>调用方</td>
+<td><code>REAL</code> <code>(imar+1)</code></td>
+<td>rad</td>
+<td>目标网格经度边界坐标</td>
+</tr>
+<tr>
+<td><code>y</code></td>
+<td>调用方</td>
+<td><code>REAL</code> <code>(jmar)</code></td>
+<td>rad</td>
+<td>目标网格纬度边界坐标</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zmea</code></td>
+<td>调用方</td>
+<td><code>REAL</code> <code>(imar+1,jmar)</code></td>
+<td>m</td>
+<td>亚网格平均高程</td>
+</tr>
+<tr>
+<td><code>zstd</code></td>
+<td>调用方</td>
+<td><code>REAL</code> <code>(imar+1,jmar)</code></td>
+<td>m</td>
+<td>亚网格高程标准差</td>
+</tr>
+<tr>
+<td><code>zsig</code></td>
+<td>调用方</td>
+<td><code>REAL</code> <code>(imar+1,jmar)</code></td>
+<td>m/m</td>
+<td>亚网格坡度（最大梯度方向）</td>
+</tr>
+<tr>
+<td><code>zgam</code></td>
+<td>调用方</td>
+<td><code>REAL</code> <code>(imar+1,jmar)</code></td>
+<td>—</td>
+<td>亚网格各向异性（0=各向同性, 1=完全各向异性）</td>
+</tr>
+<tr>
+<td><code>zthe</code></td>
+<td>调用方</td>
+<td><code>REAL</code> <code>(imar+1,jmar)</code></td>
+<td>°</td>
+<td>最大坡度方向角（度）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>读取 <code>comconst_mod::rad</code>（只读）。</li>
+<li>大量 <code>print *</code> 调试输出（维度校验、进度标记 OKM1/OK0/OK1、最终统计值）。</li>
+<li>无文件 I/O、无模块变量写入。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>维度校验</strong>：验证 <code>imar &lt;= 2200</code>、<code>jmar &lt;= 1100</code>、<code>imdep == 360</code>、<code>jmdep == 180</code>、<code>imar+1 &lt;= iim+1</code>、<code>jmar &lt;= jjm+1</code>，否则 <code>ABORT</code>。</li>
+<li><strong>数据扩展</strong>：将 USN 高程数据从 <code>(360,180)</code> 扩展到 <code>(360+2×40, 180+2)</code> 的带边界数组 <code>zusn</code>，经度方向周期性延拓 <code>iext=40</code> 列，纬度方向外推两极。</li>
+<li><strong>高纬滤波</strong>：按 <code>ideltax = 1/cos(lat)</code> 计算经向滤波窗口宽度（奇数），对高程做滑动平均得到 <code>zusnfi</code>，使高纬度梯度计算更各向同性。</li>
+<li><strong>梯度相关计算</strong>：在 USN 网格上逐点计算经向梯度平方 <code>zxtzxusn</code>、纬向梯度平方 <code>zytzyusn</code> 和交叉梯度 <code>zxtzyusn</code>。</li>
+<li><strong>网格聚合</strong>：对每个 GCM 目标网格单元，按面积权重（<code>weighx × weighy</code>）累加 USN 格点的高程、高程平方、梯度相关量。</li>
+<li><strong>统计参数推导</strong>：
+<ul>
+<li><code>zmea = Σ(z × w) / Σw</code>（加权平均高程）</li>
+<li><code>zstd = sqrt(z²_mean - zmea²)</code>（标准差）</li>
+<li><code>xk, xl, xm</code> = 梯度张量分量 → <code>xp, xq</code> = 特征值</li>
+<li><code>zsig = sqrt(xq)</code>（主方向坡度）</li>
+<li><code>zgam = xp/xq</code>（各向异性比）</li>
+<li><code>zthe = atan2(xm, xl) / 2 × 57.3°</code>（主方向角）</li>
+</ul></li>
+<li><strong>极点处理</strong>：经度周期性补齐 <code>imar+1</code> 列；极点（j=1, jmar）做纬圈加权平均，<code>zgam=1</code>、<code>zthe=0</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>SUBROUTINE grid_noro1(imdep, jmdep, xdata, ydata, entree,
+                      imar, jmar, x, y, zmea, zstd, zsig, zgam, zthe)
+
+  校验维度 → ABORT if 超限
+
+  -- 数据扩展 --
+  zusn(i+iext, j+1) ← entree(i,j) + 周期性延拓 + 极区填充
+
+  -- 高纬滤波 --
+  FOR j = 1..jusn:
+    ideltax = 1/cos(lat)  (奇数化)
+    zusnfi ← 滑动平均(entree, ideltax)
+
+  -- 梯度相关 --
+  FOR each USN point:
+    zxtzxusn ← (dz/dx)²
+    zytzyusn ← (dz/dy)²
+    zxtzyusn ← dz/dx × dz/dy
+
+  -- 面积加权聚合到 GCM 网格 --
+  FOR each GCM cell (ii, jj):
+    FOR each USN point in cell:
+      面积权重 = overlap_x × overlap_y
+      累加 z, z², 梯度量
+
+  -- 推导统计参数 --
+  FOR each GCM cell:
+    zmea = weighted_mean(z)
+    zstd = sqrt(mean(z²) - zmea²)
+    xk, xl, xm = gradient tensor components
+    xp, xq = eigenvalues
+    zsig = sqrt(xq)
+    zgam = xp/xq
+    zthe = atan2(xm, xl)/2 in degrees
+
+  -- 极点特殊处理 --
+  极点做纬圈平均, zgam=1, zthe=0
+  经度周期性补齐 imar+1
+END SUBROUTINE</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>地形与亚网格</td>
+<td>计算 GCM 网格的亚网格地形统计参数，供山脉参数化方案使用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>Fixed-form Fortran</strong>（72 列限制、<code>c</code> 注释）。</li>
+<li><strong>硬编码 USN 网格参数</strong>：<code>iusn=360, jusn=180, iext=40</code>（扩展边界）。</li>
+<li><strong>固定数组上限</strong>：<code>a(2200), b(2200), c(1100), d(1100)</code> 对应最大目标网格维度。</li>
+<li><strong>法语注释</strong>：源码全法语注释（F. Lott）。</li>
+<li><strong>梯度张量特征值</strong>：用 <code>xk ± sqrt(xl² + xm²)</code> 直接计算主特征值，避免完整矩阵对角化。</li>
+<li><strong>数值保护</strong>：<code>xp &lt;= 1e-8</code> 时置 0、<code>xq &lt;= 1e-8</code> 时置 <code>1e-8</code>、<code>|xm| &lt;= 1e-8</code> 时保留符号的最小值。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>输入高程须为 360×180 全球等经纬度网格。</li>
+<li><code>datareadnc</code> 调用时传入 <code>imdep=360, jmdep=180</code>，坐标已转弧度，高程已 ×1000 转 m。</li>
+<li>目标网格维度 <code>imar=iim, jmar=jjp1</code>。</li>
+<li><code>comconst_mod::rad</code> 为角度→弧度转换因子（<code>π/180</code>）。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>rad</code> 的具体值（推测为 <code>π/180</code>）和定义位置。</li>
+<li>极点处理中 <code>zmeanor/zweinor</code> 分母为零的可能性（极地无数据时）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="datareadnc.html"><code>datareadnc</code></a> — 唯一调用方，在 k=4 时调用</li>
+<li><a href="avg_horiz_mod.html"><code>avg_horiz_mod</code></a> — 后续由 <code>datareadnc</code> 调用处理平均高程</li>
+<li><a href="index.html">dynphy_lonlat/index</a> — 所属目录概览</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

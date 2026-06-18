@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>write_archive - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/write_archive.md</span>
+    </nav>
+    <article class="content">
+<h1 id="write_archivef">write_archive.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\write_archive.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>write_archive.F</code> 定义 <code>write_archive</code>，是在已由 <a href="ini_archive.html"><code>ini_archive</code></a> 建好头的 <code>start_archive.nc</code> 中创建并追加变量数据的通用写入器。调用方传入 NetCDF 文件句柄、时间记录号、变量名/标题/单位、维度标记 <code>dim</code> 和数据缓冲区 <code>px</code>；本例程按 <code>dim</code> 与变量名选择 NetCDF 维度组合，必要时调用 <a href="../phymars/def_var.html"><code>def_var</code></a> 先定义变量，然后用 <code>NF_PUT_VARA_*</code> 在指定 <code>Time=ntime</code> 位置写入数据。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>write_archive</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">2</td>
+<td>为 <code>start_archive.nc</code> 创建缺失变量并在指定时间记录写入 3D/2D/0D/土壤变量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>nsoilmx</code></td>
+<td><code>dim=-3</code> 时确定 <code>subsurface_layers</code> 写入长度。</td>
+<td>无。</td>
+</tr>
+<tr>
+<td><code>comslope_mod</code></td>
+<td><code>nslope</code></td>
+<td><code>dim=2</code> 的坡面变量和 <code>dim=-3</code> 的 <code>tsoil/inertiesoil</code> 写入坡面维长度。</td>
+<td>无。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="include-依赖">include 依赖</h2>
+<table>
+<thead>
+<tr>
+<th>include</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimensions.h</code></td>
+<td>提供 <code>iim/jjm/llm</code>。</td>
+</tr>
+<tr>
+<td><code>paramet.h</code></td>
+<td>提供 <code>iip1/jjp1</code> 等 archive 网格维度。</td>
+</tr>
+<tr>
+<td><code>comgeom.h</code></td>
+<td>当前例程未直接引用其中变量；可能为历史保留。</td>
+</tr>
+<tr>
+<td><code>netcdf.inc</code></td>
+<td>提供 NetCDF API 常量和例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NF_INQ_VARID</code></td>
+<td>NetCDF API</td>
+<td>多处分支入口</td>
+<td>检查变量是否已存在。</td>
+</tr>
+<tr>
+<td><code>NF_INQ_DIMID</code></td>
+<td>NetCDF API</td>
+<td>多处</td>
+<td>获取 <code>longitude/latitude/altitude/subsurface_layers/nslope/Time</code> 维度 ID。</td>
+</tr>
+<tr>
+<td><code>def_var</code></td>
+<td><a href="../phymars/def_var.html"><code>def_var</code></a></td>
+<td>多处</td>
+<td>变量不存在时按维度 ID 列表创建变量并写属性。</td>
+</tr>
+<tr>
+<td><code>NF_PUT_VARA_DOUBLE</code> / <code>NF_PUT_VARA_REAL</code></td>
+<td>NetCDF API</td>
+<td>多处</td>
+<td>根据 <code>NC_DOUBLE</code> 写入当前时间记录的数据块。</td>
+</tr>
+<tr>
+<td><code>abort</code></td>
+<td>外部例程</td>
+<td>错误分支</td>
+<td>变量写入失败、必需维度缺失或未知 <code>dim</code> 时终止。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用方">调用方</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="start2archive.html"><code>start2archive</code></a></td>
+<td><code>start2archive.F:461-543</code></td>
+<td>依次写入水冰、CO2 冰、尘/云、发射率、反照率、地表压、温度、风、<code>q2</code>、可选 SSO、tracer、地表 tracer、土壤温度和土壤热惯量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nid</code></td>
+<td>调用方</td>
+<td><code>INTEGER</code></td>
+<td>-</td>
+<td>已打开的 <code>start_archive.nc</code> NetCDF 文件 ID。</td>
+</tr>
+<tr>
+<td><code>ntime</code></td>
+<td>调用方</td>
+<td><code>INTEGER</code></td>
+<td>record index</td>
+<td>要写入的 <code>Time</code> 记录号。</td>
+</tr>
+<tr>
+<td><code>nom</code></td>
+<td>调用方</td>
+<td><code>CHARACTER*(*)</code></td>
+<td>-</td>
+<td>NetCDF 变量名。</td>
+</tr>
+<tr>
+<td><code>titre</code></td>
+<td>调用方</td>
+<td><code>CHARACTER*(*)</code></td>
+<td>-</td>
+<td>变量 <code>title</code> 属性。</td>
+</tr>
+<tr>
+<td><code>unite</code></td>
+<td>调用方</td>
+<td><code>CHARACTER*(*)</code></td>
+<td>-</td>
+<td>变量 <code>units</code> 属性。</td>
+</tr>
+<tr>
+<td><code>dim</code></td>
+<td>调用方</td>
+<td><code>INTEGER</code></td>
+<td>-</td>
+<td>维度标记：<code>3</code>、<code>2</code>、<code>0</code> 或 <code>-3</code>。</td>
+</tr>
+<tr>
+<td><code>px</code></td>
+<td>调用方</td>
+<td><code>REAL(iip1,jjp1,llm)</code> 声明</td>
+<td>按变量而定</td>
+<td>数据缓冲区；源码通过 Fortran 实参序列关联传入不同形状数组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NetCDF 变量 <code>nom</code></td>
+<td><code>start_archive.nc</code></td>
+<td>依 <code>dim/nom</code> 决定</td>
+<td><code>unite</code></td>
+<td>若变量不存在则创建，随后在 <code>ntime</code> 位置写入 <code>px</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="维度分支">维度分支</h2>
+<table>
+<thead>
+<tr>
+<th><code>dim</code></th>
+<th>变量类别</th>
+<th>NetCDF 维度</th>
+<th>写入尺寸 <code>edges</code></th>
+<th>代表调用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>3</code></td>
+<td>大气三维变量</td>
+<td><code>longitude,latitude,altitude,Time</code></td>
+<td><code>iip1,jjp1,llm,1</code></td>
+<td><code>temp,u,v,q2atm,tracer</code></td>
+</tr>
+<tr>
+<td><code>2</code> 且变量在特殊名单中</td>
+<td>无坡面二维变量</td>
+<td><code>longitude,latitude,Time</code></td>
+<td><code>iip1,jjp1,1</code></td>
+<td><code>ps,q2surf,tauscaling,totcloudfrac,ZMEA,z0,watercaptag</code></td>
+</tr>
+<tr>
+<td><code>2</code> 其他变量</td>
+<td>带坡面二维变量</td>
+<td><code>longitude,latitude,nslope,Time</code></td>
+<td><code>iip1,jjp1,nslope,1</code></td>
+<td><code>watercap,perennial_co2ice,emis,albedo,qsurf</code></td>
+</tr>
+<tr>
+<td><code>-3</code> 且 <code>nom</code> 为 <code>tsoil</code> 或 <code>inertiesoil</code></td>
+<td>土壤层 + 坡面变量</td>
+<td><code>longitude,latitude,subsurface_layers,nslope,Time</code></td>
+<td><code>iip1,jjp1,nsoilmx,nslope,1</code></td>
+<td><code>tsoil,inertiesoil</code></td>
+</tr>
+<tr>
+<td><code>-3</code> 其他变量</td>
+<td>土壤层变量</td>
+<td><code>longitude,latitude,subsurface_layers,Time</code></td>
+<td><code>iip1,jjp1,nsoilmx,1</code></td>
+<td><code>inertiedat</code></td>
+</tr>
+<tr>
+<td><code>0</code></td>
+<td>时间标量</td>
+<td><code>Time</code></td>
+<td><code>1</code></td>
+<td>源码支持，但 <code>start2archive</code> 当前未启用 <code>volcapa</code> 写入。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>修改已打开 NetCDF 文件；变量不存在时会进入 define mode 创建变量。</li>
+<li>读取 <code>nsoilmx</code> 和 <code>nslope</code> 来确定写入尺寸。</li>
+<li>出错时打印变量名和 <code>NF_STRERROR(ierr)</code>，然后 <code>abort</code>。</li>
+<li><code>px</code> 声明为三维数组，但调用方传入二维、三维、土壤四维/五维逻辑布局时依赖 Fortran 存储连续性和 <code>edges</code> 控制实际写入长度。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>根据 <code>dim</code> 进入分支。</li>
+<li>每个分支先 <code>NF_INQ_VARID(nid,nom,varid)</code>；若变量不存在，查询对应坐标维度 ID 并调用 <code>def_var</code> 创建变量。</li>
+<li>设置 <code>corner</code>，通常空间维为 1，时间维为 <code>ntime</code>。</li>
+<li>设置 <code>edges</code>，空间长度来自 <code>iip1/jjp1/llm/nsoilmx/nslope</code>，时间长度为 1。</li>
+<li>根据 <code>NC_DOUBLE</code> 选择 <code>NF_PUT_VARA_DOUBLE</code> 或 <code>NF_PUT_VARA_REAL</code> 写 <code>px</code>。</li>
+<li>写入失败时打印错误并终止；未知 <code>dim</code> 也终止。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if dim == 3:
+    ensure variable(nom) has longitude, latitude, altitude, Time
+    write px(1:iip1,1:jjp1,1:llm) at Time=ntime
+else if dim == -3:
+    if nom is tsoil or inertiesoil:
+        ensure longitude, latitude, subsurface_layers, nslope, Time
+        write iip1*jjp1*nsoilmx*nslope
+    else:
+        ensure longitude, latitude, subsurface_layers, Time
+        write iip1*jjp1*nsoilmx
+else if dim == 2:
+    if nom is in the no-slope whitelist:
+        ensure longitude, latitude, Time
+        write iip1*jjp1
+    else:
+        ensure longitude, latitude, nslope, Time
+        write iip1*jjp1*nslope
+else if dim == 0:
+    ensure Time variable shape
+    write one scalar at ntime
+else:
+    abort</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>start_archive NetCDF 追加</td>
+<td><a href="start2archive.html"><code>start2archive</code></a> 用本例程写所有时间依赖变量。</td>
+</tr>
+<tr>
+<td>archive 头/数据协作</td>
+<td><a href="ini_archive.html"><code>ini_archive</code></a> 创建基础维度和静态变量；本例程按这些维度追加动态变量。</td>
+</tr>
+<tr>
+<td>NetCDF 变量定义辅助</td>
+<td>复用 <a href="../phymars/def_var.html"><code>def_var</code></a> 创建缺失变量并写属性。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran，无 <code>INTENT</code> 标注。</li>
+<li>用 <code>dim</code> 的数值约定而不是类型安全接口区分数据形状。</li>
+<li><code>dim=2</code> 的是否带 <code>nslope</code> 由变量名白名单决定。</li>
+<li><code>dim=-3</code> 的是否带 <code>nslope</code> 只对 <code>tsoil</code> 和 <code>inertiesoil</code> 特判。</li>
+<li><code>NC_DOUBLE</code> 只影响数据写入 API；变量定义仍由 <code>def_var</code> 处理。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>调用前必须已经打开 <code>start_archive.nc</code>，且 <code>ini_archive</code> 已创建必要维度。</li>
+<li><code>ntime</code> 应是 <code>Time</code> 维中的有效追加记录位置。</li>
+<li>调用方传入的数组内存布局必须和本例程选择的 <code>edges</code> 一致。</li>
+<li>新增变量若应含坡面维，不能把名字放进无坡面二维白名单。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>px</code> 的固定三维声明与 <code>tsoil/inertiesoil/qsurf</code> 等多形状实参之间依赖旧式 Fortran 序列关联；需结合编译器选项确认无接口检查问题。</li>
+<li><code>def_var</code> 当前是否按 <code>NC_DOUBLE</code> 创建 double 变量需看其实现；本例程只在写入时分派 double/real。</li>
+<li><code>dim=0</code> 当前在 <code>start2archive</code> 中没有实际启用调用。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="start2archive.html">start2archive</a></li>
+<li><a href="ini_archive.html">ini_archive</a></li>
+<li><a href="../phymars/def_var.html">def_var</a></li>
+<li><a href="../phymars/comsoil_h.html">comsoil_h</a></li>
+<li><a href="../phymars/comslope_mod.html">comslope_mod</a></li>
+<li><a href="index.html">dynphy_lonlat 目录</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

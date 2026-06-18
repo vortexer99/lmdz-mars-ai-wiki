@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dust_scaling_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dust_scaling_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dust_scaling_modf90">dust_scaling_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dust_scaling_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>该文件定义尘埃缩放模块 <code>dust_scaling_mod</code>（110 行），导出唯一例程 <code>compute_dustscaling</code>，由 <code>aeropacity</code>（行 865）在算完各层尘埃光学厚度后调用。它的职责是根据缩放模式 <code>dustscaling_mode</code> 计算缩放因子并就地调整辐射用的尘埃光学厚度 <code>aerosol</code>：</p>
+<ul>
+<li><code>dustscaling_mode==0</code>（freedust）：不重缩放，<code>tauscaling=1</code>，<code>aerosol</code> 乘 1（实质不变，仅取下限保护）。</li>
+<li><code>dustscaling_mode==1</code>（GCM v5.3）：用尘埃 tracer 算的柱厚度 <code>taudust</code> 把 <code>aerosol</code> 重缩放，使其对应规定场景柱厚度 <code>tau_pref_scenario</code>，缩放因子 <code>tauscaling</code>。</li>
+<li><code>dustscaling_mode==2</code>（GCM v6）：调 <code>compute_dust_rad_adjust</code> 得仅辐射用的 <code>dust_rad_adjust</code>（每时间步只算一次），用它缩放 <code>aerosol</code>，不改尘埃质量缩放因子。</li>
+</ul>
+<p>本模块是连接 <code>aeropacity</code>（光学厚度）、<code>dust_param_mod</code>（模式开关）、<code>dust_rad_adjust_mod</code>（v6 调整）的尘埃缩放枢纽。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dust_scaling_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>尘埃缩放模块</td>
+</tr>
+<tr>
+<td><code>compute_dustscaling</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>按 <code>dustscaling_mode</code> 计算缩放因子并就地缩放 <code>aerosol</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td><code>dustscaling_mode, odpref</code></td>
+<td>缩放模式开关、参考气压 610 Pa</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dust_rad_adjust_mod</code></td>
+<td><code>compute_dust_rad_adjust</code></td>
+<td><code>mode==2</code> 计算辐射调整系数</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>iaerdust</code></td>
+<td>尘埃气溶胶在 <code>aerosol</code> 第三维的索引表</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>compute_dust_rad_adjust</code></td>
+<td><code>dust_rad_adjust_mod</code></td>
+<td>行 79（仅 <code>mode==2</code> 且 <code>zday/=zday_prev_call</code>）</td>
+<td>计算 <code>dust_rad_adjust</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid, nlayer, naerkind, naerdust</code></td>
+<td><code>aeropacity</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>格点数、层数、气溶胶总数、尘埃气溶胶数</td>
+</tr>
+<tr>
+<td><code>zday</code></td>
+<td><code>aeropacity</code></td>
+<td>real scalar</td>
+<td>sol</td>
+<td>日期（用于 <code>mode==2</code> 每步只调一次判断）</td>
+</tr>
+<tr>
+<td><code>pplev(ngrid,nlayer+1)</code></td>
+<td><code>aeropacity</code></td>
+<td>real</td>
+<td>Pa</td>
+<td>层界面气压（取 <code>pplev(:,1)</code> 表压缩放）</td>
+</tr>
+<tr>
+<td><code>tau_pref_scenario(ngrid)</code></td>
+<td><code>aeropacity</code></td>
+<td>real</td>
+<td>-</td>
+<td>规定场景在 610 Pa 的尘埃柱厚度</td>
+</tr>
+<tr>
+<td><code>IRtoVIScoef(ngrid)</code></td>
+<td><code>aeropacity</code></td>
+<td>real</td>
+<td>-</td>
+<td>场景 IR→VIS 换算系数（传给 <code>compute_dust_rad_adjust</code>）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tauscaling(ngrid)</code></td>
+<td><code>aeropacity</code>→后续物理</td>
+<td>real (OUT)</td>
+<td>-</td>
+<td>尘埃质量/数量缩放因子（<code>mode!=1</code> 时为 1）</td>
+</tr>
+<tr>
+<td><code>dust_rad_adjust(ngrid)</code></td>
+<td><code>aeropacity</code></td>
+<td>real (INOUT)</td>
+<td>-</td>
+<td>尘埃辐射调整系数（<code>mode==2</code> 由 <code>compute_dust_rad_adjust</code> 更新）</td>
+</tr>
+<tr>
+<td><code>aerosol(ngrid,nlayer,naerkind)</code></td>
+<td><code>aeropacity</code>→辐射传输</td>
+<td>real (INOUT)</td>
+<td>-</td>
+<td>就地缩放尘埃气溶胶层光学厚度（下限 <code>1e-20</code>）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>例程内 <code>SAVE</code>+<code>THREADPRIVATE</code>：<code>zday_prev_call</code>（行 37-38，初值 <code>-666.</code>），用于保证 <code>mode==2</code> 下 <code>compute_dust_rad_adjust</code> 每时间步只调用一次。</li>
+<li>就地修改 <code>aerosol</code>（缩放尘埃分量）与 <code>dust_rad_adjust</code>（<code>mode==2</code>）、<code>tauscaling</code>。</li>
+<li>不读写文件、无日志输出（除被调例程的 firstcall 提示）。</li>
+<li>本模块无 module 级变量。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>设 tauscaling（行 42-45）</strong>：<code>dustscaling_mode!=1</code> 时 <code>tauscaling=1</code>（freedust/v6 不用质量缩放）。</li>
+<li><strong>算 taudust（行 47-67）</strong>：
+<ul>
+<li><code>mode==1</code>：累加所有尘埃气溶胶（<code>naerdust</code> 个）逐层 <code>aerosol(:,:,iaerdust(iaer))</code> 得柱厚度。</li>
+<li><code>mode==2</code>：只累加背景尘埃 <code>iaerdust(1)</code>。</li>
+</ul></li>
+<li><strong>算缩放因子（行 69-86）</strong>：
+<ul>
+<li><code>mode==1</code>：<code>tauscaling=tau_pref_scenario*pplev(:,1)/odpref/taudust</code>。</li>
+<li><code>mode==2</code>：若 <code>zday/=zday_prev_call</code> 则调 <code>compute_dust_rad_adjust</code>；更新 <code>zday_prev_call=zday</code>。</li>
+</ul></li>
+<li><strong>缩放 aerosol（行 88-107）</strong>：<code>mode&lt;=1</code> 用 <code>tauscaling</code>，<code>mode==2</code> 用 <code>dust_rad_adjust</code>，均 <code>max(1e-20, aerosol*因子)</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if dustscaling_mode != 1: tauscaling = 1
+
+# 柱厚度
+if mode==1: taudust = Σ_iaer Σ_l aerosol(:,l,iaerdust(iaer))   # 全部尘埃
+elif mode==2: taudust = Σ_l aerosol(:,l,iaerdust(1))           # 仅背景尘埃
+
+# 缩放因子
+if mode==1: tauscaling = tau_pref_scenario*pplev(:,1)/odpref/taudust
+elif mode==2:
+    if zday != zday_prev_call:
+        compute_dust_rad_adjust(..., taudust, IRtoVIScoef, dust_rad_adjust)
+    zday_prev_call = zday
+
+# 缩放 aerosol
+if mode&lt;=1: aerosol(:,:,iaerdust) = max(1e-20, aerosol * tauscaling)
+else:       aerosol(:,:,iaerdust) = max(1e-20, aerosol * dust_rad_adjust)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>尘埃循环</td>
+<td>实现三种尘埃缩放模式（freedust/GCM v5.3 tauscaling/GCM v6 dust_rad_adjust），把 GCM 尘埃光学厚度对齐到观测场景</td>
+</tr>
+<tr>
+<td>辐射</td>
+<td>缩放后的 <code>aerosol</code> 直接喂给辐射传输</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 Fortran 90（<code>.F90</code>），模块只含一个例程、无 module 级变量。</li>
+<li><code>zday_prev_call</code> 用 <code>SAVE</code>+哨兵初值 <code>-666.</code> 实现“每时间步只调一次” <code>compute_dust_rad_adjust</code>。</li>
+<li>下限保护 <code>max(1e-20, ...)</code> 防缩放后光学厚度为 0 或负。</li>
+<li><code>mode&lt;=1</code> 分支同时覆盖 freedust（<code>tauscaling=1</code>，缩放无效果）与 v5.3（真实缩放），合并处理。</li>
+<li><code>mode==1</code> 用全部尘埃算 <code>taudust</code>，<code>mode==2</code> 只用背景尘埃 <code>iaerdust(1)</code>——两模式柱厚度口径不同。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>dustscaling_mode</code> 来自 <code>dust_param_mod</code>（<code>conf_phys</code> 写入）：0=freedust、1=GCM v5.3、2=GCM v6。</li>
+<li><code>mode==1</code> 缩放公式：<code>tauscaling=tau_pref_scenario*pplev(:,1)/odpref/taudust</code>，<code>odpref=610</code>。</li>
+<li><code>mode==2</code> 下 <code>compute_dust_rad_adjust</code> 每时间步只调一次（<code>zday/=zday_prev_call</code> 守卫）；<code>aeropacity</code> 在一个辐射步内会多次调用 <code>compute_dustscaling</code>（clearatm/nohmons/clearsky 拆分），此守卫避免重复计算。</li>
+<li><code>taudust</code> 口径：<code>mode==1</code> 全尘埃、<code>mode==2</code> 仅 <code>iaerdust(1)</code> 背景尘埃。</li>
+<li>缩放就地作用于 <code>aerosol(:,:,iaerdust(:))</code>，下限 <code>1e-20</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>无显著证据缺口。三模式分支、<code>taudust</code> 口径差异、<code>zday_prev_call</code> 守卫、调用链（<code>aeropacity</code>→本例程→<code>compute_dust_rad_adjust</code>）均已核验。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="aeropacity_mod.html">aeropacity_mod</a> — 唯一调用方，算完 <code>aerosol</code> 后调本例程缩放</li>
+<li><a href="dust_param_mod.html">dust_param_mod</a> — 提供 <code>dustscaling_mode</code>、<code>odpref</code></li>
+<li><a href="dust_rad_adjust_mod.html">dust_rad_adjust_mod</a> — <code>mode==2</code> 计算 <code>dust_rad_adjust</code></li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle 主题</a></li>
+<li><a href="dimradmars_mod.html">dimradmars_mod</a> - 提供 <code>iaerdust</code> 索引表。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

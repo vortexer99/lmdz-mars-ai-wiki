@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>improvedco2clouds_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/improvedco2clouds_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="improvedco2clouds_modf90">improvedco2clouds_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\improvedco2clouds_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>CO2 云微物理核心模块。基于 <code>improvedclouds_mod.F</code>（水冰云）改编，包含 CO2 冰晶成核（尘埃、流星体、水冰三类 CCN）、质量增长/升华和 CCN 释放逻辑。被 <code>co2cloud_mod</code> 在每个微时间步调用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>improvedco2clouds_mod</code></td>
+<td>module</td>
+<td>10</td>
+<td>CO2 云微物理核心模块</td>
+</tr>
+<tr>
+<td><code>improvedCO2clouds</code></td>
+<td>subroutine</td>
+<td>62</td>
+<td>CO2 云成核、增长、升华主例程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code>, <code>g</code>, <code>cpp</code></td>
+<td>物理常数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>updaterad</code></td>
+<td><code>updaterice_micro</code>, <code>updaterice_microco2</code>, <code>updaterccnCO2</code></td>
+<td>更新冰粒半径和 CCN</td>
+<td></td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_dust_mass/number</code>, <code>rho_dust</code>, <code>igcm_h2o_ice</code>, <code>igcm_ccn_mass/number</code>, <code>igcm_co2</code>, <code>igcm_co2_ice</code>, <code>igcm_ccnco2_mass/number</code>, <code>igcm_ccnco2_h2o_*</code>, <code>nuice_sed</code>, <code>nuiceco2_sed/ref</code>, <code>igcm_ccnco2_meteor_*</code></td>
+<td>tracer 索引和物理常数</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="conc_mod.html">conc_mod</a></td>
+<td><code>mmean</code></td>
+<td>平均分子量</td>
+<td></td>
+</tr>
+<tr>
+<td><code>tcondco2_mod</code></td>
+<td><code>tcondco2</code></td>
+<td>CO2 凝结温度</td>
+<td></td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>daysec</code></td>
+<td>一天秒数</td>
+<td>待确认：代码中未直接使用</td>
+</tr>
+<tr>
+<td><code>nucleaco2_mod</code></td>
+<td><code>nucleaco2</code></td>
+<td>CO2 异质成核率</td>
+<td></td>
+</tr>
+<tr>
+<td><code>datafile_mod</code></td>
+<td><code>datadir</code></td>
+<td>数据文件目录</td>
+<td></td>
+</tr>
+<tr>
+<td><code>massflowrateco2_mod</code></td>
+<td><code>massflowrateco2</code></td>
+<td>CO2 冰粒质量增长/升华通量</td>
+<td></td>
+</tr>
+<tr>
+<td><code>density_co2_ice_mod</code></td>
+<td><code>density_co2_ice</code></td>
+<td>CO2 冰密度（温度依赖）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>nbinco2_cld</code>, <code>rad_cldco2</code>, <code>m0co2</code>, <code>mco2</code>, <code>mteta</code>, <code>mtetaco2</code></td>
+<td>微物理参数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>co2useh2o</code>, <code>meteo_flux</code></td>
+<td>运行时开关</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>co2sat</code></td>
+<td>(外部)</td>
+<td>行 315</td>
+<td>计算 CO2 饱和蒸汽压</td>
+</tr>
+<tr>
+<td><code>tcondco2</code></td>
+<td><code>tcondco2_mod</code></td>
+<td>行 316</td>
+<td>计算 CO2 凝结温度（输入含 co2 + co2_ice）</td>
+</tr>
+<tr>
+<td><code>updaterccnCO2</code></td>
+<td><code>updaterad</code></td>
+<td>行 352</td>
+<td>更新尘埃 CCN 半径</td>
+</tr>
+<tr>
+<td><code>nucleaco2</code></td>
+<td><code>nucleaco2_mod</code></td>
+<td>行 382, 413, 460</td>
+<td>计算异质成核率（尘/流星/水冰各一次）</td>
+</tr>
+<tr>
+<td><code>updaterice_micro</code></td>
+<td><code>updaterad</code></td>
+<td>行 432</td>
+<td>更新水冰粒半径（<code>co2useh2o</code> 时）</td>
+</tr>
+<tr>
+<td><code>density_co2_ice</code></td>
+<td><code>density_co2_ice_mod</code></td>
+<td>行 344</td>
+<td>计算温度依赖的 CO2 冰密度</td>
+</tr>
+<tr>
+<td><code>massflowrateco2</code></td>
+<td><code>massflowrateco2_mod</code></td>
+<td>行 531</td>
+<td>计算 CO2 冰粒质量增长/升华通量</td>
+</tr>
+<tr>
+<td><code>updaterice_microco2</code></td>
+<td><code>updaterad</code></td>
+<td>行 521</td>
+<td>更新 CO2 冰粒半径和云密度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>co2cloud</td>
+<td>INT</td>
+<td>-</td>
+<td>格点数</td>
+</tr>
+<tr>
+<td><code>nlay</code></td>
+<td>co2cloud</td>
+<td>INT</td>
+<td>-</td>
+<td>层数</td>
+</tr>
+<tr>
+<td><code>microtimestep</code></td>
+<td>co2cloud</td>
+<td>REAL</td>
+<td>s</td>
+<td>微时间步长</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td>co2cloud</td>
+<td>REAL (ngrid,nlay)</td>
+<td>Pa</td>
+<td>层中气压</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td>co2cloud</td>
+<td>REAL (ngrid,nlay+1)</td>
+<td>Pa</td>
+<td>层界面气压</td>
+</tr>
+<tr>
+<td><code>pteff</code></td>
+<td>co2cloud</td>
+<td>REAL (ngrid,nlay)</td>
+<td>K</td>
+<td>有效温度</td>
+</tr>
+<tr>
+<td><code>sum_subpdt</code></td>
+<td>co2cloud</td>
+<td>REAL (ngrid,nlay)</td>
+<td>K/s</td>
+<td>温度倾向（之前过程）</td>
+</tr>
+<tr>
+<td><code>pqeff</code></td>
+<td>co2cloud</td>
+<td>REAL (ngrid,nlay,nq)</td>
+<td>kg/kg</td>
+<td>tracer 混合比</td>
+</tr>
+<tr>
+<td><code>sum_subpdq</code></td>
+<td>co2cloud</td>
+<td>REAL (ngrid,nlay,nq)</td>
+<td>kg/kg/s</td>
+<td>tracer 倾向（之前过程）</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>co2cloud</td>
+<td>INT</td>
+<td>-</td>
+<td>tracer 数量</td>
+</tr>
+<tr>
+<td><code>tauscaling</code></td>
+<td>co2cloud</td>
+<td>REAL (ngrid)</td>
+<td>-</td>
+<td>尘埃量转换因子</td>
+</tr>
+<tr>
+<td><code>rb_cldco2</code></td>
+<td>co2cloud</td>
+<td>DOUBLE (nbinco2_cld+1)</td>
+<td>m</td>
+<td>CO2 冰粒半径 bin 边界（对数空间）</td>
+</tr>
+<tr>
+<td><code>sigma_iceco2</code></td>
+<td>co2cloud</td>
+<td>REAL</td>
+<td>-</td>
+<td>CO2 冰/CCN 分布方差</td>
+</tr>
+<tr>
+<td><code>dev2</code></td>
+<td>co2cloud</td>
+<td>DOUBLE</td>
+<td>-</td>
+<td>1/(sqrt(2)*sigma_iceco2)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>subpdqcloudco2</code></td>
+<td>co2cloud</td>
+<td>REAL (ngrid,nlay,nq)</td>
+<td>kg/kg/s</td>
+<td>CO2 微物理产生的 tracer 倾向</td>
+</tr>
+<tr>
+<td><code>subpdtcloudco2</code></td>
+<td>co2cloud</td>
+<td>REAL (ngrid,nlay)</td>
+<td>K/s</td>
+<td>CO2 微物理温度倾向（潜热）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>SAVE+THREADPRIVATE</strong>：<code>sigma_ice</code>（水冰分布方差）、<code>dev3</code>、<code>meteor</code>（流星体通量数据）、<code>pression_meteor</code>、<code>firstcall</code>。</li>
+<li><strong>firstcall</strong>：初始化 <code>sigma_ice</code>/<code>dev3</code>；<code>meteo_flux=true</code> 时从 <code>Meteo_flux_Plane.dat</code> 读取流星体通量数据（130 层 × 100 bin）。</li>
+<li><strong>数据文件依赖</strong>：<code>Meteo_flux_Plane.dat</code>（<code>meteo_flux=true</code> 时必需，位于 <code>datadir</code>）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><p><strong>firstcall 初始化</strong>（行 246-289）：<code>sigma_ice = sqrt(log(1+nuice_sed))</code>；读取流星体通量文件。</p></li>
+<li><p><strong>初始化</strong>（行 293-311）：<code>zt = pteff + sum_subpdt*microtimestep</code>，<code>zq = pqeff + sum_subpdq*microtimestep</code>（低于 threshold 归零），保存初始值 <code>zq0</code>。</p></li>
+<li><p><strong>计算饱和</strong>（行 315-316）：<code>co2sat</code> → <code>zqsat</code>（饱和蒸汽压）；<code>tcondco2</code> → <code>tcond</code>（凝结温度，输入含 <code>co2 + co2_ice</code>）。</p></li>
+<li><p><strong>流星体 CCN 插值</strong>（行 320-332）：将流星体通量从文件气压层插值到模式层，<code>meteor_ccn = meteor(idx_min,:)/masse</code>。</p></li>
+<li><p><strong>主循环</strong>（行 336-588）——对每个格点和层：</p>
+<p><strong>4.1 成核</strong>（<code>satu &gt;= 1</code> 时，行 351-495）：</p>
+<ul>
+<li><strong>尘埃 CCN</strong>：展开尘埃 log-normal 分布为 binned <code>n_aer</code>/<code>m_aer</code>，调用 <code>nucleaco2</code>（接触因子 <code>mtetaco2=0.95</code>），概率 <code>Proba = 1-exp(-microtimestep*rate)</code>，更新 ccnco2/dust tracer。</li>
+<li><strong>流星体 CCN</strong>（<code>meteo_flux=true</code>）：对 <code>meteor_ccn</code> 调用 <code>nucleaco2</code>，更新 ccnco2_meteor 和 ccnco2 总量。</li>
+<li><strong>水冰 CCN</strong>（<code>co2useh2o=true</code>）：展开水冰 CCN 分布（用 <code>sigma_ice</code> 和 <code>dev3</code>），调用 <code>nucleaco2</code>（接触因子 <code>mteta</code>），按 <code>ratioh2o_ccn</code> 分配质量到 ccnco2_h2o_mass_ice/ccn，从水冰/CCN 中扣除。</li>
+</ul>
+<p><strong>4.2 冰增长</strong>（<code>ccnco2_number*tauscaling &gt;= 1</code> 时，行 503-555）：</p>
+<ul>
+<li>更新 <code>riceco2</code>/<code>rhocloudco2</code>。</li>
+<li>计算温度依赖潜热：<code>lw = l0 + l1*T + l2*T² + l3*T³ + l4*T⁴</code>（Azreg-Aïnou 2005）。</li>
+<li>能量限制：<code>facteurmax = |tcond-zt| * cpp/lw</code>。</li>
+<li>调用 <code>massflowrateco2</code> → <code>Ic_rice</code>（单粒子质量增长率 kg/s）。</li>
+<li><code>dMice = ccnco2_number * Ic_rice * microtimestep * tauscaling</code>。</li>
+<li>裁剪：<code>dMice ∈ [-facteurmax, -co2_ice] ∩ [-co2, facteurmax]</code>。</li>
+<li>更新：<code>co2_ice += dMice</code>，<code>co2 -= dMice</code>，<code>subpdtcloudco2 = dMice*lw/cpp/microtimestep</code>。</li>
+</ul>
+<p><strong>4.3 CCN 释放</strong>（<code>co2_ice &lt; threshold_2</code> 或 <code>ccnco2_number*tauscaling &lt; 1</code> 时，行 558-586）：</p>
+<ul>
+<li>尘埃 CCN 归还：<code>dust += ccnco2</code>，<code>ccnco2 = 0</code>。</li>
+<li>流星体 CCN：从 dust 中扣除流星体部分（避免重复计数），<code>ccnco2_meteor = 0</code>。</li>
+<li>水冰 CCN：ccnco2_h2o 归还到 ccn_mass/h2o_ice/ccn_number。</li>
+<li>CO2 气相回收：<code>co2 += co2_ice</code>，<code>co2_ice = 0</code>。</li>
+</ul></li>
+<li><p><strong>倾向计算</strong>（行 592-627）：<code>subpdqcloudco2 = (zq - zq0) / microtimestep</code>，对所有相关 tracer。</p></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>improvedCO2clouds(ngrid, nlay, microtimestep, ...):
+
+  if firstcall:
+    sigma_ice = sqrt(log(1+nuice_sed))
+    if meteo_flux: 读取 Meteo_flux_Plane.dat
+
+  zt = pteff + sum_subpdt * microtimestep
+  zq = pqeff + sum_subpdq * microtimestep (threshold 保护)
+  zq0 = zq
+
+  zqsat = co2sat(zt)
+  tcond = tcondco2(pplay, co2 + co2_ice)
+
+  if meteo_flux: 插值流星体通量到模式层
+
+  for l, ig:
+    pco2 = co2 * (mmean/mco2*1e3) * pplay
+    satu = pco2 / zqsat
+    rho_ice_co2T = density_co2_ice(zt)
+
+    // --- 成核 (satu &gt;= 1) ---
+    尘埃 CCN: n_aer/m_aer = log-normal 展开, nucleaco2(mtetaco2), Proba=1-exp(-rate*dt)
+    流星体 CCN (meteo_flux): nucleaco2, 更新 ccnco2_meteor
+    水冰 CCN (co2useh2o): nucleaco2(mteta), 按 ratioh2o_ccn 分配
+
+    // --- 冰增长 (ccnco2_number &gt;= 1) ---
+    lw = l0 + l1*T + l2*T² + l3*T³ + l4*T⁴
+    facteurmax = |tcond-zt| * cpp/lw
+    Ic_rice = massflowrateco2(pplay, zt, satu, riceco2, mmean)
+    dMice = ccnco2_number * Ic_rice * dt * tauscaling
+    dMice = clip(dMice, [-facteurmax, facteurmax])
+    co2_ice += dMice, co2 -= dMice
+    subpdtcloudco2 = dMice * lw / cpp / dt
+
+    // --- CCN 释放 (co2_ice ≈ 0) ---
+    dust += ccnco2, ccnco2 = 0
+    流星体/水冰 CCN 归还
+    co2 += co2_ice, co2_ice = 0
+
+  subpdqcloudco2 = (zq - zq0) / microtimestep</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CO2 循环 (CO2-cycle)</td>
+<td>核心微物理：成核、冰增长/升华、CCN 转换</td>
+</tr>
+<tr>
+<td><a href="../../themes/co2-cycle.html">CO2 循环主题页</a></td>
+<td>TASK-0011</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>自由格式 Fortran 90</strong>（.F90 后缀）。</li>
+<li><strong>SAVE + THREADPRIVATE</strong>：<code>sigma_ice</code>、<code>dev3</code>、<code>meteor</code>、<code>pression_meteor</code>、<code>firstcall</code>。</li>
+<li><strong>firstcall 模式</strong>：读取流星体通量文件。</li>
+<li><strong>概率成核</strong>：<code>Proba = 1-exp(-microtimestep*rate)</code> —— 将连续成核率转换为离散时间步的概率。</li>
+<li><strong>三类 CCN</strong>：尘埃（<code>mtetaco2=0.95</code>）、流星体、水冰（<code>mteta</code>），每类独立调用 <code>nucleaco2</code>。</li>
+<li><strong>能量限制</strong>：<code>facteurmax = |tcond-zt| * cpp/lw</code> 确保凝结/升华不违反热力学约束。</li>
+<li><strong>温度依赖潜热</strong>：<code>lw = l0 + l1*T + l2*T² + l3*T³ + l4*T⁴</code>（Azreg-Aïnou 2005），4 阶多项式。</li>
+<li><strong>CCN 释放</strong>：CO2 冰完全升华时，尘埃/流星体/水冰 CCN 归还原 tracer——保证质量守恒。</li>
+<li><strong>硬编码常数</strong>：<code>threshold=1e-30</code>、<code>threshold_2=1e-13</code>、<code>l0-l4</code>（潜热系数）。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>tcondco2</code> 输入为 <code>co2 + co2_ice</code>（行 316）——包含冰相，与 <code>co2cloud_mod</code> 中仅传 <code>co2_vap</code> 不同。</li>
+<li><code>co2sat</code> 输入为 <code>zt</code>（有效温度 + 倾向），<code>tcondco2</code> 输入为 <code>pplay</code> 和 tracer 值。</li>
+<li>潜热 <code>lw</code> 使用 Azreg-Aïnou (2005) 4 阶多项式——与 <code>co2condens</code> 中的常数 <code>latcond=5.9e5</code> 不同（这里是温度依赖的）。</li>
+<li><code>facteurmax</code> 使用 <code>cpp/lw</code>（而非 <code>latcond</code>）——单位分析：<code>|ΔT| * cpp/lw</code> 为无量纲质量比。</li>
+<li>流星体 CCN 释放时从 <code>dust</code> 中扣除（行 566-567）——因为成核时 <code>ccnco2 += meteor_ccn</code> 但 <code>dust</code> 未减，释放时需修正。</li>
+<li>水冰 CCN 释放时分别归还 <code>ccn_mass</code>（CCN 部分）和 <code>h2o_ice</code>（冰部分）。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>time_phylmdz_mod::daysec</code> 在 use 列表中但代码中未直接使用——可能为遗留。</li>
+<li><code>nbin_meteor=100</code> 与 <code>nbinco2_cld=100</code> 相同——流星体 bin 与微物理 bin 一一对应。</li>
+<li><code>mteta</code> vs <code>mtetaco2</code>：水冰 CCN 用 <code>mteta</code>（来自 <code>microphys_h</code>），尘埃用 <code>mtetaco2=0.95</code>——两个接触参数。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li><code>Meteo_flux_Plane.dat</code> 缺失（<code>meteo_flux=true</code> 时）将导致 <code>abort_physic</code>。</li>
+<li>概率成核在 <code>microtimestep</code> 很大时可能过高估计成核数。</li>
+<li>能量限制 <code>facteurmax</code> 使用 <code>cpp</code>（干空气比热）而非湿空气——在 CO2 丰富大气中近似合理。</li>
+<li>潜热多项式在极端温度下可能外推出非物理值。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="co2cloud_mod.html">co2cloud_mod — CO2 云主调度</a> - 调用本模块</li>
+<li><a href="co2-saturation-helpers.html">co2-saturation-helpers — CO2 饱和与凝结温度</a> - <code>tcondco2</code>/<code>co2sat</code></li>
+<li><a href="density_co2_ice.html">density_co2_ice — CO2 冰密度</a> - 温度依赖密度</li>
+<li><a href="updaterad.html">updaterad — 冰粒/尘埃半径更新</a> - <code>updaterice_microco2</code>/<code>updaterccnCO2</code></li>
+<li><a href="nucleaco2.html">nucleaco2 — CO2 异质成核率</a> - 尘/流星/水冰三类 CCN 成核率</li>
+<li><a href="massflowrateco2.html">massflowrateco2 — CO2 冰粒质量传输率</a> - 单粒子质量增长/升华通量</li>
+<li><a href="../../themes/co2-cycle.html">CO2 循环主题页</a>（TASK-0011）</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

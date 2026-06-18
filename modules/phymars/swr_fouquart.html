@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>swr_fouquart - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/swr_fouquart.md</span>
+    </nav>
+    <article class="content">
+<h1 id="swr_fouquartf">swr_fouquart.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\swr_fouquart.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>swr_fouquart.F</code> 定义 Fouquart 短波连续散射方案。<code>swmain_mod.F</code> 在 <code>callkeys_mod::swrtype == 1</code> 时对两个太阳谱段分别调用 <code>SWR_FOUQUART</code>，本例程把各 aerosol 种类的可见光光学厚度、单散射反照率和不对称因子合成为层平均散射参数；若 <code>rayleigh=.true.</code>，再调用 <code>swrayleigh</code> 将气体 Rayleigh 散射并入层光学量；随后按 Fouquart/Bonel 方案计算各层上下短波通量 <code>PFD/PFU</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>swr_fouquart_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装 Fouquart 短波散射例程。</td>
+</tr>
+<tr>
+<td><code>SWR_FOUQUART</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>计算给定太阳谱段的短波向下/向上归一化通量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>sunfr</code>, <code>ndlo2</code>, <code>nsun</code>, <code>ndlon</code>, <code>nflev</code>, <code>naerkind</code></td>
+<td>数组维度、谱段太阳能量份额和 aerosol 种类数。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>yomlw_h</code></td>
+<td><code>nlaylte</code></td>
+<td>当前辐射垂直层数。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>rayleigh</code></td>
+<td>控制是否合入 Rayleigh 散射。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>swrayleigh_mod</code></td>
+<td><code>swrayleigh</code></td>
+<td>计算谱段 Rayleigh 柱光学厚度。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>cvmgt_mod</code></td>
+<td><code>cvmgt</code></td>
+<td>aerosol 光学量归一化时的除零保护选择函数。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cvmgt</code></td>
+<td><code>cvmgt.F</code></td>
+<td>行 161-164</td>
+<td>分母为零时给 <code>ZCGAZ=0</code>、<code>ZPIZAZ=1</code> 默认值。</td>
+</tr>
+<tr>
+<td><code>swrayleigh</code></td>
+<td><code>swrayleigh.F</code></td>
+<td>行 173</td>
+<td>计算 Rayleigh 柱光学厚度。</td>
+</tr>
+<tr>
+<td><code>exp</code></td>
+<td>Fortran intrinsic</td>
+<td>多处</td>
+<td>计算层透过率和指数衰减。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>KDLON</code>, <code>KFLEV</code>, <code>KNU</code></td>
+<td><code>swmain_mod.F</code></td>
+<td>integer</td>
+<td>-</td>
+<td>当前列数、垂直层数和太阳谱段编号。</td>
+</tr>
+<tr>
+<td><code>aerosol</code></td>
+<td><code>swmain_mod.F</code></td>
+<td>real <code>(NDLO2,KFLEV,naerkind)</code></td>
+<td>optical depth</td>
+<td>各 aerosol 种类参考波长光学厚度。</td>
+</tr>
+<tr>
+<td><code>QVISsQREF3d</code>, <code>omegaVIS3d</code>, <code>gVIS3d</code></td>
+<td>光学表</td>
+<td>real 4D</td>
+<td>-</td>
+<td>谱段消光比例、单散射反照率和不对称因子。</td>
+</tr>
+<tr>
+<td><code>albedo</code>, <code>PDSIG</code>, <code>PPSOL</code>, <code>PRMU</code>, <code>PSEC</code></td>
+<td><code>swmain_mod.F</code></td>
+<td>arrays</td>
+<td>mixed</td>
+<td>表面反照率、sigma 层厚、地表压、修正太阳天顶角余弦及其倒数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PFD</code></td>
+<td><code>swmain_mod.F</code></td>
+<td>real <code>(NDLO2,KFLEV+1)</code></td>
+<td>normalized flux</td>
+<td>谱段向下短波通量。</td>
+</tr>
+<tr>
+<td><code>PFU</code></td>
+<td><code>swmain_mod.F</code></td>
+<td>real <code>(NDLO2,KFLEV+1)</code></td>
+<td>normalized flux</td>
+<td>谱段向上短波通量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p>本例程不写 module 状态，也不做文件 I/O。它读取 <code>rayleigh</code> 开关和辐射维度/太阳谱段权重。计算完全通过实参数组返回。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>初始化内部反射/透过率工作数组。</li>
+<li>对每层、每列、每个 aerosol 种类累加谱段光学厚度 <code>ZTAUAZ</code>、散射贡献 <code>ZPIZAZ</code> 和不对称因子贡献 <code>ZCGAZ</code>。</li>
+<li>用 <code>cvmgt</code> 把累计量归一化成层平均不对称因子和单散射反照率。</li>
+<li>若 <code>rayleigh</code> 开启，调用 <code>swrayleigh</code>，按 <code>PDSIG</code> 将柱 Rayleigh 光学厚度分配到层，并与 aerosol 散射参数合并。</li>
+<li>从高层向低层构造有效云量、纯散射反射率/透过率，再做多层合成和地表边界耦合，输出 <code>PFD/PFU</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>for each layer and aerosol kind:
+    accumulate spectral optical depth, scattering optical depth and asymmetry
+normalize aerosol optical properties with cvmgt protection
+if rayleigh:
+    prayl = swrayleigh(...)
+    add layer Rayleigh optical depth into total scattering properties
+solve Fouquart continuum scattering reflectivity/transmissivity
+return normalized downward and upward band fluxes</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>短波辐射</td>
+<td><code>swmain_mod</code> 在 <code>swrtype=1</code> 时调用本例程，生成两个太阳谱段的散射通量。</td>
+</tr>
+<tr>
+<td>尘埃 / aerosol 辐射</td>
+<td><code>aerosol</code> 与 <code>QVISsQREF3d/omegaVIS3d/gVIS3d</code> 控制层光学厚度和散射相函数。</td>
+</tr>
+<tr>
+<td>Rayleigh 散射</td>
+<td>通过 <code>rayleigh</code> 开关调用 <code>swrayleigh</code>，把气体散射并入总光学参数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran，例程名大写但模块名小写。</li>
+<li><code>cvmgt</code> 的实参包含可能除零的表达式；这继承旧代码写法，移植到严格浮点异常环境时需谨慎。</li>
+<li><code>KFLEV</code> 作为实参传入，但内部主循环主要使用 <code>nlaylte</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>swrtype=1</code> 才会使用本文件；<code>swrtype=2</code> 走 Toon 方案。</li>
+<li><code>rayleigh</code> 开关会改变层光学厚度和通量，比较实验时必须记录该开关。</li>
+<li>aerosol 光学表维度必须与 <code>nsun/naerkind/nlaylte</code> 一致。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Fouquart 方案后半段的多层反射/透过率递推变量较多，若要做逐式复现，应结合 ECMWF/Fouquart and Bonnel 1980 文档逐项对照。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../themes/radiation.html">radiation</a>：短波辐射主题流程。</li>
+<li><a href="cvmgt.html">cvmgt</a>：本例程使用的条件选择辅助函数。</li>
+<li><a href="swrayleigh.html">swrayleigh</a>：Rayleigh 散射光学厚度辅助例程。</li>
+<li><a href="swr_toon.html">swr_toon</a>：<code>swrtype=2</code> 的替代短波方案。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

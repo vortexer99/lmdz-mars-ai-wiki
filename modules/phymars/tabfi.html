@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>tabfi - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/tabfi.md</span>
+    </nav>
+    <article class="content">
+<h1 id="tabfif">tabfi.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\tabfi.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>tabfi.F</code> 是物理初始化路径中的控制表读取和常数恢复模块。<code>tabfi</code> 从 <code>startfi.nc</code> 的 <code>controle</code> 数组读取火星半径、自转角速度、重力、气体摩尔质量、日长、物理时间步、轨道量、地表粗糙度、湍流下限、CO2 冰反照率/发射率、尘埃可见光学厚度和土壤体积热容；当 <code>nid=0</code> 时，它不读文件，而写入一组默认 Mars 常数。若 <code>Lmodif=1</code> 且处于串行运行，它还允许交互修改控制表中的若干物理常数，最后调用 <code>iniorbit</code> 生成轨道派生量。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tabfi_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装物理控制表读取和修改例程。</td>
+</tr>
+<tr>
+<td><code>tabfi</code></td>
+<td>subroutine</td>
+<td>8</td>
+<td>读取或默认初始化物理常数，并把关键常数回传给调用方。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td><code>getin_p</code></td>
+<td>源码保留的 getin 接口，本例程当前执行语句未直接调用。</td>
+<td>是否为历史接口残留。</td>
+</tr>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>volcapa</code></td>
+<td>写入土壤体积热容。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>z0_default</code>, <code>emissiv</code>, <code>emisice</code>, <code>albedice</code>, <code>iceradius</code>, <code>dtemisice</code></td>
+<td>写入地表粗糙度、地表/冰发射率、冰反照率和 CO2 雪粒径参数。</td>
+<td><code>iceradius</code> 在 only 列表中重复出现一次。</td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>tauvis</code></td>
+<td>写入参考可见尘埃光学厚度。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>iostart</code></td>
+<td><code>get_var</code></td>
+<td>从物理 start 文件读取 <code>controle</code> 数组。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_parallel</code></td>
+<td>禁止并行路径下交互修改 <code>tab_control</code>。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code>, <code>mugaz</code>, <code>omeg</code>, <code>rad</code>, <code>rcp</code></td>
+<td>写入公共物理常数。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>daysec</code>, <code>dtphys</code></td>
+<td>写入日长和物理时间步。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>planete_h</code></td>
+<td><code>aphelie</code>, <code>emin_turb</code>, <code>lmixmin</code>, <code>obliquit</code>, <code>peri_day</code>, <code>periheli</code>, <code>year_day</code>, <code>lsp2solp</code>, <code>iniorbit</code></td>
+<td>写入轨道和湍流参数，并调用轨道派生量初始化。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>get_var</code></td>
+<td><code>iostart</code></td>
+<td>行 167</td>
+<td>读取 <code>controle</code> 数组。</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>物理错误处理</td>
+<td>行 169、277</td>
+<td>缺少 <code>controle</code> 或并行修改控制表时终止。</td>
+</tr>
+<tr>
+<td><code>lsp2solp</code></td>
+<td><code>planete_h</code></td>
+<td>行 464</td>
+<td>把交互输入的近日点太阳经度换算为 <code>peri_day</code>。</td>
+</tr>
+<tr>
+<td><code>iniorbit</code></td>
+<td><code>planete_h</code></td>
+<td>行 549</td>
+<td>用基础轨道量生成派生轨道状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="被调用位置">被调用位置</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phyetat0</code></td>
+<td><code>phyetat0_mod.F90</code></td>
+<td>行 145、148</td>
+<td>有 startfi 时读控制表；无 startfi 时走默认常数路径。</td>
+</tr>
+<tr>
+<td><code>newstart</code></td>
+<td><code>dynphy_lonlat/phymars/newstart.F</code></td>
+<td>行 374、379</td>
+<td>新建/修改初始场时读取并可修改物理控制表。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nid</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>start 文件逻辑标识；<code>nid=0</code> 时不读取 <code>controle</code>，改用默认常数。</td>
+</tr>
+<tr>
+<td><code>Lmodif</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>是否允许交互修改控制表；<code>1</code> 表示修改模式。</td>
+</tr>
+<tr>
+<td><code>tab0</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>物理参数在 <code>tab_cntrl</code> 中的偏移。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>day_ini</code></td>
+<td>调用方</td>
+<td>integer*4</td>
+<td>sol</td>
+<td><code>tab_cntrl(tab0+3)</code>，初始日期。</td>
+</tr>
+<tr>
+<td><code>lmax</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>layers</td>
+<td><code>tab_cntrl(tab0+2)</code>，用于与物理层数核对。</td>
+</tr>
+<tr>
+<td><code>p_rad</code>, <code>p_omeg</code>, <code>p_g</code>, <code>p_mugaz</code>, <code>p_daysec</code></td>
+<td>调用方</td>
+<td>real scalar</td>
+<td>mixed</td>
+<td>同名动力/物理常数的回传值。</td>
+</tr>
+<tr>
+<td><code>time</code></td>
+<td>调用方</td>
+<td>real scalar</td>
+<td>-</td>
+<td><code>tab_cntrl(tab0+4)</code> 读取的时间值。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p><code>tabfi</code> 会直接写入多个共享模块变量：<code>comcstfi_h</code> 的 <code>rad/omeg/g/mugaz/rcp</code>，<code>time_phylmdz_mod</code> 的 <code>daysec/dtphys</code>，<code>planete_h</code> 的 <code>year_day/periheli/aphelie/peri_day/obliquit/lmixmin/emin_turb</code>，<code>surfdat_h</code> 的地表和 CO2 冰辐射参数，<code>dimradmars_mod::tauvis</code>，以及 <code>comsoil_h::volcapa</code>。它会向标准输出打印控制表前后状态；修改模式还会从标准输入读取关键字和值。并行运行时若 <code>Lmodif=1</code> 会 <code>abort_physic</code>。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>打印 <code>nid/tab0/Lmodif</code>。</li>
+<li>若 <code>nid=0</code>，清零 <code>tab_cntrl</code> 并写入默认 Mars 常数、轨道量、地表粗糙度、CO2 冰辐射参数、尘埃光学厚度和土壤热容。</li>
+<li>若 <code>nid!=0</code>，调用 <code>get_var("controle", tab_cntrl, found)</code>，随后按 <code>tab0+index</code> 读取各控制量并写入共享模块。</li>
+<li>打印修改前的控制表值；若 <code>Lmodif=1</code> 且并行运行则终止。</li>
+<li>串行修改模式中循环读取用户关键字，允许修改 <code>day_ini/z0/emin_turb/lmixmin/emissiv/emisice/albedice/iceradius/dtemisice/tauvis/obliquit/peri_day/peri_ls/periheli/aphelie/volcapa</code>。</li>
+<li>修改后再次打印控制表值，调用 <code>iniorbit()</code>。</li>
+<li>若旧 start 文件没有 <code>iceradius</code>，把南北 CO2 雪粒径设为 <code>100.e-6</code>，<code>dtemisice</code> 设为 <code>0.4</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if nid == 0:
+    set default Mars physical constants and surface/radiative parameters
+else:
+    read controle into tab_cntrl
+    copy tab_cntrl(tab0 + indices) into shared modules and output args
+
+print control values before modification
+if Lmodif == 1:
+    abort if parallel
+    while user enters a keyword:
+        read replacement value and update matching shared variable
+    print control values after modification
+
+call iniorbit()
+patch old start files if iceradius is zero</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>初始状态 / restart</td>
+<td><code>phyetat0_mod</code> 调用本例程恢复或默认生成物理控制表。</td>
+</tr>
+<tr>
+<td>轨道和太阳几何</td>
+<td>写入基础轨道量并调用 <code>iniorbit</code>，影响 <code>solarlong</code>、<code>orbite</code> 等下游。</td>
+</tr>
+<tr>
+<td>CO2 冰和地表辐射</td>
+<td>初始化 <code>albedice/emisice/iceradius/dtemisice/emissiv/z0_default</code> 等参数。</td>
+</tr>
+<tr>
+<td>土壤和边界层</td>
+<td>初始化 <code>volcapa</code>、<code>lmixmin</code>、<code>emin_turb</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran，包含交互式 <code>read(*,*)</code> 修改循环。</li>
+<li><code>tab_cntrl</code> 本地长度固定为 100；物理参数通过 <code>tab0+index</code> 访问。</li>
+<li><code>getin_p</code> 被 use 但当前文件未直接调用。</li>
+<li><code>surfdat_h</code> 的 only 列表中 <code>iceradius</code> 重复出现。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>nid=0</code> 与 <code>nid!=0</code> 是两条完全不同的初始化路径；前者使用默认常数，后者依赖 <code>startfi.nc</code> 的 <code>controle</code> 数组。</li>
+<li><code>Lmodif=1</code> 只能在串行路径执行；并行修改会直接终止。</li>
+<li>修改 <code>peri_ls</code> 不直接写入 restart 控制表字段，而是通过 <code>lsp2solp</code> 反推 <code>peri_day</code>。</li>
+<li>老 start 文件若 <code>iceradius(1)=0</code>，会触发 CO2 雪粒径和 metamorphism 时间尺度回退值。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>getin_p</code> use 是否仍有计划用途，当前源码未调用它。</li>
+<li>控制表 <code>tab0+12/13/28-30</code> 等空档字段是否由历史版本或其他工具占用，需要结合写出端 <code>phyredem</code> 继续核对。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><p><a href="phyetat0_mod.html">phyetat0_mod</a>：物理初始状态读取路径调用本例程。</p></li>
+<li><p><a href="planete_h.html">planete_h</a>：接收轨道参数并提供 <code>lsp2solp/iniorbit</code>。</p></li>
+<li><p><a href="comcstfi_h.html">comcstfi_h</a>：接收公共物理常数。</p></li>
+<li><p><a href="surfdat_h.html">surfdat_h</a>：接收地表辐射和粗糙度参数。</p></li>
+<li><p><a href="soil_settings.html">soil_settings</a>：土壤热容与 <code>volcapa</code> 的下游关系。</p></li>
+<li><p><a href="time_phylmdz_mod.html">time_phylmdz_mod</a>：接收 <code>tabfi</code> 读取或默认生成的 <code>daysec/dtphys</code>，并由初始化路径派生 <code>steps_per_sol</code>。</p></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>planetwide_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/planetwide_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="planetwide_modf90">planetwide_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\planetwide_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>planetwide_mod.F90</code> 定义 <code>planetwide_mod</code> 模块，封装在整颗行星物理网格上做最大值、最小值和求和的工具接口。串行构建直接调用 Fortran intrinsic；<code>CPP_PARA</code> 并行构建先把本地物理列数组 <code>gather</code> 到全局物理网格，再由 master 进程做规约并用 <code>bcast</code> 广播标量结果。该模块不保存业务状态，主要为诊断、热羽流、山顶地形、tracer 质量修正和高层逃逸通量提供“全行星”意义上的规约值。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>planetwide_mod</code></td>
+<td>module</td>
+<td>4</td>
+<td>全行星规约工具模块；在非 <code>MESOSCALE</code> 路径下提供最大值、最小值和求和泛型接口。</td>
+</tr>
+<tr>
+<td><code>planetwide_maxval</code></td>
+<td>generic interface</td>
+<td>12</td>
+<td>将 integer/real、1D/2D 本地物理网格数组规约为全行星最大值。</td>
+</tr>
+<tr>
+<td><code>planetwide_minval</code></td>
+<td>generic interface</td>
+<td>17</td>
+<td>将 integer/real、1D/2D 本地物理网格数组规约为全行星最小值。</td>
+</tr>
+<tr>
+<td><code>planetwide_sumval</code></td>
+<td>generic interface</td>
+<td>22</td>
+<td>将 integer/real、1D/2D 本地物理网格数组规约为全行星总和。</td>
+</tr>
+<tr>
+<td><code>planetwide_maxval_i1</code></td>
+<td>subroutine</td>
+<td>29</td>
+<td>对 integer 1D 数组求全行星最大值。</td>
+</tr>
+<tr>
+<td><code>planetwide_maxval_i2</code></td>
+<td>subroutine</td>
+<td>51</td>
+<td>对 integer 2D 数组求全行星最大值。</td>
+</tr>
+<tr>
+<td><code>planetwide_maxval_r1</code></td>
+<td>subroutine</td>
+<td>73</td>
+<td>对 real 1D 数组求全行星最大值。</td>
+</tr>
+<tr>
+<td><code>planetwide_maxval_r2</code></td>
+<td>subroutine</td>
+<td>95</td>
+<td>对 real 2D 数组求全行星最大值。</td>
+</tr>
+<tr>
+<td><code>planetwide_minval_i1</code></td>
+<td>subroutine</td>
+<td>119</td>
+<td>对 integer 1D 数组求全行星最小值。</td>
+</tr>
+<tr>
+<td><code>planetwide_minval_i2</code></td>
+<td>subroutine</td>
+<td>141</td>
+<td>对 integer 2D 数组求全行星最小值。</td>
+</tr>
+<tr>
+<td><code>planetwide_minval_r1</code></td>
+<td>subroutine</td>
+<td>163</td>
+<td>对 real 1D 数组求全行星最小值。</td>
+</tr>
+<tr>
+<td><code>planetwide_minval_r2</code></td>
+<td>subroutine</td>
+<td>185</td>
+<td>对 real 2D 数组求全行星最小值。</td>
+</tr>
+<tr>
+<td><code>planetwide_sumval_i1</code></td>
+<td>subroutine</td>
+<td>209</td>
+<td>对 integer 1D 数组求全行星求和。</td>
+</tr>
+<tr>
+<td><code>planetwide_sumval_i2</code></td>
+<td>subroutine</td>
+<td>231</td>
+<td>对 integer 2D 数组求全行星求和。</td>
+</tr>
+<tr>
+<td><code>planetwide_sumval_r1</code></td>
+<td>subroutine</td>
+<td>253</td>
+<td>对 real 1D 数组求全行星求和。</td>
+</tr>
+<tr>
+<td><code>planetwide_sumval_r2</code></td>
+<td>subroutine</td>
+<td>275</td>
+<td>对 real 2D 数组求全行星求和。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code>, <code>gather</code>, <code>bcast</code></td>
+<td>并行路径中收集本地物理网格、限定 master 进程做 intrinsic 规约、再广播标量结果。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>dimphy</code></td>
+<td><code>klon</code></td>
+<td>每个具体例程都导入本地物理列数。</td>
+<td>源码中未直接引用 <code>klon</code>；可能是历史接口约定或为数组形状说明保留。</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>klon_glo</code></td>
+<td>并行路径中声明全局物理网格暂存数组 <code>values_glo</code>。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 来源</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gather</code></td>
+<td><code>mod_phys_lmdz_para</code></td>
+<td>各具体例程的 <code>CPP_PARA</code> 分支</td>
+<td>把本地 <code>values</code> 收集到 <code>values_glo</code>。</td>
+</tr>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_para</code></td>
+<td>各具体例程的 <code>CPP_PARA</code> 分支</td>
+<td>把 master 进程计算出的标量结果广播到全部进程。</td>
+</tr>
+<tr>
+<td><code>maxval</code></td>
+<td>Fortran intrinsic</td>
+<td><code>planetwide_maxval_*</code></td>
+<td>对本地或全局数组求最大值。</td>
+</tr>
+<tr>
+<td><code>minval</code></td>
+<td>Fortran intrinsic</td>
+<td><code>planetwide_minval_*</code></td>
+<td>对本地或全局数组求最小值。</td>
+</tr>
+<tr>
+<td><code>sum</code></td>
+<td>Fortran intrinsic</td>
+<td><code>planetwide_sumval_*</code></td>
+<td>对本地或全局数组求总和。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="主要调用点">主要调用点</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>源码位置</th>
+<th>使用接口</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>physiq_mod.F</code></td>
+<td><code>use</code> 在 112-113 行；调用在 3236-3237 行</td>
+<td><code>planetwide_sumval</code></td>
+<td>对 <code>colden(:,iq)/6.022e23*mmol(iq)*1.e4*cell_area(:)</code> 做全行星积分，得到 tracer 质量诊断。</td>
+</tr>
+<tr>
+<td><code>thermcell_main_mars.F90</code></td>
+<td><code>use</code> 在 51 行；调用在 782、818 行</td>
+<td><code>planetwide_maxval</code></td>
+<td>把局地热羽流层索引 <code>lmax</code>、<code>lalim</code> 扩展为全行星最大层索引 <code>limz</code>、<code>llmax</code>。</td>
+</tr>
+<tr>
+<td><code>topmons_mod.F90</code></td>
+<td><code>use</code> 在 964 行；调用在 1046-1047 行</td>
+<td><code>planetwide_maxval</code>, <code>planetwide_minval</code></td>
+<td>计算 <code>hmons</code> 山顶高度场的全行星最大值和最小值。</td>
+</tr>
+<tr>
+<td><code>tracer_mass_fixer_dyn_mod.F90</code></td>
+<td><code>use</code> 在 108 行；调用在 145-147 行</td>
+<td><code>planetwide_sumval</code></td>
+<td>对主要大气成分质量做全行星求和，构造动力学后质量修正因子。</td>
+</tr>
+<tr>
+<td><code>aeronomars\moldiff_red.F90</code></td>
+<td><code>use</code> 在 16 行；调用在 678-680 行</td>
+<td><code>planetwide_sumval</code></td>
+<td>对 H、H2、D 逃逸通量数组求全行星总逃逸通量；<code>MESOSCALE</code> 分支打印不支持提示。</td>
+</tr>
+<tr>
+<td><code>aeronomars\moldiff_MPF.F90</code></td>
+<td><code>use</code> 在 19 行；调用在 868-870 行</td>
+<td><code>planetwide_sumval</code></td>
+<td>与 <code>moldiff_red</code> 同样对 H、H2、D 逃逸通量数组求全行星总逃逸通量；<code>MESOSCALE</code> 分支打印不支持提示。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>values(:)</code></td>
+<td>调用方</td>
+<td>integer 或 real 1D 数组</td>
+<td>本地物理网格列上的待规约值；第一维对应本进程物理列。</td>
+</tr>
+<tr>
+<td><code>values(:,:)</code></td>
+<td>调用方</td>
+<td>integer 或 real 2D 数组</td>
+<td>本地物理网格列与第二维类别、层或 tracer 维度组成的待规约值。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>values_max</code></td>
+<td>调用方</td>
+<td>integer 或 real scalar</td>
+<td><code>planetwide_maxval_*</code> 返回全行星最大值。</td>
+</tr>
+<tr>
+<td><code>values_max</code></td>
+<td>调用方</td>
+<td>integer 或 real scalar</td>
+<td><code>planetwide_minval_*</code> 返回全行星最小值；形参名仍沿用 <code>values_max</code>，复现时不要据名称误判操作。</td>
+</tr>
+<tr>
+<td><code>values_sum</code></td>
+<td>调用方</td>
+<td>integer 或 real scalar</td>
+<td><code>planetwide_sumval_*</code> 返回全行星总和。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>模块本身没有 <code>SAVE</code> 业务变量，也不读写文件。</li>
+<li><code>CPP_PARA</code> 分支会执行跨进程通信：本地数组先 <code>gather</code> 到 master，再把结果 <code>bcast</code> 回所有进程。</li>
+<li>整个模块主体包在 <code>#ifndef MESOSCALE</code> 内；<code>MESOSCALE</code> 构建下这些接口不会由本文件提供。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>每个泛型接口按实参类型和维度分派到 12 个具体例程之一。</li>
+<li>串行路径直接对传入的 <code>values</code> 调用 <code>maxval</code>、<code>minval</code> 或 <code>sum</code>。</li>
+<li>并行路径声明 <code>values_glo(klon_glo[,size(values,2)])</code>，调用 <code>gather(values,values_glo)</code>。</li>
+<li>仅当 <code>is_master</code> 为真时，对 <code>values_glo</code> 做 intrinsic 规约。</li>
+<li>调用 <code>bcast</code> 把标量结果发回所有进程，使调用方在任一进程上拿到一致结果。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>planetwide_operation(values, result):
+    if CPP_PARA:
+        values_glo = gather(values)
+        if is_master:
+            result = operation(values_glo)
+        bcast(result)
+    else:
+        result = operation(values)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>并行诊断</td>
+<td>为 <code>physiq</code> 质量积分、山顶地形极值和逃逸通量提供跨进程一致的全行星规约。</td>
+</tr>
+<tr>
+<td>热羽流</td>
+<td>把局地热羽流层数需求转成全行星最大层数，用于后续数组范围和循环控制。</td>
+</tr>
+<tr>
+<td>tracer 质量守恒</td>
+<td><code>tracer_mass_fixer_dyn_mod</code> 用全行星质量和构造修正因子，减小动力学传输后的质量漂移。</td>
+</tr>
+<tr>
+<td>高层大气逃逸</td>
+<td><code>moldiff_red</code> 和 <code>moldiff_MPF</code> 都对本地 H/H2/D 逃逸通量数组求总通量，输出全行星逃逸量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>三组泛型接口覆盖 integer/real 与 1D/2D 数组，避免调用方显式选择具体例程。</li>
+<li>并行规约没有使用 MPI collective 名称，而是通过 LMDZ 物理并行层的 <code>gather</code> 和 <code>bcast</code> 封装。</li>
+<li>2D 例程只把第一维扩展到 <code>klon_glo</code>，第二维保留 <code>size(values,2)</code>；调用方需要保证第一维是本地物理列。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>并行 GCM 中不要把这些调用替换成本地 <code>maxval/minval/sum</code>，否则只会得到当前进程子域的规约值。</li>
+<li>输入数组第一维应对应本地物理列；若传入其他布局，<code>gather</code> 的全局拼接语义会失真。</li>
+<li>integer 求和结果仍是 integer scalar，极端大数组或大权重下需要注意溢出风险。</li>
+<li><code>MESOSCALE</code> 构建下本模块接口被预处理排除，调用方需要走相应 mesoscale 分支或避免依赖这些接口。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>各具体例程导入 <code>dimphy::klon</code>，但源码中未直接引用；是否为旧版数组接口残留或预处理分支依赖，需要后续全仓构建配置确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a>：本模块所属目录。</li>
+<li><a href="topmons_mod.html">topmons_mod</a>：使用 <code>planetwide_maxval/minval</code> 计算山顶高度极值。</li>
+<li><a href="tracer_mass_fixer_dyn_mod.html">tracer_mass_fixer_dyn_mod</a>：使用 <code>planetwide_sumval</code> 做全行星 tracer 质量积分。</li>
+<li><a href="thermcell_main_mars.html">thermcell_main_mars</a>：记录热羽流中 <code>planetwide_maxval</code> 扩展 <code>limz/llmax</code> 的调用语境。</li>
+<li><a href="../aeronomars/moldiff_red.html">moldiff_red.md</a>：记录逃逸通量规约的高层大气语境。</li>
+<li><a href="../aeronomars/moldiff_MPF.html">moldiff_MPF.md</a>：记录 MPF 版本逃逸通量规约的高层大气语境。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

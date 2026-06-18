@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>abort_gcm - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../../index.html">主页</a>
+        <a href="../../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../../libf-overview.html">模块</a>
+        <a href="../../../themes/index.html">主题</a>
+        <a href="../../../routines/index.html">例程</a>
+        <a href="../../../reference/file-index.html">文件索引</a>
+        <a href="../../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dyn1d/abort_gcm.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dyn1dabort_gcmf">dyn1d/abort_gcm.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d\abort_gcm.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>dyn1d/abort_gcm.F</code> 在当前源码树中不是独立实现，而是一行相对路径：</p>
+<pre class="text"><code>../../../../LMDZ.COMMON/libf/dyn3d/abort_gcm.F</code></pre>
+<p>它把 1D testphys 编译路径中的 <code>abort_gcm</code> 符号解析到 <code>LMDZ.COMMON/libf/dyn3d/abort_gcm.F</code> 的公共中止例程。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abort_gcm.F</code></td>
+<td>path stub</td>
+<td>1</td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d/abort_gcm.F</code>。</td>
+</tr>
+<tr>
+<td><code>abort_gcm</code></td>
+<td>subroutine</td>
+<td>common target line 6</td>
+<td>打印调用模块、原因和严重级别，关闭 XIOS/IOIPSL 相关输出，并停止程序。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="公共实现摘要">公共实现摘要</h2>
+<p>目标文件 <code>LMDZ.COMMON\libf\dyn3d\abort_gcm.F</code> 定义 <code>abort_gcm(modname, message, ierr)</code>。</p>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>modname</code></td>
+<td>character</td>
+<td>调用方名称。</td>
+</tr>
+<tr>
+<td><code>message</code></td>
+<td>character</td>
+<td>中止原因。</td>
+</tr>
+<tr>
+<td><code>ierr</code></td>
+<td>integer</td>
+<td>严重级别；<code>0</code> 表示正常停止，非零表示错误停止。</td>
+</tr>
+</tbody>
+</table>
+<p>公共实现会按编译宏关闭可选 XIOS/IOIPSL 输出，调用 <code>getin_dump</code>，向 <code>lunout</code> 写入中止位置和原因，最后 <code>ierr==0</code> 时 <code>stop</code>，否则 <code>stop 1</code>。</p>
+<h2 id="dyn1d-调用关系">dyn1d 调用关系</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>行号</th>
+<th>调用</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>init_testphys1d_mod.F90</code></td>
+<td>246</td>
+<td><code>call abort_gcm('infotrac_init','Un traceur est orphelin',1)</code></td>
+<td><code>infotrac_init</code> 路径发现孤儿 tracer 时中止。</td>
+</tr>
+</tbody>
+</table>
+<p>同一 dyn1d 初始化文件还在 280 行调用 <code>abort_physic(...)</code>；该符号不是本文件定义的 <code>abort_gcm</code>，需要在对应文件页中继续追踪。</p>
+<h2 id="输入输出和副作用">输入输出和副作用</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文件 I/O</td>
+<td>dyn1d stub 本身无 I/O；公共实现按编译宏关闭 XIOS、IOIPSL 历史和 restart 文件。</td>
+</tr>
+<tr>
+<td>全局状态</td>
+<td>依赖 <code>iniprint.h</code> 中的 <code>lunout</code>。</td>
+</tr>
+<tr>
+<td>配置输出</td>
+<td>调用 <code>getin_dump</code>，用于记录已读取的配置键。</td>
+</tr>
+<tr>
+<td>程序控制</td>
+<td>最终执行 <code>stop</code> 或 <code>stop 1</code>，不会返回调用方。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>若构建系统不保留这个路径 stub 或等价符号链接，dyn1d 中的 <code>call abort_gcm(...)</code> 会在链接阶段缺符号。</li>
+<li>公共实现的行为受 <code>CPP_XIOS</code>、<code>CPP_IOIPSL</code> 和 <code>iniprint.h</code> 影响。</li>
+<li><code>abort_gcm</code> 没有模块接口，调用方依赖外部过程名匹配。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 Windows 工作树把链接文件呈现为一行路径文本；在原始类 Unix 工作树中它可能是符号链接。</li>
+<li><code>abort_physic</code> 与 <code>abort_gcm</code> 的关系需要在 <code>init_testphys1d_mod.F90</code> 页面中继续追踪。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn1d/index.md</a> - dyn1d 子目录索引。</li>
+<li><a href="init_testphys1d_mod.html">init_testphys1d_mod.F90</a> - <code>abort_gcm</code> 调用方。</li>
+<li><a href="../vlz_fi.html">vlz_fi</a> - 已记录 <code>abort_physic</code> 通过公共 abort 文件解析的调用关系。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

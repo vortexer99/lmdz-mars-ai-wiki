@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>flusv - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/flusv.md</span>
+    </nav>
+    <article class="content">
+<h1 id="flusvf">flusv.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\flusv.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>flusv.F</code> 定义 <code>flusv_mod</code>，提供长波红外散射通量求解器。主例程 <code>flusv</code> 在给定每层单次散射反照率、不对称因子、光学厚度、层界黑体亮度和地表发射率后，求解 <code>n</code> 层之间的向上/向下红外通量。源码注释说明它假设每层内黑体亮度 <code>B</code> 随光学厚度 <code>tau</code> 线性变化，顶层向下通量为零，层号从大气顶到地面。</p>
+<p>当前只读源码搜索显示外部调用点在 <code>lwdiff.F</code>：<code>lwdiff</code> 对 CO2 15 微米带外的红外谱带 <code>iir=3,nir</code> 组装 <code>NDD=nlaylte*2</code> 个扩散子层，然后以 <code>nsf=0</code> 调用 <code>flusv</code> 计算 hemispheric constant 通量，再把结果累加回 <code>PFLUC</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>flusv_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>包含红外散射通量求解例程和内部三对角求解器。</td>
+</tr>
+<tr>
+<td><code>flusv</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7</td>
+<td>组装双流红外散射边值问题，求解每个层界的向上/向下通量。</td>
+</tr>
+<tr>
+<td><code>sys3v</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">274</td>
+<td>向量化求解三对角线性系统，供 <code>flusv</code> 的 <code>2*n</code> 个积分常数求解使用。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>ndlo2</code>, <code>ndlon</code>, <code>nflev</code></td>
+<td>定义辐射数组列数和工作数组层数。<code>flusv</code> 与 <code>sys3v</code> 都直接用这些维度声明实参数组和临时数组。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sys3v</code></td>
+<td><code>flusv.F</code></td>
+<td><code>flusv</code> 第 162 行</td>
+<td>求解 <code>flusv</code> 组装出的 <code>2*n</code> 维三对角系统，返回每层两个积分常数 <code>y(:,2*i-1:2*i)</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>KDLON</code></td>
+<td>调用方</td>
+<td><code>INTEGER</code></td>
+<td>-</td>
+<td>本次向量化计算的水平列数；循环范围为 <code>1:KDLON</code>。</td>
+</tr>
+<tr>
+<td><code>nsf</code></td>
+<td>调用方</td>
+<td><code>INTEGER</code></td>
+<td>-</td>
+<td>通量算法选择。<code>0</code> 只用 hemispheric constant 直接公式；<code>&gt;0</code> 会进入 source function 角向积分分支。</td>
+</tr>
+<tr>
+<td><code>n</code></td>
+<td>调用方</td>
+<td><code>INTEGER</code></td>
+<td>layer</td>
+<td>扩散层数；<code>flusv</code> 组装大小为 <code>2*n</code> 的线性系统。</td>
+</tr>
+<tr>
+<td><code>omega</code></td>
+<td>调用方</td>
+<td><code>REAL(NDLO2,n)</code></td>
+<td>-</td>
+<td>每层单次散射反照率。</td>
+</tr>
+<tr>
+<td><code>g</code></td>
+<td>调用方</td>
+<td><code>REAL(NDLO2,n)</code></td>
+<td>-</td>
+<td>每层散射不对称因子。</td>
+</tr>
+<tr>
+<td><code>tau</code></td>
+<td>调用方</td>
+<td><code>REAL(NDLO2,n)</code></td>
+<td>-</td>
+<td>每层光学厚度。</td>
+</tr>
+<tr>
+<td><code>emis</code></td>
+<td>调用方</td>
+<td><code>REAL(NDLO2)</code></td>
+<td>-</td>
+<td>地表发射率；底边界同时使用 <code>emis*pi*bsol</code> 和 <code>(1-emis)</code> 反射项。</td>
+</tr>
+<tr>
+<td><code>bh</code></td>
+<td>调用方</td>
+<td><code>REAL(NDLO2,n+1)</code></td>
+<td>blackbody luminance</td>
+<td>层界黑体亮度，<code>bh(:,n+1)</code> 是剖面对应的地面值。</td>
+</tr>
+<tr>
+<td><code>bsol</code></td>
+<td>调用方</td>
+<td><code>REAL(NDLO2)</code></td>
+<td>blackbody luminance</td>
+<td>实际地表黑体亮度，可不同于 <code>bh(:,n+1)</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fah</code></td>
+<td>调用方</td>
+<td><code>REAL(NDLO2,n+1)</code></td>
+<td>flux</td>
+<td>每个层顶的向上红外通量，<code>fah(:,n+1)</code> 为地面向上通量。</td>
+</tr>
+<tr>
+<td><code>fdh</code></td>
+<td>调用方</td>
+<td><code>REAL(NDLO2,n+1)</code></td>
+<td>flux</td>
+<td>每个层顶的向下红外通量，<code>fdh(:,1)</code> 在顶边界为零，<code>fdh(:,n+1)</code> 为地面向下通量。</td>
+</tr>
+<tr>
+<td><code>y</code></td>
+<td><code>sys3v</code> 调用方</td>
+<td><code>REAL(NDLO2,n)</code></td>
+<td>-</td>
+<td>三对角系统解；在 <code>flusv</code> 中对应每层两个积分常数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p><code>flusv.F</code> 不定义保存型 module 变量，不读写文件，不打印日志，也不读取配置开关。副作用限于写入输出数组 <code>fah/fdh</code>，以及 <code>sys3v</code> 写入输出数组 <code>y</code>。所有临时状态都在例程局部数组中。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>对每层、每个向量列计算双流散射系数：<code>beta=(1-g)/2</code>，<code>gama1=2*(1-omega*(1-beta))</code>，<code>gama2=2*omega*beta</code>，<code>alambda=sqrt(gama1**2-gama2**2)</code>，并由 <code>grgama=(gama1-alambda)/gama2</code> 得到指数解的耦合系数。</li>
+<li>把每层黑体亮度表示成 <code>b0+b1*tau</code>。当 <code>tau&gt;1.E-3</code> 时用层顶和层底黑体亮度差分给出 <code>b1</code>；当光学厚度太小时强制等温层，令 <code>b0=(bh(i)+bh(i+1))/2</code>、<code>b1=0</code>，避免 <code>dB/dtau</code> 过大。</li>
+<li>计算每层边界组合系数 <code>e1/e2/e3/e4</code>、非齐次项 <code>cah/cab/cdh/cdb</code>，以及 source-function 分支需要的 <code>grg/grh/grj/grk</code>、<code>alpha1/alpha2</code>、<code>sigma1/sigma2</code>。</li>
+<li>组装 <code>2*n</code> 维三对角系统：第 1 行施加大气顶向下通量为零；中间行连接相邻层界；第 <code>2*n</code> 行施加地表发射和反射边界条件。</li>
+<li>调用 <code>sys3v(KDLON,2*n,a,b,d,e,y)</code> 求出每层两个积分常数。</li>
+<li>用 <code>y(:,2*i-1)</code> 和 <code>y(:,2*i)</code> 更新 <code>grg/grh/grj/grk</code>。</li>
+<li>若 <code>nsf==0</code>，直接用 hemispheric constant 公式填充所有层界的 <code>fah/fdh</code>。</li>
+<li>若 <code>nsf&gt;0</code>，先从大气顶向下沿 8 个固定高斯角度积分 source function 得到 <code>fdh</code>，再用地表反射条件得到 <code>fah(:,n+1)</code>，最后从地面向上积分得到各层 <code>fah</code>。</li>
+<li><code>sys3v</code> 从系统底部向上做消元，保存 <code>as/ds</code>，再从顶部向下回代生成 <code>y</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>for each layer i and column iv:
+  derive two-stream scattering coefficients from omega, g, tau
+  if tau is large enough:
+    linearly interpolate blackbody luminance across optical depth
+  else:
+    use isothermal layer approximation
+  build layer transfer/source coefficients
+
+assemble top boundary, internal interface rows, and ground boundary
+solve the 2*n tridiagonal system with sys3v
+
+if nsf == 0:
+  compute upward/downward interface fluxes directly from solved constants
+else:
+  integrate downward intensities over 8 quadrature angles
+  apply ground emission plus reflected downward flux
+  integrate upward intensities over 8 quadrature angles</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">辐射计算</a></td>
+<td>长波辐射辅助求解器；<code>lwdiff.F</code> 在 CO2 15 微米带外红外谱带中调用它计算散射通量。</td>
+</tr>
+<tr>
+<td><a href="index.html">phymars 核心物理模块目录</a></td>
+<td>属于 <code>libf\phymars</code> 的辐射辅助文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>文件为固定格式 Fortran，模块内含两个子例程。</li>
+<li><code>nq=8</code>、<code>x(8)</code>、<code>w(8)</code> 是 source-function 分支的固定高斯积分节点和权重。</li>
+<li>工作数组按 <code>NDLON</code>、<code>NDLO2</code>、<code>nflev</code> 静态声明；线性系统数组维度为 <code>4*nflev</code>，层系数数组维度为 <code>2*nflev</code>。</li>
+<li>小光学厚度保护是核心数值稳定写法：<code>tau&lt;=1.E-3</code> 时不再用差分 <code>b1=(bh(i+1)-bh(i))/tau</code>。</li>
+<li><code>sys3v</code> 是专用三对角求解器，没有显式 pivoting 或零分母保护。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>KDLON</code> 必须不超过 <code>NDLON/NDLO2</code> 所能容纳的列数。</li>
+<li><code>n</code> 必须与 <code>nflev</code> 静态工作数组匹配；<code>flusv</code> 会访问 <code>2*n</code> 的系统行和 <code>n+1</code> 个层界。</li>
+<li><code>nsf</code> 会改变算法路径：当前 <code>lwdiff.F</code> 调用传入 <code>0</code>，因此运行的是直接 hemispheric constant 通量公式，不进入 8 点 source-function 积分。</li>
+<li><code>tau&lt;=1.E-3</code> 的等温层近似是防止 <code>dB/dtau</code> 爆大的源码保护，复现实验中不要无意移除。</li>
+<li>复现风险：<code>grgama=(gama1-alambda)/gama2</code> 没有保护 <code>gama2=0</code> 的情况；当 <code>omega*beta</code> 为零时存在除零风险。</li>
+<li>复现风险：source-function 分支含 <code>alambda*x(j)-1</code> 分母，源码没有显式奇异保护。</li>
+<li>复现风险：<code>sys3v</code> 的 <code>b(iv,n)</code> 与 <code>b(iv,i)-d(iv,i)*as(iv,i+1)</code> 分母没有 pivot 或零分母检查。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>bh/bsol/fah/fdh</code> 的物理单位由调用链传入，源码注释只称 <code>black body luminance</code> 和 flux；本页不额外推断具体单位。</li>
+<li><code>nsf&gt;0</code> 的 source-function 分支在当前只读搜索中未见外部调用；是否仍用于某些配置或历史路径需要更大范围运行配置核验。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../themes/radiation.html">radiation</a></li>
+<li><a href="index.html">phymars/index</a></li>
+<li><a href="../../reference/file-index.html">file-index</a></li>
+<li><a href="../../reference/symbol-index.html">symbol-index</a></li>
+<li><a href="lwdiff.html">lwdiff</a></li>
+<li><a href="lwb.html">lwb.md</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

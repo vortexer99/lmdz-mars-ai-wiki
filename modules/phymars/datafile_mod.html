@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>datafile_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/datafile_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="datafile_modf90">datafile_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\datafile_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>datafile_mod.F90</code> 是运行时外部数据目录的共享状态模块。源码只定义 <code>datafile_mod</code> 模块和一个 <code>SAVE</code> 字符变量 <code>datadir</code>，默认值为 <code>/u/lmdz/WWW/planets/mars/datadir</code>，并把该变量声明为 OpenMP <code>THREADPRIVATE</code>。它本身不打开文件、不读写 NetCDF，也不定义例程；实际文件访问发生在导入 <code>datadir</code> 的下游模块中。</p>
+<p>这个模块是辐射、CO2 云、极冠反照率、尘埃场景、NLTE、近红外修正、化学/光化学表、动力-物理初始化读表等流程的统一目录入口。<code>conf_phys.F</code> 会通过 <code>getin_p("datadir", datadir)</code> 读取 <code>callphys.def</code> 中的路径覆盖默认值；<code>dynphy_lonlat/phymars/datareadnc.F</code> 也会先把 <code>datadir</code> 设回同一默认路径，再用 <code>getin("datadir", datadir)</code> 覆盖后读取 <code>surface.nc</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datafile_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">2</td>
+<td>保存运行时数据目录路径的共享模块</td>
+</tr>
+<tr>
+<td><code>datadir</code></td>
+<td>module variable, <code>character(len=300), save</code></td>
+<td style="text-align: right;">8</td>
+<td>运行时数据目录根路径，默认 <code>/u/lmdz/WWW/planets/mars/datadir</code></td>
+</tr>
+<tr>
+<td><code>datadir</code> threadprivate 声明</td>
+<td>OpenMP directive</td>
+<td style="text-align: right;">10</td>
+<td>让每个 OpenMP 线程持有自己的 <code>datadir</code> 副本</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>本文件没有 <code>use</code> 依赖</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>本文件不定义可执行过程，也不调用例程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datadir</code> 默认字符串</td>
+<td><code>datafile_mod.F90</code></td>
+<td><code>character(len=300)</code></td>
+<td>-</td>
+<td>未被配置覆盖时的外部数据目录</td>
+</tr>
+<tr>
+<td><code>datadir</code> 配置项</td>
+<td><code>callphys.def.*</code> / <code>conf_phys.F::getin_p</code></td>
+<td>字符串</td>
+<td>-</td>
+<td>GCM 物理配置读取的运行时数据目录</td>
+</tr>
+<tr>
+<td><code>datadir</code> 配置项</td>
+<td><code>datareadnc.F::getin</code></td>
+<td>字符串</td>
+<td>-</td>
+<td><code>surface.nc</code> 读取路径的运行时覆盖入口</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datadir</code></td>
+<td>所有 <code>use datafile_mod, only: datadir</code> 的源码</td>
+<td><code>character(len=300)</code></td>
+<td>-</td>
+<td>下游拼接 <code>trim(datadir)//"/..."</code> 形成外部表文件路径</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>datadir</code> 是 <code>SAVE</code> 模块变量，默认随模块加载存在，并在 OpenMP 下按线程保存。</li>
+<li><code>conf_phys.F</code> 读取 <code>callphys.def</code> 的 <code>datadir</code> 后会修改该模块变量，并打印最终路径。</li>
+<li><code>datareadnc.F</code> 对同一模块变量再次赋默认值并调用 <code>getin("datadir", datadir)</code>，因此复现 <code>surface.nc</code> 路径时要注意调用顺序。</li>
+<li>本模块自身没有 I/O 副作用；下游模块负责 <code>open</code>、<code>nf90_open</code>、<code>inquire</code> 或错误中止。</li>
+<li>源码仓库中的 <code>datadir/README</code> 只指向在线 <code>datadir.tar.gz</code>，实际运行所需数据包不等同于仓库内已完整提供。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>进入模块后启用 <code>implicit none</code>。</li>
+<li>定义 <code>character(len=300), save :: datadir="/u/lmdz/WWW/planets/mars/datadir"</code>。</li>
+<li>通过 <code>!$OMP THREADPRIVATE(datadir)</code> 声明 OpenMP 线程私有副本。</li>
+<li>下游配置读取流程可覆盖 <code>datadir</code>。</li>
+<li>下游物理、化学、辐射和初始化模块把 <code>datadir</code> 作为运行时数据根目录拼接具体文件名。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>module datafile_mod
+  datadir = &quot;/u/lmdz/WWW/planets/mars/datadir&quot;
+  make datadir threadprivate
+end module
+
+read optional config key &quot;datadir&quot; into datafile_mod.datadir
+path = trim(datadir) // &quot;/&quot; // required_runtime_filename
+open or inquire path</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/co2-cycle.html">CO2 循环</a></td>
+<td>为 <code>co2cloud_mod</code> 的 <code>optprop_co2ice_1mic.dat</code> 和 <code>improvedco2clouds_mod</code> 的 <code>Meteo_flux_Plane.dat</code> 提供目录根</td>
+</tr>
+<tr>
+<td><a href="../../themes/radiation.html">辐射</a></td>
+<td>为气溶胶光学属性表、近红外修正和 NLTE 数据提供目录根</td>
+</tr>
+<tr>
+<td><a href="../../themes/dust-cycle.html">尘埃循环</a></td>
+<td>为 <code>read_dust_scenario_mod</code> 读取 <code>dust_*.nc</code> 场景提供目录根</td>
+</tr>
+<tr>
+<td><a href="../../architecture/config-system.html">配置系统</a></td>
+<td><code>callphys.def</code> 的 <code>datadir</code> 配置项会覆盖默认路径</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>自由格式 Fortran 90</strong>，文件仅 13 行。</li>
+<li><strong>共享配置容器</strong>，只保存路径变量，不实现业务逻辑。</li>
+<li><strong><code>SAVE + THREADPRIVATE</code></strong>，说明并行运行时每个线程保留自己的 <code>datadir</code>。</li>
+<li><strong>硬编码默认路径</strong>，默认指向 LMD 在线 Mars datadir 位置；本仓库配置样例中既有绝对路径，也有 <code>./datadir</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>datadir</code> 必须指向包含外部表文件的数据包目录；仓库内 <code>datadir/README</code> 指向在线数据包下载地址，不代表所有数据文件已存在。</li>
+<li><code>conf_phys.F</code> 的 <code>getin_p("datadir", datadir)</code> 是主物理配置覆盖入口；若未覆盖，使用源码默认路径。</li>
+<li>典型下游文件包括 <code>albedocaps.F90</code>、<code>co2cloud_mod.F90</code>、<code>improvedco2clouds_mod.F90</code>、<code>read_dust_scenario_mod.F90</code>、<code>suaer.F90</code>、<code>nirdata.F90</code>、<code>nlte_setup.F</code>、<code>photolysis_mod.F90</code>、<code>chemistrydata.F90</code>、<a href="../aeronomars/param_read.html">param_read.F</a>、<a href="../aeronomars/param_read_e107.html">param_read_e107.F</a>、<a href="../aeronomars/inichim_newstart.html">inichim_newstart.F90</a>、<code>datareadnc.F</code> 和 <code>newstart.F</code>。</li>
+<li>路径拼接通常使用 <code>trim(datadir)//"/filename"</code>；配置值末尾是否带 <code>/</code> 不应依赖猜测，复现时按源码拼接点检查。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>datareadnc.F</code> 重新给 <code>datadir</code> 赋默认值再读配置，是否可能覆盖此前 <code>conf_phys.F</code> 读取到的值，取决于实际调用顺序；本页只记录源码字面行为。</li>
+<li>OpenMP <code>THREADPRIVATE(datadir)</code> 在配置读取后是否总能让所有线程获得一致路径，需要结合并行初始化路径确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../architecture/config-system.html">配置系统</a></li>
+<li><a href="../../architecture/project-structure.html">项目结构</a></li>
+<li><a href="co2cloud_mod.html">co2cloud_mod</a></li>
+<li><a href="improvedco2clouds_mod.html">improvedco2clouds_mod</a></li>
+<li><a href="../aeronomars/inichim_newstart.html">inichim_newstart</a></li>
+<li><a href="albedocaps.html">albedocaps</a></li>
+<li><a href="../../themes/dust-cycle.html">尘埃循环</a></li>
+<li><a href="../../themes/radiation.html">辐射</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

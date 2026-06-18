@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>iniwrite - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/iniwrite.md</span>
+    </nav>
+    <article class="content">
+<h1 id="iniwritef">iniwrite.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\iniwrite.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>iniwrite.F</code> 定义外部子程序 <code>iniwrite</code>，用于初始化传统物理诊断 NetCDF 文件的固定结构。源码注释说明其目标是初始化 <code>diagfi.nc</code>：写入维度，以及随时间不变的字段，例如地表位势和网格面积。实际调用点还包括 <code>writediagmicrofi.F</code>，因此同一初始化例程也服务微物理诊断文件。</p>
+<p>它不负责逐时间步追加诊断变量；后续变量由 <code>writediagfi.F</code> 或 <code>writediagmicrofi.F</code> 使用 <code>def_var</code> 等路径定义并写入。<code>iniwrite</code> 的职责是先建立坐标轴、垂直层坐标、控制参数、土壤深度、网格面积和地表位势，使后续诊断变量可以复用这些维度。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iniwrite</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1</td>
+<td>初始化已打开 NetCDF 诊断文件的维度、坐标变量和固定二维/一维字段</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>mlayer</code>, <code>nsoilmx</code></td>
+<td>定义 <code>subsurface_layers</code> 维度，并写入土壤层中点深度 <code>soildepth</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code>, <code>mugaz</code>, <code>omeg</code>, <code>rad</code>, <code>rcp</code>, <code>pi</code></td>
+<td>把行星常数用于诊断打印；<code>pi</code> 用于经纬度弧度转角度</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>vertical_layers_mod</code></td>
+<td><code>ap</code>, <code>bp</code>, <code>aps</code>, <code>bps</code>, <code>pseudoalt</code></td>
+<td>写入垂直坐标：伪高度、hybrid pressure/sigma midlayer 与 interlayer 系数</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>hour_ini</code>, <code>daysec</code>, <code>dtphys</code></td>
+<td>诊断打印中输出时间常数；<code>hour_ini</code> 在当前可执行语句中未使用</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>regular_lonlat_mod</code></td>
+<td><code>lon_reg</code>, <code>lat_reg</code></td>
+<td>写入规则经纬度坐标；3D 情况下扩展一个冗余经度点</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>nbp_lon</code>, <code>nbp_lat</code>, <code>nbp_lev</code></td>
+<td>定义经度、纬度、垂直层维度，并判断 1D/3D 网格</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>phyetat0_mod</code></td>
+<td><code>tab_cntrl_mod</code></td>
+<td>写入 <code>controle</code> 控制参数数组，并用其长度定义 <code>index</code> 维度</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>netcdf.inc</code></td>
+<td>include file</td>
+<td>提供传统 NetCDF Fortran <code>NF_*</code> 常量和接口</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NF_REDEF</code> / <code>NF_ENDDEF</code></td>
+<td>NetCDF Fortran 接口</td>
+<td>多处</td>
+<td>在定义维度或变量前后切换 NetCDF define mode</td>
+</tr>
+<tr>
+<td><code>NF_DEF_DIM</code></td>
+<td>NetCDF Fortran 接口</td>
+<td>113-124</td>
+<td>定义 <code>index</code>、<code>latitude</code>、<code>longitude</code>、<code>interlayer</code>、<code>altitude</code>、<code>subsurface_layers</code></td>
+</tr>
+<tr>
+<td><code>NF_DEF_VAR</code></td>
+<td>NetCDF Fortran 接口</td>
+<td>131-366</td>
+<td>定义 <code>controle</code>、经纬度、<code>altitude</code>、<code>soildepth</code>、<code>aire</code>、<code>phisinit</code> 等变量</td>
+</tr>
+<tr>
+<td><code>NF_PUT_ATT_TEXT</code></td>
+<td>NetCDF Fortran 接口</td>
+<td>多处</td>
+<td>写入 <code>title</code>、<code>long_name</code>、<code>units</code>、<code>positive</code> 等文本属性</td>
+</tr>
+<tr>
+<td><code>NF_PUT_VAR_REAL</code> / <code>NF_PUT_VAR_DOUBLE</code></td>
+<td>NetCDF Fortran 接口</td>
+<td>多处</td>
+<td>按 <code>NC_DOUBLE</code> 编译开关写入单精度或双精度变量值</td>
+</tr>
+<tr>
+<td><code>def_var</code></td>
+<td><code>def_var.F90</code></td>
+<td>244, 252, 260, 268</td>
+<td>定义 <code>aps</code>、<code>bps</code>、<code>ap</code>、<code>bp</code> 垂直 hybrid 坐标变量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="上游调用点">上游调用点</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th style="text-align: right;">调用位置</th>
+<th>传入形态</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>writediagfi.F</code></td>
+<td style="text-align: right;">251</td>
+<td><code>iniwrite(nid,day_ini,phis,area,nbp_lon+1,nbp_lat)</code></td>
+<td>3D lon-lat 传统 <code>diagfi</code> 输出初始化</td>
+</tr>
+<tr>
+<td><code>writediagfi.F</code></td>
+<td style="text-align: right;">253</td>
+<td><code>iniwrite(nid,day_ini,phisfi_glo(1),areafi_glo(1),1,1)</code></td>
+<td>1D 情况下用单点面积和位势初始化</td>
+</tr>
+<tr>
+<td><code>writediagmicrofi.F</code></td>
+<td style="text-align: right;">257</td>
+<td><code>iniwrite(nid,day_ini,phis,area,nbp_lon+1,nbp_lat)</code></td>
+<td>3D 微物理诊断输出初始化</td>
+</tr>
+<tr>
+<td><code>writediagmicrofi.F</code></td>
+<td style="text-align: right;">259</td>
+<td><code>iniwrite(nid,day_ini,phisfi_glo(1),areafi_glo(1),1,1)</code></td>
+<td>1D 微物理诊断输出初始化</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nid</code></td>
+<td>调用方已创建或打开的 NetCDF 文件</td>
+<td><code>integer</code></td>
+<td>-</td>
+<td>NetCDF file ID；本例程在这个文件内定义维度和变量</td>
+</tr>
+<tr>
+<td><code>idayref</code></td>
+<td>调用方传入，通常为 <code>day_ini</code></td>
+<td><code>INTEGER*4</code></td>
+<td>sol / model day</td>
+<td>初始日期；当前源码只在末尾诊断打印中使用</td>
+</tr>
+<tr>
+<td><code>phis</code></td>
+<td>调用方传入</td>
+<td><code>real(nbplon,nbp_lat)</code></td>
+<td>geopotential</td>
+<td>地表位势，写入 <code>phisinit</code></td>
+</tr>
+<tr>
+<td><code>area</code></td>
+<td>调用方传入</td>
+<td><code>real(nbplon,nbp_lat)</code></td>
+<td>m2</td>
+<td>网格面积，写入 <code>aire</code></td>
+</tr>
+<tr>
+<td><code>nbplon</code></td>
+<td>调用方传入</td>
+<td><code>integer</code></td>
+<td>grid points</td>
+<td><code>phis</code> 和 <code>area</code> 第一维长度；3D 通常为 <code>nbp_lon+1</code>，1D 为 1</td>
+</tr>
+<tr>
+<td><code>nbplat</code></td>
+<td>调用方传入</td>
+<td><code>integer</code></td>
+<td>grid points</td>
+<td>接口参数；当前源码声明后未直接使用，纬度维度使用模块变量 <code>nbp_lat</code></td>
+</tr>
+<tr>
+<td><code>tab_cntrl_mod</code></td>
+<td><code>phyetat0_mod</code></td>
+<td>real array</td>
+<td>mixed</td>
+<td>控制参数数组，长度定义 <code>index</code> 维度并写入 <code>controle</code></td>
+</tr>
+<tr>
+<td><code>lon_reg</code>, <code>lat_reg</code></td>
+<td><code>regular_lonlat_mod</code></td>
+<td>real arrays</td>
+<td>radians</td>
+<td>规则经纬度坐标，写出前乘 <code>180/pi</code></td>
+</tr>
+<tr>
+<td><code>ap</code>, <code>bp</code>, <code>aps</code>, <code>bps</code>, <code>pseudoalt</code></td>
+<td><code>vertical_layers_mod</code></td>
+<td>real arrays</td>
+<td>Pa / sigma / km</td>
+<td>垂直 hybrid 坐标和伪高度</td>
+</tr>
+<tr>
+<td><code>mlayer</code>, <code>nsoilmx</code></td>
+<td><code>comsoil_h</code></td>
+<td>real array / integer</td>
+<td>m / layers</td>
+<td>土壤层中点深度和土壤层数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>index</code></td>
+<td>NetCDF dimension</td>
+<td><code>SIZE(tab_cntrl_mod)</code></td>
+<td>-</td>
+<td><code>controle</code> 控制参数轴</td>
+</tr>
+<tr>
+<td><code>latitude</code></td>
+<td>NetCDF dimension + variable</td>
+<td><code>nbp_lat</code></td>
+<td>degrees_north</td>
+<td>纬度坐标</td>
+</tr>
+<tr>
+<td><code>longitude</code></td>
+<td>NetCDF dimension + variable</td>
+<td>1 或 <code>nbp_lon+1</code></td>
+<td>degrees_east</td>
+<td>经度坐标；3D 写入冗余闭合经度点</td>
+</tr>
+<tr>
+<td><code>interlayer</code></td>
+<td>NetCDF dimension</td>
+<td><code>nbp_lev+1</code></td>
+<td>-</td>
+<td>层间界面维度</td>
+</tr>
+<tr>
+<td><code>altitude</code></td>
+<td>NetCDF dimension + variable</td>
+<td><code>nbp_lev</code></td>
+<td>km</td>
+<td>伪高度坐标，属性 <code>positive="up"</code></td>
+</tr>
+<tr>
+<td><code>subsurface_layers</code></td>
+<td>NetCDF dimension</td>
+<td><code>nsoilmx</code></td>
+<td>-</td>
+<td>土壤层维度</td>
+</tr>
+<tr>
+<td><code>controle</code></td>
+<td>NetCDF variable</td>
+<td><code>index</code></td>
+<td>mixed</td>
+<td>物理控制参数数组</td>
+</tr>
+<tr>
+<td><code>aps</code>, <code>bps</code>, <code>ap</code>, <code>bp</code></td>
+<td>NetCDF variables</td>
+<td><code>altitude</code> 或 <code>interlayer</code></td>
+<td>Pa / sigma</td>
+<td>hybrid 垂直坐标系数</td>
+</tr>
+<tr>
+<td><code>soildepth</code></td>
+<td>NetCDF variable</td>
+<td><code>subsurface_layers</code></td>
+<td>m</td>
+<td>土壤中层深度，属性 <code>positive="down"</code></td>
+</tr>
+<tr>
+<td><code>aire</code></td>
+<td>NetCDF variable</td>
+<td><code>(longitude, latitude)</code></td>
+<td>source value</td>
+<td>网格面积</td>
+</tr>
+<tr>
+<td><code>phisinit</code></td>
+<td>NetCDF variable</td>
+<td><code>(longitude, latitude)</code></td>
+<td>source value</td>
+<td>地表位势</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本例程没有 module 变量、<code>SAVE</code> 局部状态或 <code>COMMON</code> block；主要副作用是修改 <code>nid</code> 指向的 NetCDF 文件结构和内容。</li>
+<li>会分配局部 allocatable 数组 <code>lon_reg_ext</code>，1D 时长度为 1，3D 时长度为 <code>nbp_lon+1</code>。源码末尾没有显式 <code>DEALLOCATE</code>；作为局部 allocatable，离开子程序时通常由 Fortran 运行时自动释放。</li>
+<li>会向标准输出打印 <code>nbp_lon/nbp_lat/nbp_lev/idayref</code>、<code>rad/omeg/g/mugaz/rcp</code>、<code>daysec/dtphys</code> 三组诊断信息。</li>
+<li>大多数 NetCDF 调用把返回码覆盖到 <code>ierr</code>，但没有立即检查或中止；这不同于 <code>def_var.F90</code> 内部对若干错误调用 <code>abort_physic</code> 的风格。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>根据 <code>nbp_lon*nbp_lat==1</code> 判断是否为 1D 模式；1D 分配单点 <code>lon_reg_ext(1)</code>，3D 分配 <code>lon_reg_ext(nbp_lon+1)</code>。</li>
+<li>进入 NetCDF define mode，定义 <code>index</code>、<code>latitude</code>、<code>longitude</code>、<code>interlayer</code>、<code>altitude</code> 和 <code>subsurface_layers</code> 维度；经度维度在 1D 时为 1，在 3D 时为 <code>nbp_lon+1</code>。</li>
+<li>定义并写入 <code>controle</code>，数据来源是 <code>tab_cntrl_mod</code>，变量类型由 <code>NC_DOUBLE</code> 条件编译决定。</li>
+<li>定义并写入 <code>latitude</code>，把 <code>lat_reg</code> 从弧度转换为角度，属性包含 <code>units="degrees_north"</code> 和 <code>long_name="North latitude"</code>。</li>
+<li>填充 <code>lon_reg_ext</code>：先复制 <code>lon_reg(1:nbp_lon)</code>，3D 时把最后一点设为 <code>-lon_reg_ext(1)</code>，源码注释说明这是因为 <code>lon_reg</code> 从 <code>-180</code> 开始，所以补上 <code>180</code> 的冗余点。</li>
+<li>定义并写入 <code>longitude</code>，把 <code>lon_reg_ext</code> 从弧度转换为角度，属性包含 <code>units="degrees_east"</code>。</li>
+<li>定义并写入 <code>altitude</code>，数据来源是 <code>pseudoalt</code>，单位 km，正方向向上。</li>
+<li>通过 <code>def_var</code> 定义 <code>aps</code>、<code>bps</code>、<code>ap</code>、<code>bp</code>，随后分别写入 <code>vertical_layers_mod</code> 中的同名数组。</li>
+<li>定义并写入 <code>soildepth</code>，数据来源是 <code>mlayer</code>，维度是 <code>subsurface_layers</code>。</li>
+<li>用 <code>(longitude, latitude)</code> 维度定义并写入 <code>aire</code> 和 <code>phisinit</code>。</li>
+<li>打印初始化摘要并返回。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>subroutine iniwrite(nid, idayref, phis, area, nbplon, nbplat)
+  if nbp_lon * nbp_lat == 1:
+    allocate lon_reg_ext(1)
+  else:
+    allocate lon_reg_ext(nbp_lon + 1)
+
+  define dimensions:
+    index = size(tab_cntrl_mod)
+    latitude = nbp_lat
+    longitude = 1 or nbp_lon + 1
+    interlayer = nbp_lev + 1
+    altitude = nbp_lev
+    subsurface_layers = nsoilmx
+
+  define and write controle(tab_cntrl_mod)
+  define and write latitude(lat_reg * 180/pi)
+
+  lon_reg_ext(1:nbp_lon) = lon_reg(1:nbp_lon)
+  if 3D:
+    lon_reg_ext(nbp_lon+1) = -lon_reg_ext(1)
+  define and write longitude(lon_reg_ext * 180/pi)
+
+  define and write altitude(pseudoalt)
+  def_var/write aps, bps on altitude
+  def_var/write ap, bp on interlayer
+  define and write soildepth(mlayer)
+  define and write aire(area)
+  define and write phisinit(phis)
+
+  print grid and constant summary
+end</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>传统物理诊断输出</td>
+<td>为 <code>writediagfi.F</code> 的 <code>diagfi.nc</code> 首次写入建立坐标轴、固定字段和控制参数</td>
+</tr>
+<tr>
+<td>微物理诊断输出</td>
+<td>被 <code>writediagmicrofi.F</code> 复用，用同一 NetCDF 初始化结构服务微物理诊断文件</td>
+</tr>
+<tr>
+<td>垂直坐标 / z2sig</td>
+<td>把 <code>vertical_layers_mod</code> 的 <code>ap/bp/aps/bps/pseudoalt</code> 写入诊断文件，供输出解释和后处理使用</td>
+</tr>
+<tr>
+<td>土壤诊断上下文</td>
+<td>虽然不写 <code>diagsoil.nc</code>，但会在常规诊断文件中写入 <code>soildepth</code>，与 <code>comsoil_h</code> 的土壤层定义保持一致</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 <code>.F</code> 文件，使用传统 <code>include "netcdf.inc"</code> 和 <code>NF_*</code> NetCDF F77 接口。</li>
+<li>多处通过 <code>#ifdef NC_DOUBLE</code> 在 <code>NF_DOUBLE</code> 与 <code>NF_FLOAT</code> 写出之间切换；垂直坐标变量定义本身由 <code>def_var</code> 完成，需注意 <code>def_var.F90</code> 当前页面记录其变量定义固定为 <code>NF_FLOAT</code>。</li>
+<li><code>nbplat</code> 是接口参数但当前源码没有直接引用；纬度维度来自模块变量 <code>nbp_lat</code>。</li>
+<li>3D 输出使用 <code>nbp_lon+1</code> 经度维度并写入冗余闭合点；调用方也以 <code>nbp_lon+1</code> 形状传入 <code>phis</code> 和 <code>area</code>。</li>
+<li>已注释掉的旧 <code>tab_cntrl</code> 填充逻辑仍保留在文件中；当前实际写入的控制参数来自 <code>phyetat0_mod:tab_cntrl_mod</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>调用 <code>iniwrite</code> 前，<code>nid</code> 必须已经指向一个可写的 NetCDF 文件；本例程会反复切换 define/data mode。</li>
+<li><code>tab_cntrl_mod</code> 必须先由物理初始化路径填好，否则 <code>controle</code> 会写入未期望的控制参数。</li>
+<li><code>lon_reg</code>、<code>lat_reg</code>、<code>ap/bp/aps/bps/pseudoalt</code>、<code>mlayer</code> 和 <code>nsoilmx</code> 必须在调用前初始化；这些数组直接写入文件，没有本地合法性检查。</li>
+<li>3D 情况下 <code>phis</code> 和 <code>area</code> 的第一维必须与 <code>nbp_lon+1</code> 一致；1D 情况下调用方传入单点数组。</li>
+<li>NetCDF 错误返回码大多未检查；复现实验若诊断文件缺字段或维度异常，不能仅依赖模型是否中止判断初始化是否完整。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>hour_ini</code> 被 <code>use</code> 引入但当前可执行路径未读写；是否为历史遗留依赖需要结合旧版本或编译告警确认。</li>
+<li><code>nbplat</code> 接口参数未直接使用；当前是否仅为旧接口兼容保留，需要结合调用方和历史接口确认。</li>
+<li><code>lon_reg_ext</code> 未显式释放；现代 Fortran 对局部 allocatable 的自动释放通常成立，但具体老编译器行为需结合构建环境确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="def_var.html">def_var</a></li>
+<li><a href="writediagsoil.html">writediagsoil</a></li>
+<li><a href="iniwritesoil.html">iniwritesoil</a></li>
+<li><a href="comsoil_h.html">comsoil_h</a></li>
+<li><a href="index.html">phymars 目录</a></li>
+<li><a href="../../architecture/z2sig-config.html">z2sig 配置</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

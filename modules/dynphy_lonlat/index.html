@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>index - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/index.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dynphy_lonlat-动力-物理耦合目录">dynphy_lonlat 动力-物理耦合目录</h1>
+<h2 id="路径">路径</h2>
+<pre><code>LMDZ.MARS\libf\dynphy_lonlat</code></pre>
+<h2 id="职责">职责</h2>
+<p>dynphy_lonlat 是 LMDZ.MARS 的动力-物理耦合目录，负责将物理过程（phymars）与动力核心连接起来。该目录包含物理初始化、运行参数定义、初始场处理、时间积分方案等与动力框架交互的代码。</p>
+<p><strong>推断</strong>：该目录的名称 "dynphy_lonlat" 表示其职责是在 lon-lat 网格上进行动力（dyn）和物理（phy）的耦合。</p>
+<h2 id="目录内容">目录内容</h2>
+<p>当前目录结构：</p>
+<pre><code>dynphy_lonlat/
+└── phymars/          # 物理-动力耦合相关文件（21 个文件）</code></pre>
+<h3 id="phymars-子目录文件">phymars/ 子目录文件</h3>
+<p>共 21 个文件，按功能分类：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>入口与调用</strong></td>
+<td></td>
+</tr>
+<tr>
+<td><a href="callphysiq_mod.html"><code>callphysiq_mod.F90</code></a></td>
+<td>动力-物理耦合适配器；<code>call_physiq</code> 校验 <code>planet_type</code> 后将动力核心状态转发给 <code>physiq</code> 并回写 tendency</td>
+</tr>
+<tr>
+<td><a href="iniphysiq_mod.html"><code>iniphysiq_mod.F90</code></a></td>
+<td>物理初始化主入口模块；依次调用 <code>inigeomphy</code>/<code>phys_state_var_init</code>/<code>ini_fillgeom</code>/<code>conf_phys</code>，由 <code>newstart</code>/<code>nogcm</code>/<code>start2archive</code> 调用</td>
+</tr>
+<tr>
+<td><strong>运行控制</strong></td>
+<td></td>
+</tr>
+<tr>
+<td><a href="defrun_new.html"><code>defrun_new.F</code></a></td>
+<td>GCM 运行参数读取器；从 <code>run.def</code> 读取 30+ 参数写入公共模块，由 <code>newstart</code>/<code>start2archive</code> 调用</td>
+</tr>
+<tr>
+<td><a href="newstart.html"><code>newstart.F</code></a></td>
+<td>交互式初始场编辑器；从 <code>start_archive.nc</code> 或 <code>start.nc/startfi.nc</code> 读取状态，修改地形/压力/tracer/地下冰/坡面数后写 <code>restart.nc</code> 和 <code>restartfi.nc</code></td>
+</tr>
+<tr>
+<td><a href="nogcm.html"><code>nogcm.F90</code></a></td>
+<td>独立物理模式主程序；读取配置和 <code>start.nc</code>/理想场，初始化物理和输出后调用 <code>leapfrog_nogcm</code></td>
+</tr>
+<tr>
+<td><strong>时间积分</strong></td>
+<td></td>
+</tr>
+<tr>
+<td><a href="leapfrog_nogcm.html"><code>leapfrog_nogcm.F</code></a></td>
+<td>独立物理模式时间积分主循环；Matsuno + leapfrog 步进，牛顿松弛+水平混合替代动力核心，由 <code>nogcm</code> 调用</td>
+</tr>
+<tr>
+<td><strong>初始化</strong></td>
+<td></td>
+</tr>
+<tr>
+<td><a href="ini_archive.html"><code>ini_archive.F</code></a></td>
+<td>start_archive NetCDF 文件头部写入；定义维度/坐标/垂直系数/地表场/控制参数，由 <code>start2archive</code> 调用</td>
+</tr>
+<tr>
+<td><a href="lect_start_archive.html"><code>lect_start_archive.F</code></a></td>
+<td>start_archive NetCDF 读取与网格插值主例程；读取全部初始场并通过 <code>interp_vert</code>/<code>interp_horiz</code>/<code>interp_line</code> 重映射，由 <code>newstart</code> 调用</td>
+</tr>
+<tr>
+<td><a href="readhead_NC.html"><code>readhead_NC.F</code></a></td>
+<td>NetCDF 头信息读取器；读取控制表、经纬度、面积、地表位势和 <code>aps/bps</code>，为 <code>xvik</code> 初始化动力/物理状态</td>
+</tr>
+<tr>
+<td><a href="datareadnc.html"><code>datareadnc.F</code></a></td>
+<td>火星地表 NetCDF 数据读取与网格插值；从 <code>surface.nc</code> 读取 z0/反照率/热惯量/MOLA 地形/亚网格参数，由 <code>newstart</code> 调用</td>
+</tr>
+<tr>
+<td><a href="start2archive.html"><code>start2archive.F</code></a></td>
+<td>起始场归档转换主程序；读取 <code>start.nc</code>/<code>startfi.nc</code>，初始化动力和物理网格后创建或追加 <code>start_archive.nc</code></td>
+</tr>
+<tr>
+<td><strong>水平处理</strong></td>
+<td></td>
+</tr>
+<tr>
+<td><a href="avg_horiz_mod.html"><code>avg_horiz_mod.F</code></a></td>
+<td>水平空间平均插值；将高分辨率地表数据从源网格复合平均到目标 GCM 网格，由 <code>datareadnc</code> 调用</td>
+</tr>
+<tr>
+<td><a href="mvc_horiz_mod.html"><code>mvc_horiz_mod.F</code></a></td>
+<td>最大值复合水平插值；将高分辨率地表数据取亚网格最大值映射到 GCM 网格，由 <code>datareadnc</code> 调用</td>
+</tr>
+<tr>
+<td><a href="grid_noro1.html"><code>grid_noro1.F</code></a></td>
+<td>亚网格地形参数计算（无旋转网格）；从 USN 高程数据计算 zmea/zstd/zsig/zgam/zthe，由 <code>datareadnc</code> 调用</td>
+</tr>
+<tr>
+<td><a href="scal_wind.html"><code>scal_wind.F</code></a></td>
+<td>风场位置转换；把 <code>xus/xvs</code> 相邻平均到 u/v 风点，由 <code>lect_start_archive</code> 调用</td>
+</tr>
+<tr>
+<td><a href="wind_scal.html"><code>wind_scal.F</code></a></td>
+<td>风场标量格点转换；将自然风/通量从 u/v 位置平均回标量格点，由 <code>start2archive</code> 调用</td>
+</tr>
+<tr>
+<td><strong>垂直处理</strong></td>
+<td></td>
+</tr>
+<tr>
+<td><a href="interp_vert.html"><code>interp_vert.F</code></a></td>
+<td>垂直坐标线性插值；将变量从旧混合 σ-p 层插值到新层，由 <code>lect_start_archive</code> 调用</td>
+</tr>
+<tr>
+<td><a href="subslope_mola.html"><code>subslope_mola.F90</code></a></td>
+<td>MOLA 坡面分布重算模块；读取 <code>mola64.nc</code> 并按 GCM 网格统计 <code>subslope_dist</code></td>
+</tr>
+<tr>
+<td><strong>其他</strong></td>
+<td></td>
+</tr>
+<tr>
+<td><a href="caldyn0.html"><code>caldyn0.F</code></a></td>
+<td>lon-lat GCM 动力倾向计算；依次调 13 个 EXTERNAL 子过程，由 <code>newstart</code> 调用</td>
+</tr>
+<tr>
+<td><a href="xvik.html"><code>xvik.F</code></a></td>
+<td>Viking/InSight 压力后处理程序；读取 diagfi 输出并生成站点压力、全球 CO2 压力诊断、日平均和谐波拟合</td>
+</tr>
+<tr>
+<td><a href="write_archive.html"><code>write_archive.F</code></a></td>
+<td>start_archive 变量追加器；按 <code>dim</code> 和变量名创建并写入 3D/2D/0D/土壤变量</td>
+</tr>
+</tbody>
+</table>
+<h3 id="关键模块">关键模块</h3>
+<table>
+<thead>
+<tr>
+<th>模块名</th>
+<th>所在文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="callphysiq_mod.html"><code>callphysiq_mod</code></a></td>
+<td><code>callphysiq_mod.F90</code></td>
+<td>动力-物理耦合适配器；封装 <code>call_physiq</code></td>
+</tr>
+<tr>
+<td><a href="iniphysiq_mod.html"><code>iniphysiq_mod</code></a></td>
+<td><code>iniphysiq_mod.F90</code></td>
+<td>物理初始化主入口；包装 <code>iniphysiq</code> 例程</td>
+</tr>
+<tr>
+<td><code>newstart</code></td>
+<td><a href="newstart.html"><code>newstart.F</code></a></td>
+<td>新建/修改 lon-lat GCM 初始状态并写出 restart 文件</td>
+</tr>
+<tr>
+<td><code>lect_start_archive</code></td>
+<td><a href="lect_start_archive.html"><code>lect_start_archive.F</code></a></td>
+<td>读取 start_archive 初始场</td>
+</tr>
+<tr>
+<td><code>avg_horiz_mod</code></td>
+<td><a href="avg_horiz_mod.html"><code>avg_horiz_mod.F</code></a></td>
+<td>水平空间平均插值；源网格地表数据分箱平均到目标 GCM 网格</td>
+</tr>
+<tr>
+<td><a href="mvc_horiz_mod.html"><code>mvc_horiz_mod</code></a></td>
+<td><code>mvc_horiz_mod.F</code></td>
+<td>最大值复合水平插值；取亚网格最大值映射到 GCM 网格</td>
+</tr>
+<tr>
+<td><code>scal_wind</code></td>
+<td><a href="scal_wind.html"><code>scal_wind.F</code></a></td>
+<td>风场位置转换；插值风场到 u/v 点</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与其他目录的关系">与其他目录的关系</h2>
+<table>
+<thead>
+<tr>
+<th>相关目录</th>
+<th>关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>../phymars/</code></td>
+<td>被调用执行物理过程</td>
+</tr>
+<tr>
+<td><code>../../deftank/</code></td>
+<td>读取 run.def、callphys.def 等配置</td>
+</tr>
+<tr>
+<td><code>../../startfiles/</code></td>
+<td>读取初始状态文件</td>
+</tr>
+<tr>
+<td>外部动力框架</td>
+<td>提供时间步进、网格数据传输</td>
+</tr>
+</tbody>
+</table>
+<h2 id="典型运行流程">典型运行流程</h2>
+<h3 id="完整-gcm-模式">完整 GCM 模式</h3>
+<ol type="1">
+<li><p><strong>初始化</strong>：</p>
+<ul>
+<li>调用 <code>iniphysiq_mod</code> 初始化物理</li>
+<li>调用 <code>lect_start_archive</code> 读取初始场</li>
+<li>调用 <code>defrun_new</code> 定义运行参数</li>
+</ul></li>
+<li><p><strong>时间循环</strong>：</p>
+<ul>
+<li>动力核心推进风场、温度</li>
+<li>调用 <code>callphysiq_mod</code> 执行物理过程</li>
+<li>物理调用 <code>phymars/physiq_mod.F</code> 中的 <code>physiq()</code></li>
+</ul></li>
+</ol>
+<h3 id="独立物理模式nogcm">独立物理模式（nogcm）</h3>
+<p>当没有完整 GCM 动力核心时，可以使用 <code>nogcm.F90</code>：</p>
+<ul>
+<li>自己实现时间积分（leapfrog_nogcm.F）</li>
+<li>只运行物理过程</li>
+<li>用于离线物理测试或 1D 列模型</li>
+</ul>
+<h2 id="关键入口">关键入口</h2>
+<table>
+<thead>
+<tr>
+<th>例程</th>
+<th>所在文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="callphysiq_mod.html"><code>call_physiq</code></a></td>
+<td><code>callphysiq_mod.F90</code></td>
+<td>动力-物理耦合适配入口</td>
+</tr>
+<tr>
+<td><a href="iniphysiq_mod.html"><code>iniphysiq</code></a></td>
+<td><code>iniphysiq_mod.F90</code></td>
+<td>物理初始化入口</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>需要外部动力框架提供网格、时间步进</li>
+<li>需要配置 run.def 定义网格参数</li>
+<li>需要初始状态文件（startfiles）</li>
+<li>独立物理模式（nogcm）可以单独运行</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>与 LMDZ 动力框架的具体接口约定</li>
+<li>独立物理模式的具体使用方式</li>
+<li>数据传递的数组格式</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

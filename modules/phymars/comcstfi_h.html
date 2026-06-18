@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>comcstfi_h - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/comcstfi_h.md</span>
+    </nav>
+    <article class="content">
+<h1 id="comcstfi_hf90">comcstfi_h.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\comcstfi_h.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>comcstfi_h.F90</code> 定义 <code>comcstfi_h</code>，是 <code>phymars</code> 中集中保存行星半径、重力、气体常数、比热、平均摩尔质量和自转角速度的共享物理常数模块。它本身不读取配置文件，也不做物理计算；主要职责是在初始化阶段接收上游给定的常数，并让辐射、沉降、边界层、云微物理、坡面和诊断等下游方案通过 <code>use comcstfi_h</code> 读取同一套常数。</p>
+<p>这个模块的复现意义在于：很多物理公式只在下游文件中出现，但公式中的 <code>g</code>、<code>r</code>、<code>cpp</code>、<code>rcp</code>、<code>rad</code>、<code>pi</code> 等都来自这里。若初始化路径不同，常数来源也可能不同，例如 GCM 主路径由 <code>phys_state_var_init_mod</code> 调用 <code>init_comcstfi_h</code> 初始化一部分常数，而 <code>tabfi.F</code> 和 1D 初始化路径会直接写入 <code>rad/g/mugaz/omeg/rcp</code> 等模块变量。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td>module</td>
+<td>1</td>
+<td>保存 <code>phymars</code> 共享物理常数</td>
+</tr>
+<tr>
+<td><code>pi</code></td>
+<td>real parameter</td>
+<td>4</td>
+<td>圆周率，按 <code>acos(-1.d0)</code> 计算</td>
+</tr>
+<tr>
+<td><code>rad</code></td>
+<td>real save</td>
+<td>5</td>
+<td>行星半径，单位 m</td>
+</tr>
+<tr>
+<td><code>g</code></td>
+<td>real save</td>
+<td>6</td>
+<td>重力加速度，单位 m/s2</td>
+</tr>
+<tr>
+<td><code>r</code></td>
+<td>real save</td>
+<td>8</td>
+<td>大气比气体常数</td>
+</tr>
+<tr>
+<td><code>cpp</code></td>
+<td>real save</td>
+<td>9</td>
+<td>大气定压比热</td>
+</tr>
+<tr>
+<td><code>rcp</code></td>
+<td>real save</td>
+<td>10</td>
+<td><code>r/cpp</code></td>
+</tr>
+<tr>
+<td><code>mugaz</code></td>
+<td>real save</td>
+<td>12</td>
+<td>大气平均摩尔质量，注释单位 g/mol</td>
+</tr>
+<tr>
+<td><code>omeg</code></td>
+<td>real save</td>
+<td>13</td>
+<td>行星自转角速度，单位 rad/s</td>
+</tr>
+<tr>
+<td><code>init_comcstfi_h</code></td>
+<td>subroutine</td>
+<td>20</td>
+<td>从调用方参数初始化 <code>rad</code>、<code>cpp</code>、<code>g</code>、<code>r</code>，并计算 <code>rcp</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>本模块没有 <code>use</code> 依赖</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>本模块只赋值共享常数，不调用其他例程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prad</code></td>
+<td><code>phys_state_var_init</code> 等调用方</td>
+<td>real scalar</td>
+<td>m</td>
+<td>初始化 <code>rad</code></td>
+</tr>
+<tr>
+<td><code>pcpp</code></td>
+<td><code>phys_state_var_init</code> 等调用方</td>
+<td>real scalar</td>
+<td>J/kg/K，推断</td>
+<td>初始化 <code>cpp</code></td>
+</tr>
+<tr>
+<td><code>pg</code></td>
+<td><code>phys_state_var_init</code> 等调用方</td>
+<td>real scalar</td>
+<td>m/s2</td>
+<td>初始化 <code>g</code></td>
+</tr>
+<tr>
+<td><code>pr</code></td>
+<td><code>phys_state_var_init</code> 等调用方</td>
+<td>real scalar</td>
+<td>J/kg/K，推断</td>
+<td>初始化 <code>r</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rad</code></td>
+<td>全局模块状态</td>
+<td>real save</td>
+<td>m</td>
+<td>行星半径，供几何、坡面、I/O 等读取</td>
+</tr>
+<tr>
+<td><code>g</code></td>
+<td>全局模块状态</td>
+<td>real save</td>
+<td>m/s2</td>
+<td>重力加速度，供层质量、沉降、拖曳、PBL 等读取</td>
+</tr>
+<tr>
+<td><code>r</code></td>
+<td>全局模块状态</td>
+<td>real save</td>
+<td>J/kg/K，推断</td>
+<td>比气体常数，供密度、热力学和输送计算读取</td>
+</tr>
+<tr>
+<td><code>cpp</code></td>
+<td>全局模块状态</td>
+<td>real save</td>
+<td>J/kg/K，推断</td>
+<td>定压比热，供辐射、云、热通量和加热率换算读取</td>
+</tr>
+<tr>
+<td><code>rcp</code></td>
+<td>全局模块状态</td>
+<td>real save</td>
+<td>-</td>
+<td><code>r/cpp</code>，供 Exner/位温相关计算读取</td>
+</tr>
+<tr>
+<td><code>mugaz</code></td>
+<td>全局模块状态</td>
+<td>real save</td>
+<td>g/mol</td>
+<td>平均摩尔质量；不由 <code>init_comcstfi_h</code> 赋值</td>
+</tr>
+<tr>
+<td><code>omeg</code></td>
+<td>全局模块状态</td>
+<td>real save</td>
+<td>rad/s</td>
+<td>自转角速度；不由 <code>init_comcstfi_h</code> 赋值</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>rad</code>、<code>g</code>、<code>r</code>、<code>cpp</code>、<code>rcp</code>、<code>mugaz</code>、<code>omeg</code> 都是 <code>SAVE</code> 模块变量。</li>
+<li>源码用 OpenMP <code>THREADPRIVATE</code> 分三组声明：<code>rad/g</code>、<code>r/cpp/rcp</code>、<code>mugaz/omeg</code>。并行复现时需要确认每个线程已获得正确副本。</li>
+<li><code>init_comcstfi_h</code> 只写 <code>rad</code>、<code>cpp</code>、<code>g</code>、<code>r</code> 和 <code>rcp</code>；它不写 <code>mugaz</code> 或 <code>omeg</code>。</li>
+<li><code>tabfi.F</code> 在读取或默认生成 <code>tab_cntrl</code> 时会直接写 <code>rad</code>、<code>omeg</code>、<code>g</code>、<code>mugaz</code>、<code>rcp</code>，并把这些值回传到 <code>p_rad/p_omeg/p_g/p_mugaz/p_daysec</code>。</li>
+<li>1D <code>dyn1d/init_testphys1d_mod.F90</code> 也直接写 <code>rad</code>、<code>omeg</code>、<code>g</code>、<code>mugaz</code>、<code>rcp</code>、<code>r</code>、<code>cpp</code>。</li>
+<li>本模块没有文件 I/O、没有分配内存、没有显式结束/释放例程。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>编译/加载模块时，<code>pi</code> 作为 <code>parameter</code> 由 <code>acos(-1.d0)</code> 固定。</li>
+<li>模块暴露一组 <code>SAVE</code> 常数变量，供下游 <code>use comcstfi_h, only: ...</code> 读取。</li>
+<li>GCM 初始化路径中，<code>phys_state_var_init_mod.F90</code> 行 46 导入 <code>init_comcstfi_h</code>，行 118 调用 <code>init_comcstfi_h(prad,pcpp,pg,pr)</code>。</li>
+<li><code>init_comcstfi_h</code> 将 <code>prad</code>、<code>pcpp</code>、<code>pg</code>、<code>pr</code> 分别赋给 <code>rad</code>、<code>cpp</code>、<code>g</code>、<code>r</code>。</li>
+<li><code>init_comcstfi_h</code> 最后计算 <code>rcp=r/cpp</code>，保证 <code>rcp</code> 与本次传入的 <code>r</code> 和 <code>cpp</code> 一致。</li>
+<li><code>mugaz</code> 和 <code>omeg</code> 必须由其他初始化路径赋值；源码证据包括 <code>tabfi.F</code> 行 114-119、182-186，以及 1D 初始化行 133-140。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>module comcstfi_h:
+    define pi = acos(-1)
+    keep SAVE constants:
+        rad, g, r, cpp, rcp, mugaz, omeg
+    mark these constants THREADPRIVATE
+
+init_comcstfi_h(prad, pcpp, pg, pr):
+    rad = prad
+    cpp = pcpp
+    g = pg
+    r = pr
+    rcp = r / cpp</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>物理初始化</td>
+<td><code>phys_state_var_init</code> 调用 <code>init_comcstfi_h</code>，先设置共享常数，再初始化时间、坡面、几何、土壤、辐射等模块</td>
+</tr>
+<tr>
+<td>初始状态 / restart 控制量</td>
+<td><code>tabfi</code> 可从 <code>tab_cntrl</code> 读取并写回 <code>rad/omeg/g/mugaz/rcp/daysec/dtphys</code>；<code>phyetat0_mod</code> 用 <code>tabfi</code> 处理 <code>startfi.nc</code> 或学术初始化</td>
+</tr>
+<tr>
+<td>1D testphys</td>
+<td><code>dyn1d/init_testphys1d_mod.F90</code> 直接设置 Mars 默认常数，并由 <code>r=8.314511*1000./mugaz</code>、<code>cpp=r/rcp</code> 补全热力学常数</td>
+</tr>
+<tr>
+<td>辐射和云微物理</td>
+<td><code>callradite_mod</code>、<code>co2cloud_mod</code>、<code>improvedclouds_mod</code>、<code>improvedco2clouds_mod</code> 等读取 <code>g</code>、<code>cpp</code>、<code>pi</code></td>
+</tr>
+<tr>
+<td>沉降 / 尘埃 / tracer 质量</td>
+<td><code>callsedim_mod</code>、<code>newsedim_mod</code>、<code>dust_coagulation_mod</code>、<code>tracer_mass_fixer_dyn_mod</code> 等读取 <code>g</code>、<code>r</code>、<code>pi</code></td>
+</tr>
+<tr>
+<td>边界层 / 对流 / 重力波</td>
+<td><code>vdifc_mod</code>、<code>pbl_parameters_mod</code>、<code>calltherm_interface_mod</code>、<code>calldrag_noro_mod</code>、<code>nonoro_gwd_*</code> 等读取 <code>g/r/cpp/rcp/pi</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>这是自由格式 <code>.F90</code> 模块，但变量命名保留 LMD 历史公共常数风格。</li>
+<li>模块注释写明“理想情况下所有 module variables 应该 protected”，但当前源码没有使用 <code>PROTECTED</code> 属性；任何 <code>use comcstfi_h</code> 且未限制写保护的代码理论上可写这些变量。</li>
+<li><code>pi</code> 是唯一编译期常量；其余常数依赖初始化顺序。</li>
+<li><code>mugaz</code> 和 <code>omeg</code> 与 <code>rad/g</code> 同属本模块状态，但不在 <code>init_comcstfi_h</code> 中初始化，这是复现时最容易混淆的点。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现 GCM 主路径时，应确认 <code>phys_state_var_init</code> 传入的 <code>prad/pg/pr/pcpp</code> 来源，并确认 <code>tabfi</code> 或其他路径是否随后覆盖了 <code>rad/g/rcp/mugaz/omeg</code>。</li>
+<li><code>rcp</code> 既可能由 <code>init_comcstfi_h</code> 计算，也可能由 <code>tabfi</code> 从 <code>tab_cntrl(tab0+9)</code> 读取；两者不一致会影响位温、Exner 因子和垂直插值相关计算。</li>
+<li><code>mugaz</code> 不由 <code>init_comcstfi_h</code> 赋值，但 <code>dust_coagulation_mod</code>、<code>iniwrite.F</code>、<code>phyetat0_mod</code> 等会读取它；需要确认启动文件或 1D 初始化已设置该值。</li>
+<li>OpenMP <code>THREADPRIVATE</code> 意味着共享常数在多线程环境中不是普通全局单例；复现线程初始化问题时，应检查线程私有副本是否完成同步或初始化。</li>
+<li><code>tabfi.F</code> 的默认 Mars 常数为 <code>rad=3397200.</code>、<code>daysec=88775.</code>、<code>g=3.72</code>、<code>mugaz=43.49</code>、<code>rcp=.256793</code>，但这些默认值只代表 <code>tabfi</code> 的 <code>nid=0</code>/默认路径，不应覆盖所有实验配置。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>GCM 主路径中 <code>mugaz</code> 和 <code>omeg</code> 是否总是在 <code>phys_state_var_init</code> 后由 <code>tabfi</code> 或等价流程赋值，需结合完整初始化调用顺序确认。</li>
+<li><code>THREADPRIVATE</code> 变量在当前并行框架下的拷贝/广播策略未在本文件内体现，需要查看 OpenMP 初始化约定。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars/index</a>：<code>phymars</code> 目录总览。</li>
+<li><a href="../../architecture/testphys1d-config.html">testphys1d-config</a>：1D 初始化和配置上下文。</li>
+<li><a href="../../architecture/config-system.html">config-system</a>：运行时配置体系。</li>
+<li><a href="calltherm_interface_mod.html">calltherm_interface_mod</a>：读取 <code>r/g/cpp</code> 的热羽流接口。</li>
+<li><a href="callsedim_mod.html">callsedim_mod</a>：读取 <code>g</code> 的沉降调度。</li>
+<li><a href="co2cloud_mod.html">co2cloud_mod</a>：读取 <code>pi/g/cpp</code> 的 CO2 云调度。</li>
+<li><a href="dust_coagulation_mod.html">dust_coagulation_mod</a>：读取 <code>pi/g/r/mugaz</code> 的尘埃凝并页。</li>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod</a></li>
+<li><a href="tabfi.html">tabfi.md</a>：控制表读取与物理常数初始化。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>common-dependencies - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a class="active" href="project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>architecture/common-dependencies.md</span>
+    </nav>
+    <article class="content">
+<h1 id="lmdzcommon-dependency-boundary">LMDZ.COMMON dependency boundary</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>本页记录 LMDZ.MARS Wiki 中需要理解的 <code>LMDZ.COMMON</code> 依赖边界。Mars Wiki 的源码覆盖范围仍以 <code>LMDZ.MARS</code> 为主；这里仅把 Mars 源码直接 <code>USE</code>、<code>CALL</code> 或通过同名 stub 路径依赖的公共层梳理成一张边界表，方便复现编译、初始化和重网格流程。</p>
+<p>本页不引用其他 wiki 项目内容；事实依据来自 <code>LMDZ.MARS</code> 与 <code>LMDZ.COMMON</code> 源码路径。</p>
+<h2 id="关键依赖">关键依赖</h2>
+<table>
+<thead>
+<tr>
+<th>COMMON 符号</th>
+<th>COMMON 源码位置</th>
+<th>Mars 使用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>LMDZ.COMMON/libf/phy_common/geometry_mod.F90</code></td>
+<td><code>libf/dynphy_lonlat/phymars/subslope_mola.F90</code>、<code>libf/phymars/compute_dtau_mod.F90</code>、<code>libf/phymars/iostart.F90</code> 等</td>
+<td>保存物理列经纬度、格点面积、角点边界和全局列索引。</td>
+</tr>
+<tr>
+<td><code>inigeomphy_mod::inigeomphy</code></td>
+<td><code>LMDZ.COMMON/libf/dynphy_lonlat/inigeomphy_mod.F90</code></td>
+<td><code>libf/dynphy_lonlat/phymars/iniphysiq_mod.F90</code></td>
+<td>从动力经纬网格生成物理网格数组，并调用 <code>geometry_mod::init_geometry</code>。</td>
+</tr>
+<tr>
+<td><code>interp_horiz</code></td>
+<td><code>LMDZ.COMMON/libf/dyn3d/interp_horiz.F</code></td>
+<td><code>libf/dynphy_lonlat/phymars/datareadnc.F</code>、<code>lect_start_archive.F</code>、<code>newstart.F</code></td>
+<td>规则经纬网格之间的水平插值，用于外部数据、start archive 或 MONS 数据重投影。</td>
+</tr>
+<tr>
+<td><code>temps_mod</code></td>
+<td><code>LMDZ.COMMON/libf/dyn3d/temps_mod.F90</code> 或 <code>LMDZ.COMMON/libf/dyn3dpar/temps_mod.F90</code></td>
+<td><code>iniphysiq_mod.F90</code>、<code>leapfrog_nogcm.F</code>、<code>newstart.F</code>、<code>nogcm.F90</code>、<code>readhead_NC.F</code>、<code>start2archive.F</code></td>
+<td>保存动力步数、起止日期、参考日、开始时间和当前时间步等运行时间状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="几何初始化链">几何初始化链</h2>
+<p>Mars 侧入口是 <a href="../modules/dynphy_lonlat/iniphysiq_mod.html">iniphysiq_mod</a>。其 <code>iniphysiq</code> 先调用 <code>inigeomphy</code>，再进入 OpenMP 并行区初始化 <code>phymars</code> 状态、填充 <code>comgeomfi_h</code> 三角缓存并读取物理配置。</p>
+<p>COMMON 侧 <code>inigeomphy</code> 负责：</p>
+<ol type="1">
+<li>根据 <code>rlonu/rlatv/airedyn/cudyn/cvdyn</code> 构造物理列的经纬度、面积和角点边界。</li>
+<li>处理常规经纬格点的南北极和周期经度边界。</li>
+<li>按并行分块抽取当前 OpenMP/MPI 子域。</li>
+<li>调用 <code>geometry_mod::init_geometry</code>，把 <code>longitude/latitude/cell_area/boundslon/boundslat/ind_cell_glo</code> 写入公共几何模块。</li>
+</ol>
+<p>Mars 侧后续读取这些状态的典型位置：</p>
+<table>
+<thead>
+<tr>
+<th>Mars 页面</th>
+<th>依赖的几何量</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/dynphy_lonlat/subslope_mola.html">subslope_mola</a></td>
+<td><code>boundslon,boundslat</code></td>
+<td>从 GCM 网格角点提取每格 MOLA 统计区域。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/compute_dtau_mod.html">compute_dtau_mod</a></td>
+<td><code>longitude_deg</code></td>
+<td>尘埃光学深度经度依赖调整。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/iostart.html">iostart</a></td>
+<td><code>ind_cell_glo</code></td>
+<td>读写物理列 restart 时映射全局列索引。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/physiq_mod.html">physiq_mod</a> 与 <a href="../modules/phymars/comgeomfi_h.html">comgeomfi_h</a></td>
+<td><code>longitude,latitude,cell_area</code> 经 <code>ini_fillgeom</code> 缓存</td>
+<td>物理参数化、辐射和诊断常用的三角函数与面积权重。</td>
+</tr>
+</tbody>
+</table>
+<p>复现约束：凡是读取 <code>geometry_mod</code> 的 Mars 例程，都隐含要求 <code>inigeomphy</code> 已先运行；否则 <code>geometry_mod</code> 内的可分配数组不会有合法内容。</p>
+<h2 id="水平插值边界">水平插值边界</h2>
+<p><code>interp_horiz</code> 是 COMMON 动力层的通用水平插值例程。Mars 侧没有在 <code>libf/dynphy_lonlat/phymars</code> 内定义同名例程，但多个初始化和数据读取文件直接调用它：</p>
+<table>
+<thead>
+<tr>
+<th>Mars 页面</th>
+<th>调用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/dynphy_lonlat/datareadnc.html">datareadnc</a></td>
+<td>把外部 NetCDF 数据转到当前 GCM 网格。</td>
+</tr>
+<tr>
+<td><a href="../modules/dynphy_lonlat/lect_start_archive.html">lect_start_archive</a></td>
+<td>把旧网格 start archive 的地表、土壤、tracer 和风场插值到新网格。</td>
+</tr>
+<tr>
+<td><a href="../modules/dynphy_lonlat/newstart.html">newstart</a></td>
+<td>MONS 冰深/冰热惯量相关数据的水平重投影。</td>
+</tr>
+</tbody>
+</table>
+<p>注意边界：<code>LMDZ.MARS/util/hrecast.F90</code> 内部也有一个本地 <code>interp_horiz</code> 子程序，用于离线 NetCDF 重网格。它是工具内局部实现，不是这里的 COMMON 依赖。</p>
+<h2 id="时间状态边界">时间状态边界</h2>
+<p><code>temps_mod</code> 在 COMMON 的串行 <code>dyn3d</code> 与并行 <code>dyn3dpar</code> 目录中都有同名模块。两者保存的核心变量一致，包括 <code>itaufin</code>、<code>itau_dyn</code>、<code>itau_phy</code>、<code>day_ini</code>、<code>day_end</code>、<code>annee_ref</code>、<code>day_ref</code>、<code>start_time</code>、<code>dt</code> 等；并行版本额外带 OpenMP <code>THREADPRIVATE</code> 声明。</p>
+<p>Mars 侧典型使用：</p>
+<table>
+<thead>
+<tr>
+<th>Mars 页面</th>
+<th>读取/写入含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/dynphy_lonlat/leapfrog_nogcm.html">leapfrog_nogcm</a></td>
+<td>计算 <code>itaufin</code>，更新 <code>dt</code>，控制独立物理模式时间积分。</td>
+</tr>
+<tr>
+<td><a href="../modules/dynphy_lonlat/iniphysiq_mod.html">iniphysiq_mod</a></td>
+<td>在 OpenMP 并行区入口 <code>COPYIN(day_ini,day_end,hour_ini)</code>。</td>
+</tr>
+<tr>
+<td><a href="../modules/dynphy_lonlat/nogcm.html">nogcm</a></td>
+<td>设置日历、起始时间和参考日状态。</td>
+</tr>
+<tr>
+<td><a href="../modules/dynphy_lonlat/newstart.html">newstart</a> / <a href="../modules/dynphy_lonlat/start2archive.html">start2archive</a> / <a href="../modules/dynphy_lonlat/readhead_NC.html">readhead_NC</a></td>
+<td>读取或传播初始日期、小时和归档时间。</td>
+</tr>
+</tbody>
+</table>
+<p>待确认：实际编译时选择串行 <code>dyn3d/temps_mod.F90</code> 还是并行 <code>dyn3dpar/temps_mod.F90</code> 取决于构建目标和预处理选项；Mars Wiki 当前不把两者合并成单一事实。</p>
+<h2 id="与-mars-本地公共状态的关系">与 Mars 本地公共状态的关系</h2>
+<p><code>geometry_mod</code> 和 <code>comgeomfi_h</code> 不是重复层。当前代码中：</p>
+<ul>
+<li><code>geometry_mod</code> 保存经纬度、面积、角点边界和全局列索引。</li>
+<li><code>comgeomfi_h</code> 保存 <code>sinlon/coslon/sinlat/coslat</code> 等物理包常用三角缓存。</li>
+<li><code>iniphysiq_mod.F90</code> 行内 TODO 注释指出 <code>comgeomfi_h</code> 的内容可能应迁移到 <code>geometry_mod</code>；源码尚未完成该迁移。</li>
+</ul>
+<p>因此，复现初始化链时不能只初始化 <code>geometry_mod</code>。Mars 物理包仍需要 <code>ini_fillgeom</code> 填好 <code>comgeomfi_h</code>。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>构建 Mars 可执行文件时，COMMON 源码必须作为同一构建图的一部分参与编译或链接。</li>
+<li>几何相关 Mars 例程的前置条件是 <code>inigeomphy</code> 已运行并初始化 <code>geometry_mod</code>。</li>
+<li><code>interp_horiz</code> 的调用方通常假设输入网格经纬度、极点和周期边界已经按该例程预期准备好；具体边界处理应结合调用页逐项复现。</li>
+<li>并行版本 <code>temps_mod</code> 的 <code>THREADPRIVATE</code> 语义会影响 OpenMP 区内时间变量复制；改动初始化顺序时必须保留 <code>COPYIN</code> 语义。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>temps_mod</code> 的串行/并行实现选择应通过实际 build log 或 makefile 目标核验。</li>
+<li><code>interp_horiz</code> 在 Mars 初始化路径中的所有数组边界约定尚未集中逐行复核，本页只记录依赖边界。</li>
+<li><code>comgeomfi_h</code> 迁移到 <code>geometry_mod</code> 的 TODO 是源码内设计意图提示，是否仍计划实施需维护者确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="project-structure.html">project-structure</a></li>
+<li><a href="../modules/dynphy_lonlat/iniphysiq_mod.html">iniphysiq_mod</a></li>
+<li><a href="../modules/dynphy_lonlat/subslope_mola.html">subslope_mola</a></li>
+<li><a href="../modules/dynphy_lonlat/datareadnc.html">datareadnc</a></li>
+<li><a href="../modules/dynphy_lonlat/lect_start_archive.html">lect_start_archive</a></li>
+<li><a href="../modules/dynphy_lonlat/newstart.html">newstart</a></li>
+<li><a href="../modules/dynphy_lonlat/leapfrog_nogcm.html">leapfrog_nogcm</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

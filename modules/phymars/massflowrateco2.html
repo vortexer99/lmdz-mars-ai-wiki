@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>massflowrateco2 - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/massflowrateco2.md</span>
+    </nav>
+    <article class="content">
+<h1 id="massflowrateco2f90">massflowrateco2.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\massflowrateco2.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>该文件定义 <code>massflowrateco2_mod</code> 模块，含 6 个 subroutine，构成一条计算链，目标是给出<strong>单个 CO2 冰粒的质量传输率 <code>Ic</code>（kg/s，&gt;0 为增长/凝结，&lt;0 为升华）</strong>。物理依据是 Listowski et al. (2014) 的扩散-热传导受限增长模型（eq.5/eq.6），2017 年由 C. Listowski 简化（用显式表面温度公式替代 Newton-Raphson 迭代）。</p>
+<p>模块对外只暴露入口例程 <code>massflowrateco2</code>（唯一被外部 <code>use</code> 的符号，核验：<code>improvedco2clouds_mod.F90:79</code>）；其余 5 个例程是内部物性子程序，逐层计算混合气体热导率、扩散系数、N2 黏度等。</p>
+<p>调用链（核验自源码 call 语句）：</p>
+<pre class="text"><code>massflowrateco2
+└─ coefffunc                        (:61)
+   ├─ KthMixNEW                     (:179)  CO2/N2 混合热导率
+   │  ├─ KthCO2Scalab               (:348)  纯 CO2 热导率 (Scalabrin 2006)
+   │  └─ KthN2LemJac                (:349)  纯 N2 热导率 (Lemmon &amp; Jacobsen 2003)
+   │     └─ viscoN2                 (:451)  N2 黏度
+   └─ Diffcoeff                     (:181)  CO2/N2 扩散系数 (Reid 1987)</code></pre>
+<p><code>Ic</code> 的唯一消费者是 <code>improvedco2clouds</code>（核验 <code>:531</code>）：把单粒速率乘以 CCNCO2 数浓度、时间步与 <code>tauscaling</code> 得到 <code>dMice</code>（每千克空气的 CO2 冰质量变化），再受“可用热能上限” <code>facteurmax</code> 与可用 CO2/CO2 冰量钳制，最后更新 <code>co2_ice</code>/<code>co2</code> tracer 与潜热加热 <code>subpdtcloudco2</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>massflowrateco2_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>容器模块</td>
+</tr>
+<tr>
+<td><code>massflowrateco2</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>入口：算单粒 CO2 冰质量传输率 <code>Ic</code></td>
+</tr>
+<tr>
+<td><code>coefffunc</code></td>
+<td>subroutine</td>
+<td>85</td>
+<td>算 Listowski 模型系数 <code>kmix/Lsub/C0/C1/C2/Ak</code></td>
+</tr>
+<tr>
+<td><code>Diffcoeff</code></td>
+<td>subroutine</td>
+<td>215</td>
+<td>CO2 在 N2 中的扩散系数（Reid et al. 1987）</td>
+</tr>
+<tr>
+<td><code>KthMixNEW</code></td>
+<td>subroutine</td>
+<td>270</td>
+<td>CO2/N2 混合气热导率（Mason &amp; Saxena 1958，不用黏度）</td>
+</tr>
+<tr>
+<td><code>KthN2LemJac</code></td>
+<td>subroutine</td>
+<td>365</td>
+<td>纯 N2 热导率（Lemmon &amp; Jacobsen 2003）</td>
+</tr>
+<tr>
+<td><code>viscoN2</code></td>
+<td>subroutine</td>
+<td>481</td>
+<td>纯 N2 黏度（Lemmon &amp; Jacobsen 2003）</td>
+</tr>
+<tr>
+<td><code>KthCO2Scalab</code></td>
+<td>subroutine</td>
+<td>541</td>
+<td>纯 CO2 热导率（Scalabrin et al. 2006）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途（所在子程序）</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>几何因子（<code>massflowrateco2</code>、<code>coefffunc</code>）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>rho_ice_co2</code></td>
+<td>CO2 冰密度（kg·m⁻³），用于 Kelvin 因子 <code>Ak</code>（<code>coefffunc</code>）。注意：是常数版 <code>rho_ice_co2</code>，非温度依赖的 <code>density_co2_ice</code>，见复现风险</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>kbz</code></td>
+<td>玻尔兹曼常数（1.381e-23）（<code>coefffunc</code>）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>mco2</code></td>
+<td>CO2 摩尔质量（44e-3 kg·mol⁻¹）（<code>coefffunc</code>、<code>Diffcoeff</code>、<code>KthMixNEW</code>）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>mn2</code></td>
+<td>N2 摩尔质量（28.01e-3 kg·mol⁻¹）（<code>Diffcoeff</code>、<code>KthMixNEW</code>、<code>KthN2LemJac</code>、<code>viscoN2</code>）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>nav</code></td>
+<td>阿伏伽德罗常数（6.023e23）（<code>coefffunc</code>）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>rgp</code></td>
+<td>理想气体常数（8.3143 J·mol⁻¹·K⁻¹）（<code>coefffunc</code>）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>sigco2</code></td>
+<td>CO2 冰/汽表面张力（0.08 J·m⁻²）（<code>coefffunc</code>）</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<p>各常数行号：<code>microphys_h.F90:15(nav),17(rgp),19(kbz),25(mco2),27(mn2),69(sigco2)</code>；<code>rho_ice_co2</code> 见 <code>tracer_mod</code> <code>:27</code>（<code>real,save</code>）。</p>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>coefffunc</code></td>
+<td>本文件</td>
+<td><code>:61</code></td>
+<td>算所有中间系数</td>
+</tr>
+<tr>
+<td><code>KthMixNEW</code></td>
+<td>本文件</td>
+<td><code>:179</code></td>
+<td>混合气热导率 <code>kmix</code></td>
+</tr>
+<tr>
+<td><code>Diffcoeff</code></td>
+<td>本文件</td>
+<td><code>:181</code></td>
+<td>扩散系数 <code>Dv</code></td>
+</tr>
+<tr>
+<td><code>KthCO2Scalab</code></td>
+<td>本文件</td>
+<td><code>:348</code></td>
+<td>纯 CO2 热导率</td>
+</tr>
+<tr>
+<td><code>KthN2LemJac</code></td>
+<td>本文件</td>
+<td><code>:349</code></td>
+<td>纯 N2 热导率</td>
+</tr>
+<tr>
+<td><code>viscoN2</code></td>
+<td>本文件</td>
+<td><code>:451</code></td>
+<td>N2 黏度</td>
+</tr>
+<tr>
+<td><code>dlog/exp/sqrt/...</code></td>
+<td>Fortran 内建</td>
+<td>多处</td>
+<td>算术</td>
+</tr>
+</tbody>
+</table>
+<p>本文件不调用其他源文件中的例程。</p>
+<h2 id="输入">输入</h2>
+<p>入口 <code>massflowrateco2(P,T,Sat,Radius,Matm,Ic)</code>：</p>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>P</code></td>
+<td>调用方</td>
+<td>real, intent(in)</td>
+<td>Pa</td>
+<td>层压力（<code>improvedco2clouds</code> 传 <code>pplay(ig,l)</code>）</td>
+</tr>
+<tr>
+<td><code>T</code></td>
+<td>调用方</td>
+<td>real, intent(in)</td>
+<td>K</td>
+<td>温度（传 <code>zt(ig,l)</code>）</td>
+</tr>
+<tr>
+<td><code>Sat</code></td>
+<td>调用方</td>
+<td>real(kind=8), intent(in)</td>
+<td>—</td>
+<td>CO2 过饱和比 S（传 <code>satu</code>）</td>
+</tr>
+<tr>
+<td><code>Radius</code></td>
+<td>调用方</td>
+<td>double, intent(in)</td>
+<td>m</td>
+<td>CO2 冰粒半径（传 <code>riceco2(ig,l)</code>）</td>
+</tr>
+<tr>
+<td><code>Matm</code></td>
+<td>调用方</td>
+<td>real, intent(in)</td>
+<td>g·mol⁻¹</td>
+<td>大气平均摩尔质量（传 <code>mmean(ig,l)</code>），注意单位是 g·mol⁻¹（见 <code>coefffunc</code> 内多处 ×1e-3 换算）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Ic</code></td>
+<td>调用方</td>
+<td>double, intent(out)</td>
+<td>kg·s⁻¹</td>
+<td>单个 CO2 冰粒的质量传输率，&gt;0 增长、&lt;0 升华</td>
+</tr>
+</tbody>
+</table>
+<p>调用方对 <code>Ic</code> 的处理（核验 <code>improvedco2clouds_mod.F90:534-553</code>）：先判 <code>isnan(Ic)</code> 或 <code>Ic==0</code> 直接置 0；否则 <code>dMice = Nccnco2 * Ic * microtimestep * tauscaling</code>，再用 <code>facteurmax</code>（热能上限）和可用 CO2/CO2 冰量双向钳制，更新 tracer 和潜热加热率。</p>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>无 common block，不写文件，无诊断打印。</li>
+<li>全部依赖为只读 PARAMETER 常数 + 只读 <code>rho_ice_co2</code>（module SAVE 变量）。</li>
+<li>各子程序无 SAVE 变量、无 firstcall，纯函数式（给定输入即给定输出）。</li>
+<li><code>KthN2LemJac</code>/<code>KthCO2Scalab</code>/<code>viscoN2</code> 把大量经验拟合系数硬编码为局部变量/PARAMETER。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<p><code>massflowrateco2</code>（入口，<code>:61-74</code>）：</p>
+<ol type="1">
+<li>调 <code>coefffunc</code> 得 <code>kmix</code>（混合热导率）、<code>Lsub</code>（升华潜热）、<code>C0/C1/C2</code>、<code>Ak</code>（Kelvin 因子）。</li>
+<li>显式表面温度：<code>Tsurf = (1/C1)*ln(Sat/Ak) + T</code>（Listowski 2017 简化，省去 Newton-Raphson，源码注释称误差 &lt;0.6%）。</li>
+<li><code>cond = 4π*Radius*kmix</code>（热传导导率几何项）。</li>
+<li><code>Ic = cond*(Tsurf - T)/Lsub</code>：表面与环境温差驱动的质量流。</li>
+</ol>
+<p><code>coefffunc</code>（<code>:152-204</code>）：</p>
+<ul>
+<li>平表面饱和压 <code>psat = 1.382e12 * exp(-3182.48/T)</code> (Pa)；<code>pco2 = psat*S</code>。</li>
+<li>升华潜热 4 阶多项式 <code>Lsub = l0 + l1*T + l2*T² + l3*T³ + l4*T⁴</code>（Azreg-Aïnou 形式，J/kg）。</li>
+<li>大气密度 <code>rhoatm = P*Matm/(rgp*T)</code>（先 g·m⁻³，再 ×1e-3 转 kg·m⁻³）。</li>
+<li>调 <code>KthMixNEW</code> 得 <code>kmix</code>，调 <code>Diffcoeff</code> 得 <code>Dv</code>（cm²/s→×1e-4 转 m²/s）。</li>
+<li><strong>Fuchs-Sutugin（FS）非连续修正</strong>：对 <code>Dv</code> 和 <code>kmix</code> 各做一次。分别算 CO2 热速度 <code>vthco2</code>、空气热速度 <code>vthatm</code>，由此得 Knudsen 数与 <code>lambda</code>（Dahneke/Monchick &amp; Mason 形式），把 <code>Dv</code> 和 <code>kmix</code> 除以 <code>(1+lambda*Kn)</code>。</li>
+<li>装配系数：<code>Ak = exp(2*sigco2*mco2/(rgp*rho_ice_co2*T*rc))</code>（Kelvin 曲率因子）；<code>C0/C1/C2</code> 按 Listowski 2014 eq.6 给出。入口只用到 <code>C1</code> 和 <code>Ak</code>（C0/C2 计算但未被入口使用，见待确认）。</li>
+</ul>
+<p><code>Diffcoeff</code>（<code>:249-257</code>）：Reid et al. 1987 经验式，<code>Diff = 0.00143*T^1.75/(Pbar*sqrt(Mab)*(dva^(1/3)+dvb^(1/3))²)</code>，扩散体积 CO2=26.9、N2=18.5，输出 cm²/s。</p>
+<p><code>KthMixNEW</code>（<code>:320-353</code>）：Mason &amp; Saxena (1958)/Wassiljeva (1904) 混合规则，不用黏度。算 CO2/N2 摩尔分数 <code>x1/x2</code>，按临界参数算 <code>Gamma</code>、平移热导率 <code>lambda_trans</code>、交叉系数 <code>A12/A21</code>，调 <code>KthCO2Scalab</code>、<code>KthN2LemJac</code> 得纯组分热导率，按 Wassiljeva 加权求和，末尾 ×1e-3（mW→W）。</p>
+<p><code>KthN2LemJac</code>（<code>:406-469</code>）：Lemmon &amp; Jacobsen 2003 纯 N2 热导率，先调 <code>viscoN2</code> 得黏度，再用稀薄项 <code>k1</code> + 残余项 <code>k2</code>（多项式 × <code>delta^d</code> × <code>exp(-gamma*delta^l)</code>）。</p>
+<p><code>viscoN2</code>（<code>:522-528</code>）：Lemmon &amp; Jacobsen 2003 的 N2 黏度，碰撞积分 <code>RGCS</code> 用 ln(T*) 多项式拟合，输出 microPa·s。</p>
+<p><code>KthCO2Scalab</code>（<code>:610-622</code>）：Scalabrin et al. 2006 纯 CO2 热导率，对比态 <code>Tr=T/Tc</code>、<code>rhor=rho/rhoc</code>，多项式 <code>k1</code> + 残余项 <code>k2*exp(-5*rhor²)</code>，× <code>Lambdac</code>，输出 mW·m⁻¹·K⁻¹。</p>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>subroutine massflowrateco2(P, T, Sat, Radius, Matm, Ic):
+    call coefffunc(P,T,Sat,Radius,Matm -&gt; kmix,Lsub,C0,C1,C2,Ak)
+    Tsurf = (1/C1)*ln(Sat/Ak) + T          # 显式表面温度 (Listowski 2017)
+    cond  = 4*pi*Radius*kmix
+    Ic    = cond*(Tsurf - T)/Lsub           # kg/s, &gt;0 增长
+
+subroutine coefffunc(P,T,S,rc,Matm -&gt; kmix,Lsub,C0,C1,C2,Ak):
+    psat = 1.382e12*exp(-3182.48/T);  pco2 = psat*S
+    Lsub = poly4(T)                          # 升华潜热
+    rhoatm = P*Matm/(rgp*T) * 1e-3           # kg/m3
+    call KthMixNEW(-&gt; kmix);  call Diffcoeff(-&gt; Dv [m2/s])
+    # Fuchs-Sutugin 修正 (对 Dv 与 kmix 各一次)
+    Kn = ...;  lambda = (1.333+0.71/Kn)/(1+1/Kn)
+    Dv   /= (1+lambda*Kn);  kmix /= (1+lambda*Kn)
+    Ak = exp(2*sigco2*mco2/(rgp*rho_ice_co2*T*rc))
+    C1 = Lsub*mco2/(rgp*T^2)                  # 入口实际使用 C1, Ak
+    C0, C2 = ... (Listowski 2014 eq.6)
+
+KthMixNEW: 调 KthCO2Scalab + KthN2LemJac，Wassiljeva 混合
+KthN2LemJac: 调 viscoN2，Lemmon&amp;Jacobsen 2003
+KthCO2Scalab: Scalabrin 2006 对比态多项式
+Diffcoeff: Reid 1987 经验式</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CO2 循环 / CO2 云微物理</td>
+<td>CO2 冰晶增长/升华的核心动力学。被 <code>improvedco2clouds</code> 在成核之后调用，决定每个 CCNCO2 粒子的质量变化速率，进而驱动 <code>co2_ice</code>↔︎<code>co2</code> 气相转移与潜热加热</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 Fortran（<code>.F90</code>），续行行尾 <code>&amp;</code>，分隔注释块用大段 <code>!===</code>/<code>!___</code>。</li>
+<li>混合精度：<code>P</code>、<code>T</code>、<code>Matm</code> 为 <code>REAL</code>，<code>Sat</code>、<code>Radius</code>、<code>Ic</code> 及全部中间量为 <code>double</code>/<code>real(kind=8)</code>，内部大量 <code>dble()</code> 提升。</li>
+<li><code>Cpco2</code>、<code>Cpn2</code> 用过时的 <code>data</code> 语句初始化（<code>:147-148</code>）。</li>
+<li>大量硬编码经验拟合系数（Lemmon-Jacobsen N2、Scalabrin CO2、Reid 扩散体积等），来源在注释中标注了文献。</li>
+<li><code>psat</code> 系数 <code>1.382e12</code>、<code>-3182.48</code> 为平表面 CO2 饱和压拟合常数。</li>
+<li>FS 修正中的 <code>lambda</code> 公式注释里作者自己存疑（“pas adaptee, Dahneke 1983? en fait si (Monchick&amp;Black)”），保留原样。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>Ic</code> 是<strong>单粒</strong> kg/s，正负号即增长/升华；调用方再乘数浓度与时间步并钳制，复现勿混淆单粒速率与每千克空气速率。</li>
+<li><code>Tsurf</code> 用的是 Listowski 2017 显式简化式（非迭代），与 Listowski 2014 原式有 &lt;0.6% 误差；复现时若用迭代解会有微小差异。</li>
+<li>Kelvin 因子 <code>Ak</code> 用的是 <code>tracer_mod</code> 的常数 <code>rho_ice_co2</code>，<strong>不是</strong>温度依赖的 <code>density_co2_ice</code>（后者见 TASK-0042）。这是文件内的实际写法，复现需注意两者区别。</li>
+<li><code>Matm</code> 入口单位是 g·mol⁻¹（不是 kg·mol⁻¹）；<code>coefffunc</code> 内多处 ×1e-3 转 kg。</li>
+<li>扩散系数与热导率都做了 FS 非连续修正，复现时不能省略，否则小粒子结果偏大。</li>
+<li>各物性拟合式有各自适用温度/密度范围（火星条件），文件未做边界检查。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>coefffunc</code> 计算了 <code>C0</code> 和 <code>C2</code> 但入口 <code>massflowrateco2</code> 只用 <code>C1</code> 与 <code>Ak</code>。<code>C0/C2</code> 是否为历史遗留（旧 Newton-Raphson 路径）或供其他调用方使用——当前模块内无其他消费者。推断：2017 简化后遗留。</li>
+<li><code>Ak</code> 在 <code>coefffunc</code> 中既是 <code>intent(out)</code> 形参又在局部声明区出现于注释（<code>:135</code>），实际为输出形参；已确认通过参数表回传给入口。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="improvedco2clouds_mod.html">improvedco2clouds_mod</a>（TASK-0046，已写）：唯一调用方，CO2 云微物理核心。</li>
+<li><a href="nucleaco2.html">nucleaco2</a>（TASK-0047，已写）：CO2 成核率，本例程在成核之后被调用。</li>
+<li><a href="density_co2_ice.html">density_co2_ice</a>（TASK-0042，已写）：温度依赖 CO2 冰密度；注意本文件用的是常数 <code>rho_ice_co2</code>。</li>
+<li><a href="co2-saturation-helpers.html">co2-saturation-helpers</a>（TASK-0040，已写）：提供过饱和比 <code>Sat</code> 的上下文。</li>
+<li><a href="co2cloud_mod.html">co2cloud_mod</a>（TASK-0045，已写）：CO2 云总调度。</li>
+<li><a href="../../themes/co2-cycle.html">CO2 循环父级主题页</a>（TASK-0011）。</li>
+<li><a href="microphys_h.html">microphys_h</a>：提供本文件读取的 CO2/N2 分子质量、气体常数和 CO2 表面张力；待确认页：<code>tracer_mod</code>。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>albedocaps - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/albedocaps.md</span>
+    </nav>
+    <article class="content">
+<h1 id="albedocapsf90">albedocaps.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\albedocaps.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>该文件定义 <code>albedocaps_mod</code> 模块，负责在 CO2 凝结主流程中根据地表 CO2 冰状态更新地表短波反照率 <code>psolaralb</code> 和红外发射率参考值 <code>emisref</code>。调用方 <code>co2condens</code> 在每个坡面循环中把当前坡面的 <code>piceco2</code>、<code>perennial_co2ice</code>、<code>psolaralb</code> 传入本例程，随后把返回的 albedo/emissivity 写回坡面数组。</p>
+<p>主路径有三层优先级：先用裸地 <code>albedodat</code>/<code>emissiv</code> 初始化；如果 <code>paleoclimate=.true.</code> 且 <code>piceco2_peren&gt;0</code>，用多年 CO2 冰盖反照率和 CO2 冰发射率覆盖；如果当前地表 CO2 霜 <code>piceco2&gt;0</code>，再用 CO2 霜属性覆盖。CO2 霜反照率可来自固定 <code>albedice(icap)</code>，也可在 <code>TESicealbedo=.true.</code> 时从 <code>npsc_albedo.nc</code> / <code>spsc_albedo.nc</code> 做 Ls-经纬插值。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>albedocaps_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>CO2 冰冠/霜反照率与发射率更新模块</td>
+</tr>
+<tr>
+<td><code>max_icecap_albedo</code></td>
+<td>module variable</td>
+<td>5</td>
+<td>TES 插值反照率的上限，firstcall 时由 <code>max_icecap_albedo</code> 配置键覆盖默认值</td>
+</tr>
+<tr>
+<td><code>albedocaps</code></td>
+<td>subroutine</td>
+<td>10</td>
+<td>对每个格点按裸地、多年 CO2 冰、当前 CO2 霜顺序设置 <code>psolaralb</code> 与 <code>emisref</code></td>
+</tr>
+<tr>
+<td><code>read_TES_icecap_albedo</code></td>
+<td>subroutine</td>
+<td>141</td>
+<td>从 <code>datadir</code> 读取南/北半球 TES 极冠反照率 NetCDF 表并广播</td>
+</tr>
+<tr>
+<td><code>TES_icecap_albedo</code></td>
+<td>subroutine</td>
+<td>328</td>
+<td>对单个格点按 Ls、经度、纬度插值 TES 极冠反照率</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td><code>getin_p</code></td>
+<td>读取 <code>TESicealbedo</code>、<code>TESice_Ncoef</code>、<code>TESice_Scoef</code>、<code>max_icecap_albedo</code> 配置</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>latitude</code> / <code>latitude, longitude</code></td>
+<td><code>albedocaps</code> 用纬度选南北半球；<code>TES_icecap_albedo</code> 用经纬度定位 TES 网格</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>TESicealbedo</code>, <code>TESice_Ncoef</code>, <code>TESice_Scoef</code>, <code>emisice</code>, <code>emissiv</code>, <code>albedice</code>, <code>albedodat</code>, <code>albedo_perennialco2</code></td>
+<td>读取/写入地表反照率配置和共享地表参数</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>paleoclimate_mod</code></td>
+<td><code>paleoclimate</code></td>
+<td>控制多年 CO2 冰盖分支是否生效</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>datafile_mod</code></td>
+<td><code>datadir</code></td>
+<td>定位 <code>npsc_albedo.nc</code> 与 <code>spsc_albedo.nc</code></td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>netcdf</code></td>
+<td><code>nf90_open</code>, <code>NF90_NOWRITE</code>, <code>NF90_NOERR</code>, <code>nf90_strerror</code>, <code>nf90_inq_varid</code>, <code>nf90_get_var</code>, <code>nf90_close</code></td>
+<td>读取 TES NetCDF 变量</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code></td>
+<td>非 mesoscale 编译下只让 master 进程读取 NetCDF</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td><code>bcast</code></td>
+<td>非 mesoscale 编译下广播 TES 表和常数</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<p>复现风险：<code>TES_icecap_albedo</code> 中 <code>datafile_mod</code>、<code>netcdf</code>、<code>bcast</code> 的 <code>use</code> 在当前例程主体没有实际调用；复现调用图时应以实际 <code>call</code> 为准。</p>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin_p</code></td>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td>79, 86, 91, 97</td>
+<td>读取 TES 反照率开关、南北半球系数和反照率上限</td>
+</tr>
+<tr>
+<td><code>read_TES_icecap_albedo</code></td>
+<td>本文件</td>
+<td>100</td>
+<td>firstcall 时加载 TES 网格和南/北半球反照率表</td>
+</tr>
+<tr>
+<td><code>TES_icecap_albedo</code></td>
+<td>本文件</td>
+<td>129</td>
+<td><code>TESicealbedo=.true.</code> 且当前格点有 CO2 霜时插值反照率</td>
+</tr>
+<tr>
+<td><code>nf90_open</code> / <code>nf90_inq_varid</code> / <code>nf90_get_var</code> / <code>nf90_close</code></td>
+<td><code>netcdf</code></td>
+<td>190-311</td>
+<td>打开并读取 <code>longitude</code>、<code>latitude</code>、<code>time</code>、<code>albedo</code> 变量</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部错误处理例程</td>
+<td>196, 209, 218, 228, 237, 268, 282, 292</td>
+<td>TES 文件或变量缺失时中止物理过程</td>
+</tr>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td>318-326</td>
+<td>非 mesoscale 编译下广播 TES 数组和插值常数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zls</code></td>
+<td><code>co2condens</code> 调用方</td>
+<td>real scalar</td>
+<td>rad</td>
+<td>当前太阳经度，用于 TES 时间维插值</td>
+</tr>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>物理网格列数</td>
+</tr>
+<tr>
+<td><code>piceco2(ngrid)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>kg/m2</td>
+<td>当前地表 CO2 冰/霜量；大于 0 时触发 CO2 霜反照率分支</td>
+</tr>
+<tr>
+<td><code>piceco2_peren(ngrid)</code></td>
+<td>调用方</td>
+<td>real array, intent(inout)</td>
+<td>kg/m2</td>
+<td>多年 CO2 冰量；本文件只读取，不修改</td>
+</tr>
+<tr>
+<td><code>latitude(ngrid)</code></td>
+<td><code>geometry_mod</code></td>
+<td>real array</td>
+<td>rad</td>
+<td>选南北半球和 TES 纬度位置</td>
+</tr>
+<tr>
+<td><code>longitude(ngrid)</code></td>
+<td><code>geometry_mod</code></td>
+<td>real array</td>
+<td>rad</td>
+<td>TES 经度插值位置</td>
+</tr>
+<tr>
+<td><code>albedodat(ngrid)</code></td>
+<td><code>surfdat_h</code></td>
+<td>real array</td>
+<td>-</td>
+<td>裸地短波反照率</td>
+</tr>
+<tr>
+<td><code>emissiv</code></td>
+<td><code>surfdat_h</code></td>
+<td>real scalar</td>
+<td>-</td>
+<td>裸地红外发射率</td>
+</tr>
+<tr>
+<td><code>albedice(2)</code>, <code>emisice(2)</code></td>
+<td><code>surfdat_h</code></td>
+<td>real array</td>
+<td>-</td>
+<td>南/北半球 CO2 冰默认反照率与发射率</td>
+</tr>
+<tr>
+<td><code>albedo_perennialco2(2)</code></td>
+<td><code>surfdat_h</code></td>
+<td>real array</td>
+<td>-</td>
+<td>paleoclimate 多年 CO2 冰反照率</td>
+</tr>
+<tr>
+<td><code>TESicealbedo</code>, <code>TESice_Ncoef</code>, <code>TESice_Scoef</code>, <code>max_icecap_albedo</code></td>
+<td><code>getin_p</code> / <code>surfdat_h</code> / 本模块</td>
+<td>logical/real</td>
+<td>-</td>
+<td>TES 极冠反照率开关、南北半球乘数和上限</td>
+</tr>
+<tr>
+<td><code>npsc_albedo.nc</code>, <code>spsc_albedo.nc</code></td>
+<td><code>datadir</code></td>
+<td>NetCDF</td>
+<td>-</td>
+<td>北/南半球 TES 反照率表</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>psolaralb(ngrid,2)</code></td>
+<td>调用方 <code>co2condens</code></td>
+<td>real array, intent(out)</td>
+<td>-</td>
+<td>短波反照率两通道；TES 分支把两通道设成同一个插值值</td>
+</tr>
+<tr>
+<td><code>emisref(ngrid)</code></td>
+<td>调用方 <code>co2condens</code></td>
+<td>real array, intent(out)</td>
+<td>-</td>
+<td>地表参考发射率，供后续 <code>co2snow</code> 等过程使用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>albedocaps</code> firstcall 会修改 <code>surfdat_h</code> 中的 <code>TESicealbedo</code>、<code>TESice_Ncoef</code>、<code>TESice_Scoef</code>，并设置本模块 <code>max_icecap_albedo</code>。</li>
+<li><code>firstcall</code>、<code>zls_old</code>、<code>pi</code>、<code>radeg</code>、TES 网格/反照率数组和 <code>max_icecap_albedo</code> 均为 <code>SAVE</code> 并 <code>THREADPRIVATE</code>。</li>
+<li>读取两个运行时数据文件：<code>trim(datadir)//"/npsc_albedo.nc"</code> 和 <code>trim(datadir)//"/spsc_albedo.nc"</code>。</li>
+<li>TES 文件或变量缺失时调用 <code>abort_physic(...,1)</code> 中止。</li>
+<li>多处 <code>write(*,*)</code> 输出配置、数据文件和 NetCDF 错误信息。</li>
+<li>不写源码、不写 restart、不直接改 tracer、温度或质量。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>每个线程首次进入 <code>albedocaps</code> 时：
+<ul>
+<li>默认 <code>TESicealbedo=.false.</code>，再用 <code>getin_p("TESicealbedo",...)</code> 覆盖。</li>
+<li>若启用 TES，读取 <code>TESice_Ncoef</code> 和 <code>TESice_Scoef</code>，默认均为 <code>1.0</code>。</li>
+<li>读取 <code>max_icecap_albedo</code>，源码默认 <code>0.9</code>。</li>
+<li>调用 <code>read_TES_icecap_albedo</code> 读取 TES 经度、纬度、Ls 和反照率表，初始化 <code>pi</code>、<code>radeg</code>、<code>zls_old=-999</code>。</li>
+</ul></li>
+<li>对 <code>ig=1..ngrid</code>：
+<ul>
+<li><code>latitude(ig)&lt;0</code> 选 <code>icap=2</code>（南半球），否则 <code>icap=1</code>（北半球，赤道也归北）。</li>
+<li>先设裸地状态：<code>emisref(ig)=emissiv</code>，<code>psolaralb(ig,:)=albedodat(ig)</code>。</li>
+<li>若 <code>paleoclimate</code> 且 <code>piceco2_peren(ig)&gt;0</code>，用 <code>albedo_perennialco2(icap)</code> 和 <code>emisice(icap)</code> 覆盖多年 CO2 冰盖状态。</li>
+<li>若 <code>piceco2(ig)&gt;0</code>，用当前 CO2 霜状态覆盖前面的结果：<code>emisref(ig)=emisice(icap)</code>；反照率走 TES 插值或固定 <code>albedice(icap)</code>。</li>
+</ul></li>
+<li><code>read_TES_icecap_albedo</code>：
+<ul>
+<li>非 mesoscale 编译下仅 <code>is_master</code> 进程打开 NetCDF。</li>
+<li>北半球文件读取 <code>longitude</code>、<code>latitude</code>、<code>time</code>、<code>albedo</code>；南半球文件读取 <code>latitude</code>、<code>albedo</code>，复用北半球读到的 <code>longitude</code> 和 <code>time</code>。</li>
+<li>关闭文件后计算 <code>pi=acos(-1.)</code>、<code>radeg=180/pi</code>，再广播所有表和常数。</li>
+</ul></li>
+<li><code>TES_icecap_albedo</code>：
+<ul>
+<li>北半球纬度低于 45 deg 或南半球纬度高于 -45 deg 时，不用 TES，直接返回 <code>albedice(icap)</code>。</li>
+<li>其余位置分别确定纬度、Ls、经度的包围索引；Ls 和经度都支持 0/360 或 -180/180 环绕。</li>
+<li>先沿时间线性插值得到四个经纬节点值，再做双线性空间插值。</li>
+<li>按半球乘 <code>TESice_Ncoef</code> 或 <code>TESice_Scoef</code>，最后用 <code>max_icecap_albedo</code> 做上限钳制。</li>
+</ul></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>albedocaps(zls, ngrid, piceco2, piceco2_peren, psolaralb, emisref):
+    if firstcall:
+        TESicealbedo = getin(&quot;TESicealbedo&quot;, default=false)
+        if TESicealbedo:
+            TESice_Ncoef = getin(&quot;TESice_Ncoef&quot;, default=1.0)
+            TESice_Scoef = getin(&quot;TESice_Scoef&quot;, default=1.0)
+        max_icecap_albedo = getin(&quot;max_icecap_albedo&quot;, default=0.9)
+        read_TES_icecap_albedo(...)
+        firstcall = false
+
+    for ig in 1..ngrid:
+        icap = 2 if latitude(ig) &lt; 0 else 1
+
+        emisref(ig) = emissiv
+        psolaralb(ig, :) = albedodat(ig)
+
+        if paleoclimate and piceco2_peren(ig) &gt; 0:
+            psolaralb(ig, :) = albedo_perennialco2(icap)
+            emisref(ig) = emisice(icap)
+
+        if piceco2(ig) &gt; 0:
+            emisref(ig) = emisice(icap)
+            if TESicealbedo:
+                alb = TES_icecap_albedo(zls, ig, icap, ...)
+                psolaralb(ig, 1) = alb
+                psolaralb(ig, 2) = alb
+            else:
+                psolaralb(ig, :) = albedice(icap)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CO2 循环</td>
+<td><code>co2condens</code> 更新地表 CO2 冰后调用本例程，刷新地表反照率和发射率参考值</td>
+</tr>
+<tr>
+<td>辐射/地表能量收支</td>
+<td>返回的 <code>psolaralb</code> 影响短波吸收；<code>emisref</code> 影响后续地表发射率处理</td>
+</tr>
+<tr>
+<td>古气候 CO2 冰盖</td>
+<td><code>paleoclimate</code> 分支允许多年 CO2 冰盖使用独立反照率</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 Fortran 90；含 <code>#ifndef MESOSCALE</code> 条件编译。</li>
+<li>firstcall + <code>SAVE</code> + <code>THREADPRIVATE</code> 模式：TES 表每线程保存，非 mesoscale 并行下由 master 读文件后广播。</li>
+<li>TES 表维度硬编码：经度 72、纬度 30、Ls 72；经度步长 5 deg，纬度步长 2 deg，Ls 步长 5 deg。</li>
+<li><code>read_TES_icecap_albedo</code> 总是在 firstcall 调用，即使 <code>TESicealbedo=.false.</code>。因此即使不使用 TES 插值，当前源码仍要求 TES NetCDF 文件存在。</li>
+<li>TES 缺测值注释为 <code>-1</code>，但 <code>TES_icecap_albedo</code> 没有显式跳过或下限钳制；只在最终结果上限钳到 <code>max_icecap_albedo</code>。</li>
+<li><code>piceco2_peren</code> 声明为 <code>intent(inout)</code>，但当前文件只读取，不修改。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>分支覆盖顺序必须保持：裸地初始化 -&gt; paleoclimate 多年 CO2 冰 -&gt; 当前 CO2 霜。当前 CO2 霜优先级最高。</li>
+<li>半球索引为 <code>latitude&lt;0</code> 南半球，否则北半球。</li>
+<li>TES 只用于极区：北纬 &gt;=45 deg、南纬 &lt;=-45 deg；低纬 CO2 霜回退到 <code>albedice(icap)</code>。</li>
+<li>TES 插值按时间先插、空间双线性后插；经度和 Ls 都有环绕处理。</li>
+<li><code>TESice_Ncoef</code> / <code>TESice_Scoef</code> 是插值后乘数，之后才应用 <code>max_icecap_albedo</code> 上限。</li>
+<li>运行时数据依赖 <code>datadir/npsc_albedo.nc</code> 与 <code>datadir/spsc_albedo.nc</code>，变量名必须包含源码读取的 <code>longitude</code>、<code>latitude</code>、<code>time</code>、<code>albedo</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>TESalbn</code> / <code>TESalbs</code> 注释说明缺测为 <code>-1</code>，当前源码没有缺测保护；复现含缺测区域时需要按源码字面插值还是应回退到 <code>albedice</code>，需开发者确认。</li>
+<li><code>TESicealbedo=.false.</code> 时仍读取 TES 文件是否为有意设计；缺少 TES 文件会在 firstcall 中中止。</li>
+<li><code>piceco2_peren</code> 的 <code>intent(inout)</code> 是否为历史遗留；本文件未写该数组。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../routines/co2condens.html">co2condens</a>：唯一已确认调用方，在 CO2 凝结后按坡面调用本例程。</li>
+<li><a href="co2snow.html">co2snow</a>：同一段 CO2 地表后处理链中更新地表发射率的文件页。</li>
+<li><a href="../../themes/co2-cycle.html">co2-cycle</a>：CO2 循环父级主题页。</li>
+<li><a href="../../architecture/co2-cycle-config.html">co2-cycle-config</a>：多年 CO2 冰盖反照率配置。</li>
+<li><a href="../../architecture/config-system.html">config-system</a>：<code>TESicealbedo</code>、<code>TESice_Ncoef</code>、<code>TESice_Scoef</code>、<code>max_icecap_albedo</code> 配置项索引。</li>
+<li><a href="surfdat_h.html">surfdat_h</a>：地表共享状态，定义 TES ice albedo 系数、冰/裸地反照率和发射率等参数。</li>
+<li><a href="datafile_mod.html">datafile_mod.md</a>：运行时数据目录。</li>
+<li><a href="paleoclimate_mod.html">paleoclimate_mod.md</a>：古气候开关。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

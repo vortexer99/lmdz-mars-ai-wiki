@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>moldiffcoeff_red - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/moldiffcoeff_red.md</span>
+    </nav>
+    <article class="content">
+<h1 id="moldiffcoeff_redf">moldiffcoeff_red.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\moldiffcoeff_red.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>moldiffcoeff_red.F</code> 定义 <code>moldiffcoeff_red_mod</code>，提供例程 <code>moldiffcoeff_red</code>，是 <a href="moldiffcoeff.html">moldiffcoeff</a> 的<strong>简化变体</strong>，按 Nair 1994（pg 131）计算二元分子扩散系数矩阵 <code>dij</code>。与原版区别：<code>gcmind</code> 与物种数 <code>ncompdiff2</code> 由调用方传入（firstcall 的 <code>igcm_*</code> 检查/<code>stop</code> 全注释），h2/h/o 每次按 <code>noms</code> 名字查找，<code>coeffs.dat</code> 写入由 <code>outputcoeffs</code> 参数门控（默认关）。供新的 <code>moldiff_red</code> 与 <code>moldiff_MPF</code> 扩散方案调用。作者 MAC 2002。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>moldiffcoeff_red_mod</code></td>
+<td>module</td>
+<td>1（<code>END MODULE</code> 302）</td>
+<td>包装简化分子扩散系数计算的模块</td>
+</tr>
+<tr>
+<td><code>moldiffcoeff_red</code></td>
+<td>subroutine</td>
+<td>7（<code>END SUBROUTINE</code> 300）</td>
+<td>按 Nair 1994 算 <code>dij(ncompdiff2,ncompdiff2)</code></td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td>logical save THREADPRIVATE</td>
+<td>87</td>
+<td>首次调用标志（当前 firstcall 块体已注释，仅翻转标志）</td>
+</tr>
+<tr>
+<td><code>outputcoeffs</code></td>
+<td>logical parameter</td>
+<td>91</td>
+<td>是否写 <code>coeffs.dat</code>，默认 <code>.false.</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>nqmx</code>,<code>noms</code>,<code>mmol</code></td>
+<td>tracer 总数、名称表、摩尔质量；按名查 h2/h/o 并做质量缩放</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>open</code>/<code>write</code>/<code>close</code></td>
+<td>Fortran intrinsic</td>
+<td>291/294/297</td>
+<td>仅 <code>outputcoeffs=.true.</code> 时写 <code>coeffs.dat</code>（默认关）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gcmind(ncompdiff2)</code></td>
+<td>调用方（<code>moldiff_red</code>/<code>moldiff_MPF</code>）</td>
+<td>integer</td>
+<td>本地索引→GCM tracer 索引映射</td>
+</tr>
+<tr>
+<td><code>ncompdiff2</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>扩散物种数</td>
+</tr>
+<tr>
+<td><code>indic(nqmx)</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td><strong>声明后未在函数体使用</strong></td>
+</tr>
+<tr>
+<td><code>nqmx</code>,<code>noms</code>,<code>mmol</code></td>
+<td><code>tracer_mod</code></td>
+<td>integer/char/real</td>
+<td>tracer 总数、名称、摩尔质量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dij</code></td>
+<td>调用方</td>
+<td>real <code>(ncompdiff2,ncompdiff2)</code></td>
+<td>二元分子扩散系数矩阵，对称，对角 1.0</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>firstcall</code> 为 <code>SAVE + THREADPRIVATE</code>（第 89 行），但 firstcall 块体（<code>igcm_*</code> 检查与 <code>gcmind</code> 填充）<strong>全部注释</strong>，故首次调用仅翻转 <code>firstcall</code>。</li>
+<li><code>g_h2/g_h/g_o</code> 为局部变量（无 <code>SAVE</code>），每次调用按 <code>noms</code> 重新查找。</li>
+<li><code>coeffs.dat</code> 写入受 <code>outputcoeffs</code>（默认 <code>.false.</code>）门控；默认无文件 I/O。</li>
+<li>每次调用 <code>print 'moldiffcoeff_red: gh2'</code> 与 <code>'COEFF CALC'</code>。</li>
+<li>无 <code>stop</code>/<code>abort</code>（原版的 tracer 缺失检查已注释）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>firstcall</strong>（第 95–227 行）：块体注释，仅 <code>firstcall=.false.</code>。</li>
+<li><strong>基础系数</strong>（第 229–233 行）：<code>dijh2co=6.51e-5</code>、<code>dijh2n2=6.74e-5</code>、<code>dijh2o2=6.97e-5</code>、<code>dijh2co2=5.50e-5</code>、<code>dijho=1.14e-4</code>（与 <code>moldiffcoeff</code> 相同）。</li>
+<li><strong>按名查 h2/h/o</strong>（第 254–258 行）：<code>do n=1..nqmx</code>，<code>noms(n)=='h2'→g_h2</code>、<code>'h'→g_h</code>、<code>'o'→g_o</code>。</li>
+<li><strong>填充 <code>dij</code></strong>（第 263–287 行）：<code>do n=1..ncompdiff2</code>，按 <code>noms(gcmind(n))</code> 名字定 <code>dijref</code>（co/n2/o2/co2 → 对应 H2 系数）：
+<ul>
+<li><code>dijref&gt;0</code>：<code>dij(nn,n)=dijref*sqrt(mmol(g_h2)/mmol(gcmind(nn)))</code>，对角 1.0，对称。</li>
+<li><code>dijref==0</code>：<code>dijref=dijho</code>；<code>dnh=dijref*sqrt(mmol(g_o)/mmol(gcmind(n)))</code>；<code>dij(nn,n)=dnh*sqrt(mmol(g_h)/mmol(gcmind(nn)))</code>，对角 1.0，对称。</li>
+</ul></li>
+<li><strong>可选转储</strong>（第 289–298 行）：<code>if (outputcoeffs)</code> 写 <code>coeffs.dat</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>moldiffcoeff_red(dij, indic, gcmind, ncompdiff2):    # indic unused
+  if firstcall: firstcall=false        # body commented
+  dijh2co=6.51e-5; dijh2n2=6.74e-5; dijh2o2=6.97e-5; dijh2co2=5.50e-5; dijho=1.14e-4
+  for n=1..nqmx:                        # find h2/h/o by name
+    if noms(n)==&#39;h2&#39;: g_h2=n
+    if noms(n)==&#39;h&#39; : g_h=n
+    if noms(n)==&#39;o&#39; : g_o=n
+  for n=1..ncompdiff2:
+    dijref = 0
+    if noms(gcmind(n))==&#39;co&#39; : dijref=dijh2co
+    if noms(gcmind(n))==&#39;n2&#39; : dijref=dijh2n2
+    if noms(gcmind(n))==&#39;o2&#39; : dijref=dijh2o2
+    if noms(gcmind(n))==&#39;co2&#39;: dijref=dijh2co2
+    if dijref &gt; 0:
+      for nn=n..ncompdiff2: dij(nn,n)=dijref*sqrt(mmol(g_h2)/mmol(gcmind(nn)))
+                            if n==nn: dij(nn,n)=1.0
+                            dij(n,nn)=dij(nn,n)
+    else:
+      dijref=dijho; dnh=dijref*sqrt(mmol(g_o)/mmol(gcmind(n)))
+      for nn=n..ncompdiff2: dij(nn,n)=dnh*sqrt(mmol(g_h)/mmol(gcmind(nn)))
+                            if n==nn: dij(nn,n)=1.0
+                            dij(n,nn)=dij(nn,n)
+  if outputcoeffs: write dij to &#39;coeffs.dat&#39;</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>分子扩散（MPF/简化方案）</td>
+<td><code>moldiff_red</code>、<code>moldiff_MPF</code> 调用，提供 <code>dij</code> 供高层大气分子扩散求解</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 <code>.F</code>（续行第 6 列 <code>&amp;</code>）。</li>
+<li>firstcall 块体（<code>igcm_*</code> 检查、<code>stop</code>、<code>gcmind</code> 填充）<strong>全部注释</strong>——物种索引由调用方经 <code>gcmind</code> 传入。</li>
+<li>h2/h/o 每次按 <code>noms</code> 名字查找（非 <code>igcm_*</code>），适配调用方自定义物种集。</li>
+<li>基础系数与 <code>moldiffcoeff</code> 完全相同（Nair 1994）。</li>
+<li><code>coeffs.dat</code> 写入由 <code>outputcoeffs</code> 参数门控（默认 <code>.false.</code>），改进自原版每次必写。</li>
+<li><code>indic</code> 哑元声明未用；<code>outputcoeffs</code> 为编译期参数。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>gcmind</code> 与 <code>ncompdiff2</code> 须由调用方正确构造；本例程不做 tracer 存在性校验（原版的 <code>stop</code> 已注释）。</li>
+<li>依赖 <code>noms</code> 中存在 'h2'/'h'/'o' 名称；缺失则 <code>g_h2/g_h/g_o</code> 保留未定义（疑 0），会导致 <code>mmol</code> 越界——调用方须保证。</li>
+<li><code>dij</code> 与状态无关，每次重算结果恒定。</li>
+<li><code>coeffs.dat</code> 默认不写；调试时设 <code>outputcoeffs=.true.</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>indic</code> 哑元是否为历史接口残留（当前未用）。</li>
+<li>firstcall 块体注释后，<code>firstcall</code> 标志本身是否仍有意义。</li>
+<li><code>g_h2/g_h/g_o</code> 未找到时（<code>noms</code> 无对应名）的行为未保护，待确认调用方约束。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="moldiffcoeff.html">moldiffcoeff</a>：原版（legacy）分子扩散系数例程，供 <code>moldiff.F</code> 使用；本页为其简化变体。</li>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览，本文件在其“分子扩散”分类下。</li>
+<li><a href="../phymars/tracer_mod.html">tracer_mod</a>：提供 <code>nqmx/noms/mmol</code>。</li>
+<li><a href="moldiff_red.html">moldiff_red.F90</a>：简化版分子扩散求解器，<code>moldiff_red</code> 在 firstcall 调用 <code>moldiffcoeff_red</code> 获取扩散系数矩阵。</li>
+<li><a href="moldiff_MPF.html">moldiff_MPF.F90</a>：MPF 分子扩散求解器，<code>moldiff_MPF</code> 在 firstcall 调用 <code>moldiffcoeff_red</code> 获取扩散系数矩阵。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>hrecast - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/hrecast.md</span>
+    </nav>
+    <article class="content">
+<h1 id="hrecastf90">hrecast.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util\hrecast.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>util</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>hrecast.F90</code> 是 LMD Mars GCM 输出的水平重网格工具。它读取 <code>diagfi.nc</code>、<code>stats.nc</code>、<code>concat.nc</code> 等 NetCDF 输出，按用户给定的新经纬度规则网格，把 3D <code>(lon,lat,Time)</code> 和 4D <code>(lon,lat,alt,Time)</code> 变量水平映射到新网格，输出文件名自动生成为 <code>input_h.nc</code>。</p>
+<p>本工具不是点值双线性插值。核心例程 <code>interp_horiz</code> / <code>iniinterp_h</code> 计算旧网格格盒与新网格格盒的球面面积交叠，用 <code>intersec/airen</code> 面积权重把旧格点标量场重分配到新格点，源码注释说明目标是对单位面积强度量保持总量一致。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hrecast</code></td>
+<td>program</td>
+<td>3</td>
+<td>主程序：读输入 NetCDF、变量列表和输出网格，创建 <code>*_h.nc</code> 并写入重网格结果。</td>
+</tr>
+<tr>
+<td><code>interp_horiz</code></td>
+<td>subroutine</td>
+<td>1089</td>
+<td>对一个 2D 或多层水平场执行面积交叠加权映射，并做极点平均。</td>
+</tr>
+<tr>
+<td><code>iniinterp_h</code></td>
+<td>subroutine</td>
+<td>1291</td>
+<td>预计算新旧网格格盒交集、交集面积 <code>intersec</code> 和新格盒面积 <code>airen</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>include</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>include "netcdf.inc"</code></td>
+<td>使用旧式 NetCDF Fortran <code>NF_*</code> 接口读写文件、维度、变量和属性。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NF_OPEN</code> / <code>NF_CREATE</code> / <code>NF_CLOSE</code></td>
+<td>NetCDF 库</td>
+<td>打开输入文件、创建输出 <code>*_h.nc</code>、关闭输出。</td>
+</tr>
+<tr>
+<td><code>NF_INQ_NVARS</code> / <code>NF_INQ_VARNAME</code> / <code>NF_INQ_VARNDIMS</code></td>
+<td>NetCDF 库</td>
+<td>列出候选 3D/4D 变量并按用户选择确定处理列表。</td>
+</tr>
+<tr>
+<td><code>NF_INQ_DIMID</code> / <code>NF_INQ_VARID</code> / <code>NF_GET_VAR_REAL</code></td>
+<td>NetCDF 库</td>
+<td>读取坐标、sigma/hybrid 坐标、<code>phisinit</code> 和数据变量。</td>
+</tr>
+<tr>
+<td><code>NF_DEF_DIM</code> / <code>NF_DEF_VAR</code> / <code>NF_PUT_VAR_REAL</code> / <code>NF_PUT_VARA_REAL</code></td>
+<td>NetCDF 库</td>
+<td>定义输出维度/变量并写入坐标和重网格数据。</td>
+</tr>
+<tr>
+<td><code>interp_horiz</code></td>
+<td>本文件</td>
+<td>对 <code>phisinit</code>、3D 变量的每个 time、4D 变量的每个 time 和所有 altitude 执行水平映射。</td>
+</tr>
+<tr>
+<td><code>iniinterp_h</code></td>
+<td>本文件</td>
+<td>首次调用或网格尺寸变化时预计算面积交集表。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入文件名</td>
+<td>stdin / <code>hrecast.def</code></td>
+<td>NetCDF 文件</td>
+<td>-</td>
+<td><code>diagfi.nc</code>、<code>stats.nc</code>、<code>concat.nc</code> 等。</td>
+</tr>
+<tr>
+<td>变量列表</td>
+<td>stdin / <code>hrecast.def</code></td>
+<td><code>all</code> 或逐行变量名，空行结束</td>
+<td>-</td>
+<td>要重网格的 3D/4D 变量；<code>all</code> 分支只自动选 4D 变量。</td>
+</tr>
+<tr>
+<td>输出经度数和值</td>
+<td>stdin / <code>hrecast.def</code></td>
+<td><code>lonlength</code> + 逐行经度</td>
+<td>degrees_east</td>
+<td>新网格经度，要求递增，约在 [-180,180]。</td>
+</tr>
+<tr>
+<td>输出纬度数和值</td>
+<td>stdin / <code>hrecast.def</code></td>
+<td><code>latlength</code> + 逐行纬度</td>
+<td>degrees_north</td>
+<td>新网格纬度，要求从北到南递减。</td>
+</tr>
+<tr>
+<td>输入 <code>longitude</code> / <code>latitude</code></td>
+<td>NetCDF</td>
+<td>1D</td>
+<td>degrees</td>
+<td>输入网格必须包含 -180/180 经度端点和 90/-90 极点纬度。</td>
+</tr>
+<tr>
+<td>输入 <code>altitude</code> / <code>Time</code></td>
+<td>NetCDF</td>
+<td>1D</td>
+<td>随文件</td>
+<td>垂直和时间坐标；原样复制到输出。</td>
+</tr>
+<tr>
+<td><code>sigma</code> 或 <code>aps/bps</code></td>
+<td>NetCDF</td>
+<td>1D</td>
+<td>- / Pa</td>
+<td>垂直坐标辅助量；输入缺 sigma 时要求有 hybrid 坐标。</td>
+</tr>
+<tr>
+<td><code>phisinit</code></td>
+<td>NetCDF</td>
+<td>2D(lon,lat)</td>
+<td>m2 s-2</td>
+<td>可选地表位势；存在时一并水平重网格。</td>
+</tr>
+</tbody>
+</table>
+<p>示例 <code>hrecast.def</code> 的顺序是：输入文件、变量名列表、输出经度数量和值、输出纬度数量和值。</p>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>input_h.nc</code></td>
+<td>磁盘 NetCDF</td>
+<td>文件</td>
+<td>-</td>
+<td>以输入文件名去掉 <code>.nc</code> 后加 <code>_h.nc</code> 生成。</td>
+</tr>
+<tr>
+<td><code>longitude</code> / <code>latitude</code></td>
+<td>输出 NetCDF</td>
+<td>1D</td>
+<td>degrees</td>
+<td>用户指定的新水平网格。</td>
+</tr>
+<tr>
+<td><code>altitude</code> / <code>Time</code></td>
+<td>输出 NetCDF</td>
+<td>1D</td>
+<td>随输入</td>
+<td>从输入复制。</td>
+</tr>
+<tr>
+<td><code>sigma</code> 或 <code>aps/bps</code></td>
+<td>输出 NetCDF</td>
+<td>1D</td>
+<td>随输入</td>
+<td>从输入复制。</td>
+</tr>
+<tr>
+<td><code>phisinit</code></td>
+<td>输出 NetCDF</td>
+<td>2D(lon,lat)</td>
+<td>m2 s-2</td>
+<td>若输入存在，则用面积权重重网格后输出。</td>
+</tr>
+<tr>
+<td>用户选择变量</td>
+<td>输出 NetCDF</td>
+<td>3D 或 4D</td>
+<td>随变量</td>
+<td>水平重网格后的变量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>固定输出命名</strong>：<code>outfile=infile(1:len_trim(infile)-3)//"_h.nc"</code>；<code>NF_CLOBBER</code> 会覆盖同名输出。</li>
+<li><strong>stdin 交互</strong>：变量列表和输出网格完全由 stdin 提供，<code>hrecast.def</code> 必须严格按源码读取顺序。</li>
+<li><strong>整变量读入内存</strong>：3D 和 4D 变量分别整块读入，长时间序列或大网格可能占用大量内存。</li>
+<li><strong>缓存插值权重</strong>：<code>interp_horiz</code> 用 <code>SAVE</code> 保存 <code>ktotal/iik/jjk/ik/jk/intersec/airen</code>，网格尺寸未变时复用权重。</li>
+<li><strong>硬停止/exit</strong>：NetCDF 错误多为 <code>stop</code>；插值尺寸超过静态上限时调用 <code>exit(1)</code>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>读输入和变量列表</strong>：打开输入文件，列出 3D/4D 变量。用户可指定变量或输入 <code>all</code>；<code>all</code> 分支只收集 4D 变量。</li>
+<li><strong>读取输入坐标</strong>：读取 <code>latitude</code>、<code>longitude</code>、<code>altitude</code>、<code>Time</code>。输入纬度必须首尾接近 90 和 -90，经度必须首尾接近 -180 和 180。</li>
+<li><strong>读取垂直辅助量</strong>：优先读取 <code>sigma</code>；若无，则读取 <code>aps</code> 和 <code>bps</code>。可选读取 <code>phisinit</code>。</li>
+<li><strong>构造输入格盒边界</strong>：输入经度边界用相邻经度中点，最后一个边界为第一个边界加 2π；输入纬度边界用相邻纬度中点。</li>
+<li><strong>读输出网格并构造工作网格</strong>：
+<ul>
+<li>若输出经度首尾已相差约 360，则视为周期网格；否则追加一个 <code>lon(1)+360</code> 工作点。</li>
+<li>若输出纬度不含 90/-90，则在工作网格中补极点，并把近极边界放到接近极点的位置。</li>
+</ul></li>
+<li><strong>创建输出文件</strong>：定义 longitude、latitude、altitude、Time 维度和坐标变量；复制 altitude 属性、Time units、sigma 或 aps/bps、变量 long_name/title、units、missing_value。</li>
+<li><strong>水平映射</strong>：
+<ul>
+<li>对 <code>phisinit</code> 调 <code>interp_horiz</code>，得到工作网格结果，再按是否补极点裁剪回用户网格。</li>
+<li>对 3D 变量逐 time 调 <code>interp_horiz</code>。</li>
+<li>对 4D 变量逐 time 调 <code>interp_horiz</code>，一次传入全部 altitude 层作为 <code>lm</code>。</li>
+</ul></li>
+<li><strong>面积交叠权重</strong>：<code>iniinterp_h</code> 为每个新格盒找所有相交旧格盒，计算交集面积 <code>(bb-aa)*(sin(dd)-sin(cc))</code>；<code>interp_horiz</code> 累加 <code>old_value*intersec/new_area</code>，并对新网格南北极点做面积加权平均。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>program hrecast:
+  read infile; open NetCDF
+  list candidate variables with ndims 3 or 4
+  read selected variables
+  read input lon/lat/alt/Time, sigma or aps/bps, optional phisinit
+  require input lon starts -180 and ends 180; lat starts 90 and ends -90
+  build input lon/lat cell boundaries
+  read output lon/lat coordinate lists
+  build periodic/pole-complete work grid and boundaries
+  create infile_h.nc and define coords/variables
+  write coordinates and vertical metadata
+  if phisinit exists:
+    interp_horiz(phisinit) -&gt; output phisinit
+  for each selected 3D variable:
+    for each time: interp_horiz(surface field)
+    write output variable
+  for each selected 4D variable:
+    for each time: interp_horiz(all altitude layers)
+    write output variable
+
+subroutine interp_horiz:
+  if first call or dimensions changed: iniinterp_h(...)
+  zero output
+  for each old/new grid-box intersection:
+    new_cell += old_cell * intersection_area / new_cell_area
+  area-average north and south pole rows</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>util 后处理链</td>
+<td>在 <a href="concatnc.html">concatnc</a> 或 <a href="zrecast.html">zrecast</a> 后，把输出投到用户需要的规则经纬网格。</td>
+</tr>
+<tr>
+<td>地图/比较前处理</td>
+<td>适合把 GCM lon-lat 输出重分配到较粗或自定义经纬度网格，并保留 NetCDF 坐标和变量属性。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>面积交叠加权</strong>：<code>intersec/airen</code> 权重来自格盒边界交集，不是点值插值。</li>
+<li><strong>输入网格假设强</strong>：必须是包含 -180/180 和 90/-90 的 LMDZ GCM 标量网格。</li>
+<li><strong>输出网格可不含端点</strong>：程序会为内部计算补周期经度或极点，最后裁剪回用户指定网格。</li>
+<li><strong>静态数组上限</strong>：<code>interp_horiz</code>/<code>iniinterp_h</code> 对新旧网格维度和交集数有固定上限。</li>
+<li><strong>属性复制有限</strong>：只显式复制或转写 <code>long_name/title</code>、<code>units</code>、<code>missing_value</code>；其他属性会提示未转移。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>hrecast.def</code> 中变量列表后必须用空行结束；若输入 <code>all</code>，源码只会处理 4D 变量，不会自动包含 3D surface+time 变量。</li>
+<li>输出经度必须递增；输出纬度必须从北到南递减。</li>
+<li>输入文件需包含 <code>sigma</code> 或同时包含 <code>aps/bps</code>；否则创建输出垂直坐标会停止。</li>
+<li>若目标变量没有 <code>missing_value</code>，输出会写默认 <code>-9.99e+33</code>，但插值本身不显式跳过缺测角点。</li>
+<li>大文件一次读完整变量，内存需求随 lon<em>lat</em>alt*time 增长。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>all</code> 分支只收集 4D 变量，是否应包含 3D 变量需与使用者意图确认。</li>
+<li><code>miss_val</code> 只写属性，不参与 <code>interp_horiz</code> 缺测跳过；含缺测输入时面积平均可能把缺测值当普通数值传播。</li>
+<li>代码中多个错误信息把 longitude 写成 latitude，属诊断文本问题，不影响计算。</li>
+<li><code>NF_DEF_DIM</code> Time 失败时错误信息写成 latitude dimension，属诊断文本问题。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li>输出 <code>_h.nc</code> 会被 <code>NF_CLOBBER</code> 覆盖。</li>
+<li>超过 <code>imnmx2=360/jmnmx2=190</code>、<code>imomx=361/jmomx=180</code> 或 <code>kmax=360*179+200000</code> 会 <code>exit(1)</code>。</li>
+<li>输入经纬度若不是源码假设的 GCM 端点网格会直接停止。</li>
+<li>对非单位面积强度量使用面积交叠平均时，物理意义需要按变量性质确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">util/index.md</a> - util 后处理工具总览。</li>
+<li><a href="concatnc.html">concatnc.md</a> - 常见上游时间拼接工具。</li>
+<li><a href="zrecast.html">zrecast.md</a> - 常见上游垂直坐标转换工具。</li>
+<li><a href="extract.html">extract.md</a> - 下游点值/廓线抽取工具。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

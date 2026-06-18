@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>def_var - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/def_var.md</span>
+    </nav>
+    <article class="content">
+<h1 id="def_varf90">def_var.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\def_var.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>def_var.F90</code> 提供一个外部子程序 <code>def_var</code>，用于在已经打开的 NetCDF 文件中定义一个新变量，并写入 <code>title</code> 与 <code>units</code> 两个文本属性。它不是 Fortran module，不保存共享状态，也不直接写变量数据；实际数据写入由 <code>writediagfi.F</code>、<code>writediagmicrofi.F</code>、<code>writediagsoil.F90</code>、<code>write_archive.F</code>、<code>ini_archive.F</code> 和 <code>iniwrite.F</code> 等调用者完成。</p>
+<p>该例程封装了传统 NetCDF Fortran 接口的一段重复流程：切回 define mode，调用 <code>NF_DEF_VAR</code> 定义变量，写属性，再退出 define mode。2010 年注释说明输出被强制为 <code>real*4</code>；源码中 <code>NC_DOUBLE</code> 分支已经被注释掉，实际始终使用 <code>NF_FLOAT</code> 定义新变量。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>def_var</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1</td>
+<td>在已打开 NetCDF 文件中定义变量，写入 <code>title</code> 和 <code>units</code> 属性，并返回变量 ID 与错误码</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>源码没有 <code>use</code> 语句</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>netcdf.inc</code></td>
+<td>include file</td>
+<td>提供 <code>NF_REDEF</code>、<code>NF_DEF_VAR</code>、<code>NF_PUT_ATT_TEXT</code>、<code>NF_ENDDEF</code>、<code>NF_NOERR</code>、<code>NF_FLOAT</code>、<code>NF_STRERROR</code> 等 NetCDF 常量和接口</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NF_REDEF</code></td>
+<td>NetCDF Fortran 接口</td>
+<td><code>def_var.F90:28</code></td>
+<td>把已打开文件切回 define mode</td>
+</tr>
+<tr>
+<td><code>NF_DEF_VAR</code></td>
+<td>NetCDF Fortran 接口</td>
+<td><code>def_var.F90:34</code></td>
+<td>用 <code>NF_FLOAT</code>、<code>nbdim</code> 和 <code>dimids</code> 定义变量</td>
+</tr>
+<tr>
+<td><code>NF_PUT_ATT_TEXT</code></td>
+<td>NetCDF Fortran 接口</td>
+<td><code>def_var.F90:43</code>, <code>def_var.F90:51</code></td>
+<td>写入 <code>title</code> 和 <code>units</code> 文本属性</td>
+</tr>
+<tr>
+<td><code>NF_ENDDEF</code></td>
+<td>NetCDF Fortran 接口</td>
+<td><code>def_var.F90:60</code></td>
+<td>退出 define mode，回到可写数据状态</td>
+</tr>
+<tr>
+<td><code>NF_STRERROR</code></td>
+<td>NetCDF Fortran 接口</td>
+<td><code>def_var.F90:38</code>, <code>def_var.F90:47</code>, <code>def_var.F90:55</code></td>
+<td>把 NetCDF 错误码打印为文本</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部错误终止例程</td>
+<td><code>def_var.F90:39</code>, <code>def_var.F90:48</code>, <code>def_var.F90:56</code></td>
+<td>变量定义或属性写入失败时中止物理流程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nid</code></td>
+<td>调用者打开的 NetCDF 文件</td>
+<td><code>integer</code></td>
+<td>-</td>
+<td>NetCDF file ID</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>调用者传入</td>
+<td><code>character(len=*)</code></td>
+<td>-</td>
+<td>变量名；传给 <code>NF_DEF_VAR</code> 前使用 <code>adjustl(name)</code></td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td>调用者传入</td>
+<td><code>character(len=*)</code></td>
+<td>-</td>
+<td>写入变量属性 <code>title</code> 的文本</td>
+</tr>
+<tr>
+<td><code>units</code></td>
+<td>调用者传入</td>
+<td><code>character(len=*)</code></td>
+<td>-</td>
+<td>写入变量属性 <code>units</code> 的文本</td>
+</tr>
+<tr>
+<td><code>nbdim</code></td>
+<td>调用者传入</td>
+<td><code>integer</code></td>
+<td>-</td>
+<td>变量维度数</td>
+</tr>
+<tr>
+<td><code>dimids</code></td>
+<td>调用者先通过 <code>NF_INQ_DIMID</code> 或维度定义取得</td>
+<td><code>integer(nbdim)</code></td>
+<td>-</td>
+<td>变量各维度的 NetCDF dimension ID</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nvarid</code></td>
+<td>调用者后续写变量数据时使用</td>
+<td><code>integer</code></td>
+<td>-</td>
+<td>新定义变量的 NetCDF variable ID</td>
+</tr>
+<tr>
+<td><code>ierr</code></td>
+<td>调用者可继续检查</td>
+<td><code>integer</code></td>
+<td>-</td>
+<td>最后一次 NetCDF 调用的状态码；成功路径结束时来自 <code>NF_ENDDEF</code></td>
+</tr>
+<tr>
+<td>NetCDF 变量定义</td>
+<td><code>nid</code> 指向的已打开文件</td>
+<td><code>NF_FLOAT</code> 变量</td>
+<td>由 <code>units</code> 属性描述</td>
+<td>在文件 schema 中新增变量及属性</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本文件没有 module 变量、common block、<code>SAVE</code> 局部状态或 OpenMP 声明。</li>
+<li>它会修改 <code>nid</code> 指向的 NetCDF 文件结构：新增变量、写入 <code>title</code> 与 <code>units</code> 属性，并在成功路径结束时退出 define mode。</li>
+<li>三类失败会立即 <code>abort_physic</code>：<code>NF_DEF_VAR</code> 失败、写 <code>title</code> 属性失败、写 <code>units</code> 属性失败。</li>
+<li>源码没有在 <code>NF_REDEF</code> 和最终 <code>NF_ENDDEF</code> 后检查 <code>ierr</code>；复现失败时需要结合调用者传入的文件状态和 NetCDF 返回码定位。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>调用 <code>NF_REDEF(nid)</code>，把已打开的 NetCDF 文件切到定义模式。</li>
+<li>调用 <code>NF_DEF_VAR(nid, adjustl(name), NF_FLOAT, nbdim, dimids, nvarid)</code> 定义新变量。</li>
+<li>如果变量定义失败，打印变量名和 <code>NF_STRERROR(ierr)</code>，再调用 <code>abort_physic("def_var", "netcdf definition problem", 1)</code>。</li>
+<li>用 <code>NF_PUT_ATT_TEXT</code> 写 <code>title</code> 属性，长度为 <code>len_trim(adjustl(title))</code>。</li>
+<li>如果 <code>title</code> 写入失败，打印诊断并以 <code>netcdf title attribute problem</code> 中止。</li>
+<li>用 <code>NF_PUT_ATT_TEXT</code> 写 <code>units</code> 属性，长度为 <code>len_trim(adjustl(units))</code>。</li>
+<li>如果 <code>units</code> 写入失败，打印诊断并以 <code>netcdf units attribute problem</code> 中止。</li>
+<li>调用 <code>NF_ENDDEF(nid)</code> 退出定义模式。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>subroutine def_var(nid, name, title, units, nbdim, dimids, nvarid, ierr)
+  ierr = NF_REDEF(nid)
+
+  ierr = NF_DEF_VAR(nid, adjustl(name), NF_FLOAT, nbdim, dimids, nvarid)
+  if ierr is not NF_NOERR:
+    print variable-definition failure and NetCDF error text
+    abort physics
+
+  ierr = NF_PUT_ATT_TEXT(nid, nvarid, &quot;title&quot;,
+                         len_trim(adjustl(title)), adjustl(title))
+  if ierr is not NF_NOERR:
+    print title-attribute failure and NetCDF error text
+    abort physics
+
+  ierr = NF_PUT_ATT_TEXT(nid, nvarid, &quot;units&quot;,
+                         len_trim(adjustl(units)), adjustl(units))
+  if ierr is not NF_NOERR:
+    print units-attribute failure and NetCDF error text
+    abort physics
+
+  ierr = NF_ENDDEF(nid)
+end</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>诊断输出</td>
+<td><code>writediagfi.F</code> 在 4D、3D、2D、1D 诊断变量首次出现时调用 <code>def_var</code> 创建变量</td>
+</tr>
+<tr>
+<td>微物理诊断输出</td>
+<td><code>writediagmicrofi.F</code> 在 5D、4D、3D、2D 微物理诊断变量首次出现时调用 <code>def_var</code></td>
+</tr>
+<tr>
+<td>土壤诊断输出</td>
+<td><code>writediagsoil.F90</code> 在 <code>diagsoil.nc</code> 中创建剖面、地表场和标量诊断变量时调用 <code>def_var</code></td>
+</tr>
+<tr>
+<td>初始状态 / 归档输出</td>
+<td><code>ini_archive.F</code>、<code>write_archive.F</code> 和 <code>iniwrite.F</code> 用它创建时间、垂直坐标和归档变量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="主要调用点">主要调用点</h2>
+<table>
+<thead>
+<tr>
+<th>调用者</th>
+<th style="text-align: right;">调用位置</th>
+<th style="text-align: right;">维度数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dynphy_lonlat/phymars/ini_archive.F</code></td>
+<td style="text-align: right;">180</td>
+<td style="text-align: right;">1</td>
+<td>定义 archive 文件中的 <code>Time</code> 变量</td>
+</tr>
+<tr>
+<td><code>dynphy_lonlat/phymars/write_archive.F</code></td>
+<td style="text-align: right;">86, 151, 191, 240, 277, 323</td>
+<td style="text-align: right;">1-5</td>
+<td>根据变量形状创建 archive 输出变量</td>
+</tr>
+<tr>
+<td><code>phymars/iniwrite.F</code></td>
+<td style="text-align: right;">244, 252, 260, 268</td>
+<td style="text-align: right;">1</td>
+<td>定义 <code>aps/bps/ap/bp</code> 垂直坐标变量</td>
+</tr>
+<tr>
+<td><code>phymars/writediagfi.F</code></td>
+<td style="text-align: right;">380, 484, 555, 605</td>
+<td style="text-align: right;">1-4</td>
+<td>创建常规 <code>diagfi</code> 诊断变量</td>
+</tr>
+<tr>
+<td><code>phymars/writediagmicrofi.F</code></td>
+<td style="text-align: right;">395, 502, 576, 629</td>
+<td style="text-align: right;">2-5</td>
+<td>创建微物理诊断变量</td>
+</tr>
+<tr>
+<td><code>phymars/writediagsoil.F90</code></td>
+<td style="text-align: right;">255, 339, 390</td>
+<td style="text-align: right;">1, 3, 4</td>
+<td>创建 <code>diagsoil.nc</code> 土壤诊断变量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>外部子程序而非 module</strong>：文件只有一个 <code>subroutine def_var</code>，没有 <code>contains</code>、<code>module</code> 或显式接口。</li>
+<li><strong>传统 NetCDF Fortran 77 风格接口</strong>：通过 <code>include "netcdf.inc"</code> 使用 <code>NF_*</code> 常量和函数。</li>
+<li><strong>强制单精度输出定义</strong>：虽然保留了 <code>NC_DOUBLE</code> 条件编译痕迹，但相关代码被注释掉，当前总是 <code>NF_FLOAT</code>。</li>
+<li><strong>属性名使用 <code>title</code> 而不是 <code>long_name</code></strong>：源码注释明确说 <code>long_name</code> 更合适，但实现仍写 <code>title</code>。</li>
+<li><strong>调用者负责维度准备</strong>：本例程不创建维度，只消费 <code>dimids</code>；维度缺失通常会在调用者的 <code>NF_INQ_DIMID</code> 或后续定义阶段暴露。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>调用 <code>def_var</code> 前，<code>nid</code> 必须指向已创建并打开的 NetCDF 文件。</li>
+<li><code>dimids</code> 必须已经按变量维度顺序填好，且数组长度与 <code>nbdim</code> 一致。</li>
+<li>新变量数据类型固定为 <code>NF_FLOAT</code>；即使编译时定义 <code>NC_DOUBLE</code>，当前源码也不会用 <code>NF_DOUBLE</code> 定义变量。</li>
+<li><code>name</code>、<code>title</code>、<code>units</code> 会先 <code>adjustl</code>，属性长度用 <code>len_trim(adjustl(...))</code>，因此左侧空格会被移除，右侧空格不写入属性。</li>
+<li>如果变量已经存在，正常调用者通常不会调用 <code>def_var</code>，而是在 <code>NF_INQ_VARID</code> 成功后直接写数据或在初始时刻触发重复变量错误。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>NF_REDEF</code> 和最终 <code>NF_ENDDEF</code> 的返回码没有立即检查；在异常文件状态下错误会如何传播，需结合具体 NetCDF 库行为和调用者后续检查确认。</li>
+<li><code>abort_physic</code> 在本文件中未显式声明接口；编译链接依赖外部符号解析，具体来源需从全局构建系统确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="writediagsoil.html">writediagsoil</a></li>
+<li><a href="iniwritesoil.html">iniwritesoil</a></li>
+<li><a href="index.html">phymars 目录</a></li>
+<li><a href="../../architecture/project-structure.html">项目结构</a></li>
+<li><a href="../../architecture/xios-config.html">XIOS 配置</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

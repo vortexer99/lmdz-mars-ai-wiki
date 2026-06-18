@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>initracer - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/initracer.md</span>
+    </nav>
+    <article class="content">
+<h1 id="initracerf90">initracer.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\initracer.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>initracer.F90</code> 定义模块 <code>initracer_mod</code> 和唯一例程 <code>initracer(ngrid,nq)</code>。它位于 tracer 配置解析之后、物理过程使用 tracer 之前：<code>tracer_mod</code> 已经持有 <code>noms(:)</code>、<code>mmol(:)</code>、<code>radius(:)</code>、<code>rho_q(:)</code>、<code>alpha_lift(:)</code>、<code>alpha_devil(:)</code> 等数组，本例程按 tracer 名称逐项识别 <code>igcm_*</code> 索引，填充分子量和物理属性，并根据 <code>callkeys_mod</code> / <code>dust_param_mod</code> 中的物理开关执行一致性检查。</p>
+<p>本文件不是 <code>traceur.def</code> / <code>tracer.def</code> 解析器；配置文件读取由 <code>tracer_mod</code>、<code>parse_traceur_file</code> 和 <code>parse_tracer_file</code> 完成。<code>initracer</code> 的职责是把已经读入的名字映射为物理包约定的索引和属性，使尘埃、水、HDO、CO2 云、化学、热层和 NLTE 路径能通过 <code>igcm_*</code> 访问正确的 tracer。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>initracer_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>tracer 初始化模块。</td>
+</tr>
+<tr>
+<td><code>initracer</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7</td>
+<td>识别 tracer 名称，设置 <code>igcm_*</code> 索引、<code>mmol/radius/rho_q/alpha_*</code>，并检查开关所需 tracer 是否存在。</td>
+</tr>
+<tr>
+<td><code>popratio</code></td>
+<td>local parameter</td>
+<td style="text-align: right;">50</td>
+<td><code>doubleq</code> 与 <code>submicron</code> 同时开启时，小粒径尘埃相对大粒径尘埃的数量比例，当前为 <code>25.</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td>全量导入</td>
+<td>读写 <code>noms/mmol/radius/rho_q/alpha_lift/alpha_devil/r3n_q/ref_r0/varian/rho_*</code> 和大量 <code>igcm_*</code> 索引。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>尘埃粒径和数浓度换算公式中的圆周率。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td><code>doubleq, submicron, dustbin</code></td>
+<td>控制尘埃 tracer 识别和物性初始化分支。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>water, microphys, scavenging, rdstorm, topflows, photochem, callthermos, hdo, callnlte, nltemodel, dustinjection, co2clouds, co2useh2o, meteo_flux</code></td>
+<td>控制水循环、HDO、尘暴、山顶尘流、化学、热层、NLTE 和 CO2 云 tracer 要求。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td><code>getin_p</code></td>
+<td>读取 <code>reff_lift_dust</code> 覆盖默认 lifted dust 有效半径。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abort_physic</code></td>
+<td>公共物理错误终止例程</td>
+<td>多处，如第 68、544、803、858 行等</td>
+<td>tracer 数量、名称或开关依赖不一致时中止。</td>
+</tr>
+<tr>
+<td><code>getin_p</code></td>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td>第 621 行</td>
+<td>从运行配置读取 <code>reff_lift_dust</code>，覆盖默认 <code>3.0e-6 m</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方实参</td>
+<td>integer scalar</td>
+<td>grid columns</td>
+<td>本文件当前没有直接使用，保留在接口中。</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>调用方实参</td>
+<td>integer scalar</td>
+<td>tracer count</td>
+<td>tracer 数量；必须 <code>&gt;=1</code>，且识别出的 tracer 数必须等于它。</td>
+</tr>
+<tr>
+<td><code>noms(1:nq)</code></td>
+<td><code>tracer_mod</code></td>
+<td>character array</td>
+<td>-</td>
+<td>已由 tracer 配置解析得到的 tracer 名称列表。</td>
+</tr>
+<tr>
+<td>物理开关</td>
+<td><code>dust_param_mod</code> / <code>callkeys_mod</code></td>
+<td>logical/integer scalars</td>
+<td>-</td>
+<td>决定哪些 tracer 必须存在、哪些物性分支需要初始化。</td>
+</tr>
+<tr>
+<td><code>reff_lift_dust</code></td>
+<td><code>getin_p</code> 配置键</td>
+<td>real scalar</td>
+<td>m</td>
+<td>lifted dust 有效半径，默认 <code>3.0e-6</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>igcm_*</code> 索引</td>
+<td><code>tracer_mod</code> / 全物理包</td>
+<td>integer scalars/array</td>
+<td>-</td>
+<td>各命名 tracer 在 <code>pq(:,:,iq)</code> 等数组中的位置。</td>
+</tr>
+<tr>
+<td><code>mmol(1:nq)</code></td>
+<td><code>tracer_mod</code></td>
+<td>real array</td>
+<td>g mol-1</td>
+<td>tracer 分子量；化学、热层和平均分子量路径使用。</td>
+</tr>
+<tr>
+<td><code>radius(1:nq)</code></td>
+<td><code>tracer_mod</code></td>
+<td>real array</td>
+<td>m</td>
+<td>aerosol/冰粒有效半径或 0。</td>
+</tr>
+<tr>
+<td><code>rho_q(1:nq)</code></td>
+<td><code>tracer_mod</code></td>
+<td>real array</td>
+<td>kg m-3</td>
+<td>tracer 物质密度。</td>
+</tr>
+<tr>
+<td><code>alpha_lift(1:nq)</code></td>
+<td><code>tracer_mod</code></td>
+<td>real array</td>
+<td>m-1</td>
+<td>风应力起尘垂直/水平通量比。</td>
+</tr>
+<tr>
+<td><code>alpha_devil(1:nq)</code></td>
+<td><code>tracer_mod</code></td>
+<td>real array</td>
+<td>mixed</td>
+<td>尘卷风起尘系数。</td>
+</tr>
+<tr>
+<td><code>r3n_q</code>, <code>ref_r0</code>, <code>varian</code></td>
+<td><code>tracer_mod</code></td>
+<td>real scalars</td>
+<td>mixed</td>
+<td>doubleq 尘埃质量/数浓度到粒径分布的换算常数。</td>
+</tr>
+<tr>
+<td><code>rho_dust</code>, <code>rho_ice</code>, <code>rho_ice_co2</code></td>
+<td><code>tracer_mod</code></td>
+<td>real scalars</td>
+<td>kg m-3</td>
+<td>尘埃、水冰和 CO2 冰密度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本例程大量写入 <code>tracer_mod</code> 的模块状态，并通过 <code>write(*,*)</code> 打印识别结果、尘埃起尘参数和物性数组。</li>
+<li>它只按 <code>noms(:)</code> 字符串识别 tracer；名称大小写和拼写必须与源码中的字面量一致，例如 <code>dust_mass</code>、<code>h2o_vap</code>、<code>ccnco2_mass</code>、<code>Ar_N2</code>。</li>
+<li>若识别数量 <code>count</code> 不等于 <code>nq</code>，或某个开启的物理过程缺少必需 tracer，会调用 <code>abort_physic</code> 终止。</li>
+<li><code>rho_q/radius/alpha_lift/alpha_devil</code> 在物性初始化前先整体清零；后续分支只为相关 tracer 写非零值。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>数量和索引清零</strong>：若 <code>nq&lt;1</code> 直接中止；随后把所有 <code>igcm_*</code> 索引重置为 0，避免旧状态残留。</li>
+<li><strong>尘埃族识别</strong>：按 <code>dustbin&gt;0</code> 查找 <code>dust01</code>、<code>dust02</code> 等 bin 名称；按 <code>doubleq</code> 查找 <code>dust_mass/dust_number</code>；按 <code>microphys</code> 查找 <code>ccn_mass/ccn_number</code>；按 <code>submicron</code>、<code>rdstorm</code>、<code>topflows</code> 分别查找 <code>dust_submicron</code>、<code>stormdust_*</code> 和 <code>topdust_*</code>。</li>
+<li><strong>化学、水和离子名称识别</strong>：对所有 <code>iq=1..nq</code> 扫描 CO2、CO、O、H、HOx、NOx、CH4、N2、Ar、He、离子、电子、水汽/水冰、HDO、CO2 冰等名称，并写入对应 <code>igcm_*</code> 和 <code>mmol</code>。</li>
+<li><strong>CO2 云附加 tracer 识别</strong>：若 <code>co2clouds</code>，识别 <code>ccnco2_mass/number</code>；若 <code>meteo_flux</code>，再识别 <code>ccnco2_meteor_*</code>；若 <code>co2useh2o</code>，识别 <code>ccnco2_h2o_*</code>。</li>
+<li><strong>全量匹配检查</strong>：要求 <code>count == nq</code>；否则打印已识别 tracer 并中止。这意味着配置中出现源码未知名称也会失败。</li>
+<li><strong>HDO 顺序和父子关系检查</strong>：开启 <code>hdo</code> 时，要求 H2O 先于 HDO 初始化、HDO 作为 H2O 子 tracer，且 HDO tracer 位于列表末尾附近。</li>
+<li><strong>物性默认清零和密度常数</strong>：清零 <code>rho_q/radius/alpha_lift/alpha_devil</code>，设置 <code>rho_dust=2500</code>、<code>rho_ice=920</code>、<code>rho_ice_co2=1650</code>。</li>
+<li><strong>尘埃物性初始化</strong>：<code>doubleq</code> 分支检查 <code>dust_mass/dust_number</code>，设 <code>nueff_lift=0.5</code>，由 <code>varian</code> 推导 <code>r3n_q/ref_r0</code>，读取 <code>reff_lift_dust</code>，再设置 mass/number 的 <code>radius</code> 和起尘系数；<code>rdstorm/topflows</code> 复用 lifted dust 半径。非 <code>doubleq</code> 且 <code>dustbin==1</code> 时使用单粒径 <code>3.e-6</code>。</li>
+<li><strong>水、HDO、submicron、CCN 和 CO2 云物性</strong>：水汽/HDO 汽相半径为 0，水冰/HDO 冰半径 <code>3.e-6</code>、密度 <code>rho_ice</code>；CO2 冰半径 <code>1.e-8</code>、密度 <code>rho_ice_co2</code>；CCN 多数继承尘埃属性并把起尘系数设为极小值。</li>
+<li><strong>开关依赖检查</strong>：分别检查 <code>water</code>、<code>hdo</code>、<code>microphys</code>、<code>co2clouds</code>、<code>rdstorm</code>、<code>topflows</code>、<code>callnlte/nltemodel</code>、<code>scavenging</code>、<code>photochem/callthermos</code> 所需 tracer 是否存在。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>initracer(ngrid, nq):
+    require nq &gt;= 1
+    reset all igcm_* indexes to 0
+
+    for each enabled tracer family:
+        scan noms(1:nq)
+        if a known name is found:
+            set igcm_* index
+            set mmol when known
+            append to identified list
+
+    require identified_count == nq
+    if hdo:
+        require H2O before HDO, HDO as child tracer, HDO near end
+
+    clear rho_q, radius, alpha_lift, alpha_devil
+    set rho_dust, rho_ice, rho_ice_co2
+
+    if doubleq:
+        require dust_mass and dust_number
+        derive varian, r3n_q, ref_r0
+        read reff_lift_dust
+        set dust mass/number radius and lifting coefficients
+        optionally initialize stormdust/topdust
+    else if dustbin == 1:
+        set single-bin dust properties
+
+    initialize scavenging CCN, submicron dust, water, HDO, CO2 cloud properties
+    run feature-specific tracer dependency checks</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/dust-cycle.html">尘埃循环</a></td>
+<td>识别尘埃质量/数浓度、bin、submicron、stormdust、topdust tracer，并设置起尘系数、半径和密度。</td>
+</tr>
+<tr>
+<td><a href="../../themes/water-cycle.html">水循环</a></td>
+<td>识别 <code>h2o_vap/h2o_ice</code>、水云 CCN 和 HDO tracer，并检查水循环/微物理依赖。</td>
+</tr>
+<tr>
+<td><a href="../../themes/co2-cycle.html">CO2 循环</a></td>
+<td>识别 CO2、CO2 冰、CO2 云 CCN、流星尘 CCN 和 H2O 来源 CO2 CCN。</td>
+</tr>
+<tr>
+<td>高层大气/化学</td>
+<td>识别 CO/O/H/N/离子/电子等化学与热层 tracer，并在 <code>photochem</code>、<code>callthermos</code>、<code>callnlte</code> 开启时做依赖检查。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>该例程采用长串 <code>if (noms(iq) == "...")</code> 字符串匹配，而不是表驱动映射；新增 tracer 名称时必须同步维护识别、分子量、属性和依赖检查。</li>
+<li><code>idtracers(count)</code> 用于记录识别顺序；<code>count /= nq</code> 时会把已识别名称打印出来，便于定位配置中未知 tracer。</li>
+<li><code>ngrid</code> 在当前源码中未被使用，但保留在接口里。</li>
+<li><code>meteo_flux</code> 检查块中 <code>igcm_ccnco2_meteor_mass</code> 被连续检查两次，其中第一条错误消息提到 <code>ccnco2_h2o_mass_ice</code>；这是已在 CO2 tracer 段页标注过的文案/重复检查疑点。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>traceur.def</code> / <code>tracer.def</code> 中每个 tracer 名称都必须被源码识别，否则 <code>count /= nq</code> 会中止。</li>
+<li>开启 <code>doubleq</code> 必须有 <code>dust_mass</code> 和 <code>dust_number</code>；开启 <code>water</code> 必须有 <code>h2o_vap/h2o_ice</code>；开启 <code>microphys</code> 必须有 <code>ccn_mass/ccn_number</code>。</li>
+<li>开启 <code>co2clouds</code> 至少需要 <code>co2/co2_ice/ccnco2_mass/ccnco2_number</code>；<code>co2useh2o</code> 和 <code>meteo_flux</code> 会进一步增加 tracer 要求。</li>
+<li><code>reff_lift_dust</code> 改变会影响 <code>radius(dust_mass/dust_number)</code>、<code>alpha_lift</code> 和 <code>alpha_devil</code> 的换算。</li>
+<li>HDO tracer 的顺序和 parent/child 关系是硬检查，配置文件顺序不满足时会中止。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>ngrid</code> 在当前文件内未使用，是否保留给旧接口兼容或未来按网格初始化逻辑。</li>
+<li><code>meteo_flux</code> 检查块重复检查 <code>igcm_ccnco2_meteor_mass</code> 是否为有意冗余，或应有一项检查 <code>igcm_ccnco2_meteor_number</code> / 其它 H2O 来源 tracer。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="tracer_mod.html">tracer_mod</a> - 定义 <code>noms/mmol/radius/rho_q/igcm_*</code> 等共享 tracer 状态。</li>
+<li><a href="parse_traceur_file.html">parse_traceur_file</a> - 旧格式 <code>traceur.def</code> 解析接口。</li>
+<li><a href="parse_tracer_file.html">parse_tracer_file</a> - 新格式 <code>tracer.def</code> 解析接口。</li>
+<li><a href="../../routines/initracer-co2-tracers.html">initracer-co2-tracers</a> - CO2/CO2 云 tracer 段的细化页面。</li>
+<li><a href="../../architecture/water-cycle-config.html">water-cycle-config</a>, <a href="../../architecture/co2-cycle-config.html">co2-cycle-config</a> - tracer 配置和物理开关组合。</li>
+<li><a href="dust_param_mod.html">dust_param_mod</a>, <a href="callkeys_mod.html">callkeys_mod</a> - 控制本例程分支的运行时开关来源。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

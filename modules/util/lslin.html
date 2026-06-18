@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lslin - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/lslin.md</span>
+    </nav>
+    <article class="content">
+<h1 id="lslinf90">lslin.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util\lslin.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>lslin.F90</code> 是一个离线 NetCDF 时间坐标重采样工具。它读取 <code>diagfi.nc</code>、<code>concat.nc</code> 等 lon-lat GCM 输出，把原始 <code>Time</code> sol 坐标转换成太阳经度 <code>Ls</code>，再把所有 3D <code>(lon,lat,Time)</code> 和 4D <code>(lon,lat,alt,Time)</code> 变量重采样到等间隔 Ls 坐标，输出 <code>input_Ls.nc</code>。</p>
+<p>程序支持两种重采样方式：</p>
+<ul>
+<li>对每个目标 Ls 点做线性插值；</li>
+<li>或对目标 Ls 步长窗口内的输入样本做平均。</li>
+</ul>
+<p>它还会写一个伴随的 <code>input_Ls.ctl</code>，用于 GrADS 按近似月份时间轴读取输出文件。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lslin</code></td>
+<td>program</td>
+<td>3</td>
+<td>主程序；读取输入文件、构造等间隔 Ls 坐标并重采样变量。</td>
+</tr>
+<tr>
+<td><code>initiate</code></td>
+<td>internal subroutine</td>
+<td>653</td>
+<td>创建输出 NetCDF 文件，定义并写入坐标、<code>Time</code> 和可选 <code>controle</code>。</td>
+</tr>
+<tr>
+<td><code>init2</code></td>
+<td>internal subroutine</td>
+<td>854</td>
+<td>尝试复制 <code>aps</code>、<code>bps</code> 和 <code>phisinit</code> 到输出文件。</td>
+</tr>
+<tr>
+<td><code>def_var</code></td>
+<td>internal subroutine</td>
+<td>1052</td>
+<td>在输出 NetCDF 中定义变量并写 <code>long_name</code>、<code>units</code> 属性。</td>
+</tr>
+<tr>
+<td><code>missing_value</code></td>
+<td>internal subroutine</td>
+<td>1102</td>
+<td>写出变量 <code>missing_value</code> 属性。</td>
+</tr>
+<tr>
+<td><code>sol2ls</code></td>
+<td>internal subroutine</td>
+<td>1171</td>
+<td>将 sol 日期转换为太阳经度 Ls，可跨年累加 360 度。</td>
+</tr>
+<tr>
+<td><code>interpolf</code></td>
+<td>internal subroutine</td>
+<td>1265</td>
+<td>对一维时间序列做线性插值；超出范围或邻点缺测时返回 missing。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖">依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>include "netcdf.inc"</code></td>
+<td>使用旧式 NetCDF Fortran <code>NF_*</code> API 读写输入和输出文件。</td>
+</tr>
+<tr>
+<td><code>lslin.def</code></td>
+<td>可选 stdin 输入样例，提供文件名、起始日、Ls 步长和平均/插值选择。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="交互输入">交互输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入文件名</td>
+<td>例如 <code>diagfi.nc</code>。</td>
+</tr>
+<tr>
+<td>是否手动指定起始日</td>
+<td>若输入含 <code>controle</code> 且回答 <code>n</code>，使用 <code>controle(4)</code>；否则读取用户给定 sol。</td>
+</tr>
+<tr>
+<td>是否自动 Ls 步长</td>
+<td><code>y</code> 时根据输入 sol 步长选取 <code>1/12, 1/6, 0.25, 0.5, 0.75, 1, 2, 3, 5</code> 度之一；<code>n</code> 时读取用户给定 <code>deltals</code> 和 <code>ls0</code>。</td>
+</tr>
+<tr>
+<td>是否按 Ls 步长平均</td>
+<td><code>y</code> 时在 <code>timels(n) +- deltals/2</code> 窗口内平均；其他回答走线性插值。</td>
+</tr>
+</tbody>
+</table>
+<p><code>lslin.def</code> 的末尾 USE 行写成 <code>localtime.e &lt; localtime.def</code>，与本程序名不一致；页面按源码和文件内容记录，实际运行应使用 <code>lslin.e &lt; lslin.def</code>。</p>
+<h2 id="输入-netcdf-契约">输入 NetCDF 契约</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>必需性</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>latitude</code> / <code>longitude</code></td>
+<td>必需</td>
+<td>坐标维度和值原样写入输出。</td>
+</tr>
+<tr>
+<td><code>altitude</code></td>
+<td>可缺省</td>
+<td>缺失时源码设 <code>altlen=1</code>、<code>alt(1)=0</code>，但仍继续。</td>
+</tr>
+<tr>
+<td><code>Time</code></td>
+<td>必需</td>
+<td>原始 sol 时间坐标。</td>
+</tr>
+<tr>
+<td><code>controle</code> with <code>index</code> dimension</td>
+<td>可选</td>
+<td>存在时可用 <code>controle(4)</code> 推断 <code>day_ini</code>，并复制到输出。</td>
+</tr>
+<tr>
+<td><code>aps</code> / <code>bps</code> / <code>phisinit</code></td>
+<td>可选</td>
+<td><code>init2</code> 尝试复制；<code>aps/bps</code> 维度长度必须等于 <code>altlen</code>。</td>
+</tr>
+<tr>
+<td>3D/4D 变量</td>
+<td>必需至少一类</td>
+<td>程序从第一个 <code>ndim&gt;=3</code> 的变量开始，将后续变量列为待处理对象。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>类型</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>input_Ls.nc</code></td>
+<td>NetCDF</td>
+<td>等间隔 Ls 坐标上的变量；<code>Time</code> 变量单位写为 <code>degrees</code>，long_name 为 <code>Ls (Solar Longitude)</code>。</td>
+</tr>
+<tr>
+<td><code>input_Ls.ctl</code></td>
+<td>GrADS control</td>
+<td>用近似月步长描述 Ls 轴，绕过 GrADS 对某些年份格式的限制。</td>
+</tr>
+<tr>
+<td>stdout</td>
+<td>文本</td>
+<td>变量清单、维度、Ls 范围、步长选择和错误信息。</td>
+</tr>
+</tbody>
+</table>
+<p>输出 NetCDF 用 <code>NF_CLOBBER | NF_64BIT_OFFSET</code> 创建，同名文件会被覆盖。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>读取文件名并打开 NetCDF</strong>。</li>
+<li><strong>确定待处理变量范围</strong>：从变量编号 1 开始查 <code>NF_INQ_VARNDIMS</code>，直到遇到第一个 <code>ndim&gt;=3</code> 的变量；假定此后变量都是物理输出候选。</li>
+<li><strong>读取坐标与辅助字段</strong>：
+<ul>
+<li>必需 <code>latitude</code>、<code>longitude</code>、<code>Time</code>；</li>
+<li><code>altitude</code> 缺失时退化为单层；</li>
+<li><code>controle</code> 存在时可读取 <code>day_ini</code>；</li>
+<li>输出文件初始化后尝试复制 <code>aps/bps/phisinit</code>。</li>
+</ul></li>
+<li><strong>构造输入 Ls 序列</strong>：
+<ul>
+<li><code>deltatsol = time(2)-time(1)</code>；</li>
+<li>对每个 <code>time(i)</code> 调 <code>sol2ls(day_ini+time(i), lsgcm(i))</code>；</li>
+<li>若后续 Ls 小于首个 Ls，则加 360 处理跨年。</li>
+</ul></li>
+<li><strong>构造输出 Ls 序列</strong>：
+<ul>
+<li>自动模式根据 <code>0.6*deltatsol</code> 选离散 Ls 步长；</li>
+<li>手动模式读取 <code>deltals</code> 和 <code>ls0</code>，且 <code>ls0</code> 不能早于输入最早 Ls；</li>
+<li><code>Nls=int(int((lsgcm(timelen)-ls0)/deltals)+1)</code>；</li>
+<li><code>timels(1)</code> 四舍五入到 0.01 度，之后逐步加 <code>deltals</code>。</li>
+</ul></li>
+<li><strong>逐变量处理</strong>：
+<ul>
+<li><code>ndim&lt;3</code> 跳过；</li>
+<li><code>ndim==3</code> 按 <code>(lon,lat,time)</code> 处理；</li>
+<li><code>ndim==4</code> 按 <code>(lon,lat,alt,time)</code> 处理；</li>
+<li>复制 <code>long_name</code> 或 <code>title</code>、<code>units</code> 属性；</li>
+<li>读取全变量到内存。</li>
+</ul></li>
+<li><strong>重采样</strong>：
+<ul>
+<li>平均模式：收集 <code>lsgcm(l)</code> 落在 <code>timels(n) +- deltals/2</code> 的非 missing 样本，写平均值；无样本写 missing。</li>
+<li>插值模式：调 <code>interpolf</code> 在 <code>lsgcm</code> 和变量时间序列之间线性插值；超出范围或邻点 missing 时写 missing。</li>
+</ul></li>
+<li><strong>写输出</strong>：写变量值，若输入有 <code>missing_value</code> 属性则在输出变量上写同名属性。</li>
+<li><strong>写 GrADS ctl</strong>：根据 <code>timels(1)</code> 的小数部分估算月份，写 <code>TDEF Time ... LINEAR ... mo</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>read infile
+open infile
+find first variable with ndim &gt;= 3
+read latitude, longitude, optional altitude, optional controle
+create infile_Ls.nc and copy coordinates/controle
+copy optional aps, bps, phisinit
+read Time
+choose day_ini from controle(4) or user input
+for each input time:
+  lsgcm = sol2ls(day_ini + time)
+  unwrap if crossing 360
+choose deltals and ls0
+build timels
+for each variable from start_var to end:
+  skip if ndim &lt; 3
+  define output variable
+  read full variable
+  for each lon/lat[/alt] point and target Ls:
+    if average:
+      average valid input samples inside Ls bin
+    else:
+      linearly interpolate in Ls
+  write variable
+write infile_Ls.ctl</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="index.html">util/index.md</a></td>
+<td>属于常规输出整理链，把非线性或非等间隔 sol 输出重采样到等间隔 Ls。</td>
+</tr>
+<tr>
+<td>观测比较</td>
+<td>平均模式用于按 Ls bin 与 TES、MCS 等观测分箱比较；源码注释明确提到 2013 修改加入该用途。</td>
+</tr>
+<tr>
+<td><a href="concatnc.html">concatnc.md</a></td>
+<td>常接在拼接输出之后，把多段时间序列进一步转换到 Ls 坐标。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>输入至少需要两个 Time 点；源码直接使用 <code>time(2)-time(1)</code>。</li>
+<li>自动 Ls 步长不是连续公式，而是一组阈值赋值。</li>
+<li>缺失值只按精确等于 <code>missing_value</code> 判断；若输入没有 <code>missing_value</code> 属性，<code>missing</code> 变量的值未显式初始化。</li>
+<li>程序假定 NetCDF 变量顺序中 0D/1D/2D 坐标在 3D/4D 物理变量之前。</li>
+<li>平均模式只接受小写 <code>y</code>；大写 <code>Y</code> 会进入插值分支。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>controle(4)</code> 是否在所有目标文件中都是起始日；其他页面常见 <code>controle</code> 槽位约定需交叉核验。</li>
+<li><code>valid_range</code> 被读取但输出写回逻辑注释掉；是否应保留仍需开发者确认。</li>
+<li>GrADS <code>.ctl</code> 用地球 365 日月份近似描述 Ls 轴，适合 GrADS 读取但不是火星日历。</li>
+<li>变量属性只复制 <code>long_name/title</code> 和 <code>units</code>，其他属性会丢失。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li>输出 <code>_Ls.nc</code> 和 <code>_Ls.ctl</code> 会覆盖同名文件。</li>
+<li>大文件会一次性读入每个 3D/4D 变量，内存需求较高。</li>
+<li>输入变量顺序、维度名或 missing value 约定不符合源码假设时，输出可能不可信。</li>
+<li>插值模式在目标 Ls 超出输入范围时写 missing；平均模式窗口无样本也写 missing。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">util/index.md</a> - util 后处理工具总览。</li>
+<li><a href="concatnc.html">concatnc.md</a> - 常见上游时间拼接工具。</li>
+<li><a href="localtime.html">localtime.md</a> - 另一个时间坐标重排工具。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

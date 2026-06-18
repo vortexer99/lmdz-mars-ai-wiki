@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>comm_wrf - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/comm_wrf.md</span>
+    </nav>
+    <article class="content">
+<h1 id="comm_wrff90">comm_wrf.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\comm_wrf.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>comm_wrf.F90</code> 定义 <code>comm_wrf</code>，是 <code>phymars</code> 的 MESOSCALE 编译分支使用的 WRF 风格输出共享缓存模块。源码注释说明它用于输出那些尚未放入其他共享模块的诊断场。模块本身只声明、分配和释放数组；实际写入发生在 <code>physiq_mod.F</code> 的 <code>#ifdef MESOSCALE</code> 分支中。</p>
+<p>复现上，这个模块不是物理过程入口，也不改变物理倾向。它把 <code>physiq</code> 已经算出的短波/长波加热率、短波地表向下通量、尘埃/水冰光学与半径、水汽/水冰柱量等复制到 <code>comm_*</code> 数组，供外部 WRF/mesoscale 输出接口读取。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comm_wrf</code></td>
+<td>module</td>
+<td>1</td>
+<td>MESOSCALE 分支的 WRF 风格诊断输出缓存模块</td>
+</tr>
+<tr>
+<td><code>comm_HR_SW</code></td>
+<td>real allocatable save module variable</td>
+<td>8</td>
+<td>短波加热率缓存，二维 <code>ngrid,nlayer</code></td>
+</tr>
+<tr>
+<td><code>comm_HR_LW</code></td>
+<td>real allocatable save module variable</td>
+<td>9</td>
+<td>长波加热率缓存，二维 <code>ngrid,nlayer</code></td>
+</tr>
+<tr>
+<td><code>comm_SWDOWNZ</code></td>
+<td>real allocatable save module variable</td>
+<td>10</td>
+<td>地表向下短波通量缓存，长度 <code>ngrid</code></td>
+</tr>
+<tr>
+<td><code>comm_TAU_DUST</code></td>
+<td>real allocatable save module variable</td>
+<td>11</td>
+<td>参考可见尘埃光学厚度缓存，长度 <code>ngrid</code></td>
+</tr>
+<tr>
+<td><code>comm_RDUST</code></td>
+<td>real allocatable save module variable</td>
+<td>12</td>
+<td>尘埃半径缓存，二维 <code>ngrid,nlayer</code></td>
+</tr>
+<tr>
+<td><code>comm_QSURFDUST</code></td>
+<td>real allocatable save module variable</td>
+<td>13</td>
+<td>地表尘埃质量缓存，长度 <code>ngrid</code></td>
+</tr>
+<tr>
+<td><code>comm_MTOT</code></td>
+<td>real allocatable save module variable</td>
+<td>14</td>
+<td>水汽柱量转换后的缓存，长度 <code>ngrid</code></td>
+</tr>
+<tr>
+<td><code>comm_ICETOT</code></td>
+<td>real allocatable save module variable</td>
+<td>15</td>
+<td>水冰柱量转换后的缓存，长度 <code>ngrid</code></td>
+</tr>
+<tr>
+<td><code>comm_VMR_ICE</code></td>
+<td>real allocatable save module variable</td>
+<td>16</td>
+<td>水冰体积混合比缓存，二维 <code>ngrid,nlayer</code></td>
+</tr>
+<tr>
+<td><code>comm_TAU_ICE</code></td>
+<td>real allocatable save module variable</td>
+<td>17</td>
+<td>水冰云 TES 光学厚度缓存，长度 <code>ngrid</code></td>
+</tr>
+<tr>
+<td><code>comm_RICE</code></td>
+<td>real allocatable save module variable</td>
+<td>18</td>
+<td>水冰粒子半径缓存，二维 <code>ngrid,nlayer</code></td>
+</tr>
+<tr>
+<td><code>allocate_comm_wrf</code></td>
+<td>subroutine</td>
+<td>26</td>
+<td>按 <code>ngrid,nlayer</code> 分配未分配的 <code>comm_*</code> 数组</td>
+</tr>
+<tr>
+<td><code>deallocate_comm_wrf</code></td>
+<td>subroutine</td>
+<td>43</td>
+<td>无条件释放所有 <code>comm_*</code> 数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>本模块没有 <code>use</code> 依赖</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无外部例程</td>
+<td>-</td>
+<td>-</td>
+<td>本模块只调用 Fortran <code>allocated/allocate/deallocate</code> 内建机制</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>physiq_mod.F</code> 的 MESOSCALE 分支调用 <code>allocate_comm_wrf</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>物理网格列数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>physiq_mod.F</code> 的 MESOSCALE 分支调用 <code>allocate_comm_wrf</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>zdtsw(ngrid,nlayer)</code></td>
+<td><code>physiq_mod.F</code> 辐射计算后局部数组</td>
+<td>real array</td>
+<td>K/s</td>
+<td>短波加热率，写入 <code>comm_HR_SW</code></td>
+</tr>
+<tr>
+<td><code>zdtlw(ngrid,nlayer)</code></td>
+<td><code>physiq_mod.F</code> 辐射计算后局部数组</td>
+<td>real array</td>
+<td>K/s</td>
+<td>长波加热率，写入 <code>comm_HR_LW</code></td>
+</tr>
+<tr>
+<td><code>fluxsurf_dn_sw_tot(ngrid,*)</code></td>
+<td><code>physiq_mod.F</code> 辐射通量数组</td>
+<td>real array</td>
+<td>W m-2</td>
+<td>第 1 个坡面/平面索引的地表向下短波通量</td>
+</tr>
+<tr>
+<td><code>tau_pref_gcm(ngrid)</code></td>
+<td><code>physiq_mod.F</code> 尘埃光学厚度状态</td>
+<td>real array</td>
+<td>-</td>
+<td>参考可见尘埃光学厚度</td>
+</tr>
+<tr>
+<td><code>rdust(ngrid,nlayer)</code></td>
+<td><code>physiq_mod.F</code> 尘埃半径数组</td>
+<td>real array</td>
+<td>m</td>
+<td>尘埃粒子半径</td>
+</tr>
+<tr>
+<td><code>qsurf(:,igcm_dust_mass,1)</code></td>
+<td><code>physiq_mod.F</code> 地表 tracer 数组</td>
+<td>real array</td>
+<td>kg m-2</td>
+<td>地表尘埃质量；尘埃质量 tracer 不存在时输出 0</td>
+</tr>
+<tr>
+<td><code>mtot(ngrid)</code> / <code>icetot(ngrid)</code></td>
+<td><code>physiq_mod.F</code> 水循环柱积分数组</td>
+<td>real array</td>
+<td>kg m-2</td>
+<td>水汽/水冰柱质量，写入前乘 <code>1.e6/rho_ice</code></td>
+</tr>
+<tr>
+<td><code>zq(:,:,igcm_h2o_ice)</code>、<code>mmean</code>、<code>mmol</code></td>
+<td><code>physiq_mod.F</code> tracer 与平均分子量状态</td>
+<td>real arrays</td>
+<td>-</td>
+<td>水冰体积混合比换算来源</td>
+</tr>
+<tr>
+<td><code>taucloudtes</code> / <code>tauTES</code></td>
+<td><code>physiq_mod.F</code> 水冰云光学厚度数组</td>
+<td>real array</td>
+<td>-</td>
+<td><code>activice</code> 为真时用 <code>taucloudtes</code>，否则用 <code>tauTES</code></td>
+</tr>
+<tr>
+<td><code>rice(ngrid,nlayer)</code></td>
+<td><code>physiq_mod.F</code> 水冰粒子半径数组</td>
+<td>real array</td>
+<td>m</td>
+<td>写入 <code>comm_RICE</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comm_HR_SW</code></td>
+<td>MESOSCALE/WRF 输出接口，推断</td>
+<td>real allocatable <code>(ngrid,nlayer)</code></td>
+<td>K/s</td>
+<td>WRF state 注释名 <code>HR_SW</code></td>
+</tr>
+<tr>
+<td><code>comm_HR_LW</code></td>
+<td>MESOSCALE/WRF 输出接口，推断</td>
+<td>real allocatable <code>(ngrid,nlayer)</code></td>
+<td>K/s</td>
+<td>WRF state 注释名 <code>HR_LW</code></td>
+</tr>
+<tr>
+<td><code>comm_SWDOWNZ</code></td>
+<td>MESOSCALE/WRF 输出接口，推断</td>
+<td>real allocatable <code>(ngrid)</code></td>
+<td>W m-2</td>
+<td>WRF state 注释名 <code>SWDOWNZ</code></td>
+</tr>
+<tr>
+<td><code>comm_TAU_DUST</code></td>
+<td>MESOSCALE/WRF 输出接口，推断</td>
+<td>real allocatable <code>(ngrid)</code></td>
+<td>-</td>
+<td>WRF state 注释名 <code>TAU_DUST</code></td>
+</tr>
+<tr>
+<td><code>comm_RDUST</code></td>
+<td>MESOSCALE/WRF 输出接口，推断</td>
+<td>real allocatable <code>(ngrid,nlayer)</code></td>
+<td>m</td>
+<td>WRF state 注释名 <code>RDUST</code></td>
+</tr>
+<tr>
+<td><code>comm_QSURFDUST</code></td>
+<td>MESOSCALE/WRF 输出接口，推断</td>
+<td>real allocatable <code>(ngrid)</code></td>
+<td>kg m-2</td>
+<td>WRF state 注释名 <code>QSURFDUST</code></td>
+</tr>
+<tr>
+<td><code>comm_MTOT</code></td>
+<td>MESOSCALE/WRF 输出接口，推断</td>
+<td>real allocatable <code>(ngrid)</code></td>
+<td>pmic</td>
+<td>水汽柱质量折算为微米冰等效厚度</td>
+</tr>
+<tr>
+<td><code>comm_ICETOT</code></td>
+<td>MESOSCALE/WRF 输出接口，推断</td>
+<td>real allocatable <code>(ngrid)</code></td>
+<td>pmic，源码注释有不一致</td>
+<td>水冰柱质量同样乘 <code>1.e6/rho_ice</code></td>
+</tr>
+<tr>
+<td><code>comm_VMR_ICE</code></td>
+<td>MESOSCALE/WRF 输出接口，推断</td>
+<td>real allocatable <code>(ngrid,nlayer)</code></td>
+<td>ppm</td>
+<td>水冰体积混合比</td>
+</tr>
+<tr>
+<td><code>comm_TAU_ICE</code></td>
+<td>MESOSCALE/WRF 输出接口，推断</td>
+<td>real allocatable <code>(ngrid)</code></td>
+<td>-</td>
+<td>TES 波数处水冰云光学厚度</td>
+</tr>
+<tr>
+<td><code>comm_RICE</code></td>
+<td>MESOSCALE/WRF 输出接口，推断</td>
+<td>real allocatable <code>(ngrid,nlayer)</code></td>
+<td>m</td>
+<td>水冰粒子半径</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>所有 <code>comm_*</code> 数组都是 <code>REAL,SAVE,ALLOCATABLE</code> 模块变量。</li>
+<li>源码行 20-22 用 OpenMP <code>THREADPRIVATE</code> 声明全部 <code>comm_*</code> 数组。</li>
+<li><code>allocate_comm_wrf</code> 对每个数组使用 <code>.not.allocated(...)</code> 保护，因此重复调用不会重复分配；但若网格维度改变而数组仍已分配，本例程不会自动重分配。</li>
+<li><code>deallocate_comm_wrf</code> 没有 <code>allocated(...)</code> 保护；若数组未分配时调用，Fortran 运行时可能报错。</li>
+<li>全源码搜索只发现 <code>physiq_mod.F</code> 行 3260 调用 <code>allocate_comm_wrf</code>；未发现 <code>deallocate_comm_wrf</code> 的外部调用。</li>
+<li>本文件不直接写文件、不调用 <code>write_output</code>，也不执行物理计算。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>physiq_mod.F</code> 行 107-110 在 <code>#ifdef MESOSCALE</code> 分支中 <code>use comm_wrf</code>。</li>
+<li><code>physiq_mod.F</code> 行 3254 进入 MESOSCALE 输出段，行 3260 调用 <code>allocate_comm_wrf(ngrid,nlayer)</code>。</li>
+<li><code>allocate_comm_wrf</code> 逐个检查 11 个 <code>comm_*</code> 数组，未分配时按 <code>ngrid</code> 或 <code>ngrid,nlayer</code> 分配。</li>
+<li><code>physiq_mod.F</code> 行 3263-3297 把已计算的物理诊断量复制到 <code>comm_*</code> 数组。</li>
+<li>若 <code>igcm_dust_mass</code> 不为 0，<code>comm_QSURFDUST</code> 取 <code>qsurf(:,igcm_dust_mass,1)</code>；否则全设为 0。</li>
+<li><code>comm_MTOT</code> 和 <code>comm_ICETOT</code> 分别取 <code>mtot</code>、<code>icetot</code> 并乘 <code>1.e6/rho_ice</code>。</li>
+<li>若 <code>igcm_h2o_ice</code> 不为 0，<code>comm_VMR_ICE = 1.e6*zq(:,:,igcm_h2o_ice)*mmean/mmol(igcm_h2o_ice)</code>；否则全设为 0。</li>
+<li>若 <code>activice</code> 为真，<code>comm_TAU_ICE</code> 取 <code>taucloudtes</code>；否则取 <code>tauTES</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>module comm_wrf:
+    declare WRF-style diagnostic arrays as allocatable SAVE
+    mark all arrays THREADPRIVATE
+
+allocate_comm_wrf(ngrid, nlayer):
+    for each 2-D diagnostic:
+        if not allocated, allocate(ngrid, nlayer)
+    for each 1-D diagnostic:
+        if not allocated, allocate(ngrid)
+
+physiq MESOSCALE output block:
+    call allocate_comm_wrf(ngrid, nlayer)
+    copy shortwave/longwave heating rates
+    copy surface downward shortwave flux
+    copy dust optical depth and dust radius
+    if dust mass tracer exists:
+        copy surface dust mass
+    else:
+        write zero surface dust mass
+    convert water vapor and water ice column masses by 1e6/rho_ice
+    if water ice tracer exists:
+        compute water ice VMR in ppm
+    else:
+        write zero VMR
+    select active/inactive water ice optical depth source
+    copy water ice particle radius</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MESOSCALE / WRF 输出</td>
+<td>在 <code>#ifdef MESOSCALE</code> 分支中为 WRF 风格 registry/state 输出缓存诊断数组</td>
+</tr>
+<tr>
+<td>辐射诊断</td>
+<td>缓存 <code>zdtsw/zdtlw</code> 加热率和 <code>fluxsurf_dn_sw_tot</code> 地表短波通量</td>
+</tr>
+<tr>
+<td>尘埃诊断</td>
+<td>缓存 <code>tau_pref_gcm</code>、<code>rdust</code> 和可选 <code>qsurf(:,igcm_dust_mass,1)</code></td>
+</tr>
+<tr>
+<td>水循环诊断</td>
+<td>缓存 <code>mtot/icetot</code> 的微米等效厚度、<code>VMR_ICE</code>、<code>TAU_ICE</code> 和 <code>rice</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>模块本体是自由格式 <code>.F90</code>，但使用 LMD 共享状态风格：<code>SAVE,ALLOCATABLE</code> 加 <code>THREADPRIVATE</code>。</li>
+<li><code>physiq_mod.F</code> 中对应输出注释采用 WRF Registry 风格，例如 <code>state real HR_SW ikj misc ... "K/s"</code>。</li>
+<li><code>comm_*</code> 数组名是输出接口名的 Fortran 缓存形式；实际输出变量名由 <code>physiq_mod.F</code> 注释给出。</li>
+<li>本模块没有 <code>implicit none</code> 放在模块层，只在两个子程序内部声明。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>这些数组只在 <code>MESOSCALE</code> 预处理分支中由 <code>physiq_mod.F</code> 填充；普通 GCM 非 MESOSCALE 编译不会执行该输出缓存段。</li>
+<li><code>allocate_comm_wrf</code> 不会在维度变化时重分配已存在数组；复现变网格或多实例场景时要先确认释放/重新分配策略。</li>
+<li><code>deallocate_comm_wrf</code> 没有分配状态保护，不能在数组未分配时直接调用。</li>
+<li><code>comm_ICETOT</code> 的 WRF 注释写成 <code>kg m-2</code>，但赋值和 <code>comm_MTOT</code> 一样乘了 <code>1.e6/rho_ice</code>；页面按源码赋值标为 pmic，并把注释不一致作为复现风险。</li>
+<li>因为数组是 <code>THREADPRIVATE</code>，并行输出时需要确认写入线程与读取输出接口的线程一致或有明确同步。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>外部 WRF/mesoscale 输出接口如何读取这些 <code>comm_*</code> 数组不在 <code>LMDZ.MARS/libf</code> 搜索结果中体现；本页只记录 <code>phymars</code> 侧写入证据。</li>
+<li><code>deallocate_comm_wrf</code> 未在当前源码树中被调用，是否由外部框架或链接单元调用需结合完整 MESOSCALE 构建确认。</li>
+<li><code>comm_ICETOT</code> 的注释单位与赋值换算不一致，需由 WRF 输出约定确认最终展示单位。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars/index</a>：<code>phymars</code> 目录总览。</li>
+<li><a href="../../themes/radiation.html">radiation</a>：<code>HR_SW</code>、<code>HR_LW</code> 和 <code>SWDOWNZ</code> 的辐射诊断上下文。</li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle</a>：<code>TAU_DUST</code>、<code>RDUST</code>、<code>QSURFDUST</code> 的尘埃诊断上下文。</li>
+<li><a href="../../themes/water-cycle.html">water-cycle</a>：<code>MTOT</code>、<code>ICETOT</code>、<code>VMR_ICE</code>、<code>TAU_ICE</code>、<code>RICE</code> 的水循环诊断上下文。</li>
+<li><a href="physiq_mod.html">physiq_mod.md</a>：主物理时间步调度入口；section 页 <a href="../../routines/physiq-water-cycle-callpoints.html">physiq-water-cycle-callpoints</a> 和 <a href="../../routines/physiq-co2-cycle-callpoints.html">physiq-co2-cycle-callpoints</a> 也覆盖水/CO2 调用点。</li>
+<li><a href="write_output_mod.html">write_output_mod.md</a>：通用诊断输出入口。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

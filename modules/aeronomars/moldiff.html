@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>moldiff - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/moldiff.md</span>
+    </nav>
+    <article class="content">
+<h1 id="moldifff">moldiff.F</h1>
+<h2 id="路径">路径</h2>
+<pre><code>LMDZ.MARS\libf\aeronomars\moldiff.F</code></pre>
+<h2 id="概述">概述</h2>
+<p><code>moldiff_mod</code> 是 LMDZ.MARS 的<strong>原版</strong>（legacy）分子扩散模块，在 65 km 以上热层区域求解 14 种中性物种的多组分分子扩散。它采用 Dickinson &amp; Ridley (1972) 的 α 矩阵表述，经 LU 分解/求逆后转为隐式三对角系统求解混合比倾向，并在顶部用 Jeans 逃逸方程处理 H/H₂ 逃逸通量。</p>
+<p><strong>当前状态：无直接调用方。</strong> <code>thermosphere_mod.F</code> 通过 <code>moldiff_scheme</code> 开关（默认 2）选择 <code>moldiff_red</code>（legacy scheme, <code>moldiff_scheme==1</code>）或 <code>moldiff_MPF</code>（MPF scheme, <code>moldiff_scheme==2</code>），两者均不引用 <code>moldiff_mod</code>。<code>moldiff.F</code> 为遗留死代码，changelog 记录了从活跃使用到逐步被 <code>moldiff_red</code>/<code>moldiff_MPF</code> 取代的完整历史。</p>
+<h2 id="定义符号">定义符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>moldiff_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>包装分子扩散主例程和三个数值辅助例程</td>
+</tr>
+<tr>
+<td><code>moldiff</code></td>
+<td>subroutine</td>
+<td>7–461</td>
+<td>14 物种多组分分子扩散求解器</td>
+</tr>
+<tr>
+<td><code>tridag_sp</code></td>
+<td>subroutine</td>
+<td>467–492</td>
+<td>三对角矩阵 Thomas 算法求解器</td>
+</tr>
+<tr>
+<td><code>LUBKSB_SP</code></td>
+<td>subroutine</td>
+<td>498–531</td>
+<td>LU 分解回代（Numerical Recipes）</td>
+</tr>
+<tr>
+<td><code>LUDCMP_SP</code></td>
+<td>subroutine</td>
+<td>537–616</td>
+<td>LU 分解 + 部分主元选取（Numerical Recipes）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="物种编号moldiff-内部">物种编号（<code>moldiff</code> 内部）</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">本地索引</th>
+<th>参数名</th>
+<th>物种</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td><code>i_co</code></td>
+<td>CO</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td><code>i_n2</code></td>
+<td>N₂</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td><code>i_o2</code></td>
+<td>O₂</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td><code>i_co2</code></td>
+<td>CO₂</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td><code>i_h2</code></td>
+<td>H₂</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td><code>i_h</code></td>
+<td>H</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">7</td>
+<td><code>i_oh</code></td>
+<td>OH</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td><code>i_ho2</code></td>
+<td>HO₂</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">9</td>
+<td><code>i_h2o</code></td>
+<td>H₂O</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">10</td>
+<td><code>i_h2o2</code></td>
+<td>H₂O₂</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">11</td>
+<td><code>i_o1d</code></td>
+<td>O(¹D)</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td><code>i_o3</code></td>
+<td>O₃</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">13</td>
+<td><code>i_ar</code></td>
+<td>Ar</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">14</td>
+<td><code>i_o</code></td>
+<td>O</td>
+<td><strong>必须排最后</strong>——高层大气主导物种</td>
+</tr>
+</tbody>
+</table>
+<h3 id="共享状态save--omp-threadprivate">共享状态（SAVE + OMP THREADPRIVATE）</h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>g_co2/g_co/g_o/g_o1d/g_o2/g_o3/g_h/g_h2/g_oh/g_ho2/g_h2o2/g_n2/g_ar/g_h2o</code></td>
+<td>integer, save</td>
+<td>14 个 tracer 的 GCM 索引</td>
+</tr>
+<tr>
+<td><code>gcmind(14)</code></td>
+<td>integer, save</td>
+<td>本地索引→GCM 索引映射</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td>logical, save</td>
+<td>首次调用标志</td>
+</tr>
+<tr>
+<td><code>dij(14,14)</code></td>
+<td>real, save</td>
+<td>二元扩散系数矩阵缓存</td>
+</tr>
+</tbody>
+</table>
+<h2 id="use-依赖">use 依赖</h2>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>引用符号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_co2</code>, <code>igcm_co</code>, <code>igcm_o</code>, <code>igcm_o1d</code>, <code>igcm_o2</code>, <code>igcm_o3</code>, <code>igcm_h</code>, <code>igcm_h2</code>, <code>igcm_oh</code>, <code>igcm_ho2</code>, <code>igcm_h2o2</code>, <code>igcm_n2</code>, <code>igcm_ar</code>, <code>igcm_h2o_vap</code>, <code>mmol</code></td>
+<td>14 个 tracer 索引 + 摩尔质量</td>
+</tr>
+<tr>
+<td><code>conc_mod</code></td>
+<td><code>rnew</code>, <code>mmean</code></td>
+<td>混合气体比气体常数和平均摩尔质量</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code></td>
+<td>重力加速度</td>
+</tr>
+<tr>
+<td><code>moldiffcoeff_mod</code></td>
+<td><code>moldiffcoeff</code></td>
+<td>14 物种二元扩散系数矩阵 <code>dij</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="call-调用">call 调用</h2>
+<table>
+<thead>
+<tr>
+<th>被调例程</th>
+<th>所在模块</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>moldiffcoeff</code></td>
+<td><code>moldiffcoeff_mod</code></td>
+<td>firstcall 时获取 <code>dij(14,14)</code> 扩散系数矩阵</td>
+</tr>
+<tr>
+<td><code>ludcmp_sp</code></td>
+<td>本文件</td>
+<td>LU 分解 α 矩阵</td>
+</tr>
+<tr>
+<td><code>lubksb_sp</code></td>
+<td>本文件</td>
+<td>LU 回代求 α 逆矩阵</td>
+</tr>
+<tr>
+<td><code>tridag_sp</code></td>
+<td>本文件</td>
+<td>三对角隐式求解各物种混合比</td>
+</tr>
+</tbody>
+</table>
+<h2 id="moldiff-参数表"><code>moldiff</code> 参数表</h2>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>方向</th>
+<th>维度</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>in</td>
+<td>scalar</td>
+<td>大气柱数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>in</td>
+<td>scalar</td>
+<td>大气层数</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>in</td>
+<td>scalar</td>
+<td>平流 tracer 数</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td>in</td>
+<td><code>(ngrid, nlayer)</code></td>
+<td>层中心气压 (Pa)</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td>in</td>
+<td><code>(ngrid, nlayer+1)</code></td>
+<td>层界面气压 (Pa)</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td>in</td>
+<td><code>(ngrid, nlayer)</code></td>
+<td>温度 (K)</td>
+</tr>
+<tr>
+<td><code>pdt</code></td>
+<td>in</td>
+<td><code>(ngrid, nlayer)</code></td>
+<td>温度总倾向 (K/s)</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td>in</td>
+<td><code>(ngrid, nlayer, nq)</code></td>
+<td>tracer 质量混合比 (kg/kg)</td>
+</tr>
+<tr>
+<td><code>pdq</code></td>
+<td>in</td>
+<td><code>(ngrid, nlayer, nq)</code></td>
+<td>tracer 倾向 (kg/kg/s)</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>in</td>
+<td>scalar</td>
+<td>物理时步 (s)</td>
+</tr>
+<tr>
+<td><code>zzlay</code></td>
+<td>in</td>
+<td><code>(ngrid, nlayer)</code></td>
+<td>层中心高度 (m)</td>
+</tr>
+<tr>
+<td><code>pdteuv</code></td>
+<td>in</td>
+<td><code>(ngrid, nlayer)</code></td>
+<td>EUV 加热倾向 (K/s)</td>
+</tr>
+<tr>
+<td><code>pdtconduc</code></td>
+<td>in</td>
+<td><code>(ngrid, nlayer)</code></td>
+<td>热传导倾向 (K/s)</td>
+</tr>
+<tr>
+<td><code>pdqdiff</code></td>
+<td>out</td>
+<td><code>(ngrid, nlayer, nq)</code></td>
+<td>分子扩散 tracer 倾向 (kg/kg/s)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="firstcall-初始化第-117213-行">firstcall 初始化（第 117–213 行）</h3>
+<ol type="1">
+<li>调用 <code>moldiffcoeff(dij)</code> 获取 14×14 二元扩散系数矩阵。</li>
+<li>逐一检查 14 个必需 tracer 的 <code>igcm_*</code> 索引；任一为 0 即 <code>stop</code>。</li>
+<li>建立 <code>gcmind(1:14)</code> 映射（本地物种索引 → GCM tracer 索引）。</li>
+</ol>
+<h3 id="逐列求解第-222459-行do-ig1ngrid">逐列求解（第 222–459 行，<code>do ig=1,ngrid</code>）</h3>
+<ol type="1">
+<li><strong>前向推算温度和混合比</strong>（第 224–249 行）：<code>tt = pt + pdt·dt + pdteuv·dt + pdtconduc·dt</code>；<code>qq = pq + pdq·dt</code>，钳位 <code>≥ 1e-30</code>。</li>
+<li><strong>标高和平均分子量梯度</strong>（第 233–255 行）：<code>hp = -log(p(l+1)/p(l-1))</code>；<code>dmmeandz = (mmean(l+1)-mmean(l-1))/hp</code>，边界层用 3 点差分。</li>
+<li><strong>构造 α 矩阵</strong>（第 259–286 行，Dickinson &amp; Ridley 1972）：
+<ul>
+<li>对 13×13 子矩阵（排除 O），每对物种 <code>(nn, n)</code> 按 <code>dij(nn,n)·ptfac</code>（<code>ptfac = (1e5/p)·(T/273)^1.75</code>）计算扩散系数。</li>
+<li><code>alf(nn,n) = qq(nn)/ntot/1.66e-27 · (1/(mmol(n)·d(nn)) - 1/(mmol(O)·d_O))</code>。</li>
+<li>对角线修正 <code>alfdiag</code>。</li>
+<li><code>b(l,n) = -(dmmeandz/mmean + mmol(n)/mmean - 1)</code> 重力分离项。</li>
+</ul></li>
+<li><strong>LU 求逆 α 矩阵</strong>（第 291–310 行）：<code>ludcmp_sp</code> + <code>lubksb_sp</code>，得 <code>alfinv(l,nn,n) = y(nn,n)/hh</code>（<code>hh = rnew·T/g</code> 标高）。
+<ul>
+<li>若 LU 失败（奇异矩阵），全列 <code>pdqdiff = 0</code> 并 <code>return</code>。</li>
+</ul></li>
+<li><strong>三对角系数</strong>（第 316–334 行）：
+<ul>
+<li><code>del1 = hp·p/(g·dt)</code>，<code>del2 = (hp/2)²·p/(g·dt)</code>。</li>
+<li><code>aa/bb/cc</code> 分别为下/主/上对角线系数，包含 <code>alfinv</code> 垂直梯度和 <code>b</code> 项。</li>
+</ul></li>
+<li><strong>Jeans 逃逸通量</strong>（第 339–376 行，Hunten 1973 eq. 5）：
+<ul>
+<li>H：<code>wi(H) = √(2kT/(m·1.6605e-27)) / (2√π) · (1+pote)·exp(-pote)</code>；<code>pote = (R_mars+z)/(kT/(m·g))</code>。</li>
+<li>H₂：同公式。</li>
+<li><code>flux(H/H₂) = qq(nz)·dens/m_H · wi</code>，<code>abfac(H/H₂) = 0</code>（逃逸边界），其余物种 <code>abfac = 1</code>（扩散平衡）。</li>
+</ul></li>
+<li><strong>三对角求解</strong>（第 385–435 行，逐物种）：
+<ul>
+<li>组装 <code>atri/btri/ctri/rtri</code>（层 2 到 nz-1），含交叉物种耦合项。</li>
+<li>顶部边界（第 408–414 行）：逃逸物种用 <code>flux</code>；非逃逸物种用 <code>abfac·ctri/(3-2·hp·b)</code> 扩散平衡条件。</li>
+<li>底部边界（第 417 行）：完全混合 <code>btri(1) += atri(1)</code>。</li>
+<li><code>tridag_sp</code> 求解得 <code>qnew(l,nn)</code>，钳位 <code>≥ 1e-30</code>。</li>
+<li>顶层 <code>qnew(nz,nn)</code> 由逃逸通量或扩散平衡外推。</li>
+<li>底层 <code>qnew(1,nn) = qnew(2,nn)</code>。</li>
+</ul></li>
+<li><strong>写倾向</strong>（第 437–447 行）：仅在 <code>zlocal &gt; 65000 m</code> 时写入：
+<ul>
+<li><code>pdqdiff(ig,l,n) = (qnew(l,n) - qq(l,n)) / ptimestep</code>。</li>
+<li>O 倾向由质量守恒反算：<code>pdqdiff(ig,l,g_o) = -Σ_{n≠O} pdqdiff(ig,l,n)</code>。</li>
+</ul></li>
+</ol>
+<h2 id="辅助例程">辅助例程</h2>
+<h3 id="tridag_sp第-467492-行"><code>tridag_sp</code>（第 467–492 行）</h3>
+<p>Thomas 算法三对角求解器。<code>a/b/c</code> 为下/主/上对角线，<code>r</code> 为右端向量，输出 <code>u</code>。主元 <code>b(j)-a(j)·gam(j) == 0</code> 时 <code>stop</code>。</p>
+<h3 id="lubksb_sp第-498531-行"><code>LUBKSB_SP</code>（第 498–531 行）</h3>
+<p>Numerical Recipes 风格 LU 回代。输入 <code>A(NP,NP)</code> 和 <code>INDX</code> 置换向量，原地修改 <code>B</code>。</p>
+<h3 id="ludcmp_sp第-537616-行"><code>LUDCMP_SP</code>（第 537–616 行）</h3>
+<p>Numerical Recipes 风格 LU 分解 + 部分主元选取。奇异矩阵（行最大元素为 0）时设 <code>ierr=1</code> 并 <code>return</code>（不再 <code>stop</code>），由调用方决定后续处理。</p>
+<h2 id="伪代码">伪代码</h2>
+<pre><code>moldiff(ngrid, nlayer, nq, pplay, ..., pdqdiff):
+    if firstcall:
+        moldiffcoeff(dij)
+        for each of 14 tracers: check igcm_* != 0
+        build gcmind(1:14)
+        firstcall = .false.
+
+    for ig = 1, ngrid:
+        tt = pt + (pdt + pdteuv + pdtconduc) * dt    # forward temperature
+        qq = pq + pdq * dt                            # forward mixing ratios
+        hp = -log(p(l+1)/p(l-1))                      # log-pressure thickness
+        dmmeandz = d(mmean)/hp                         # mean molecular weight gradient
+
+        for l = 1, nz:
+            build alf(13×13) from dij, qq, mmol, ntot  # Dickinson-Ridley alpha matrix
+            ludcmp_sp(alf) + lubksb_sp → alfinv        # invert alpha
+            build b(l,n) gravity separation term
+
+        build aa/bb/cc tridiagonal coefficients from alfinv gradients
+        compute Jeans escape flux for H and H2 at TOA (Hunten 1973)
+
+        for nn = 1, 13:                                # solve each species
+            assemble tridiagonal system with cross-coupling
+            apply escape BC (H/H2) or diffusive equilibrium BC (others) at top
+            apply perfect mixing BC at bottom
+            tridag_sp → qnew(:,nn)
+
+        for l where z &gt; 65 km:
+            pdqdiff(l, n) = (qnew - qq) / dt          # tendency for each species
+            pdqdiff(l, O) = -sum(pdqdiff(l, n≠O))     # O by mass conservation</code></pre>
+<h2 id="调用关系">调用关系</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>位置</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>无直接调用方</strong></td>
+<td>—</td>
+<td><code>moldiff_mod</code> 在整个 <code>libf</code> 中未被 <code>use</code>，<code>moldiff</code> 未被 <code>call</code>。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="取代关系">取代关系</h3>
+<p><code>thermosphere_mod.F</code>（第 18–19 行）引入 <code>moldiff_red_mod::moldiff_red</code>（legacy scheme）和 <code>moldiff_MPF_mod::moldiff_MPF</code>（MPF scheme），通过 <code>moldiff_scheme</code> 开关（默认 2，第 67–68 行）选择。<code>callmoldiff</code> 在 <code>conf_phys.F</code> 读取（默认 <code>.false.</code>，MCD5/MCD6 配置开启 <code>.true.</code>，MCD6 设 <code>moldiff_scheme=1</code>），要求 <code>callthermos=.true.</code>。</p>
+<table>
+<thead>
+<tr>
+<th>deftank 配置</th>
+<th><code>callmoldiff</code></th>
+<th><code>moldiff_scheme</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MCD5</td>
+<td><code>.true.</code></td>
+<td>未设（默认 2 → MPF）</td>
+</tr>
+<tr>
+<td>MCD6</td>
+<td><code>.true.</code></td>
+<td>1（legacy <code>moldiff_red</code>）</td>
+</tr>
+<tr>
+<td>GCM5/GCM6</td>
+<td><code>.false.</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与-moldiff_redmoldiff_mpf-的区别">与 <code>moldiff_red</code>/<code>moldiff_MPF</code> 的区别</h2>
+<table>
+<thead>
+<tr>
+<th>特征</th>
+<th><code>moldiff.F</code>（本文件）</th>
+<th><code>moldiff_red.F90</code></th>
+<th><code>moldiff_MPF.F90</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>物种数</td>
+<td>固定 14</td>
+<td>动态 <code>ncompdiff</code>（按 <code>indic_diff</code> 筛选）</td>
+<td>动态 <code>ncompdiff</code></td>
+</tr>
+<tr>
+<td>扩散系数</td>
+<td><code>moldiffcoeff</code>（固定 14 物种）</td>
+<td><code>moldiffcoeff_red</code>（动态物种列表）</td>
+<td><code>moldiffcoeff_red</code></td>
+</tr>
+<tr>
+<td>H/H₂ 逃逸</td>
+<td>Jeans 方程（Hunten 1973 eq. 5）</td>
+<td>含 D 同位素逃逸 <code>PhiEscD</code></td>
+<td>含 D + 质量修正器</td>
+</tr>
+<tr>
+<td>质量守恒</td>
+<td>O 反算</td>
+<td>O 反算</td>
+<td>可选 <code>call_mass_fixer_moldiff_MPF</code> 柱质量修正</td>
+</tr>
+<tr>
+<td>应用高度</td>
+<td><code>z &gt; 65 km</code></td>
+<td>配置相关</td>
+<td>配置相关</td>
+</tr>
+<tr>
+<td>活跃状态</td>
+<td>死代码</td>
+<td><code>moldiff_scheme==1</code></td>
+<td><code>moldiff_scheme==2</code>（默认）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="待确认">待确认</h2>
+<ol type="1">
+<li><code>moldiff.F</code> 是否在某个未编译的测试路径中仍被引用（当前 <code>libf</code> 全目录 grep 无 <code>use moldiff_mod</code> 或 <code>call moldiff</code>）。</li>
+<li>与 <code>moldiff_red</code> 的具体算法差异——两者均标注 legacy，但 <code>moldiff.F</code> 的 α 矩阵维数固定为 13×13（排除 O），而 <code>moldiff_red</code> 使用动态维度。</li>
+<li>第 370–376 行注释块 "TEMPORAIRE: no escape for h and h2" 是否曾被启用（当前被注释，逃逸生效）。</li>
+<li><code>dij(h,o) = 0.000114</code> 与 <code>moldiffcoeff.F</code> 第 195 行的覆盖旧值 <code>0.0000144</code>（~10× 差异）的物理依据。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览，本文件在其"分子扩散"分类下。</li>
+<li><a href="moldiffcoeff.html">moldiffcoeff</a>：提供 <code>dij(14,14)</code> 二元扩散系数矩阵，由本文件 firstcall 调用。</li>
+<li><a href="moldiffcoeff_red.html">moldiffcoeff_red</a>：简化变体扩散系数例程，供 <code>moldiff_red</code>/<code>moldiff_MPF</code> 使用。</li>
+<li><a href="../phymars/tracer_mod.html">tracer_mod</a>：提供 <code>igcm_*</code> 索引与 <code>mmol</code> 摩尔质量。</li>
+<li><a href="../phymars/conc_mod.html">conc_mod</a>：提供 <code>rnew</code>/<code>mmean</code> 混合气体属性。</li>
+<li><a href="../phymars/comcstfi_h.html">comcstfi_h</a>：提供重力常数 <code>g</code>。</li>
+<li><a href="conduction.html">conduction</a>：热层分子热传导，与分子扩散共同影响热层温度/成分剖面。</li>
+<li><a href="molvis.html">molvis</a>：热层分子黏性速度扩散，与分子扩散并列为热层三大输运过程。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

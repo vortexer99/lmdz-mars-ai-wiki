@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nucleaco2 - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/nucleaco2.md</span>
+    </nav>
+    <article class="content">
+<h1 id="nucleaco2f90">nucleaco2.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\nucleaco2.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>该文件定义 <code>nucleaco2_mod</code> 模块，含一个 subroutine <code>nucleaco2</code> 和一个 module 级辅助 function <code>fshapeco2</code>。职责是：在给定 CO2 分压、温度、过饱和度和一组 CCN（凝结核）尺度分布的前提下，按经典异质成核理论计算 <strong>CO2 冰在固体基底上的异质成核率</strong> <code>nucrate(nbinco2_cld)</code>（每个 CCN 尺度 bin 一个速率）。</p>
+<p>文件头注释说明：算法来自 Pruppacher &amp; Klett (1978) 水冰在固体基底成核的公式，由 Keese (JGR, 1989) 细化；水冰版本由 F. Montmessin 编写、J.-B. Madeleine 移植到 LMD/GCM（2011-10）、A. Spiga 优化（2012-02）；CO2 版本由 C. Listowski 与 J. Audouard 在水冰版本基础上改写（2016-2017）。</p>
+<p>注意（核验自调用方）：本例程对“成核基底种类”不可知，由调用方通过形参 <code>teta</code>（接触参数 m=cosθ）和 <code>n_ccn</code>（核分布）区分。<code>improvedco2clouds_mod.F90</code> 用同一例程对三类基底各调用一次：尘埃 CCN、流星尘 CCN（均传 <code>mtetaco2=0.95</code>），以及 H2O 冰 CCN（传水的接触参数 <code>mteta</code>）。见“调用的关键例程 / 输入”。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nucleaco2_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>容器模块</td>
+</tr>
+<tr>
+<td><code>nucleaco2</code></td>
+<td>subroutine</td>
+<td>5</td>
+<td>计算各 CCN bin 的 CO2 冰异质成核率</td>
+</tr>
+<tr>
+<td><code>fshapeco2</code></td>
+<td>function (double precision)</td>
+<td>91</td>
+<td>计算接触因子 f(m,x)，曲率有限时降低成核能垒</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>圆周率，用于体积/面积几何因子</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>nbinco2_cld</code></td>
+<td>CO2 成核 bin 数（=100，<code>microphys_h.F90:67</code>）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>rad_cldco2</code></td>
+<td>各 bin CCN 半径（m），SAVE/THREADPRIVATE（<code>microphys_h.F90:94</code>）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>desorpco2</code></td>
+<td>CO2 分子在基底上的脱附活化能（J/分子，=3.07e-20，Bachnar 2016）（<code>:73</code>）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>m0co2</code></td>
+<td>单个 CO2 分子质量（kg，= mco2/nav）（<code>:83</code>）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>kbz</code></td>
+<td>玻尔兹曼常数（1.381e-23 J/K）（<code>:19</code>）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>nusco2</code></td>
+<td>CO2 分子跳跃频率（s⁻¹，=2.9e+12）（<code>:77</code>）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>sigco2</code></td>
+<td>冰/汽表面张力（J·m⁻²，=0.08）（<code>:69</code>）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>surfdifco2</code></td>
+<td>CO2 分子表面扩散活化能（J/分子，= desorpco2/10）（<code>:81</code>）</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<p>说明：<code>fshapeco2</code> 函数本身不 use 任何模块，仅做纯算术。</p>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fshapeco2</code></td>
+<td>本文件 module 级 function</td>
+<td><code>nucleaco2.F90:70</code></td>
+<td>当 CCN 半径与临界胚半径之比有限（<code>rad_cldco2(i) &lt;= 3000*rstar</code>）时计算接触因子；比值很大时直接用平表面近似 <code>fshapeco2simple</code></td>
+</tr>
+<tr>
+<td><code>log</code>, <code>sqrt</code>, <code>exp</code>, <code>min</code>, <code>max</code>, <code>dble</code></td>
+<td>Fortran 内建</td>
+<td>多处</td>
+<td>算术</td>
+</tr>
+</tbody>
+</table>
+<p>本例程不调用其他源文件中的例程。</p>
+<p>调用方（核验）：</p>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>位置</th>
+<th>传入的 <code>n_ccn</code> / <code>teta</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>improvedco2clouds_mod.F90</code></td>
+<td><code>:382</code></td>
+<td>尘埃 CCN <code>n_aer</code> / <code>mtetaco2=0.95</code></td>
+</tr>
+<tr>
+<td><code>improvedco2clouds_mod.F90</code></td>
+<td><code>:413</code></td>
+<td>流星尘 CCN <code>n_aer_meteor</code> / <code>mtetaco2=0.95</code></td>
+</tr>
+<tr>
+<td><code>improvedco2clouds_mod.F90</code></td>
+<td><code>:460</code></td>
+<td>H2O 冰 CCN <code>n_aer_h2oice</code> / <code>mteta</code>（水接触参数）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pco2</code></td>
+<td>调用方</td>
+<td>double, intent(in)</td>
+<td>Pa</td>
+<td>CO2 分压（调用方传 <code>dble(pco2)</code>）</td>
+</tr>
+<tr>
+<td><code>temp</code></td>
+<td>调用方</td>
+<td>real, intent(in)</td>
+<td>K</td>
+<td>温度（调用方传 <code>zt(ig,l)</code>）</td>
+</tr>
+<tr>
+<td><code>sat</code></td>
+<td>调用方</td>
+<td>double, intent(in)</td>
+<td>—</td>
+<td>CO2 过饱和比 S（&gt;1 时成核，公式含 <code>log(sat)</code>）</td>
+</tr>
+<tr>
+<td><code>n_ccn(nbinco2_cld)</code></td>
+<td>调用方</td>
+<td>double, intent(in)</td>
+<td>个/?（数浓度分布）</td>
+<td>各尺度 bin 的 CCN 数（尘埃/流星尘/水冰），见复现风险</td>
+</tr>
+<tr>
+<td><code>vo2co2</code></td>
+<td>调用方</td>
+<td>double, intent(in)</td>
+<td>m³</td>
+<td>单个 CO2 冰“分子体积”，调用方算为 <code>m0co2/rho_ice_co2T</code>（随温度变的 CO2 冰密度）（<code>improvedco2clouds_mod.F90:346</code>）</td>
+</tr>
+<tr>
+<td><code>teta</code></td>
+<td>调用方</td>
+<td>real, intent(in)</td>
+<td>—</td>
+<td>接触参数 m=cos(θ)；尘埃/流星传 <code>mtetaco2=0.95</code>，水冰传 <code>mteta</code></td>
+</tr>
+</tbody>
+</table>
+<p>复现风险：<code>n_ccn</code> 的物理单位取决于调用方在各 bin 中放入的量（核验 <code>improvedco2clouds_mod.F90</code> 中由对数正态分布积分得到的数浓度 <code>n_aer</code>），本例程只把它作为线性权重乘进 <code>nucrate</code>，不做归一化。复现需保证 <code>n_ccn</code> 的定义与调用方一致。</p>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nucrate(nbinco2_cld)</code></td>
+<td>调用方</td>
+<td>double, intent(out)</td>
+<td>s⁻¹（每核成核速率）</td>
+<td>各 bin 的成核率；调用方用 <code>Proba = 1 - exp(-microtimestep*rate(i))</code> 转成该步成核概率</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>无 common block，不写文件，无诊断打印。</li>
+<li>读取 <code>microphys_h</code> 的 SAVE/THREADPRIVATE 变量 <code>rad_cldco2</code>（只读）及若干 PARAMETER 常数。</li>
+<li>本例程内部无 SAVE 变量、无 firstcall；纯函数式（给定输入即给定输出，除依赖 <code>rad_cldco2</code> 当前值外）。</li>
+<li><code>fshapeco2</code> 为纯函数。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>mtetalocal = dble(teta)</code>：接触参数转双精度。</li>
+<li>计算环境量：
+<ul>
+<li><code>nco2 = pco2/(kbz*temp)</code>：CO2 分子数密度（个/m³，理想气体）。</li>
+<li><code>rstar = 2*sigco2*vo2co2/(kbz*temp*log(sat))</code>：临界胚半径（Kelvin/开尔文成核半径，m）。<code>log(sat)</code> 要求 <code>sat&gt;1</code>。</li>
+<li><code>gstar = 4π*rstar³/(3*vo2co2)</code>：临界胚所含分子数。</li>
+</ul></li>
+<li><code>fshapeco2simple = (2+m)(1-m)²/4</code>：平表面（CCN 半径 ≫ 临界半径）极限下的接触因子。</li>
+<li>遍历 <code>i = 1..nbinco2_cld</code>：
+<ul>
+<li>若 <code>n_ccn(i) &lt; 1e-10</code>：该 bin 无核，<code>nucrate(i)=0</code>，跳过。</li>
+<li>否则：
+<ul>
+<li>选接触因子 <code>zefshapeco2</code>：若 <code>rad_cldco2(i) &gt; 3000*rstar</code>（核远大于临界胚，近似平面）用 <code>fshapeco2simple</code>，否则调 <code>fshapeco2(m, rad_cldco2(i)/rstar)</code> 算曲率修正。</li>
+<li><code>fistar = (4/3)π*sigco2*rstar²*zefshapeco2</code>：形成临界胚的活化能（J）。</li>
+<li><code>deltaf = (2*desorpco2 - surfdifco2 - fistar)/(kbz*temp)</code>，并钳制到 <code>[-100, 100]</code>。</li>
+<li>若 <code>deltaf == -100</code>（被钳到下限，指数极小）：<code>nucrate(i)=0</code>。</li>
+<li>否则按经典成核率公式： <code>nucrate(i) = sqrt(fistar/(3π*kbz*temp*gstar²)) * kbz*temp*rstar²*4π * (nco2*rad_cldco2(i))² / (zefshapeco2*nusco2*m0co2) * exp(deltaf)</code>。</li>
+</ul></li>
+</ul></li>
+</ol>
+<p><code>fshapeco2(cost, rap)</code>（cost=m, rap=r_CCN/r*）：</p>
+<ul>
+<li><code>yeah = sqrt(1 - 2*cost*rap + rap²)</code>（即 φ）。</li>
+<li>三项相加再乘 1/2，得到经典异质成核几何因子 f(m,x)（Pruppacher &amp; Klett 形式）。</li>
+</ul>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>subroutine nucleaco2(pco2, temp, sat, n_ccn, nucrate, vo2co2, teta):
+    m   = dble(teta)
+    nco2  = pco2 / (kbz*temp)
+    rstar = 2*sigco2*vo2co2 / (kbz*temp*log(sat))
+    gstar = 4*pi*rstar^3 / (3*vo2co2)
+    fsimple = (2+m)*(1-m)^2 / 4
+
+    for i in 1..nbinco2_cld:
+        if n_ccn(i) &lt; 1e-10:
+            nucrate(i) = 0
+        else:
+            if rad_cldco2(i) &gt; 3000*rstar:
+                fshape = fsimple                      # 平面近似
+            else:
+                fshape = fshapeco2(m, rad_cldco2(i)/rstar)
+
+            fistar = (4/3)*pi*sigco2*rstar^2*fshape
+            deltaf = (2*desorpco2 - surfdifco2 - fistar)/(kbz*temp)
+            deltaf = clamp(deltaf, -100, 100)
+
+            if deltaf == -100:
+                nucrate(i) = 0
+            else:
+                nucrate(i) = sqrt(fistar/(3*pi*kbz*temp*gstar^2))
+                           * kbz*temp*rstar^2*4*pi
+                           * (nco2*rad_cldco2(i))^2
+                           / (fshape*nusco2*m0co2)
+                           * exp(deltaf)
+
+function fshapeco2(cost, rap):           # f(m,x) 几何因子
+    phi  = sqrt(1 - 2*cost*rap + rap^2)
+    A    = 1 + ((1-cost*rap)/phi)^3
+    y    = (rap-cost)/phi
+    B    = rap^3*(2 - 3*y + y^3)
+    C    = 3*cost*rap^2*(y-1)
+    return 0.5*(A + B + C)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CO2 循环 / CO2 云微物理</td>
+<td>CO2 冰云成核的核心动力学：被 <code>improvedco2clouds</code> 对尘埃、流星尘、水冰三类 CCN 分别调用，决定 CO2 冰晶在何处、以多快速率成核，进而驱动 CCNCO2 tracer 与尘/水 tracer 之间的转移</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 Fortran（<code>.F90</code>），续行用行尾 <code>&amp;</code>。</li>
+<li>主要算术用 <code>DOUBLE PRECISION</code>；<code>temp</code>、<code>teta</code> 为 <code>REAL</code> 输入，内部用 <code>dble()</code> 提升。</li>
+<li>硬编码数值：<code>1e-10</code>（空核阈值）、<code>3000.*rstar</code>（平面近似阈值）、<code>deltaf</code> 钳制区间 <code>[-100,100]</code>、<code>fshapeco2simple</code> 的 <code>/4</code> 与 <code>fshapeco2</code> 末尾 <code>0.5</code>。</li>
+<li>物理常数（<code>sigco2</code>、<code>desorpco2</code>、<code>nusco2</code>、<code>surfdifco2</code> 等）全部来自 <code>microphys_h</code> 的 PARAMETER，本文件不重复定义。</li>
+<li><code>deltaf</code> 钳到 <code>-100</code> 即视作成核率为 0，是防 <code>exp</code> 下溢的数值保护；钳到 <code>+100</code> 防上溢但仍按公式算。</li>
+<li>接触参数 <code>teta</code> 由调用方按基底种类传入（CO2 基底 0.95 vs 水冰基底 <code>mteta</code>），本例程不区分。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>临界半径公式要求 <code>sat&gt;1</code>，否则 <code>log(sat)&lt;=0</code> 使 <code>rstar</code> 非物理；调用方需保证仅在过饱和列调用（核验：<code>improvedco2clouds</code> 在 <code>satu</code> 相关分支内调用）。</li>
+<li>三类基底（尘埃/流星尘/水冰）共用本例程，差异只在传入的 <code>n_ccn</code> 分布和 <code>teta</code>；复现时勿把 CO2 接触参数误用于水冰基底。</li>
+<li><code>vo2co2</code> 在调用方用随温度变的 CO2 冰密度算出（<code>m0co2/rho_ice_co2T</code>），不是常数。</li>
+<li><code>rad_cldco2</code> 是 THREADPRIVATE 的 bin 半径数组，由 CO2 云方案初始化（见 <a href="co2cloud_mod.html">co2cloud_mod</a> / <a href="microphys_h.html">microphys_h</a>），本例程只读取。</li>
+<li>成核率单位与“每核每秒”一致；调用方再乘 <code>microtimestep</code> 经泊松概率转成本步成核数。</li>
+<li>注意 <code>deltaf == -100.</code> 的相等判断是浮点比较，但由于上一行用 <code>min(max(...),100.d0)</code> 钳制，下限恰好取到字面值 <code>-100.</code>，比较成立；复现需保持同样钳制+比较写法。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>n_ccn</code> 各 bin 的精确单位（数浓度 vs 每 bin 绝对数）：本文件只作线性权重；需结合 <code>improvedco2clouds_mod</code> 的 <code>n_aer</code> 构造确认（TASK-0046）。</li>
+<li><code>2*desorpco2 - surfdifco2</code> 这一组合（Keese 1989 形式）中各项符号约定的物理出处，注释只给了数值来源（Bachnar 2016）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="improvedco2clouds_mod.html">improvedco2clouds_mod</a>（TASK-0046，已写）：CO2 云微物理核心，本例程唯一调用方。</li>
+<li><a href="co2cloud_mod.html">co2cloud_mod</a>（TASK-0045，已写）：CO2 云总调度。</li>
+<li><a href="co2-saturation-helpers.html">co2-saturation-helpers</a>（TASK-0040，已写）：CO2 饱和/凝结温度，提供过饱和度上下文。</li>
+<li><a href="density_co2_ice.html">density_co2_ice</a>（TASK-0042，已写）：CO2 冰密度，<code>vo2co2</code> 计算的输入。</li>
+<li><a href="../../themes/co2-cycle.html">CO2 循环父级主题页</a>（TASK-0011）。</li>
+<li><a href="microphys_h.html">microphys_h</a>：定义本例程全部物理常数与 <code>rad_cldco2</code>。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

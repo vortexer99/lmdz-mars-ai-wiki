@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>infotrac - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../../index.html">主页</a>
+        <a href="../../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../../libf-overview.html">模块</a>
+        <a href="../../../themes/index.html">主题</a>
+        <a href="../../../routines/index.html">例程</a>
+        <a href="../../../reference/file-index.html">文件索引</a>
+        <a href="../../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dyn1d/infotrac.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dyn1dinfotracf90">dyn1d/infotrac.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d\infotrac.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>dyn1d/infotrac.F90</code> 在当前源码树中不是独立实现，而是一行相对路径：</p>
+<pre class="text"><code>../../../../LMDZ.COMMON/libf/dyn3d_common/infotrac.F90</code></pre>
+<p>它把 dyn1d 编译路径中的 <code>infotrac</code> 模块解析到公共动力 tracer 信息模块。目标模块保存 tracer 数量、名字、advection schema、父子 tracer 关系和同位素索引。当前 1D 初始化并不调用公共 <code>infotrac_init</code>，而是在 <code>init_testphys1d_mod.F90</code> 中直接读取 <code>traceur.def</code>，写入 <code>infotrac::nqtot/tname/nqperes/nqfils</code>，再把这些名字交给 <code>tracer_mod::initracer</code>、profile 读取和 <code>physiq</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>infotrac.F90</code></td>
+<td>path stub</td>
+<td>dyn1d line 1</td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d_common/infotrac.F90</code>。</td>
+</tr>
+<tr>
+<td><code>infotrac</code></td>
+<td>module</td>
+<td>common target line 3</td>
+<td>保存 tracer 元数据、advection schema、父子关系和同位素索引。</td>
+</tr>
+<tr>
+<td><code>infotrac_init</code></td>
+<td>subroutine</td>
+<td>common target line 82</td>
+<td>公共 3D tracer 初始化；读取 <code>traceur.def</code>/modern planetary traceur.def，构造 <code>tname/ttext/iadv/niadv</code> 等。</td>
+</tr>
+<tr>
+<td><code>infotrac_isoinit</code></td>
+<td>subroutine</td>
+<td>common target line after <code>infotrac_init</code></td>
+<td>识别 HDO/O18/O17/HTO 等同位素 tracer 并填充同位素索引。</td>
+</tr>
+<tr>
+<td><code>iniadvtrac</code></td>
+<td>subroutine</td>
+<td>common target tail</td>
+<td>Mars/generic 旧式 tracer 名和 Van-Leer advection 初始化辅助。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="关键模块状态">关键模块状态</h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nqtot</code></td>
+<td>integer</td>
+<td>动力侧总 tracer 数，包括高阶矩扩展。dyn1d 简化路径直接令 <code>nqtot=nq</code>。</td>
+</tr>
+<tr>
+<td><code>nbtr</code>, <code>nqo</code></td>
+<td>integer</td>
+<td>物理 tracer 数和水相 tracer 数；公共 <code>infotrac_init</code> 中使用。</td>
+</tr>
+<tr>
+<td><code>tname(:)</code></td>
+<td>allocatable character</td>
+<td>tracer 短名，供 restart、profile 读取和诊断使用。</td>
+</tr>
+<tr>
+<td><code>ttext(:)</code></td>
+<td>allocatable character</td>
+<td>带 advection schema 后缀的诊断长名；dyn1d 简化路径未分配/填充。</td>
+</tr>
+<tr>
+<td><code>iadv(:)</code>, <code>niadv(:)</code></td>
+<td>allocatable integer</td>
+<td>tracer advection schema 和 true/expanded tracer 对应关系；dyn1d 简化路径未使用。</td>
+</tr>
+<tr>
+<td><code>nqperes</code>, <code>nqfils(:)</code>, <code>iqfils(:,:)</code>, <code>iqpere(:)</code>, <code>nqdesc(:)</code></td>
+<td>tracer family state</td>
+<td>父 tracer、子 tracer 和多代后代关系。dyn1d 简化路径只分配并填充 <code>nqfils</code> 和 <code>nqperes</code>。</td>
+</tr>
+<tr>
+<td><code>qperemin</code>, <code>masseqmin</code></td>
+<td>parameters</td>
+<td>同位素 ratio 输运阈值，均为 <code>1.e-16</code>。</td>
+</tr>
+<tr>
+<td><code>ok_isotopes</code>, <code>iqiso</code>, <code>iso_num</code>, <code>phase_num</code>, <code>index_trac</code> 等</td>
+<td>isotope state</td>
+<td>公共同位素识别和索引状态；dyn1d 简化路径没有调用 <code>infotrac_isoinit</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="dyn1d-初始化路径">dyn1d 初始化路径</h2>
+<p><code>init_testphys1d_mod.F90</code> 第 19 行：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">use</span> infotrac, <span class="kw">only</span>: nqtot, tname, nqperes, nqfils</span></code></pre></div>
+<p>实际 1D 读取流程在第 177-250 行：</p>
+<ol type="1">
+<li>打开 <code>traceur.def</code>；若缺失，打印错误并 <code>error stop</code>。</li>
+<li>读取第一行到 <code>nq</code>，同时执行 <code>nqtot = nq</code>。</li>
+<li>检查 <code>nq &gt;= 1</code>。</li>
+<li>分配 <code>tname(nq)</code>、<code>q(1,nlayer,nq)</code>、<code>dq(1,nlayer,nq)</code>、<code>dqdyn(1,nlayer,nq)</code>、<code>tnom_transp(nq)</code> 等数组。</li>
+<li>对每个 tracer 读取一整行：
+<ul>
+<li>尝试按 <code>tname(iq), tnom_transp(iq)</code> 解析，用于同位素或携带流体关系。</li>
+<li>如果两列解析失败，只读取 <code>tname(iq)</code>，并设置 <code>tnom_transp(iq)='air'</code>。</li>
+</ul></li>
+<li>分配 <code>nqfils(nqtot)</code>，遍历所有 tracer：
+<ul>
+<li><code>tnom_transp=='air'</code> 视为父 tracer，<code>nqperes</code> 加 1。</li>
+<li>否则向前搜索名字等于 <code>tnom_transp(iq)</code> 的父 tracer，找到后给父 tracer 的 <code>nqfils</code> 加 1。</li>
+<li>若搜索超过 <code>nqtot</code>，调用 <code>abort_gcm('infotrac_init','Un traceur est orphelin',1)</code>。</li>
+</ul></li>
+</ol>
+<p>这个 1D 流程没有读取 advection schema，也没有构造 <code>ttext/iadv/niadv/iqpere/iqfils/nqdesc</code>。</p>
+<h2 id="与-tracer_mod-的关系">与 <code>tracer_mod</code> 的关系</h2>
+<p>1D 初始化后还会调用 <code>initracer(ngrid,nq)</code>。<code>tracer_mod.F90</code> 会重新寻找 <code>traceur.def</code>；若缺失，再寻找 <code>tracer.def</code>。它通过 <a href="../parse_traceur_file.html">parse_traceur_file</a> 或 <a href="../parse_tracer_file.html">parse_tracer_file</a> 建立物理侧 <code>noms(:)</code>、<code>nqparents</code>、<code>nqchildren</code> 和 <code>igcm_*</code> 索引。</p>
+<p>因此 dyn1d 里存在两条相关但不完全相同的 tracer 解析链：</p>
+<table>
+<thead>
+<tr>
+<th>链路</th>
+<th>读取方</th>
+<th>主要输出</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1D 初始数组链</td>
+<td><code>init_testphys1d_mod.F90</code> 直接读 <code>traceur.def</code></td>
+<td><code>nq</code>, <code>infotrac::nqtot</code>, <code>infotrac::tname</code>, <code>q/dq/dqdyn</code>, <code>nqperes/nqfils</code>。</td>
+</tr>
+<tr>
+<td>物理索引链</td>
+<td><code>tracer_mod::initracer</code></td>
+<td><code>tracer_mod::noms</code>, <code>igcm_h2o_vap/ice</code>、尘埃/CO2/化学等物理索引。</td>
+</tr>
+</tbody>
+</table>
+<p>复现时这两条链路必须看到同一套 tracer 名，否则 <code>read_profile</code>、<code>physiq</code> 和后续物理索引会不一致。</p>
+<h2 id="使用方">使用方</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>使用符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>init_testphys1d_mod.F90</code></td>
+<td><code>nqtot</code>, <code>tname</code>, <code>nqperes</code>, <code>nqfils</code></td>
+<td>读取 <code>traceur.def</code>、分配 1D tracer 数组、建立简化父子关系。</td>
+</tr>
+<tr>
+<td><code>read_profile_mod.F90</code></td>
+<td><code>tname</code></td>
+<td>把 <code>traceur.def</code> 中的 tracer 名复制到 <code>name_tracer</code>，查找 <code>h2o_vap/h2o_ice/hdo_vap/hdo_ice/dust_*</code> 等 profile 输入目标。</td>
+</tr>
+<tr>
+<td><code>testphys1d.F90</code></td>
+<td>经 <code>q/nq/noms</code> 使用</td>
+<td>把 tracer 数组传入 <code>physiq</code>，并在 restart 写出时传入 <code>noms</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>公共 3D 使用方还包括 <code>infotrac_init</code> 的调用路径和公共动力 tracer 平流，但当前 dyn1d 文件中未发现直接调用 <code>infotrac_init</code>。</p>
+<h2 id="输入格式">输入格式</h2>
+<p>dyn1d 简化读取期望旧式 <code>traceur.def</code>：</p>
+<pre class="text"><code>&lt;nq&gt;
+&lt;tracer_name_1&gt; [transporting_fluid_1]
+&lt;tracer_name_2&gt; [transporting_fluid_2]
+...</code></pre>
+<p>其中第二列可选；缺省为 <code>air</code>。若第二列不是 <code>air</code>，必须等于某个已声明 tracer 名，否则视为孤儿 tracer 并中止。</p>
+<p>公共 <code>infotrac_init</code> 对非 Earth 还支持 <code>#ModernTrac-v1</code> header 的 modern planetary <code>traceur.def</code>，但 dyn1d 简化读取路径没有识别该 header 的代码。</p>
+<h2 id="副作用和-io">副作用和 I/O</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文件 I/O</td>
+<td>dyn1d 初始化读取 <code>traceur.def</code>；缺失时 <code>error stop</code>。公共 <code>infotrac_init</code> 也读取 <code>traceur.def</code>。</td>
+</tr>
+<tr>
+<td>分配</td>
+<td>dyn1d 分配 <code>infotrac::tname(nq)</code> 和 <code>nqfils(nqtot)</code>；公共 <code>infotrac_init</code> 会分配更多状态数组。</td>
+</tr>
+<tr>
+<td>全局状态</td>
+<td><code>nqtot/tname/nqperes/nqfils</code> 会被 1D 初始化写入，并供 profile 读取使用。</td>
+</tr>
+<tr>
+<td>程序控制</td>
+<td>缺 <code>traceur.def</code>、第一行读失败、<code>nq&lt;1</code>、孤儿 tracer 都会中止。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>dyn1d 必须提供 <code>traceur.def</code>；与 3D <code>tracer_mod</code> 可以回退到 <code>tracer.def</code> 不同，<code>init_testphys1d_mod</code> 缺 <code>traceur.def</code> 会直接停止。</li>
+<li><code>traceur.def</code> 首行数量必须等于后续 tracer 行数，且名称顺序会决定 <code>q(:,:,iq)</code> 和 profile/restart 对应关系。</li>
+<li>带第二列的子 tracer 必须写在父 tracer 之后可被搜索到的位置；否则触发孤儿 tracer 中止。</li>
+<li>若使用 modern <code>tracer.def</code> 或 <code>#ModernTrac-v1</code>，需要确认 dyn1d 初始化路径是否支持；本源码片段只支持旧式首行计数格式。</li>
+<li><code>read_profile_mod</code> 用 <code>infotrac::tname</code> 识别水、HDO 和尘埃 profile，因此 profile 文件名/列名必须与 <code>traceur.def</code> 一致。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 Windows 工作树把链接文件呈现为一行路径文本；在原始类 Unix 工作树中它可能是符号链接。</li>
+<li>dyn1d 是否在其他构建配置中调用公共 <code>infotrac_init</code>，当前定向搜索未发现。</li>
+<li>modern planetary <code>traceur.def</code> 或新式 <code>tracer.def</code> 与 1D 简化初始化的兼容性需要实测或构建脚本确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn1d/index.md</a> - dyn1d 子目录索引。</li>
+<li><a href="../tracer_mod.html">tracer_mod</a> - 物理侧 tracer 索引初始化。</li>
+<li><a href="../parse_traceur_file.html">parse_traceur_file</a> - 旧式 <code>traceur.def</code> 解析。</li>
+<li><a href="../parse_tracer_file.html">parse_tracer_file</a> - 新式 <code>tracer.def</code> 解析。</li>
+<li><a href="../../../architecture/testphys1d-config.html">testphys1d 配置</a> - 1D 配置和 <code>traceur.def</code> 要求。</li>
+<li><a href="read_profile_mod.html">read_profile_mod.F90</a> - 使用 tracer 名称读取初始廓线。</li>
+<li><a href="init_testphys1d_mod.html">init_testphys1d_mod.F90</a> - 读取 <code>traceur.def</code> 并填充 tracer 元数据。</li>
+<li><a href="testphys1d.html">testphys1d.F90</a> - 1D 主程序和 tracer 时间更新。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

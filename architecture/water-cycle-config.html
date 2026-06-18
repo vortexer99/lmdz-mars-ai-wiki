@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>water-cycle-config - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a class="active" href="project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>architecture/water-cycle-config.md</span>
+    </nav>
+    <article class="content">
+<h1 id="水循环配置">水循环配置</h1>
+<p>本页汇总驱动 LMDZ.MARS 水循环（水汽/水冰云微物理、地表冰、永久冰盖、HDO）的配置项：<code>callphys.def.*</code> 中的物理开关、<code>traceur.def.*</code> 中的水 tracer 集合、以及 XIOS 中的水循环输出字段。CO2 循环配置见 <a href="co2-cycle-config.html">co2-cycle-config</a>；通用配置体系见 <a href="config-system.html">config-system</a>。</p>
+<p>源码依据：<code>libf/phymars/conf_phys.F</code> 中的 <code>getin_p</code> 读取与 <code>abort_physic</code> 校验；<code>deftank/callphys.def.GCM6</code> 中的样例值；<code>deftank/traceur.def.*</code> 中的 tracer 名；<code>deftank/xios/field_def_physics.xml</code> 与 <code>file_def_physics.xml</code> 中的字段定义和输出引用。</p>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\deftank\callphys.def.*
+LMDZ.MARS\deftank\traceur.def.*
+LMDZ.MARS\deftank\xios\field_def_physics.xml
+LMDZ.MARS\deftank\xios\file_def_physics.xml</code></pre>
+<h2 id="类型">类型</h2>
+<p>配置（物理开关 + tracer 清单 + 输出字段定义）</p>
+<h2 id="作用">作用</h2>
+<p>控制是否计算水循环、用哪种云方案（简单 vs 完整微物理）、水冰是否辐射活跃、地表/永久冰盖与霜的反照率与热惯量、地表升华方案，以及水相关 tracer 的输运和诊断输出。</p>
+<hr />
+<h2 id="1-callphysdef-水循环开关">1. callphys.def 水循环开关</h2>
+<p>下表「源码默认」来自 <code>libf/phymars/conf_phys.F</code> 中各 <code>getin_p</code> 前的赋值；「样例值」来自 <code>deftank/callphys.def.GCM6</code>（完整水循环 v6 配置）。<strong>源码默认普遍是关闭/保守值，真实模拟靠 callphys.def 打开。</strong></p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>源码默认</th>
+<th>样例值(GCM6)</th>
+<th>含义</th>
+<th>读取行(conf_phys.F)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>water</code></td>
+<td><code>.false.</code></td>
+<td><code>.true.</code></td>
+<td>水循环总开关。关则全部水过程跳过</td>
+<td>715</td>
+</tr>
+<tr>
+<td><code>microphys</code></td>
+<td><code>.false.</code></td>
+<td><code>.true.</code></td>
+<td>水冰云微物理方案（成核/凝结），否则用简化云</td>
+<td>852</td>
+</tr>
+<tr>
+<td><code>activice</code></td>
+<td><code>.false.</code></td>
+<td><code>.true.</code></td>
+<td>水冰作为辐射活性气溶胶参与辐射传输</td>
+<td>710</td>
+</tr>
+<tr>
+<td><code>supersat</code></td>
+<td><code>.true.</code></td>
+<td>（默认）</td>
+<td>允许水汽过饱和（微物理用）</td>
+<td>858</td>
+</tr>
+<tr>
+<td><code>temp_dependent_m</code></td>
+<td><code>.false.</code></td>
+<td><code>.true.</code></td>
+<td>温度依赖的接触参数（Määttänen 2014），否则用常数 <code>mteta</code></td>
+<td>865</td>
+</tr>
+<tr>
+<td><code>mteta</code></td>
+<td><code>0.95</code></td>
+<td>（仅 temp_dependent_m=F 时读）</td>
+<td>常数接触参数</td>
+<td>871</td>
+</tr>
+<tr>
+<td><code>cloud_adapt_ts</code></td>
+<td><code>.false.</code></td>
+<td><code>.true.</code></td>
+<td>云微物理自适应时间步（JN 2023）</td>
+<td>879</td>
+</tr>
+<tr>
+<td><code>nuice_sed</code></td>
+<td><code>0.45</code></td>
+<td><code>0.15</code></td>
+<td>水冰沉降对数正态分布有效方差</td>
+<td>822</td>
+</tr>
+<tr>
+<td><code>nuice_ref</code></td>
+<td><code>0.1</code></td>
+<td>（默认）</td>
+<td>水云参考有效方差</td>
+<td>837</td>
+</tr>
+<tr>
+<td><code>ccn_factor</code></td>
+<td><code>4.5</code></td>
+<td>（仅 microphys=F 用）</td>
+<td>无 scavenging 时 CCN 缩减因子</td>
+<td>844</td>
+</tr>
+<tr>
+<td><code>sedimentation</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>重力沉降（作用于水冰）</td>
+<td>704</td>
+</tr>
+<tr>
+<td><code>scavenging</code></td>
+<td><code>.false.</code></td>
+<td><code>.true.</code></td>
+<td>尘埃被 H2O/CO2 降雪洗脱（随冰沉降）</td>
+<td>899</td>
+</tr>
+<tr>
+<td><code>scavco2cond</code></td>
+<td><code>.false.</code></td>
+<td><code>.true.</code></td>
+<td>瞬时 CO2 凝结洗脱尘埃/水冰（与 co2clouds 互斥）</td>
+<td>933</td>
+</tr>
+<tr>
+<td><code>caps</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>两极永久水冰盖（北极水源、南极冷阱），强烈推荐</td>
+<td>961</td>
+</tr>
+<tr>
+<td><code>latentheat_surfwater</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>地表水冰升华潜热反馈</td>
+<td>415</td>
+</tr>
+<tr>
+<td><code>hdo</code></td>
+<td><code>.false.</code></td>
+<td>（HDO 配置才开）</td>
+<td>HDO 同位素循环</td>
+<td>720</td>
+</tr>
+<tr>
+<td><code>hdofrac</code></td>
+<td><code>.true.</code></td>
+<td></td>
+<td>HDO 分馏</td>
+<td>725</td>
+</tr>
+<tr>
+<td><code>CLFvarying</code></td>
+<td><code>.false.</code></td>
+<td><code>.false.</code></td>
+<td>次网格部分云量（变）</td>
+<td>743</td>
+</tr>
+<tr>
+<td><code>CLFfixval</code></td>
+<td><code>1.0</code></td>
+<td><code>1</code></td>
+<td>固定云量值</td>
+<td>738</td>
+</tr>
+<tr>
+<td><code>surfaceice_tifeedback</code></td>
+<td><code>.false.</code></td>
+<td></td>
+<td>地表水冰热惯量反馈，见 <a href="../modules/phymars/waterice_tifeedback_mod.html">waterice_tifeedback_mod</a></td>
+<td>781</td>
+</tr>
+<tr>
+<td><code>old_wsublimation_scheme</code></td>
+<td><code>.true.</code></td>
+<td></td>
+<td>旧地表升华方案（地表用动量导度 <code>zcdv</code> 而非热导度 <code>zcdh</code>）</td>
+<td>1018–1019</td>
+</tr>
+</tbody>
+</table>
+<h3 id="地表冰霜反照率参数">地表冰/霜/反照率参数</h3>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>源码默认</th>
+<th>样例值(GCM6)</th>
+<th>含义</th>
+<th>读取行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>albedo_h2o_cap</code></td>
+<td><code>0.35</code></td>
+<td><code>0.38</code></td>
+<td>永久冰盖（老冰）反照率</td>
+<td>977</td>
+</tr>
+<tr>
+<td><code>albedo_h2o_frost</code></td>
+<td><code>0.35</code></td>
+<td><code>0.38</code></td>
+<td>新霜反照率（<code>cst_cap_albedo=F</code> 时用）</td>
+<td>980</td>
+</tr>
+<tr>
+<td><code>cst_cap_albedo</code></td>
+<td><code>.false.</code></td>
+<td><code>.false.</code></td>
+<td>冰盖反照率不受新霜沉积影响</td>
+<td>991</td>
+</tr>
+<tr>
+<td><code>frost_albedo_threshold</code></td>
+<td><code>0.005</code></td>
+<td><code>0.005</code></td>
+<td>触发霜反照率的霜厚阈值（kg/m²，≈5.4 µm）</td>
+<td>984</td>
+</tr>
+<tr>
+<td><code>refill_watercap</code></td>
+<td><code>.false.</code></td>
+<td><code>.false.</code></td>
+<td>霜变质补充永久冰盖（JN 2021）</td>
+<td>998</td>
+</tr>
+<tr>
+<td><code>frost_metam_threshold</code></td>
+<td><code>0.05</code></td>
+<td><code>0.05</code></td>
+<td>霜变质成老冰的厚度阈值（仅 refill_watercap=T）</td>
+<td>1005</td>
+</tr>
+<tr>
+<td><code>inert_h2o_ice</code></td>
+<td><code>2400</code></td>
+<td><code>800</code></td>
+<td>水冰热惯量（J·m⁻²·K⁻¹·s⁻¹ᐟ²）</td>
+<td>1013</td>
+</tr>
+</tbody>
+</table>
+<p>注：<code>inert_h2o_ice</code> 源码默认 2400，但 GCM6 样例用 800；<code>albedo_h2o_ice</code> 是<strong>已废弃</strong>字段，若出现会触发 abort（<code>conf_phys.F</code> 968–972），需改用 <code>albedo_h2o_cap</code>。</p>
+<h3 id="依赖与互斥校验conf_physf-中-abort_physic">依赖与互斥校验（conf_phys.F 中 <code>abort_physic</code>）</h3>
+<p>复现时这些组合非法，会让模式中止：</p>
+<table>
+<thead>
+<tr>
+<th>约束</th>
+<th>行</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>activice</code> 需 <code>water</code></td>
+<td>800–804</td>
+<td>水冰辐射活跃必须先开水循环</td>
+</tr>
+<tr>
+<td><code>hdo</code> 需 <code>water</code></td>
+<td>806–810</td>
+<td>HDO 依赖水循环</td>
+</tr>
+<tr>
+<td><code>surfaceice_tifeedback</code> 需 <code>water</code> 且 <code>callsoil</code></td>
+<td>786–798</td>
+<td>热惯量反馈依赖水循环和土壤</td>
+</tr>
+<tr>
+<td><code>microphys</code> 需 <code>water</code> 且 <code>doubleq</code></td>
+<td>906–911</td>
+<td>微物理需要双矩尘埃</td>
+</tr>
+<tr>
+<td><code>scavenging</code> 需 <code>microphys</code> 且 <code>dustbin≥1</code></td>
+<td>921–926</td>
+<td>洗脱依赖微物理</td>
+</tr>
+<tr>
+<td><code>cloud_adapt_ts</code> 需 <code>temp_dependent_m</code></td>
+<td>889–895</td>
+<td>自适应步需温度依赖接触参数，否则水循环失真</td>
+</tr>
+<tr>
+<td><code>scavco2cond</code> 需 <code>dustbin&gt;0</code></td>
+<td>937–940</td>
+<td></td>
+</tr>
+<tr>
+<td><code>co2clouds</code> 与 <code>scavco2cond</code> 互斥</td>
+<td>943–951</td>
+<td>co2clouds 已含微物理洗脱，二者不能同开</td>
+</tr>
+</tbody>
+</table>
+<p>另有警告（不中止）：<code>microphys</code> 开但 <code>scavenging</code> 关时打印 WARNING。</p>
+<hr />
+<h2 id="2-traceurdef-水-tracer">2. traceur.def 水 tracer</h2>
+<p><code>traceur.def.*</code> 首行是 tracer 总数，其后每行一个 tracer 名。水循环相关 tracer：</p>
+<table>
+<thead>
+<tr>
+<th>tracer</th>
+<th>含义</th>
+<th>何时需要</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>h2o_vap</code></td>
+<td>水汽</td>
+<td><code>water=.true.</code></td>
+</tr>
+<tr>
+<td><code>h2o_ice</code></td>
+<td>水冰</td>
+<td><code>water=.true.</code></td>
+</tr>
+<tr>
+<td><code>ccn_number</code></td>
+<td>云凝结核数密度</td>
+<td><code>microphys=.true.</code></td>
+</tr>
+<tr>
+<td><code>ccn_mass</code></td>
+<td>云凝结核质量</td>
+<td><code>microphys=.true.</code></td>
+</tr>
+<tr>
+<td><code>dust_number</code></td>
+<td>尘埃数密度（CCN 来源）</td>
+<td><code>microphys</code>/<code>scavenging</code></td>
+</tr>
+<tr>
+<td><code>dust_mass</code></td>
+<td>尘埃质量</td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>hdo_vap</code></td>
+<td>HDO 汽</td>
+<td><code>hdo=.true.</code></td>
+</tr>
+<tr>
+<td><code>hdo_ice</code></td>
+<td>HDO 冰</td>
+<td><code>hdo=.true.</code></td>
+</tr>
+</tbody>
+</table>
+<p>样例 <code>traceur.def.watercycle.GCM5</code>（7 个 tracer，最小水循环+尘埃微物理集合）：</p>
+<pre class="text"><code>7
+co2
+dust_number
+dust_mass
+ccn_number
+ccn_mass
+h2o_ice
+h2o_vap</code></pre>
+<p><code>traceur.def.GCM6</code>（11 个）在此基础上加 <code>stormdust_*</code>、<code>topdust_*</code>（风暴/地形尘）。tracer 名与 <code>initracer.F90</code> 中的 <code>igcm_*</code> 索引匹配，见 <a href="../routines/initracer-co2-tracers.html">initracer-co2-tracers</a>（其中也含水 tracer 的索引识别逻辑）。</p>
+<p><strong>复现风险</strong>：tracer 名的拼写与顺序必须与 <code>initracer.F90</code> 的字符串匹配逻辑一致，否则对应 <code>igcm_*</code> 为 0，相关物理被静默跳过。tracer 总数（首行）必须与实际行数一致。</p>
+<hr />
+<h2 id="3-xios-水循环输出字段">3. XIOS 水循环输出字段</h2>
+<p>字段定义在 <code>field_def_physics.xml</code>，是否实际输出由 <code>file_def_physics.xml</code> 的 <code>&lt;field field_ref=.../&gt;</code> 决定。源码依据：<code>field_def_physics.xml</code> 457–480 定义水柱量与 CCN 字段，866–881 定义 <code>h2o_ice</code>/<code>h2o_vap</code> 混合比；<code>file_def_physics.xml</code> 42–43、117–126、188–228 引用水汽、水冰、地下冰通量和坡面水冰/冰盖字段。</p>
+<h3 id="大气场field_def_physicsxml">大气场（field_def_physics.xml）</h3>
+<table>
+<thead>
+<tr>
+<th>字段 id</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>h2o_vap</code> / <code>h2o_ice</code></td>
+<td>水汽/水冰混合比</td>
+</tr>
+<tr>
+<td><code>mtot</code></td>
+<td>柱积分水汽总质量</td>
+</tr>
+<tr>
+<td><code>icetot</code></td>
+<td>柱积分水冰总质量</td>
+</tr>
+<tr>
+<td><code>reffice</code></td>
+<td>柱平均水冰有效半径</td>
+</tr>
+<tr>
+<td><code>Nccntot</code> / <code>Mccntot</code></td>
+<td>柱积分 CCN 数/质量</td>
+</tr>
+<tr>
+<td><code>tauTES</code> / <code>tauTESap</code></td>
+<td>825 cm⁻¹ 水冰云光学厚度（模拟 TES）</td>
+</tr>
+<tr>
+<td><code>mass_h2o_ice</code> / <code>mass_h2o_vap</code></td>
+<td>全球水冰/水汽质量</td>
+</tr>
+</tbody>
+</table>
+<h3 id="地表场">地表场</h3>
+<table>
+<thead>
+<tr>
+<th>字段 id</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>h2o_ice_s</code>(<code>_slopeNN</code>)</td>
+<td>地表水冰质量（含各坡度分量）</td>
+</tr>
+<tr>
+<td><code>watercaptag</code></td>
+<td>永久水冰位置标记</td>
+</tr>
+<tr>
+<td><code>watercap</code>(<code>_slopeNN</code>)</td>
+<td>永久水冰厚度</td>
+</tr>
+<tr>
+<td><code>surf_h2o_lh</code></td>
+<td>地表水潜热通量</td>
+</tr>
+<tr>
+<td><code>waterdensity_surface</code></td>
+<td>地表水密度</td>
+</tr>
+<tr>
+<td><code>flux_ssice</code>(<code>_slopeNN</code>)</td>
+<td>与地下冰交换的总通量（来自 vdifc，见 <a href="../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a>）</td>
+</tr>
+</tbody>
+</table>
+<p><code>file_def_physics.xml</code>（GCM6 样例）实际启用了 <code>h2o_vap</code>、<code>h2o_ice</code>、<code>h2o_ice_s</code>、<code>watercap</code> 及各坡度分量。</p>
+<h2 id="被读取的位置">被读取的位置</h2>
+<table>
+<thead>
+<tr>
+<th>读取例程</th>
+<th>文件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>conf_phys</code>（<code>getin_p</code>）</td>
+<td><code>libf/phymars/conf_phys.F</code></td>
+<td>所有 callphys.def 水开关；存入 <code>callkeys_mod</code> 模块变量</td>
+</tr>
+<tr>
+<td><code>initracer</code></td>
+<td><code>libf/phymars/initracer.F90</code></td>
+<td>解析 traceur.def tracer 名→<code>igcm_*</code> 索引</td>
+</tr>
+<tr>
+<td><code>iniphysiq</code>/<code>infotrac</code> 等</td>
+<td><code>libf/dynphy_lonlat/phymars/*</code>, <code>libf/phymars/dyn1d/infotrac.F90</code></td>
+<td>读取 traceur.def 行数与名字</td>
+</tr>
+<tr>
+<td>XIOS 库</td>
+<td><code>field_def_physics.xml</code>/<code>file_def_physics.xml</code></td>
+<td>由 <code>write_output</code> 调用触发</td>
+</tr>
+</tbody>
+</table>
+<h2 id="影响的计算流程">影响的计算流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>大气水冰云</td>
+<td><code>water</code>→<code>watercloud</code>；<code>microphys</code> 选 <code>improvedclouds</code>/<code>simpleclouds</code>，见 <a href="../modules/phymars/watercloud_mod.html">watercloud_mod</a></td>
+</tr>
+<tr>
+<td>physiq 调用链</td>
+<td><code>water</code>/<code>activice</code>/<code>microphys</code>/<code>scavenging</code> 决定 tendency 注入，见 <a href="../routines/physiq-water-cycle-callpoints.html">physiq-water-cycle-callpoints</a></td>
+</tr>
+<tr>
+<td>地表水汽交换</td>
+<td><code>latentheat_surfwater</code>/<code>old_wsublimation_scheme</code>/<code>caps</code>/<code>frost_albedo_threshold</code> 影响地表升华，见 <a href="../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a></td>
+</tr>
+<tr>
+<td>辐射</td>
+<td><code>activice</code> 决定水冰是否进辐射传输</td>
+</tr>
+<tr>
+<td>地表反照率/热惯量</td>
+<td><code>albedo_h2o_*</code>/<code>inert_h2o_ice</code>/<code>surfaceice_tifeedback</code></td>
+</tr>
+<tr>
+<td>饱和约束</td>
+<td><code>supersat</code> 控制是否允许过饱和，见 <a href="../modules/phymars/water-saturation-helpers.html">water-saturation-helpers</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要求">复现要求</h2>
+<ul>
+<li>真实水循环模拟必须显式设 <code>water=.true.</code>（源码默认是 <code>.false.</code>）。完整 v6 微物理还需 <code>microphys=.true.</code>、<code>temp_dependent_m=.true.</code>、<code>cloud_adapt_ts=.true.</code>、<code>scavenging=.true.</code>。</li>
+<li>traceur.def 必须含 <code>h2o_vap</code>/<code>h2o_ice</code>，微物理还需 <code>ccn_*</code>/<code>dust_*</code>；首行总数与行数一致，名字与 <code>initracer.F90</code> 匹配。</li>
+<li>遵守依赖校验：<code>microphys</code> 需 <code>water</code>+<code>doubleq</code>；<code>cloud_adapt_ts</code> 需 <code>temp_dependent_m</code>；<code>co2clouds</code> 与 <code>scavco2cond</code> 不能同开。</li>
+<li>复现历史结果要对齐 <code>old_wsublimation_scheme</code>、<code>nuice_sed</code>、<code>inert_h2o_ice</code> 等数值默认（源码默认与 GCM6 样例不同）。</li>
+<li><code>albedo_h2o_ice</code> 已废弃，出现即中止；用 <code>albedo_h2o_cap</code>。</li>
+</ul>
+<h2 id="已核验边界">已核验边界</h2>
+<ul>
+<li><code>traceur.def</code> 的旧式首行计数格式由 <code>tracer_mod</code> 和 1D <code>init_testphys1d_mod</code> 解析；带额外列的 transporting-fluid/父子关系逻辑见 <a href="../modules/phymars/tracer_mod.html">tracer_mod</a>、<a href="../modules/phymars/dyn1d/infotrac.html">infotrac</a> 和 <a href="../modules/phymars/dyn1d/init_testphys1d_mod.html">init_testphys1d_mod</a>。本页只列水循环必需 tracer 名，不重复完整解析器说明。</li>
+<li><code>reffice</code> 的输出单位为 m：<code>physiq_mod.F:3549-3551</code> 调 <code>write_output('reffice', ..., 'm', rave(:))</code>。<code>rave</code> 在 <code>scavenging=true</code> 时按冰+CCN 表面积反推有效半径，在 <code>scavenging=false</code> 时按水冰质量加权；<code>rave2</code> 是备用质量加权半径但输出块被注释。</li>
+<li>各 <code>callphys.def.*</code> 变体的差异已在本页列出核心水开关和 GCM6 样例；复现实验仍应以实际运行目录中的 <code>callphys.def</code> 为准。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li><code>callphys.def</code> 与 <code>traceur.def</code> 必须成组匹配：开 <code>microphys</code> 但缺少 <code>ccn_*</code> 或 <code>dust_*</code> tracer 会导致后续索引缺失或相关物理无法按预期运行。</li>
+<li>水循环关键默认值与 GCM6 样例不同；复现实验时不能只依赖源码默认，必须保存实际运行用的 <code>callphys.def</code>。</li>
+<li>XIOS 字段“已定义”不等于“已输出”；只有 <code>file_def_physics.xml</code> 中引用的字段才会进入对应输出文件。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

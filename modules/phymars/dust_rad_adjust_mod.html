@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dust_rad_adjust_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dust_rad_adjust_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dust_rad_adjust_modf90">dust_rad_adjust_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dust_rad_adjust_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>该文件定义尘埃辐射调整系数模块 <code>dust_rad_adjust_mod</code>（146 行），导出例程 <code>compute_dust_rad_adjust</code>，由 <code>dust_scaling</code>（<code>compute_dustscaling</code>，行 79）在 <code>dustscaling_mode==2</code>（GCM v6 风格）时调用。它的职责是计算逐格点的尘埃辐射调整系数 <code>dust_rad_adjust</code>：把每日 14:00（<code>t_scenario_sol</code>）尘埃场景目标柱厚度与 GCM 当前可见光尘埃柱厚度 <code>taudust</code> 之比作为“目标”，在相邻两日 14:00 的目标值（<code>dust_rad_adjust_prev</code>/<code>dust_rad_adjust_next</code>）之间做时间线性插值，从而让辐射传输看到的尘埃光学厚度平滑跟随观测场景，而不强行重缩放尘埃 tracer 质量（区别于 <code>dustscaling_mode==1</code> 的 <code>tauscaling</code>）。</p>
+<p>模块保存两个相邻日的调整系数 <code>dust_rad_adjust_prev</code>/<code>dust_rad_adjust_next</code>（restart 经 <code>phyetat0</code>/<code>phyredem</code> 读写），并提供 <code>ini/end_dust_rad_adjust_mod</code> 管理其分配。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dust_rad_adjust_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>尘埃辐射调整系数模块</td>
+</tr>
+<tr>
+<td><code>dust_rad_adjust_prev</code></td>
+<td>real SAVE ALLOCATABLE(:)</td>
+<td>5</td>
+<td>当前 <code>t_scenario</code> 时刻算得的调整系数（上一日 14:00 目标），按格点</td>
+</tr>
+<tr>
+<td><code>dust_rad_adjust_next</code></td>
+<td>real SAVE ALLOCATABLE(:)</td>
+<td>7</td>
+<td>次日 <code>t_scenario</code> 的调整系数（下一日 14:00 目标），按格点</td>
+</tr>
+<tr>
+<td><code>compute_dust_rad_adjust</code></td>
+<td>subroutine</td>
+<td>14</td>
+<td>计算 <code>dust_rad_adjust</code>（两日目标间时间线性插值）</td>
+</tr>
+<tr>
+<td><code>ini_dust_rad_adjust_mod</code></td>
+<td>subroutine</td>
+<td>126</td>
+<td>分配 <code>dust_rad_adjust_prev/next</code></td>
+</tr>
+<tr>
+<td><code>end_dust_rad_adjust_mod</code></td>
+<td>subroutine</td>
+<td>137</td>
+<td>释放 <code>dust_rad_adjust_prev/next</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>longitude_deg</code></td>
+<td>由经度算各格点本地时（当前步与上一步）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>dtphys, daysec</code></td>
+<td>物理步长与 sol 秒数，算上一步 <code>zday_prevdt</code></td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td><code>odpref, t_scenario_sol</code></td>
+<td>参考气压 610 Pa；场景厚度精确时刻（14:00，触发目标更新与插值锚点）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>read_dust_scenario_mod</code></td>
+<td><code>read_dust_scenario</code></td>
+<td>读取次日（<code>zday_scenario_next</code>）场景目标厚度 <code>tau_pref_scenario_next</code></td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read_dust_scenario</code></td>
+<td><code>read_dust_scenario_mod</code></td>
+<td>行 80</td>
+<td>读次日场景尘埃柱厚度（VIS）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid, nlayer</code></td>
+<td><code>compute_dustscaling</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>水平格点数、垂直层数</td>
+</tr>
+<tr>
+<td><code>zday</code></td>
+<td><code>compute_dustscaling</code></td>
+<td>real scalar</td>
+<td>sol</td>
+<td>日期（sol 分数）</td>
+</tr>
+<tr>
+<td><code>pplev(ngrid,nlayer+1)</code></td>
+<td><code>compute_dustscaling</code></td>
+<td>real</td>
+<td>Pa</td>
+<td>层界面气压（取 <code>pplev(:,1)</code> 表压缩放）</td>
+</tr>
+<tr>
+<td><code>taudust(ngrid)</code></td>
+<td><code>compute_dustscaling</code></td>
+<td>real</td>
+<td>-</td>
+<td>GCM 可见光尘埃柱厚度（目标比的分母）</td>
+</tr>
+<tr>
+<td><code>IRtoVIScoef(ngrid)</code></td>
+<td><code>compute_dustscaling</code>（源自 <code>aeropacity</code>）</td>
+<td>real</td>
+<td>-</td>
+<td>场景 IR→VIS 换算系数，传给 <code>read_dust_scenario</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dust_rad_adjust(ngrid)</code></td>
+<td><code>compute_dustscaling</code>→缩放 <code>aerosol</code></td>
+<td>real (OUT)</td>
+<td>-</td>
+<td>尘埃辐射调整系数（时间插值结果）</td>
+</tr>
+<tr>
+<td><code>dust_rad_adjust_prev/next(ngrid)</code></td>
+<td>module SAVE；restart <code>phyetat0</code>/<code>phyredem</code></td>
+<td>real</td>
+<td>-</td>
+<td>相邻两日 14:00 的目标调整系数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>module 级 <code>SAVE</code>+<code>THREADPRIVATE</code>：<code>dust_rad_adjust_prev</code>、<code>dust_rad_adjust_next</code>（行 10）。</li>
+<li>例程内 <code>SAVE</code>+<code>THREADPRIVATE</code>：<code>local_time</code>、<code>local_time_prevdt</code>、<code>zday_scenario</code>、<code>zday_scenario_next</code>、<code>firstcall</code>、<code>tau_pref_scenario_next</code>（行 47-48）。</li>
+<li>firstcall：打印场景精确时刻提示；分配 <code>local_time</code>/<code>local_time_prevdt</code>/<code>tau_pref_scenario_next</code>。</li>
+<li><code>dust_rad_adjust_prev/next</code> 只在“本地时本步跨过 <code>t_scenario_sol</code>（14:00）”时更新（行 86-100）：把旧 <code>next</code> 转存为 <code>prev</code>，用当前 <code>taudust</code> 与次日场景算新 <code>next</code>，并对 <code>next</code> 设上限 5。</li>
+<li>标准输出副作用：firstcall 的提示信息。</li>
+<li><code>ini/end_dust_rad_adjust_mod</code> 由 <code>phys_state_var_init</code> 管理 <code>prev/next</code> 生命周期。</li>
+<li>注释掉的 <code>tau_pref_scenario</code>（当日场景）相关代码（行 43、61、78-79）保留为历史痕迹。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>firstcall（行 56-64）</strong>：打印提示；分配 <code>local_time</code>、<code>local_time_prevdt</code>、<code>tau_pref_scenario_next</code>。</li>
+<li><strong>算本地时（行 66-75）</strong>：由 <code>zday</code>+经度算当前步与上一步（<code>zday_prevdt=zday-dtphys/daysec</code>）本地时；<code>zday_scenario=floor(zday)</code>、<code>zday_scenario_next=zday_scenario+1</code>。</li>
+<li><strong>读次日场景（行 77-82）</strong>：<code>read_dust_scenario(zday_scenario_next, IRtoVIScoef, tau_pref_scenario_next)</code>。</li>
+<li><strong>更新目标（行 84-101）</strong>：逐格点，若本地时本步跨过 <code>t_scenario_sol</code>：<code>dust_rad_adjust_prev=旧 next</code>；<code>dust_rad_adjust_next=tau_pref_scenario_next*pplev(:,1)/odpref/taudust</code>；<code>next=min(next,5)</code>（防极夜大日变化时 tau 失控）。</li>
+<li><strong>时间插值（行 103-119）</strong>：逐格点算权重 <code>weight</code>（本地时距上一日 14:00 的 sol 距离：≥14:00 取 <code>local_time-t_scenario_sol</code>，否则取 <code>(1-t_scenario_sol)+local_time</code>），<code>dust_rad_adjust=prev+weight*(next-prev)</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if firstcall:
+    print 提示; allocate local_time, local_time_prevdt, tau_pref_scenario_next
+
+# 本地时
+local_time      = f(zday, longitude)
+local_time_prevdt = f(zday - dtphys/daysec, longitude)
+zday_scenario_next = floor(zday) + 1
+
+# 次日场景目标
+tau_pref_scenario_next = read_dust_scenario(zday_scenario_next, IRtoVIScoef)
+
+# 跨 14:00 更新目标
+for ig:
+    if local_time crosses t_scenario_sol this step:
+        dust_rad_adjust_prev = dust_rad_adjust_next       # 旧 next 转 prev
+        dust_rad_adjust_next = tau_pref_scenario_next*pplev(:,1)/odpref/taudust
+        dust_rad_adjust_next = min(dust_rad_adjust_next, 5.)   # 上限
+
+# 两日目标间线性插值
+for ig:
+    if local_time &gt;= t_scenario_sol: weight = local_time - t_scenario_sol
+    else:                            weight = (1-t_scenario_sol) + local_time
+    dust_rad_adjust = prev + weight*(next - prev)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>尘埃循环</td>
+<td><code>dustscaling_mode==2</code>（GCM v6）下产出辐射调整系数 <code>dust_rad_adjust</code>，由 <code>compute_dustscaling</code> 用它缩放 <code>aerosol</code> 光学厚度，使辐射看到的尘埃跟随观测场景而不改尘埃质量</td>
+</tr>
+<tr>
+<td>辐射</td>
+<td>调整系数最终作用在喂给辐射传输的 <code>aerosol</code> 上</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 Fortran 90（<code>.F90</code>）。</li>
+<li>module 级与例程内大量 <code>SAVE</code>+<code>THREADPRIVATE</code>。</li>
+<li>与 <code>compute_dtau</code>（注入）相似的“每日 14:00 校准 + 跨日线性插值”模式，但此处用于辐射缩放而非地表注入。</li>
+<li>硬编码上限 <code>min(next,5.)</code>（注释提到曾用 3.），防极夜大日变化导致 tau 失控。</li>
+<li>场景目标读次日值（<code>floor(zday)+1</code>），对应场景 DOD 14:00 测量但存于午夜的约定。</li>
+<li>注释掉的当日 <code>tau_pref_scenario</code> 逻辑保留为历史痕迹。</li>
+<li><code>end_dust_rad_adjust_mod</code> 用 <code>if(allocated)</code> 幂等释放。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>仅 <code>dustscaling_mode==2</code> 路径使用本例程；<code>compute_dustscaling</code> 还限定每时间步 <code>zday</code> 变化时才调用一次（<code>zday/=zday_prev_call</code>，dust_scaling 行 78）。</li>
+<li>目标比公式：<code>dust_rad_adjust_next = tau_pref_scenario_next * pplev(:,1)/odpref / taudust</code>，上限 5。</li>
+<li>插值权重以上一日 14:00 为锚点，<code>prev</code>/<code>next</code> 相隔正好 1 sol。</li>
+<li><code>dust_rad_adjust_prev/next</code> 经 <code>phyetat0</code>/<code>phyredem</code> 进 restart，跨步/跨运行保持，由 <code>phys_state_var_init</code> 分配。</li>
+<li>下游 <code>compute_dustscaling</code> 用 <code>aerosol*dust_rad_adjust</code> 缩放（dust_scaling 行 98-105），不改尘埃 tracer 质量。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>无显著证据缺口。源码逻辑、调用链（<code>compute_dustscaling</code>→本例程，restart 经 <code>phyetat0</code>/<code>phyredem</code>）、<code>odpref/t_scenario_sol</code> 来源均已核验。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="dust_param_mod.html">dust_param_mod</a> — 提供 <code>odpref</code>、<code>t_scenario_sol</code>、<code>dustscaling_mode</code></li>
+<li><a href="compute_dtau_mod.html">compute_dtau_mod</a> — 同类“每日 14:00 校准+插值”模式，但用于地表注入</li>
+<li><a href="aeropacity_mod.html">aeropacity_mod</a> — 经 <code>compute_dustscaling</code> 间接消费 <code>dust_rad_adjust</code> 缩放 <code>aerosol</code></li>
+<li><a href="time_phylmdz_mod.html">time_phylmdz_mod</a> — 提供 <code>dtphys</code>、<code>daysec</code></li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle 主题</a></li>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod</a> — 调用 <code>ini/end_dust_rad_adjust_mod</code></li>
+<li><a href="dust_scaling_mod.html">dust_scaling_mod</a> — 唯一调用方，<code>dustscaling_mode==2</code> 时调用本例程计算 <code>dust_rad_adjust</code></li>
+<li><a href="read_dust_scenario_mod.html">read_dust_scenario_mod.md</a>：读取次日场景目标厚度。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

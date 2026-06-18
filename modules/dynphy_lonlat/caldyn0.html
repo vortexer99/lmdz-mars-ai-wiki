@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>caldyn0 - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/caldyn0.md</span>
+    </nav>
+    <article class="content">
+<h1 id="caldyn0f">caldyn0.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\caldyn0.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>lon-lat GCM 动力倾向计算例程；由 <code>newstart.F</code> 调用，按顺序调用 13 个 EXTERNAL 子过程完成协变/反变风转换、气压计算、空气质量、质量通量、质量辐合、垂直速度、位涡、动能、Bernoulli 函数等，最终调 <code>sortvarc0</code> 输出诊断。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>caldyn0</code></td>
+<td>subroutine</td>
+<td>1</td>
+<td>动力倾向计算调度；依次调 13 个 EXTERNAL 子过程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comvert_mod</code></td>
+<td><code>ap, bp</code></td>
+<td>垂直 sigma-混合坐标参数，用于 <code>pression</code> 计算气压场</td>
+<td>无</td>
+</tr>
+</tbody>
+</table>
+<h3 id="头文件">头文件</h3>
+<table>
+<thead>
+<tr>
+<th>头文件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimensions.h</code></td>
+<td>网格维度参数（<code>ip1jmp1</code>, <code>ip1jm</code>, <code>llm</code>, <code>llmp1</code>, <code>iip1</code>, <code>jjp1</code>）</td>
+</tr>
+<tr>
+<td><code>paramet.h</code></td>
+<td>物理常量（<code>constang</code> 科氏参数等）</td>
+</tr>
+<tr>
+<td><code>comgeom.h</code></td>
+<td>几何参数（<code>airesurg</code> 格点面积等）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>covcont</code></td>
+<td>EXTERNAL</td>
+<td>行 60</td>
+<td>协变→反变风分量转换</td>
+</tr>
+<tr>
+<td><code>pression</code></td>
+<td>EXTERNAL</td>
+<td>行 61</td>
+<td>由 <code>ap, bp, ps</code> 计算气压场 <code>p</code></td>
+</tr>
+<tr>
+<td><code>psextbar</code></td>
+<td>EXTERNAL</td>
+<td>行 62</td>
+<td>提取地表气压水平平均 <code>psexbarxy</code></td>
+</tr>
+<tr>
+<td><code>massdair</code></td>
+<td>EXTERNAL</td>
+<td>行 63</td>
+<td>计算空气质量 <code>masse</code></td>
+</tr>
+<tr>
+<td><code>massbar</code></td>
+<td>EXTERNAL</td>
+<td>行 64</td>
+<td>计算质量加权水平平均 <code>massebx, masseby</code></td>
+</tr>
+<tr>
+<td><code>massbarxy</code></td>
+<td>EXTERNAL</td>
+<td>行 65</td>
+<td>计算质量加权 xy 平均 <code>massebxy</code></td>
+</tr>
+<tr>
+<td><code>flumass</code></td>
+<td>EXTERNAL</td>
+<td>行 66</td>
+<td>计算质量通量 <code>pbaru, pbarv</code></td>
+</tr>
+<tr>
+<td><code>convmass</code></td>
+<td>EXTERNAL</td>
+<td>行 67</td>
+<td>计算质量辐合 <code>convm</code></td>
+</tr>
+<tr>
+<td><code>vitvert</code></td>
+<td>EXTERNAL</td>
+<td>行 73</td>
+<td>计算垂直速度 <code>w</code></td>
+</tr>
+<tr>
+<td><code>tourpot</code></td>
+<td>EXTERNAL</td>
+<td>行 74</td>
+<td>计算位涡 <code>vorpot</code></td>
+</tr>
+<tr>
+<td><code>enercin</code></td>
+<td>EXTERNAL</td>
+<td>行 75</td>
+<td>计算动能 <code>ecin</code></td>
+</tr>
+<tr>
+<td><code>bernoui</code></td>
+<td>EXTERNAL</td>
+<td>行 76</td>
+<td>计算 Bernoulli 函数 <code>bern = phi + ecin</code></td>
+</tr>
+<tr>
+<td><code>sortvarc0</code></td>
+<td>EXTERNAL</td>
+<td>行 84</td>
+<td>输出/整理诊断变量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>itau</code></td>
+<td><code>newstart</code></td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>时间步编号</td>
+</tr>
+<tr>
+<td><code>ucov</code></td>
+<td><code>newstart</code></td>
+<td><code>real (ip1jmp1, llm)</code></td>
+<td>m/s</td>
+<td>协变纬向风</td>
+</tr>
+<tr>
+<td><code>vcov</code></td>
+<td><code>newstart</code></td>
+<td><code>real (ip1jm, llm)</code></td>
+<td>m/s</td>
+<td>协变经向风</td>
+</tr>
+<tr>
+<td><code>teta</code></td>
+<td><code>newstart</code></td>
+<td><code>real (ip1jmp1, llm)</code></td>
+<td>K</td>
+<td>位温</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td><code>newstart</code></td>
+<td><code>real (ip1jmp1)</code></td>
+<td>Pa</td>
+<td>地表气压</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td><code>newstart</code></td>
+<td><code>real (ip1jmp1, llm)</code></td>
+<td>kg</td>
+<td>空气质量（输入/输出）</td>
+</tr>
+<tr>
+<td><code>pk</code></td>
+<td><code>newstart</code></td>
+<td><code>real (iip1, jjp1, llm)</code></td>
+<td>—</td>
+<td>Exner 函数</td>
+</tr>
+<tr>
+<td><code>phis</code></td>
+<td><code>newstart</code></td>
+<td><code>real (ip1jmp1)</code></td>
+<td>m²/s²</td>
+<td>地表位势</td>
+</tr>
+<tr>
+<td><code>time</code></td>
+<td><code>newstart</code></td>
+<td><code>real</code></td>
+<td>s</td>
+<td>模拟时间</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出内部计算传给-sortvarc0">输出（内部计算，传给 sortvarc0）</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phi</code></td>
+<td><code>sortvarc0</code></td>
+<td><code>real (ip1jmp1, llm)</code></td>
+<td>m²/s²</td>
+<td>位势</td>
+</tr>
+<tr>
+<td><code>w</code></td>
+<td><code>sortvarc0</code></td>
+<td><code>real (ip1jmp1, llm)</code></td>
+<td>Pa/s</td>
+<td>垂直速度</td>
+</tr>
+<tr>
+<td><code>pbaru</code></td>
+<td><code>sortvarc0</code></td>
+<td><code>real (ip1jmp1, llm)</code></td>
+<td>—</td>
+<td>纬向质量通量</td>
+</tr>
+<tr>
+<td><code>pbarv</code></td>
+<td><code>sortvarc0</code></td>
+<td><code>real (ip1jm, llm)</code></td>
+<td>—</td>
+<td>经向质量通量</td>
+</tr>
+<tr>
+<td><code>vorpot</code></td>
+<td><code>sortvarc0</code></td>
+<td><code>real (ip1jm, llm)</code></td>
+<td>s⁻¹</td>
+<td>位涡</td>
+</tr>
+<tr>
+<td><code>bern</code></td>
+<td><code>sortvarc0</code></td>
+<td><code>real (ip1jmp1, llm)</code></td>
+<td>m²/s²</td>
+<td>Bernoulli 函数</td>
+</tr>
+<tr>
+<td><code>dp</code></td>
+<td><code>sortvarc0</code></td>
+<td><code>real (ip1jmp1)</code></td>
+<td>Pa</td>
+<td>底层质量辐合/面积</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>通过头文件 <code>comgeom.h</code> 读取 <code>airesurg</code>（格点面积）和 <code>constang</code>（科氏参数）。</li>
+<li>通过 <code>comvert_mod::ap, bp</code> 读取垂直坐标参数。</li>
+<li><code>EXTERNAL</code> 子过程（<code>advect</code>, <code>traceur</code> 等）通过 <code>EXTERNAL</code> 声明但部分未在本例程体中直接调用。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><p><strong>风分量转换</strong>（行 60）：<code>covcont</code> 把协变风 <code>ucov, vcov</code> 转换为反变风 <code>ucont, vcont</code>。</p></li>
+<li><p><strong>气压与质量计算</strong>（行 61-66）：<code>pression</code> 由 <code>ap, bp, ps</code> 算气压 <code>p</code>；<code>psextbar</code> 提取地表气压水平平均；<code>massdair</code> 计算空气质量；<code>massbar/massbarxy</code> 计算质量加权水平平均；<code>flumass</code> 计算质量通量。</p></li>
+<li><p><strong>质量辐合与底层气压倾向</strong>（行 67-71）：<code>convmass</code> 计算质量辐合 <code>convm</code>，底层 <code>dp = convm(1)/airesurg</code>。</p></li>
+<li><p><strong>垂直速度、位涡、动能、Bernoulli</strong>（行 73-76）：依次计算 <code>w</code>, <code>vorpot</code>, <code>ecin</code>, <code>bern = phi + ecin</code>。</p></li>
+<li><p><strong>绝对涡度</strong>（行 78-82）：<code>ang = ucov + constang</code>（相对涡度 + 科氏参数）。</p></li>
+<li><p><strong>诊断输出</strong>（行 84-85）：<code>sortvarc0</code> 收集所有诊断变量输出。</p></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>covcont(ucov, vcov) -&gt; ucont, vcont
+pression(ap, bp, ps) -&gt; p
+psextbar(ps) -&gt; psexbarxy
+massdair(p) -&gt; masse
+massbar(masse) -&gt; massebx, masseby
+massbarxy(masse) -&gt; massebxy
+flumass(massebx, masseby, vcont, ucont) -&gt; pbaru, pbarv
+convmass(pbaru, pbarv) -&gt; convm
+
+for each grid point ij:
+    dp(ij) = convm(ij, 1) / airesurg(ij)
+
+vitvert(convm) -&gt; w
+tourpot(vcov, ucov, massebxy) -&gt; vorpot
+enercin(vcov, ucov, vcont, ucont) -&gt; ecin
+bernoui(phi, ecin) -&gt; bern
+
+for each (ij, l):
+    ang(ij, l) = ucov(ij, l) + constang(ij)
+
+sortvarc0(itau, ucov, teta, ps, masse, pk, phis, vorpot, phi, bern, dp, time, vcov)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>动力核心</td>
+<td>计算 lon-lat GCM 动力倾向；由 <code>newstart</code> 在时间循环中调用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran（<code>.F</code>），续行符 <code>$</code>。</li>
+<li>独立子程序（非 module），通过 <code>EXTERNAL</code> 声明引用 13 个子过程。</li>
+<li>使用头文件（<code>dimensions.h</code>, <code>paramet.h</code>, <code>comgeom.h</code>）定义网格和物理常量。</li>
+<li>部分 <code>EXTERNAL</code> 声明（<code>advect</code>, <code>traceur</code>）在例程体中未被直接调用，可能为遗留声明。</li>
+<li>数组维度由头文件宏定义（<code>ip1jmp1</code>, <code>ip1jm</code>, <code>llm</code> 等）。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>需要 <code>comvert_mod::ap, bp</code> 已初始化。</li>
+<li>需要头文件提供正确的网格维度参数。</li>
+<li><code>newstart.F</code> 行 2005 为唯一调用方。</li>
+<li>所有 <code>EXTERNAL</code> 子过程需在同一链接中可用。</li>
+<li><code>sortvarc0</code> 负责最终诊断输出，需确认其具体行为。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>EXTERNAL</code> 声明中的 <code>advect</code> 和 <code>traceur</code> 是否曾在本例程中被调用或仅为遗留声明。</li>
+<li><code>sortvarc0</code> 的具体输出行为（诊断文件/XIOS）。</li>
+<li><code>massbar</code> 和 <code>massbarxy</code> 的精确差异。</li>
+<li>与 GCM 动力核心（<code>dynzon</code> 或 <code>dissip</code>）的关系。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="newstart.html">newstart</a>：调用方，写出 <code>restart.nc</code> 前调用本例程计算动力辅助量</li>
+<li><a href="index.html">dynphy_lonlat/index</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

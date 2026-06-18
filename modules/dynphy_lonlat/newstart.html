@@ -1,0 +1,874 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>newstart - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/newstart.md</span>
+    </nav>
+    <article class="content">
+<h1 id="newstartf">newstart.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\newstart.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>newstart.F</code> 定义交互式程序 <code>newstart</code>，用于从 <code>start_archive.nc</code> 或已有 <code>start.nc</code>/<code>startfi.nc</code> 构造新的动力与物理重启文件。它不是时间积分主循环，而是一个初始场编辑器：读控制表、初始化当前网格和物理共享状态、装配或读取动力/物理场、按用户选择修改地形、压力、tracer、地下冰、坡面数等状态，最后写出 <code>restart.nc</code> 和 <code>restartfi.nc</code>。</p>
+<p>该程序是 <code>lect_start_archive</code>、<code>datareadnc</code>、<code>defrun_new</code>、<code>iniphysiq</code>、<code>caldyn0</code> 和 <code>phyredem</code> 等初始化链的汇合点。复现实验时要把它看成“start 文件生成流程”，而不是常规 GCM 运行的一步。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>newstart</code></td>
+<td>program</td>
+<td>2</td>
+<td>交互式创建/修改 LMD Mars GCM 初始状态，并写出 <code>restart.nc</code>/<code>restartfi.nc</code></td>
+</tr>
+<tr>
+<td><code>load_MONS_data</code></td>
+<td>subroutine</td>
+<td>2045</td>
+<td>读取 MONS 地下冰数据，补南极缺测，并插值到 GCM 网格</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ioipsl_getincom</code></td>
+<td><code>getin</code></td>
+<td>被 <code>datareadnc</code> 路径配合使用的配置读取体系</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_parallel</code>, <code>is_sequential</code>, <code>is_mpi_root</code>, <code>is_omp_root</code>, <code>is_master</code></td>
+<td>在 <code>tabfi</code> 前强制串行/主进程标志</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>infotrac</code></td>
+<td><code>infotrac_init</code>, <code>nqtot</code>, <code>tname</code></td>
+<td>读取 tracer 数量和名称</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>noms</code>, <code>mmol</code>, <code>igcm_*</code></td>
+<td>tracer 名、摩尔质量和关键 tracer 索引</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>phisfi</code>, <code>z0</code>, <code>zmea</code>, <code>zstd</code>, <code>zsig</code>, <code>zgam</code>, <code>zthe</code>, <code>albedodat</code>, <code>qsurf</code>, <code>tsurf</code>, <code>emis</code>, <code>hmons</code>, <code>summit</code>, <code>base</code>, <code>watercap</code>, <code>perennial_co2ice</code>, slope-var init/end</td>
+<td>地表、坡面和 surface tracer 状态</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>inertiedat</code>, <code>inertiesoil</code>, <code>layer</code>, <code>mlayer</code>, <code>nsoilmx</code>, <code>tsoil</code>, slope-var init/end, <code>flux_geo</code>, <code>qsoil</code>, <code>nqsoil</code></td>
+<td>土壤层、热惯量、土壤温度和地下状态</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>control_mod</code></td>
+<td><code>day_step</code>, <code>iphysiq</code>, <code>anneeref</code>, <code>planet_type</code></td>
+<td>时间步控制和行星类型</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>longitude</code>, <code>latitude</code>, <code>cell_area</code></td>
+<td>物理重启文件写出的网格坐标和面积</td>
+<td>—</td>
+</tr>
+<tr>
+<td><a href="lect_start_archive.html"><code>lect_start_archive_mod</code></a></td>
+<td><code>lect_start_archive</code></td>
+<td>从 <code>start_archive.nc</code> 读取并重映射初始场</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>tabfi_mod</code></td>
+<td><code>tabfi</code></td>
+<td>从 start/startfi 控制表初始化物理常数和时间</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>phyetat0_mod</code></td>
+<td><code>phyetat0</code></td>
+<td>从 <code>startfi.nc</code> 读取物理初始状态</td>
+<td>—</td>
+</tr>
+<tr>
+<td><a href="../phymars/phyredem.html"><code>phyredem</code></a></td>
+<td><code>physdem0</code>, <code>physdem1</code></td>
+<td>写出 <code>restartfi.nc</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><a href="../phymars/iostart.html"><code>iostart</code></a></td>
+<td><code>open_startphy</code></td>
+<td>为 <code>tabfi</code> 打开物理 start 文件</td>
+<td>—</td>
+</tr>
+<tr>
+<td><a href="../phymars/initracer.html"><code>initracer_mod</code></a></td>
+<td><code>initracer</code></td>
+<td>初始化 <code>igcm_*</code> tracer 索引和物性</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>albedo</code>, slope-var init/end</td>
+<td>坡面数变化时重分配地表反照率数组</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td><code>tauscaling</code></td>
+<td>尘埃虚/真实值转换因子</td>
+<td>—</td>
+</tr>
+<tr>
+<td><a href="../phymars/turb_mod.html"><code>turb_mod</code></a></td>
+<td><code>q2</code>, <code>wstar</code></td>
+<td>PBL/TKE restart 状态</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>filtreg_mod</code></td>
+<td><code>inifilr</code></td>
+<td>写出前初始化极区滤波</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>mod_const_mpi</code></td>
+<td><code>COMM_LMDZ</code></td>
+<td><code>iniphysiq</code> 初始化通信器参数</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>comvert_mod</code></td>
+<td><code>ap</code>, <code>bp</code>, <code>pa</code>, <code>preff</code></td>
+<td>垂直坐标和参考压力</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>lllm</code>, <code>daysec</code>, <code>dtphys</code>, <code>dtvr</code>, <code>cpp</code>, <code>kappa</code>, <code>rad</code>, <code>omeg</code>, <code>g</code>, <code>r</code>, <code>pi</code></td>
+<td>动力/物理常数和时间步</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>serre_mod</code></td>
+<td><code>alphax</code></td>
+<td>写出前质量计算路径中的诊断输出</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>temps_mod</code></td>
+<td><code>day_ini</code>, <code>hour_ini</code></td>
+<td>重启时间</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>ener_mod</code></td>
+<td><code>etot0</code>, <code>ptot0</code>, <code>ztot0</code>, <code>stot0</code>, <code>ang0</code></td>
+<td>动力能量/动量初值控制量</td>
+<td>—</td>
+</tr>
+<tr>
+<td><a href="iniphysiq_mod.html"><code>iniphysiq_mod</code></a></td>
+<td><code>iniphysiq</code></td>
+<td>物理网格、共享状态和配置初始化</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>exner_hyb_m</code></td>
+<td><code>exner_hyb</code></td>
+<td>由压力计算 Exner 函数</td>
+<td>—</td>
+</tr>
+<tr>
+<td><a href="../aeronomars/inichim_newstart.html"><code>inichim_newstart_mod</code></a></td>
+<td><code>inichim_newstart</code></td>
+<td>交互选项 <code>ini_q</code>/<code>ini_q-h2o</code> 的化学初始廓线构造</td>
+<td>—</td>
+</tr>
+<tr>
+<td><a href="../phymars/comslope_mod.html"><code>comslope_mod</code></a></td>
+<td><code>nslope</code>, <code>def_slope</code>, <code>def_slope_mean</code>, <code>subslope_dist</code>, init/end</td>
+<td>坡面数量和坡面分布</td>
+<td>—</td>
+</tr>
+<tr>
+<td><a href="../phymars/paleoclimate_mod.html"><code>paleoclimate_mod</code></a></td>
+<td><code>h2oice_depth</code>, <code>co2ice_depth</code>, <code>coef_ssdif</code>, init/end</td>
+<td>坡面数变化时保存并重映射古气候数组</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>subslope_mola_mod</code></td>
+<td><code>subslope_mola</code></td>
+<td><code>nslope</code> 选项下重算坡面分布</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>program_options</code></td>
+<td><code>parse_args</code></td>
+<td>解析命令行选项</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>datafile_mod</code></td>
+<td><code>datadir</code></td>
+<td><code>load_MONS_data</code> 读取 MONS 文本数据路径</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>INCLUDE 头文件</strong>：<code>dimensions.h</code>、<code>paramet.h</code>、<code>comgeom2.h</code>、<code>comdissnew.h</code>、<code>clesph0.h</code>、<code>netcdf.inc</code>；<code>load_MONS_data</code> 另含 <code>comgeom.h</code>。</p>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>parse_args</code></td>
+<td><code>program_options</code></td>
+<td>218</td>
+<td>解析命令行选项</td>
+</tr>
+<tr>
+<td><code>infotrac_init</code></td>
+<td><code>infotrac</code></td>
+<td>240</td>
+<td>得到 <code>nqtot</code> 和 <code>tname</code></td>
+</tr>
+<tr>
+<td>NetCDF API</td>
+<td><code>netcdf.inc</code></td>
+<td>271-339, 461</td>
+<td>打开 start 文件并读取 <code>controle</code></td>
+</tr>
+<tr>
+<td><code>open_startphy</code> / <code>tabfi</code></td>
+<td><code>iostart</code> / <code>tabfi_mod</code></td>
+<td>373-380</td>
+<td>读取物理控制表、行星常数、时间</td>
+</tr>
+<tr>
+<td><a href="defrun_new.html"><code>defrun_new</code></a></td>
+<td><code>defrun_new.F</code></td>
+<td>395</td>
+<td>读取 <code>run.def</code> 运行参数</td>
+</tr>
+<tr>
+<td><code>iniconst</code> / <code>inigeom</code></td>
+<td>动力初始化例程</td>
+<td>397-398</td>
+<td>初始化动力常数和几何</td>
+</tr>
+<tr>
+<td><a href="iniphysiq_mod.html"><code>iniphysiq</code></a></td>
+<td><code>iniphysiq_mod.F90</code></td>
+<td>403</td>
+<td>初始化物理网格和共享状态</td>
+</tr>
+<tr>
+<td><a href="datareadnc.html"><code>datareadnc</code></a></td>
+<td><code>datareadnc.F</code></td>
+<td>424</td>
+<td>从 <code>surface.nc</code> 读取地表数据并插值</td>
+</tr>
+<tr>
+<td><code>gr_dyn_fi</code> / <code>gr_fi_dyn</code></td>
+<td>网格转换工具</td>
+<td>多处</td>
+<td>动力网格与物理标量网格之间转换</td>
+</tr>
+<tr>
+<td><a href="lect_start_archive.html"><code>lect_start_archive</code></a></td>
+<td><code>lect_start_archive.F</code></td>
+<td>453</td>
+<td>读取并重映射 <code>start_archive.nc</code></td>
+</tr>
+<tr>
+<td><code>dynetat0</code></td>
+<td>动力 restart 读取例程</td>
+<td>470</td>
+<td>从 <code>start.nc</code> 读动力状态</td>
+</tr>
+<tr>
+<td><a href="../phymars/phyetat0_mod.html"><code>phyetat0</code></a></td>
+<td><code>phyetat0_mod.F90</code></td>
+<td>475</td>
+<td>从 <code>startfi.nc</code> 读物理状态</td>
+</tr>
+<tr>
+<td><a href="../phymars/initracer.html"><code>initracer</code></a></td>
+<td><code>initracer_mod</code></td>
+<td>514</td>
+<td>初始化 tracer 索引和物性</td>
+</tr>
+<tr>
+<td><a href="../aeronomars/inichim_newstart.html"><code>inichim_newstart</code></a></td>
+<td><code>inichim_newstart_mod</code></td>
+<td>991, 1026</td>
+<td>化学和水汽 tracer 初始化</td>
+</tr>
+<tr>
+<td><code>initial0</code></td>
+<td>外部工具</td>
+<td>1383-1385</td>
+<td><code>isotherm</code> 选项下清零风和 <code>q2</code></td>
+</tr>
+<tr>
+<td><code>load_MONS_data</code></td>
+<td>本文件</td>
+<td>1643</td>
+<td>读取 MONS 地下冰数据</td>
+</tr>
+<tr>
+<td><code>end_*</code> / <code>ini_*_slope_var</code></td>
+<td>多个共享模块</td>
+<td>1765-1859</td>
+<td><code>nslope</code> 选项下重分配坡面维度数组</td>
+</tr>
+<tr>
+<td><code>subslope_mola</code></td>
+<td><code>subslope_mola_mod</code></td>
+<td>1818</td>
+<td>重新计算坡面面积分布</td>
+</tr>
+<tr>
+<td><code>inifilr</code></td>
+<td><code>filtreg_mod</code></td>
+<td>1943</td>
+<td>写出前初始化滤波</td>
+</tr>
+<tr>
+<td><code>pression</code> / <code>exner_hyb</code></td>
+<td>动力/垂直坐标例程</td>
+<td>1944, 1950</td>
+<td>由 <code>ps</code> 和 <code>ap/bp</code> 算压力与 Exner 函数</td>
+</tr>
+<tr>
+<td><code>massdair</code> / <code>geopot</code></td>
+<td>动力例程</td>
+<td>1976, 2003</td>
+<td>算层空气质量和位势</td>
+</tr>
+<tr>
+<td><a href="caldyn0.html"><code>caldyn0</code></a></td>
+<td><code>caldyn0.F</code></td>
+<td>2005</td>
+<td>构造动力 restart 需要的辅助场</td>
+</tr>
+<tr>
+<td><code>dynredem0</code> / <code>dynredem1</code></td>
+<td>动力 restart 写出例程</td>
+<td>2011-2013</td>
+<td>写 <code>restart.nc</code></td>
+</tr>
+<tr>
+<td><a href="../phymars/phyredem.html"><code>physdem0</code></a> / <a href="../phymars/phyredem.html"><code>physdem1</code></a></td>
+<td><code>phyredem.F90</code></td>
+<td>2017-2027</td>
+<td>写 <code>restartfi.nc</code></td>
+</tr>
+<tr>
+<td><code>interp_horiz</code></td>
+<td>水平插值例程</td>
+<td>2148, 2150</td>
+<td><code>load_MONS_data</code> 把 MONS 网格插到 GCM 网格</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>start_archive.nc</code></td>
+<td>当前运行目录</td>
+<td>NetCDF</td>
+<td>混合</td>
+<td>选项 <code>0</code> 时的归档初始场</td>
+</tr>
+<tr>
+<td><code>start.nc</code></td>
+<td>当前运行目录</td>
+<td>NetCDF</td>
+<td>混合</td>
+<td>选项 <code>1</code> 时的动力初始场</td>
+</tr>
+<tr>
+<td><code>startfi.nc</code></td>
+<td>当前运行目录</td>
+<td>NetCDF</td>
+<td>混合</td>
+<td>选项 <code>1</code> 时的物理初始场</td>
+</tr>
+<tr>
+<td><code>controle</code></td>
+<td>start/startfi NetCDF 变量</td>
+<td><code>real(100)</code></td>
+<td>混合</td>
+<td>动力和物理控制表；start/startfi 模式会把物理表前 50 项复制到 <code>tab_cntrl(51:100)</code></td>
+</tr>
+<tr>
+<td><code>surface.nc</code></td>
+<td><code>datadir</code></td>
+<td>NetCDF</td>
+<td>混合</td>
+<td>start_archive 路径读取地形、反照率、热惯量、粗糙度和亚网格地形</td>
+</tr>
+<tr>
+<td><code>run.def</code> / include 链</td>
+<td><code>defrun_new</code></td>
+<td>配置</td>
+<td>—</td>
+<td>运行参数、物理频率、网格和耗散参数</td>
+</tr>
+<tr>
+<td><code>traceur.def</code> / <code>tracer.def</code></td>
+<td><code>infotrac_init</code>/<code>initracer</code></td>
+<td>配置</td>
+<td>—</td>
+<td>tracer 数量、名称和物性识别</td>
+</tr>
+<tr>
+<td><code>profile_&lt;tracer&gt;</code></td>
+<td>当前运行目录</td>
+<td>ASCII</td>
+<td>混合</td>
+<td><code>q=profile</code> 选项读取的地表+垂直廓线</td>
+</tr>
+<tr>
+<td><code>results_MONS_lat_lon_H_depth.txt</code></td>
+<td><code>datadir</code></td>
+<td>ASCII, 180x90</td>
+<td><code>%WEH</code>, <code>g/cm2</code> 转 <code>kg/m2</code></td>
+<td><code>mons_ice</code> 选项的 MONS 地下冰输入</td>
+</tr>
+<tr>
+<td>交互式输入</td>
+<td>stdin</td>
+<td>字符串/数值</td>
+<td>混合</td>
+<td>选择输入文件类型和修改选项参数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>restart.nc</code></td>
+<td>当前运行目录</td>
+<td>NetCDF</td>
+<td>混合</td>
+<td>动力重启文件；由 <code>dynredem0/1</code> 写出</td>
+</tr>
+<tr>
+<td><code>restartfi.nc</code></td>
+<td>当前运行目录</td>
+<td>NetCDF</td>
+<td>混合</td>
+<td>物理重启文件；由 <code>physdem0/1</code> 写出</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td><code>restart.nc</code></td>
+<td><code>real(iip1,jjp1)</code></td>
+<td>Pa</td>
+<td>地表压力，可能经地形修正或 <code>ptot</code> 修改</td>
+</tr>
+<tr>
+<td><code>ucov</code>, <code>vcov</code>, <code>teta</code>, <code>q</code>, <code>masse</code></td>
+<td><code>restart.nc</code></td>
+<td>3D/4D 动力数组</td>
+<td>混合</td>
+<td>协变风、位温、tracer 和层空气质量</td>
+</tr>
+<tr>
+<td><code>tsurf</code>, <code>tsoil</code>, <code>inertiesoil</code>, <code>albedo</code>, <code>emis</code>, <code>q2</code>, <code>qsurf</code>, <code>qsoil</code></td>
+<td><code>restartfi.nc</code></td>
+<td>物理网格数组</td>
+<td>混合</td>
+<td>地表、土壤、辐射、PBL、地表 tracer 和土壤 tracer 状态</td>
+</tr>
+<tr>
+<td><code>tauscaling</code>, <code>totcloudfrac</code>, <code>wstar</code>, <code>watercap</code>, <code>perennial_co2ice</code></td>
+<td><code>restartfi.nc</code></td>
+<td><code>real(ngridmx,...)</code></td>
+<td>混合</td>
+<td>尘埃缩放、云分数、热羽流、水冰和持久 CO2 冰状态</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>修改大量动力公共状态：<code>day_ini/hour_ini</code>、<code>day_step</code>、<code>dtvr/dtphys</code>、<code>rad/omeg/g/r/cpp/kappa</code>、<code>ap/bp/pa/preff</code>、能量守恒量等。</li>
+<li>写入 <code>surfdat_h</code>、<code>comsoil_h</code>、<code>dimradmars_mod</code>、<code>turb_mod</code>、<code>paleoclimate_mod</code> 和 <code>comslope_mod</code> 的可重启状态。</li>
+<li><code>nslope</code> 选项会释放并重新分配坡面维度数组，再把旧坡面状态复制到新坡面布局；旧 <code>nslope&gt;1</code> 时使用最接近水平的旧坡面 <code>iflat</code> 作为模板。</li>
+<li>所有菜单修改都通过 stdin/stdout 交互；批处理复现需要预先准备输入流。</li>
+<li><code>q=profile</code> 打开当前目录下 <code>profile_&lt;tracer&gt;</code>；<code>mons_ice</code> 打开 <code>datadir/results_MONS_lat_lon_H_depth.txt</code>。</li>
+<li>start_archive 路径读取后关闭 <code>nid</code>；start/startfi 路径读取两个输入文件，但关闭动作由下游 NetCDF 例程处理，源码片段中未见显式 <code>NF_CLOSE(nid_dyn/nid_fi)</code>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>初始化运行上下文</strong>：调用 <code>parse_args</code>，设置 Mars 常数 <code>cpp=744.499</code>、<code>preff=610</code>、<code>pa=20</code>、<code>planet_type="mars"</code>，并把并行标志强制为串行主进程，以便在 <code>iniphysiq</code> 前调用 <code>tabfi</code>。</li>
+<li><strong>读取 tracer 元信息</strong>：<code>infotrac_init</code> 确定 <code>nqtot/tname</code>，分配 <code>q(iip1,jjp1,llm,nqtot)</code> 和 <code>coefvmr(nqtot)</code>。</li>
+<li><strong>选择输入源</strong>：
+<ul>
+<li><code>0</code>：打开 <code>start_archive.nc</code>，<code>tab0=50</code>，<code>Lmodif=1</code>。</li>
+<li><code>1</code>：打开 <code>start.nc</code> 和 <code>startfi.nc</code>，先读动力控制表，再把 <code>startfi.nc</code> 的前 50 项复制到 <code>tab_cntrl(51:100)</code>，<code>tab0=0</code>。</li>
+</ul></li>
+<li><strong>读控制表并初始化常数</strong>：从 <code>controle</code> 读 <code>kappa/etot0/ptot0/ztot0/stot0/ang0</code>，再通过 <code>open_startphy</code> 和 <code>tabfi</code> 得到 <code>rad/omeg/g/mugaz/daysec</code> 等物理常数。</li>
+<li><strong>初始化当前网格与物理</strong>：调用 <code>defrun_new(99,.TRUE.)</code>、<code>iniconst</code>、<code>inigeom</code> 和 <code>iniphysiq</code>，设置 <code>dtvr/day_step/dtphys</code>。</li>
+<li><strong>装配地表静态场</strong>：如果不是直接从 <code>start/startfi</code> 修改，则调用 <code>datareadnc("mola",...)</code> 读取 <code>surface.nc</code>，再用 <code>gr_dyn_fi</code> 把地形、热惯量、反照率、粗糙度和亚网格地形送到物理网格共享数组。</li>
+<li><strong>读取初始状态</strong>：
+<ul>
+<li>start_archive 路径调用 <code>lect_start_archive</code>，得到 <code>date/tsurf/tsoil/inertiesoil/albedo/emis/q2/t/ucov/vcov/ps/teta/phisold_newgrid/q/qsurf/tauscaling/totcloudfrac/watercap/perennial_co2ice</code>，并把 <code>inertiedat</code> 复制到 <code>ithfi</code>。</li>
+<li>start/startfi 路径调用 <code>dynetat0</code> 和 <code>phyetat0</code>，并从 <code>albedodat/inertiedat</code> 构造 <code>albfi/ithfi/surfithfi</code>。</li>
+</ul></li>
+<li><strong>同步 tracer 名和索引</strong>：调用 <code>initracer</code>；若旧文件的 tracer 名全是 <code>q01/q02/...</code>，把 <code>noms(:)</code> 复制到 <code>tname(:)</code>。</li>
+<li><strong>执行交互修改循环</strong>：用户可连续输入修改关键字；空输入结束循环。每个分支直接改内存中的动力/物理状态。</li>
+<li><strong>写出前动力一致化</strong>：start_archive 路径根据新旧地形差修正 <code>ps=ps*exp((phisold_newgrid-phis)/(t(:,:,1)*r))</code>，保持经度周期；随后调用 <code>pression/exner_hyb</code>，必要时重建 <code>teta</code>。</li>
+<li><strong>写出 restart</strong>：调用 <code>geopot</code>、<code>caldyn0</code>，然后写 <code>restart.nc</code>；再调用 <code>physdem0/physdem1</code> 写 <code>restartfi.nc</code>。</li>
+</ol>
+<h2 id="交互修改选项">交互修改选项</h2>
+<table>
+<thead>
+<tr>
+<th>选项</th>
+<th>主要修改</th>
+<th>关键实现细节</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>flat</code></td>
+<td>地形清零</td>
+<td><code>phis(:,:)=0</code> 后同步 <code>phisfi</code>；可选择统一 <code>ps</code></td>
+</tr>
+<tr>
+<td><code>bilball</code></td>
+<td>统一反照率和热惯量</td>
+<td>用户输入 <code>alb_bb/ith_bb</code>，填 <code>alb/ith</code> 并同步 <code>albfi/ithfi</code>，重置 <code>z0</code> 为默认值</td>
+</tr>
+<tr>
+<td><code>z0</code></td>
+<td>统一地表粗糙度</td>
+<td>输入 <code>z0_default</code> 并赋给 <code>z0(:)</code></td>
+</tr>
+<tr>
+<td><code>coldspole</code></td>
+<td>南极永久帽地下温度和反照率</td>
+<td>修改南极 <code>tsoil</code> 和 <code>albfi(ngridmx)</code></td>
+</tr>
+<tr>
+<td><code>ptot</code></td>
+<td>调整总压</td>
+<td>计算当前大气+CO2 冰总压，按目标总压缩放 <code>ps</code>；可选择保持 tracer 总质量而缩放混合比</td>
+</tr>
+<tr>
+<td><code>qname</code></td>
+<td>改 tracer 名</td>
+<td>交互选择 <code>iq</code> 并改 <code>tname(iq)</code></td>
+</tr>
+<tr>
+<td><code>q=0</code></td>
+<td>所有 tracer 清零</td>
+<td>大气 tracer 设为 <code>1.e-30</code>，地表 tracer 设为 <code>0</code></td>
+</tr>
+<tr>
+<td><code>q=factor</code></td>
+<td>tracer 乘因子</td>
+<td>选一个 tracer，同时缩放 <code>q(:,:,:,iq)</code> 和 <code>qsurf(:,iq,:)</code></td>
+</tr>
+<tr>
+<td><code>q=x</code></td>
+<td>tracer 设常数</td>
+<td>输入大气 kg/kg 和地表 kg/m2，填全域</td>
+</tr>
+<tr>
+<td><code>q=profile</code></td>
+<td>tracer 从文本廓线初始化</td>
+<td>读取 <code>profile_&lt;tracer&gt;</code>，第 1 行为地表值，之后为各大气层</td>
+</tr>
+<tr>
+<td><code>freedust</code></td>
+<td>尘埃从虚光学深度缩放到真实值</td>
+<td>用 <code>tauscaling</code> 乘 dust/ccn mass/number tracer，然后把 <code>tauscaling(:)=1</code></td>
+</tr>
+<tr>
+<td><code>ini_q</code></td>
+<td>初始化化学物种和水汽</td>
+<td><code>flagh2o=1</code>，可选热层-only，调用 <code>inichim_newstart</code></td>
+</tr>
+<tr>
+<td><code>ini_q-h2o</code></td>
+<td>初始化化学物种但保留水汽</td>
+<td><code>flagh2o=0</code>，调用 <code>inichim_newstart</code></td>
+</tr>
+<tr>
+<td><code>inihdo</code></td>
+<td>用 D/H 初始化 HDO</td>
+<td>输入 SMOW 倍数，按 <code>HDO/H2O=2*155.76e-6*DoverH</code> 填 HDO tracer</td>
+</tr>
+<tr>
+<td><code>composition</code></td>
+<td>修改 CO2/N2/Ar/O2/CO 主成分</td>
+<td>选参考站点，输入新 VMR，换算 MMR 全域缩放，并由最丰富组分闭合 MMR 总和</td>
+</tr>
+<tr>
+<td><code>wetstart</code></td>
+<td>设置南北梯度水汽</td>
+<td><code>h2o_vap=150e-6*(lat+pi/2)/pi</code></td>
+</tr>
+<tr>
+<td><code>ini_h2osurf</code></td>
+<td>限制/清理地表水冰</td>
+<td>地表水冰截断到用户上限并去负值</td>
+</tr>
+<tr>
+<td><code>noglacier</code></td>
+<td>去掉中低纬地表水冰</td>
+<td><code>abs(lat)&lt;45</code> 的 <code>h2o_ice</code> 地表储量置零</td>
+</tr>
+<tr>
+<td><code>watercapn</code> / <code>watercaps</code></td>
+<td>加北/南永久水冰帽</td>
+<td>极区 <code>h2o_ice</code> 地表储量设 <code>1.e5 kg/m2</code></td>
+</tr>
+<tr>
+<td><code>isotherm</code></td>
+<td>等温无风初始场</td>
+<td>填 <code>tsurf/tsoil</code>，设 <code>flagiso</code>，清零 <code>ucov/vcov/q2</code></td>
+</tr>
+<tr>
+<td><code>co2ice=0</code></td>
+<td>去 CO2 极冠</td>
+<td><code>qsurf(:,igcm_co2,:)=0</code>，发射率取中纬参考值</td>
+</tr>
+<tr>
+<td><code>therm_ini_s</code></td>
+<td>土壤热惯量重置为表层参考值</td>
+<td><code>inertiedat(:,isoil)=surfithfi(:)</code> 并同步 <code>inertiesoil/ithfi/ith</code></td>
+</tr>
+<tr>
+<td><code>subsoilice_n</code> / <code>subsoilice_s</code></td>
+<td>北/南半球地下冰层</td>
+<td>输入纬度、起始深度和冰热惯量，用调和形式构造混合层热惯量</td>
+</tr>
+<tr>
+<td><code>mons_ice</code></td>
+<td>按 MONS 数据布设地下冰</td>
+<td>读取 MONS <code>Hdn/d21</code>，按半球系数把 <code>d21</code> 转深度，低于日变化热皮肤深度则下移</td>
+</tr>
+<tr>
+<td><code>nslope</code></td>
+<td>改坡面数量</td>
+<td>仅允许 1/3/5/7；重算 <code>def_slope</code>、<code>subslope_dist</code>，重分配并复制 slope-var 状态</td>
+</tr>
+</tbody>
+</table>
+<h2 id="load_mons_data-逻辑"><code>load_MONS_data</code> 逻辑</h2>
+<p><code>load_MONS_data</code> 打开 <code>datadir/results_MONS_lat_lon_H_depth.txt</code>，跳过首行，按 180x90 网格读取纬度、经度、<code>Hdn</code> 和 <code>d21</code>。源码把纬度索引翻转成北到南顺序，并把 <code>d21</code> 从 <code>g/cm2</code> 乘 10 转成 <code>kg/m2</code>。由于南纬 -77 到 -90 缺少 <code>d21</code>，行 2118-2121 用 -75 度值到南极 0 的线性插值补齐。最后构造 2 度经纬边界、补一列周期经度，用 <code>interp_horiz</code> 分别把 <code>Hdn</code> 和 <code>d21</code> 插值到 <code>(iip1,jjp1)</code>。</p>
+<p>在 <code>mons_ice</code> 分支中，只有 <code>MONS_Hdn&gt;=14.0</code> 的格点会布设地下冰；深度为 <code>MONS_d21*MONS_coeffN/S</code>，且不得浅于用表层热惯量估算的日变化热皮肤深度。</p>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>parse_args()
+set Mars constants and serial flags
+infotrac_init()
+allocate q and coefvmr
+
+ask user for input source:
+  if 0:
+    open start_archive.nc
+    read controle into tab_cntrl
+    tabfi(start_archive)
+  if 1:
+    open start.nc and startfi.nc
+    read both controle arrays
+    copy startfi controle(1:50) into tab_cntrl(51:100)
+    tabfi(startfi)
+
+initialize dynamic constants from tab_cntrl
+defrun_new, iniconst, inigeom, iniphysiq
+
+if not reading existing start/startfi:
+  datareadnc(surface.nc fields)
+  gr_dyn_fi static surface fields into physics grid
+
+if source is start_archive:
+  lect_start_archive(...)
+  ithfi = inertiedat
+else:
+  dynetat0(start.nc)
+  phyetat0(startfi.nc)
+  copy albedodat/inertiedat into albfi/ithfi/surfithfi
+
+initracer()
+if old q01/q02 names:
+  tname = noms
+
+loop:
+  print modification menu
+  read modif
+  if blank: exit
+  apply requested in-memory change
+
+if source is start_archive:
+  correct ps for changed topography
+  enforce longitude periodicity
+
+inifilr()
+pression(ap,bp,ps) -&gt; p3d
+exner_hyb(ps,p3d) -&gt; pks,pk,pkf
+compute teta if needed
+massdair and polar averaging for start_archive source
+geopot()
+caldyn0()
+dynredem0/1(&quot;restart.nc&quot;)
+physdem0/1(&quot;restartfi.nc&quot;)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>初始场生成</td>
+<td>顶层交互式入口，从 <code>start_archive</code> 或 <code>start/startfi</code> 生成新 restart</td>
+</tr>
+<tr>
+<td>地形与亚网格初始化</td>
+<td>调用 <code>datareadnc</code> 读取 MOLA/亚网格地形，并可用 <code>flat/nslope</code> 改写</td>
+</tr>
+<tr>
+<td>化学初始化</td>
+<td><code>ini_q</code> 和 <code>ini_q-h2o</code> 调用 <code>inichim_newstart</code></td>
+</tr>
+<tr>
+<td>水循环/同位素初始化</td>
+<td>可设置水汽梯度、地表水冰帽、地下冰、HDO</td>
+</tr>
+<tr>
+<td>CO2 循环初始状态</td>
+<td>可改总压、去 CO2 极冠、修改主成分</td>
+</tr>
+<tr>
+<td>坡面与古气候状态</td>
+<td><code>nslope</code> 分支重分配并复制 <code>surfdat/comsoil/dimradmars/paleoclimate</code> 坡面数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 <code>.F</code> 文件混合 F77 common/include、F90 <code>USE</code>、allocatable 和 whole-array 赋值。</li>
+<li>程序高度交互式，错误输入多用 <code>iostat</code> 循环重读；<code>q=profile</code>、<code>mons_ice</code> 额外依赖当前目录或 <code>datadir</code> 文件。</li>
+<li><code>choix_1</code> 的读取循环写作 <code>if ((choix_1 /= 0).OR.(choix_1 /=1)) EXIT</code>，按布尔逻辑该条件恒真，会在第一次成功读入后退出；复现时按实际源码行为理解为“只读一次选择”。</li>
+<li>start_archive 路径会在最终写出前按地形差指数修正 <code>ps</code>；若 <code>flat</code> 中用户已手动设置均一 <code>ps</code>，源码仍会进入该地形修正分支。</li>
+<li><code>composition</code> 分支支持 N2/Ar 缺失时的“隐式非 CO2 大气”特殊路径，硬编码非 CO2 摩尔质量 <code>33.87226017157708</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>当前目录必须有相应输入：<code>start_archive.nc</code> 或 <code>start.nc</code> + <code>startfi.nc</code>。</li>
+<li>start_archive 路径还需要 <code>datadir/surface.nc</code>，<code>mons_ice</code> 需要 <code>datadir/results_MONS_lat_lon_H_depth.txt</code>。</li>
+<li><code>run.def</code>、<code>callphys.def</code> 和 tracer 配置必须与编译维度、输入文件中的 <code>controle</code>、<code>nqtot</code>、<code>llm</code> 一致。</li>
+<li>若使用 <code>ini_q</code>/<code>ini_q-h2o</code>，还需要 <code>inichim_newstart</code> 读取的化学廓线数据文件。</li>
+<li>交互输入顺序会决定输出 restart；建议保存 stdin 脚本或终端日志，避免不可复现的人工输入。</li>
+<li>改 <code>nslope</code> 会复制或投影旧坡面状态，而不是重新物理平衡所有坡面状态；后续运行初期可能需要 spin-up。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>choix_1</code> 输入循环的 <code>.OR.</code> 条件是否为历史遗留笔误；本页按源码字面行为记录。</li>
+<li><code>flat</code> 分支中 <code>flagps0</code> 被置真但后续未见使用；均一 <code>ps</code> 是否仍应跳过地形压力修正待确认。</li>
+<li><code>composition</code> 分支中 <code>igcm_o2/igcm_co/igcm_o/igcm_h2</code> 为 0 时的数组访问风险需结合 tracer 配置确认。</li>
+<li><code>load_MONS_data</code> 打印提示写作 <code>callfis.def</code>，是否应为 <code>callphys.def</code> 待确认；不影响实际读取 <code>datadir</code>。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="lect_start_archive.html">lect_start_archive</a> — start_archive 读取与插值主例程。</li>
+<li><a href="datareadnc.html">datareadnc</a> — <code>surface.nc</code> 地表数据读取与网格映射。</li>
+<li><a href="defrun_new.html">defrun_new</a> — <code>run.def</code> 运行参数读取。</li>
+<li><a href="iniphysiq_mod.html">iniphysiq_mod</a> — 物理初始化入口。</li>
+<li><a href="caldyn0.html">caldyn0</a> — 写动力 restart 前的动力辅助量计算。</li>
+<li><a href="../aeronomars/inichim_newstart.html">inichim_newstart</a> — 化学 tracer 初始廓线构造。</li>
+<li><a href="../phymars/phyredem.html">phyredem</a> — <code>restartfi.nc</code> 写出。</li>
+<li><a href="start2archive.html">start2archive</a> — 反向把 start/startfi 转为 start_archive。</li>
+<li><a href="subslope_mola.html">subslope_mola</a> — <code>nslope</code> 分支重算坡面分布。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>solzenangle - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/solzenangle.md</span>
+    </nav>
+    <article class="content">
+<h1 id="solzenanglef90">solzenangle.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util\solzenangle.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>util</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>solzenangle.F90</code> 是一个离线 NetCDF 后处理程序，用于把 <code>diagfi.nc</code>、<code>concat.nc</code> 或 <code>stats.nc</code> 类输出中的 3D/4D 变量插值到指定太阳天顶角对应的本地真太阳时。它常用于抽取晨侧或昏侧的掩星/晨昏线条件，例如 <code>sza=90</code> 度时的地表终止线。</p>
+<p>程序不改变经纬度网格或垂直坐标。核心流程是先按日期、经度、纬度和目标太阳天顶角反解本地时 <code>LTsolzenangle(lon,lat,Time)</code>，再沿输入文件的时间维对用户选择的变量做一维线性插值，输出 <code>*_MO.nc</code> 或 <code>*_EV.nc</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>solzenangle</code></td>
+<td>program</td>
+<td>1</td>
+<td>主程序：读取输入文件、变量列表、晨/昏侧和目标 SZA，创建输出 NetCDF 并插值变量。</td>
+</tr>
+<tr>
+<td><code>initiate</code></td>
+<td>internal subroutine</td>
+<td>861</td>
+<td>创建输出 NetCDF 文件，定义坐标、<code>Time</code>、<code>GCM_layers</code> 和可选 <code>controle</code>。</td>
+</tr>
+<tr>
+<td><code>init2</code></td>
+<td>internal subroutine</td>
+<td>1076</td>
+<td>从输入复制可选 <code>aps/bps</code> hybrid 坐标和 <code>phisinit</code>。</td>
+</tr>
+<tr>
+<td><code>def_var</code></td>
+<td>internal subroutine</td>
+<td>1252</td>
+<td>定义输出变量并写入 <code>long_name</code>、<code>units</code> 属性。</td>
+</tr>
+<tr>
+<td><code>missing_value</code></td>
+<td>internal subroutine</td>
+<td>1302</td>
+<td>把 <code>valid_range</code> 和 <code>missing_value</code> 属性写到输出变量。</td>
+</tr>
+<tr>
+<td><code>interpolf</code></td>
+<td>internal subroutine</td>
+<td>1381</td>
+<td>一维线性插值；目标点不在坐标范围内或邻点缺测时返回 missing。</td>
+</tr>
+<tr>
+<td><code>LTsolzenangle</code></td>
+<td>internal subroutine</td>
+<td>1428</td>
+<td>由纬度、Ls、晨/昏侧和目标 SZA 反解本地真太阳时。</td>
+</tr>
+<tr>
+<td><code>sol2ls</code></td>
+<td>internal subroutine</td>
+<td>1483</td>
+<td>把 sol 日期转换为太阳经度 <code>Ls</code>，单位为度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖">依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>include "netcdf.inc"</code></td>
+<td>使用旧式 NetCDF Fortran <code>NF_*</code> 接口读写输入和输出。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NF_OPEN</code> / <code>NF_CLOSE</code></td>
+<td>NetCDF 库</td>
+<td>打开输入文件，关闭输入和输出文件。</td>
+</tr>
+<tr>
+<td><code>NF_INQ_NVARS</code> / <code>NF_INQ_VARNAME</code> / <code>NF_INQ_VARNDIMS</code></td>
+<td>NetCDF 库</td>
+<td>枚举变量、排除坐标/静态字段、确认 3D/4D 变量。</td>
+</tr>
+<tr>
+<td><code>NF_INQ_DIMID</code> / <code>NF_INQ_VARID</code> / <code>NF_INQ_DIMLEN</code></td>
+<td>NetCDF 库</td>
+<td>读取 <code>latitude/longitude/altitude/Time/index/GCM_layers</code> 维度和变量。</td>
+</tr>
+<tr>
+<td><code>NF_GET_VAR_REAL</code> / <code>NF_PUT_VARA_REAL</code></td>
+<td>NetCDF 库</td>
+<td>读取坐标、控制数组、输入变量，并写出插值后的变量。</td>
+</tr>
+<tr>
+<td><code>NF_GET_ATT_TEXT</code> / <code>NF_GET_ATT_REAL</code> / <code>NF_PUT_ATT_*</code></td>
+<td>NetCDF 库</td>
+<td>读取和写入 <code>long_name/title</code>、<code>units</code>、<code>missing_value</code>、<code>valid_range</code> 等属性。</td>
+</tr>
+<tr>
+<td><code>LTsolzenangle</code></td>
+<td>本文件</td>
+<td>反解目标 SZA 对应的本地真太阳时。</td>
+</tr>
+<tr>
+<td><code>sol2ls</code></td>
+<td>本文件</td>
+<td>非 <code>stats</code> 输入时把 sol 日期换算到 <code>Ls</code>，供太阳赤纬计算使用。</td>
+</tr>
+<tr>
+<td><code>interpolf</code></td>
+<td>本文件</td>
+<td>沿每个格点的时间序列做线性插值。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入文件名</td>
+<td>stdin / <code>solzenangle.def</code></td>
+<td>NetCDF 文件名</td>
+<td>-</td>
+<td><code>diagfi.nc</code>、<code>concat.nc</code>、<code>stats.nc</code> 等。</td>
+</tr>
+<tr>
+<td>变量列表</td>
+<td>stdin / <code>solzenangle.def</code></td>
+<td><code>all</code> 或逐行变量名，空行结束</td>
+<td>-</td>
+<td>要插值到目标 SZA 本地时的变量；源码只处理 3D 或 4D 变量。</td>
+</tr>
+<tr>
+<td><code>planetside</code></td>
+<td>stdin / <code>solzenangle.def</code></td>
+<td><code>morning</code> 或 <code>evening</code></td>
+<td>-</td>
+<td>选择目标 SZA 位于当地正午之前还是之后。</td>
+</tr>
+<tr>
+<td><code>sza</code></td>
+<td>stdin / <code>solzenangle.def</code></td>
+<td>real scalar</td>
+<td>degree</td>
+<td>目标太阳天顶角，源码要求 <code>0 &lt;= sza &lt; 180</code>。</td>
+</tr>
+<tr>
+<td>参考时间</td>
+<td>stdin / <code>solzenangle.def</code></td>
+<td><code>n</code>、sol 值或 stats 平均 Ls</td>
+<td>sol 或 degree</td>
+<td>非 <code>stats</code> 文件可保留/覆盖起始 sol；<code>stats</code> 文件读取平均 <code>Ls</code>。</td>
+</tr>
+<tr>
+<td><code>latitude</code> / <code>longitude</code> / <code>altitude</code></td>
+<td>输入 NetCDF</td>
+<td>1D</td>
+<td>degrees / 输入属性</td>
+<td>空间坐标；<code>altitude</code> 属性会复制到输出。</td>
+</tr>
+<tr>
+<td><code>Time</code></td>
+<td>输入 NetCDF</td>
+<td>1D</td>
+<td>sol 或 stats 小时</td>
+<td>输入时间轴；若属性为 <code>Solar longitude</code>，程序停止。</td>
+</tr>
+<tr>
+<td><code>controle</code></td>
+<td>输入 NetCDF</td>
+<td>1D，可选</td>
+<td>-</td>
+<td>用于推导 <code>startsol</code>，存在时也复制到输出并可能更新 <code>ctl(4)</code>。</td>
+</tr>
+<tr>
+<td><code>GCM_layers</code></td>
+<td>输入 NetCDF</td>
+<td>维度，可选</td>
+<td>-</td>
+<td>供 <code>aps/bps</code> 长度使用；不存在时取 <code>altlen</code>。</td>
+</tr>
+<tr>
+<td><code>aps/bps</code> / <code>phisinit</code></td>
+<td>输入 NetCDF</td>
+<td>可选</td>
+<td>-</td>
+<td><code>init2</code> 尝试复制到输出。</td>
+</tr>
+</tbody>
+</table>
+<p><code>solzenangle.def</code> 示例依次给出 <code>diagfi.nc</code>、<code>tsurf/ps/temp</code>、空行、<code>morning</code>、<code>90</code> 和 <code>0</code>。其中注释说明 <code>90</code> 度代表地表终止线，<code>&gt;90</code> 度可代表高空终止线条件。</p>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>*_MO.nc</code></td>
+<td>磁盘 NetCDF</td>
+<td>文件</td>
+<td>-</td>
+<td><code>morning</code> 分支输出，输入文件去掉 <code>.nc</code> 后追加 <code>_MO.nc</code>。</td>
+</tr>
+<tr>
+<td><code>*_EV.nc</code></td>
+<td>磁盘 NetCDF</td>
+<td>文件</td>
+<td>-</td>
+<td><code>evening</code> 分支输出，输入文件去掉 <code>.nc</code> 后追加 <code>_EV.nc</code>。</td>
+</tr>
+<tr>
+<td><code>latitude</code> / <code>longitude</code> / <code>altitude</code></td>
+<td>输出 NetCDF</td>
+<td>1D</td>
+<td>输入或固定属性</td>
+<td>原坐标复制。</td>
+</tr>
+<tr>
+<td><code>Time</code></td>
+<td>输出 NetCDF</td>
+<td>unlimited</td>
+<td>源码属性写成 calendar-like 字符串</td>
+<td>非 <code>stats</code> 分支写整数 sol；<code>stats</code> 分支写 <code>intsol*24</code>。</td>
+</tr>
+<tr>
+<td><code>GCM_layers</code> / <code>aps</code> / <code>bps</code> / <code>phisinit</code></td>
+<td>输出 NetCDF</td>
+<td>可选</td>
+<td>-</td>
+<td>从输入复制的辅助坐标和地形字段。</td>
+</tr>
+<tr>
+<td>用户选择变量</td>
+<td>输出 NetCDF</td>
+<td>3D <code>(lon,lat,Time)</code> 或 4D <code>(lon,lat,alt,Time)</code></td>
+<td>输入 <code>units</code></td>
+<td>插值到目标 SZA 对应本地时后的变量。</td>
+</tr>
+<tr>
+<td><code>LTsolzenangle</code></td>
+<td>输出 NetCDF</td>
+<td><code>(lon,lat,Time)</code></td>
+<td>hours</td>
+<td>每个经纬度、sol 上目标 SZA 对应的本地真太阳时；无解时为 <code>1E+20</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="副作用">副作用</h2>
+<ul>
+<li>使用 <code>NF_CLOBBER</code> 和 <code>NF_64BIT_OFFSET</code> 创建输出，同名 <code>_MO.nc</code> 或 <code>_EV.nc</code> 会被覆盖。</li>
+<li>标准输入顺序严格依赖 <code>solzenangle.def</code>；交互输入与重定向输入必须保持同一顺序。</li>
+<li>所选变量整块读入内存，再整块写出；大文件会按 <code>lon*lat*alt*time</code> 放大内存压力。</li>
+<li>缺少必要维度/变量、时间轴为 <code>Solar longitude</code>、<code>planetside</code> 或 <code>sza</code> 非法、NetCDF 读写失败时会 <code>stop</code>。</li>
+<li>若目标 SZA 在极昼/极夜条件下无对应本地时，<code>LTsolzenangle</code> 和相应插值输出会写 missing。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>变量筛选</strong>：程序枚举输入文件中的所有变量，排除 <code>Time/controle/rlonu/latitude/longitude/altitude/rlatv/aps/bps/ap/bp/soildepth/cu/cv/aire/phisinit</code> 这 16 个字段；用户输入 <code>all</code> 时取其余变量，否则逐行读取变量名。</li>
+<li><strong>坐标和时间读取</strong>：要求存在 <code>latitude</code>、<code>longitude</code>、<code>altitude</code>、<code>Time</code>；<code>controle</code> 和 <code>GCM_layers</code> 可选。<code>Time</code> 的 <code>long_name</code> 或 <code>title</code> 若等于 <code>Solar longitude</code>，程序停止，因为后续插值需要 sol 类时间轴。</li>
+<li><strong>SZA 参数检查</strong>：<code>planetside</code> 只能是 <code>morning</code> 或 <code>evening</code>；<code>sza</code> 必须在 <code>[0,180)</code> 度。</li>
+<li><strong>确定季节日期</strong>：
+<ul>
+<li>有 <code>controle</code> 时用 <code>int(int(ctl(4))+int(time(1)+ctl(27)))</code> 推导 <code>startsol</code>。</li>
+<li>无 <code>controle</code> 时用 <code>int(time(1))</code>。</li>
+<li>若 <code>timelen==12</code>、<code>time(1)==2</code>、<code>time(last)==24</code>，识别为 <code>stats</code> 文件，把时间小时除以 24，<code>nsol=1</code>，并从 stdin 读取平均 <code>Ls</code>。</li>
+<li>其他文件按 <code>nsol=int(time(last))-int(time(first))</code> 生成每个输出 sol。</li>
+</ul></li>
+<li><strong>反解目标本地时</strong>：对每个输出 sol、经度和纬度：
+<ul>
+<li>晨侧先用 <code>tmpsol=intsol+(6-lon/15)/24+startsol</code> 估计用于计算 <code>Ls</code> 的日期。</li>
+<li>昏侧用 <code>tmpsol=intsol+(18-lon/15)/24+startsol</code>。</li>
+<li>非 <code>stats</code> 分支调用 <code>sol2ls(tmpsol,tmpLs)</code>。</li>
+<li>调用 <code>LTsolzenangle(lat,tmpLs,planetside,sza,miss_lt,tmpLT)</code> 得到本地真太阳时小时。</li>
+</ul></li>
+<li><strong>创建输出和复制辅助字段</strong>：<code>initiate</code> 写基本维度与坐标；<code>init2</code> 在可用时复制 <code>aps/bps/phisinit</code>。</li>
+<li><strong>逐变量时间插值</strong>：
+<ul>
+<li>只处理 <code>ndim&gt;=3</code> 的变量，<code>ndim==3</code> 按 <code>(lon,lat,time)</code>，<code>ndim==4</code> 按 <code>(lon,lat,alt,time)</code>。</li>
+<li>每个经度的输入本地时轴为 <code>lt_gcm=time+lon/360</code>。</li>
+<li>目标 <code>LTsolzenangle</code> 小时被换成 <code>lt_outc=intsol+LT/24</code>。</li>
+<li>单 sol 输入会在尾部追加周期点；多 sol 输入若目标点越界则把 <code>lt_out</code> 和 <code>lt_outc</code> 置 missing。</li>
+<li><code>interpolf</code> 对每条时间序列线性插值。</li>
+</ul></li>
+<li><strong>写输出变量和属性</strong>：变量保留输入 <code>long_name/title</code> 与 <code>units</code>；输入没有 <code>missing_value</code> 属性时，源码把 missing 设为 <code>1E+20</code> 并写回输出。</li>
+<li><strong>写 <code>LTsolzenangle</code> 和全局注释</strong>：输出目标 SZA 对应的本地时变量，并在全局 <code>comment</code> 中说明可由 <code>LTsolzenangle</code>、经度和 <code>Time</code> 组合推回经度 0 度的 sol。</li>
+</ol>
+<h2 id="太阳天顶角反解公式">太阳天顶角反解公式</h2>
+<p><code>LTsolzenangle</code> 使用固定火星倾角 <code>obliquity=25.1919</code> 度，先计算太阳赤纬：</p>
+<pre class="text"><code>declin = asin(sin(Ls) * sin(obliquity))</code></pre>
+<p>然后由源码注释中的太阳天顶角方程反解时角：</p>
+<pre class="text"><code>cos(sza) = sin(lat)*sin(declin)
+         + cos(lat)*cos(declin)*cos(2*pi*(localtime/24 - 0.5))</code></pre>
+<p>程序实际计算：</p>
+<pre class="text"><code>tmpcos = cos(sza)/(cos(lat)*cos(declin)) - tan(lat)*tan(declin)</code></pre>
+<p>若 <code>tmpcos</code> 超出 <code>[-1,1]</code>，视为极昼/极夜下无对应本地时，返回 missing。否则晨侧使用：</p>
+<pre class="text"><code>lt = 24 * (0.5 - acos(tmpcos)/(2*pi))</code></pre>
+<p>昏侧使用：</p>
+<pre class="text"><code>lt = 24 * (0.5 + acos(tmpcos)/(2*pi))</code></pre>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>read input file
+list variables not in the 16-field skip list
+read selected variables
+read latitude, longitude, altitude, optional controle, and Time
+reject Solar longitude time axis
+read planetside and sza
+derive startsol and detect stats case
+for each output sol, longitude, latitude:
+  estimate tmpsol at LT=6 or LT=18 for season
+  if not stats: tmpLs = sol2ls(tmpsol)
+  lt_out = LTsolzenangle(lat, tmpLs, planetside, sza)
+create *_MO.nc or *_EV.nc
+copy coords, optional controle, aps/bps, phisinit
+for each selected 3D/4D variable:
+  read full variable
+  for each longitude:
+    lt_gcm = time + lon/360
+    convert lt_out hours to sol decimal lt_outc
+    wrap one-sol inputs or mark out-of-range multi-sol targets missing
+    interpolate each lat or lat-alt series with interpolf
+  write variable and missing/valid_range attributes
+write LTsolzenangle(lon,lat,Time)
+write global comment and close files</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>util 后处理链</td>
+<td>常接在 <a href="concatnc.html">concatnc</a>、<a href="zrecast.html">zrecast</a> 或 <a href="localtime.html">localtime</a> 类工具附近，用于把模型输出抽样到晨/昏侧指定 SZA。</td>
+</tr>
+<tr>
+<td>观测/掩星比较链</td>
+<td><code>sza=90</code> 可模拟晨昏线或太阳掩星几何条件，输出的 <code>LTsolzenangle</code> 可检查每个格点实际抽样本地时。</td>
+</tr>
+<tr>
+<td>太阳几何</td>
+<td>与 <a href="../phymars/solarlong.html">solarlong</a> 的主模式轨道换算不同，本文件内置 <code>sol2ls</code> 参数并直接用 SZA 几何公式反解本地时。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>输入时间轴必须是 sol 类时间，不可先把 <code>Time</code> 轴替换为 <code>Solar longitude</code>。</li>
+<li><code>solzenangle.def</code> 中变量列表后必须保留空行，随后才是 <code>morning/evening</code>、<code>sza</code> 和参考时间。</li>
+<li>晨侧/昏侧只影响目标 SZA 的反解分支和输出后缀；<code>morning</code> 输出 <code>_MO.nc</code>，<code>evening</code> 输出 <code>_EV.nc</code>。</li>
+<li>非 <code>stats</code> 输入的输出时间数由 <code>int(time(last))-int(time(first))</code> 决定；时间覆盖不足时会影响输出 sol 数。</li>
+<li>单 sol 输入会把首个时间点复制为周期尾点参与插值；多 sol 输入不会周期补齐，越界目标点会写 missing。</li>
+<li>目标 SZA 在高纬季节可能无晨侧或昏侧解，<code>LTsolzenangle</code> 会保留 missing，相关变量也会写 missing。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>startsol = int(int(ctl(4))+int(time(1)+ctl(27)))</code> 中 <code>ctl(4)</code> 与 <code>ctl(27)</code> 的语义需结合具体输出文件控制表确认。</li>
+<li><code>stats</code> 分支把输出 <code>Time</code> 写为 <code>intsol*24</code>，而 <code>Time</code> 属性仍使用 calendar-like 字符串；单位语义需按下游工具实际读取方式确认。</li>
+<li><code>all</code> 分支用 <code>Nnotprocessed+1:nbvarfile</code> 选择变量，隐含排除字段在变量表前部连续的假设；不同 NetCDF 变量顺序可能需要实测。</li>
+<li><code>LTsolzenangle</code> 在 <code>cos(lat)==0</code> 或 <code>cos(declin)==0</code> 时直接停止；极点和极端季节输入是否常见需结合实际网格确认。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li><code>_MO.nc</code> / <code>_EV.nc</code> 会覆盖同名文件。</li>
+<li>大 4D 变量整块读写，内存占用可能很高。</li>
+<li>文件名生成假定输入后缀为 <code>.nc</code>，通过 <code>file(1:len_trim(file)-3)</code> 截断。</li>
+<li>内置 <code>sol2ls</code> 常数与主模式 <code>planete_h/solarlong</code> 参数不完全共享，精确季节对齐需核验。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">util/index.md</a> - util 后处理工具总览。</li>
+<li><a href="concatnc.html">concatnc.md</a> - 常见上游时间拼接工具。</li>
+<li><a href="localtime.html">localtime.md</a> - 固定本地时重排工具。</li>
+<li><a href="lslin.html">lslin.md</a> - Ls 线性化工具。</li>
+<li><a href="zrecast.html">zrecast.md</a> - 常见上游垂直坐标重投影工具。</li>
+<li><a href="../phymars/solarlong.html">solarlong</a> - 主模式侧 sol 到太阳经度换算。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

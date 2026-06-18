@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>surfacearea - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/surfacearea.md</span>
+    </nav>
+    <article class="content">
+<h1 id="surfaceareaf">surfacearea.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\surfacearea.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>气溶胶（尘埃与水冰）表面积计算模块；为光化学异相反应提供单位体积可用的尘/冰颗粒总表面积 <code>surfdust</code>/<code>surfice</code>（m2/m3）。由 <code>physiq_mod</code> 在 <code>photochem</code> 路径中、<code>calchim</code> 之前调用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>surfacearea_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>包装 <code>surfacearea</code> 子例程</td>
+</tr>
+<tr>
+<td><code>surfacearea</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>按微物理/简单云两种方案计算尘/冰表面积，并输出诊断</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>nuice_sed, igcm_dust_number, igcm_ccn_number, varian, ccn_factor</code></td>
+<td>冰核 sedimentation 参数、尘/CCN tracer 索引、尘粒径方差和 CCN 缩放因子</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>conc_mod</code></td>
+<td><code>rnew</code></td>
+<td>各网格层气体常数，用于理想气体密度</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>圆周率常量</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>wstats_mod</code></td>
+<td><code>wstats</code></td>
+<td>统计日诊断累加</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>write_output_mod</code></td>
+<td><code>write_output</code></td>
+<td>可选 XIOS / diagfi 输出</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>microphys</code></td>
+<td>微物理方案开关，决定分支</td>
+<td>无</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>wstats</code></td>
+<td><code>wstats_mod</code></td>
+<td>行 124, 126</td>
+<td>累加 <code>surfdust</code>/<code>surfice</code> 统计日诊断（micron2/cm3）</td>
+</tr>
+<tr>
+<td><code>write_output</code></td>
+<td><code>write_output_mod</code></td>
+<td>行 129, 131</td>
+<td>可选 XIOS / diagfi 字段输出</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>水平网格点数</td>
+</tr>
+<tr>
+<td><code>nlay</code></td>
+<td>调用方</td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>naerkind</code></td>
+<td>调用方</td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>气溶胶种类数</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>调用方</td>
+<td><code>real</code></td>
+<td>s</td>
+<td>物理时间步</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td>调用方</td>
+<td><code>real (ngrid,nlay)</code></td>
+<td>Pa</td>
+<td>中层气压</td>
+</tr>
+<tr>
+<td><code>pzlay</code></td>
+<td>调用方</td>
+<td><code>real (ngrid,nlay)</code></td>
+<td>m</td>
+<td>中层高度</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td>调用方</td>
+<td><code>real (ngrid,nlay)</code></td>
+<td>K</td>
+<td>中层温度</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td>调用方</td>
+<td><code>real (ngrid,nlay,nq)</code></td>
+<td>kg/kg</td>
+<td>示踪物混合比</td>
+</tr>
+<tr>
+<td><code>pdq</code></td>
+<td>调用方</td>
+<td><code>real (ngrid,nlay,nq)</code></td>
+<td>kg/kg·s</td>
+<td>物理倾向</td>
+</tr>
+<tr>
+<td><code>rdust</code></td>
+<td>调用方</td>
+<td><code>real (ngrid,nlay)</code></td>
+<td>m</td>
+<td>尘埃几何平均半径</td>
+</tr>
+<tr>
+<td><code>rice</code></td>
+<td>调用方</td>
+<td><code>real (ngrid,nlay)</code></td>
+<td>m</td>
+<td>冰质量平均半径</td>
+</tr>
+<tr>
+<td><code>tau</code></td>
+<td>调用方</td>
+<td><code>real (ngrid,naerkind)</code></td>
+<td>—</td>
+<td>柱尘埃光学厚度</td>
+</tr>
+<tr>
+<td><code>tauscaling</code></td>
+<td>调用方</td>
+<td><code>real (ngrid)</code></td>
+<td>—</td>
+<td>尘量换算因子</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>surfdust</code></td>
+<td><code>calchim</code>（经 <code>physiq_mod</code>）</td>
+<td><code>real (ngrid,nlay)</code></td>
+<td>m2/m3</td>
+<td>尘埃颗粒总表面积密度</td>
+</tr>
+<tr>
+<td><code>surfice</code></td>
+<td><code>calchim</code>（经 <code>physiq_mod</code>）</td>
+<td><code>real (ngrid,nlay)</code></td>
+<td>m2/m3</td>
+<td>水冰颗粒总表面积密度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>factor_dust</code>, <code>factor_ice</code>（<code>real, save</code>）：对数正态分布质量平均半径到总表面积的换算因子，firstcall 时由 <code>varian</code>/<code>nuice_sed</code> 计算后保持不变。</li>
+<li><code>firstcall</code>（<code>logical, save</code>）：初始化标志，firstcall 后置 <code>.false.</code>。</li>
+<li>以上三个变量标记为 <code>$OMP THREADPRIVATE</code>。</li>
+<li>诊断输出：<code>wstats</code> 累加 <code>surfdust</code>/<code>surfice</code>（单位 micron2/cm3），<code>write_output</code> 可选写出。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><p><strong>firstcall 初始化</strong>（行 69-77）：由 <code>tracer_mod::varian</code> 和 <code>nuice_sed</code> 计算对数正态分布表面积放大因子 <code>factor_dust = exp(0.5*(log(varian))^2)</code> 和 <code>factor_ice = exp(0.5*(log(sqrt(log(nuice_sed+1))))^2)</code>，打印后关闭标志。</p></li>
+<li><p><strong>微物理分支</strong>（<code>microphys = .true.</code>，行 79-97）：逐格逐层按理想气体求密度 <code>rho = pplay/(rnew*pt)</code>，用 <code>pq + pdq*ptimestep</code> 更新尘/冰数密度，乘 <code>factor * rho * tauscaling * 4πr²</code> 得表面积。</p></li>
+<li><p><strong>简单云分支</strong>（<code>microphys = .false.</code>，行 98-120）：用经验廓线 <code>rdusttyp = max(0.8μm * exp(-z/18km), 1nm)</code> 和 <code>ccntyp = 1.3e8 * max(tau1, 0.001)/0.1 * exp(-z/10km) / ccn_factor</code> 估算典型半径和数密度；按 <code>rice &gt; rdust</code> 判定冰/尘主导，分别给出 <code>surfdust</code> 和 <code>surfice</code>（冰不存在时置零）。</p></li>
+<li><p><strong>诊断输出</strong>（行 122-132）：乘 <code>1e6</code> 换算为 micron2/cm3，调 <code>wstats</code> 和 <code>write_output</code>。</p></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if firstcall:
+    sigma_dust = varian
+    sigma_ice  = sqrt(log(nuice_sed + 1))
+    factor_dust = exp(0.5 * log(sigma_dust)^2)
+    factor_ice  = exp(0.5 * log(sigma_ice)^2)
+    firstcall = false
+
+if microphys:
+    for each (ig, l):
+        rho = pplay / (rnew * pt)
+        dustnd = pq(dust_number) + pdq(dust_number) * dt
+        icend  = pq(ccn_number)  + pdq(ccn_number)  * dt
+        surfdust = factor_dust * dustnd * rho * tauscaling * 4π * rdust²
+        surfice  = factor_ice  * icend  * rho * tauscaling * 4π * rice²
+else:
+    for each (ig, l):
+        rho = pplay / (rnew * pt)
+        rdusttyp = max(0.8e-6 * exp(-z/18000), 1e-9)
+        ccntyp   = 1.3e8 * max(tau(:,1), 0.001) / 0.1 * exp(-z/10000) / ccn_factor
+        if rice &gt; rdust:
+            surfdust = factor_dust * ccntyp * (ccn_factor - 1) * rho * 4π * rdusttyp²
+            surfice  = factor_ice  * ccntyp * rho * 4π * rice²
+        else:
+            surfdust = factor_dust * ccntyp * ccn_factor * rho * 4π * rdusttyp²
+            surfice  = 0
+
+wstats(&quot;surfdust&quot;, surfdust * 1e6)
+wstats(&quot;surfice&quot;,  surfice  * 1e6)
+write_output(&quot;surfdust&quot;, surfdust * 1e6)
+write_output(&quot;surfice&quot;,  surfice  * 1e6)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>光化学</td>
+<td>为 <code>photochemistry_mod</code> 异相反应提供尘/冰表面积；<code>physiq_mod</code> 在 <code>calchim</code> 之前调用</td>
+</tr>
+<tr>
+<td>尘埃循环</td>
+<td>消费尘埃粒径、光学厚度和数密度 tracer 计算表面积</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td>消费冰粒径和 CCN 数密度 tracer 计算冰表面积</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran（<code>.F</code>），续行符 <code>$</code>。</li>
+<li><code>factor_dust</code>/<code>factor_ice</code>/<code>firstcall</code> 标记 <code>save</code> + <code>THREADPRIVATE</code>。</li>
+<li>对数正态分布表面积放大因子来自 <code>exp(0.5 * σ²)</code>，其中 <code>σ = log(geometric_std)</code>。</li>
+<li>简单云分支经验常数：<code>0.8 μm</code> 地表尘半径、<code>18 km</code> 标高、<code>1.3e8 #/kg</code> 地表 CCN、<code>10 km</code> 标高。</li>
+<li><code>surfdust</code>/<code>surfice</code> 内部单位 m2/m3，诊断乘 <code>1e6</code> 换算为 micron2/cm3。</li>
+<li><code>rice &gt; rdust</code> 判定用于区分冰主导与尘主导层，冰不存在时 <code>surfice</code> 置零。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>需要 <code>tracer_mod</code> 中 <code>igcm_dust_number</code>、<code>igcm_ccn_number</code>、<code>nuice_sed</code>、<code>varian</code>、<code>ccn_factor</code> 已正确初始化。</li>
+<li><code>conc_mod::rnew</code> 需为各层有效气体常数。</li>
+<li><code>callkeys_mod::microphys</code> 决定微物理/简单云分支。</li>
+<li>输入 <code>rdust</code>/<code>rice</code>/<code>tau</code>/<code>tauscaling</code> 由 <code>physiq_mod</code> 在调用前准备。</li>
+<li><code>calchim</code> 内部把 <code>surfdust</code>/<code>surfice</code>（m2/m3）乘 <code>1e-2</code> 转为 cm2/cm3 后供异相反应使用。</li>
+<li>firstcall 因子只依赖 <code>varian</code> 和 <code>nuice_sed</code>，不依赖格点或层。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>tauscaling</code> 的物理含义和来源（可能由 <code>aeropacity_mod</code> 或 <code>suaer</code> 提供）。</li>
+<li>简单云分支经验常数 <code>0.8 μm / 18 km / 1.3e8 / 10 km</code> 的文献出处。</li>
+<li><code>ccn_factor</code> 的具体取值范围和对简单云分支的影响。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="calchim_mod.html">calchim_mod</a>：消费 <code>surfdust</code>/<code>surfice</code> 的光化学调度模块</li>
+<li><a href="photochemistry_mod.html">photochemistry_mod</a>：异相反应使用尘/冰表面积</li>
+<li><a href="../phymars/physiq_mod.html">physiq_mod</a>：调用方，<code>photochem</code> 路径中先调 <code>surfacearea</code> 再调 <code>calchim</code></li>
+<li><a href="../phymars/tracer_mod.html">tracer_mod</a>：提供 <code>igcm_dust_number</code>/<code>igcm_ccn_number</code>/<code>varian</code>/<code>ccn_factor</code>/<code>nuice_sed</code></li>
+<li><a href="../phymars/conc_mod.html">conc_mod</a>：提供 <code>rnew</code> 气体常数</li>
+<li><a href="index.html">aeronomars/index</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

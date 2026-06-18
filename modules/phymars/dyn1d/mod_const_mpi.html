@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mod_const_mpi - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../../index.html">主页</a>
+        <a href="../../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../../libf-overview.html">模块</a>
+        <a href="../../../themes/index.html">主题</a>
+        <a href="../../../routines/index.html">例程</a>
+        <a href="../../../reference/file-index.html">文件索引</a>
+        <a href="../../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dyn1d/mod_const_mpi.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dyn1dmod_const_mpif90">dyn1d/mod_const_mpi.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d\mod_const_mpi.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>dyn1d/mod_const_mpi.F90</code> 在当前源码树中不是独立实现，而是一行相对路径：</p>
+<pre class="text"><code>../../../../LMDZ.COMMON/libf/dyn3dpar/mod_const_mpi.F90</code></pre>
+<p>它把 1D <code>testphys1d</code> 构建路径中的 <code>mod_const_mpi</code> 解析到公共并行动力版本。目标模块保存 LMDZ 动力侧 MPI communicator 和实数 MPI datatype，并提供 MPI/XIOS/OASIS 初始化入口。当前 dyn1d 初始化直接读取 <code>COMM_LMDZ</code>，用于有 XIOS 时初始化物理分布。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">目标行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_const_mpi.F90</code></td>
+<td>path stub</td>
+<td style="text-align: right;">dyn1d line 1</td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3dpar/mod_const_mpi.F90</code>。</td>
+</tr>
+<tr>
+<td><code>mod_const_mpi</code></td>
+<td>module</td>
+<td style="text-align: right;">common line 4</td>
+<td>保存 MPI communicator/datatype 并提供初始化例程。</td>
+</tr>
+<tr>
+<td><code>COMM_LMDZ</code></td>
+<td>integer, save</td>
+<td style="text-align: right;">common line 6</td>
+<td>LMDZ 动力侧 communicator；MPI 分支常设为 <code>MPI_COMM_WORLD</code> 或 XIOS/OASIS 返回的 communicator。</td>
+</tr>
+<tr>
+<td><code>MPI_REAL_LMDZ</code></td>
+<td>integer, save</td>
+<td style="text-align: right;">common line 7</td>
+<td>LMDZ real 数据的 MPI datatype；MPI 分支设为 <code>MPI_REAL8</code>。</td>
+</tr>
+<tr>
+<td><code>Init_const_mpi</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">common line 12</td>
+<td>读取 <code>type_ocean</code>，按耦合/非耦合路径初始化 communicator。</td>
+</tr>
+<tr>
+<td><code>Init_mpi</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">common line 60</td>
+<td>非耦合路径 MPI 初始化入口，必要时也初始化 XIOS。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="初始化逻辑">初始化逻辑</h2>
+<h3 id="init_const_mpi"><code>Init_const_mpi</code></h3>
+<ol type="1">
+<li>通过 <code>getin('type_ocean', type_ocean)</code> 读取海洋耦合类型，默认字符串为 <code>force </code>。</li>
+<li>若 <code>type_ocean=='couple'</code>：
+<ul>
+<li>在 <code>CPP_COUPLE</code> 下进入耦合初始化。</li>
+<li>有 <code>CPP_XIOS</code> 时调用 <code>wxios_init("LMDZ", outcom=COMM_LMDZ, type_ocean=type_ocean)</code>。</li>
+<li>否则调用 OASIS/PRISM 的 <code>prism_init_comp_proto</code> 和 <code>prism_get_localcomm_proto(COMM_LMDZ,ierr)</code>。</li>
+<li>在 <code>CPP_MPI</code> 下设置 <code>MPI_REAL_LMDZ=MPI_REAL8</code>。</li>
+</ul></li>
+<li>否则调用 <code>Init_mpi</code>。</li>
+</ol>
+<h3 id="init_mpi"><code>Init_mpi</code></h3>
+<ol type="1">
+<li>在 <code>CPP_MPI</code> 下调用 <code>MPI_INIT_THREAD</code>，要求 <code>MPI_THREAD_SERIALIZED</code>。</li>
+<li>若 MPI 线程支持级别不足，打印 warning。</li>
+<li>设置 <code>COMM_LMDZ=MPI_COMM_WORLD</code>，<code>MPI_REAL_LMDZ=MPI_REAL8</code>。</li>
+<li>若同时启用 <code>CPP_XIOS</code>，调用 <code>wxios_init("LMDZ", outcom=COMM_LMDZ)</code>。</li>
+<li>若未启用 <code>CPP_MPI</code> 但启用 <code>CPP_XIOS</code>，只调用 <code>wxios_init("LMDZ")</code>，源码中不设置 <code>COMM_LMDZ</code>。</li>
+</ol>
+<h2 id="dyn1d-使用路径">dyn1d 使用路径</h2>
+<p>当前 dyn1d 目录中直接使用 <code>mod_const_mpi</code> 的源码位置是 <a href="init_testphys1d_mod.html">init_testphys1d_mod</a>：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">use</span> mod_const_mpi, <span class="kw">only</span>: COMM_LMDZ</span></code></pre></div>
+<p>在初始化 physics distribution 时：</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ot">#ifdef CPP_XIOS</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co">call init_physics_distribution(regular_lonlat,4,1,1,1,nlayer,COMM_LMDZ)</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ot">#else</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co">call init_physics_distribution(regular_lonlat,4,1,1,1,nlayer,1)</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="ot">#endif</span></span></code></pre></div>
+<p>因此 <code>COMM_LMDZ</code> 在 1D 路径中的直接作用是：当 <code>CPP_XIOS</code> 打开时，把动力侧 communicator 传给 physics distribution 初始化；没有 XIOS 时使用整数 <code>1</code> 作为串行/占位 communicator。</p>
+<h2 id="使用方和相关公共路径">使用方和相关公共路径</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>使用符号</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="init_testphys1d_mod.html">init_testphys1d_mod</a></td>
+<td><code>COMM_LMDZ</code></td>
+<td>XIOS 分支初始化 1D physics distribution。</td>
+</tr>
+<tr>
+<td><a href="parallel_lmdz.html">parallel_lmdz.F90</a></td>
+<td><code>COMM_LMDZ</code>, <code>using_mpi</code> 等</td>
+<td>公共并行运行时初始化 rank/size、barrier、broadcast、gather。</td>
+</tr>
+<tr>
+<td><code>dynphy_lonlat/calfis_p.F</code></td>
+<td><code>COMM_LMDZ</code></td>
+<td>并行动力-物理接口中做 MPI 非阻塞通信。</td>
+</tr>
+<tr>
+<td><code>dyn3dpar/mod_hallo.F90</code></td>
+<td><code>COMM_LMDZ</code>, <code>MPI_REAL_LMDZ</code></td>
+<td>halo 通信使用 communicator 和 real datatype。</td>
+</tr>
+<tr>
+<td><code>dyn3dpar/times.F90</code></td>
+<td><code>MPI_REAL_LMDZ</code>, <code>COMM_LMDZ</code></td>
+<td>并行计时统计 gather。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与串行版本的差异">与串行版本的差异</h2>
+<p>公共源码还存在 <code>LMDZ.COMMON/libf/dyn3d/mod_const_mpi.F90</code>，它同名但更小，只声明 <code>COMM_LMDZ/MPI_REAL_LMDZ</code> 和一个把两者置 0 的 <code>Init_const_mpi</code>。本 dyn1d stub 指向的是 <code>dyn3dpar</code> 版本，所以页面按并行版本记录；不要把串行 <code>dyn3d</code> 版本的“置 0”行为套到当前 dyn1d 路径。</p>
+<h2 id="编译条件和外部依赖">编译条件和外部依赖</h2>
+<table>
+<thead>
+<tr>
+<th>宏/依赖</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CPP_MPI</code></td>
+<td>引入 <code>mpif.h</code>，调用 <code>MPI_INIT_THREAD</code>，设置 <code>COMM_LMDZ=MPI_COMM_WORLD</code> 和 <code>MPI_REAL_LMDZ=MPI_REAL8</code>。</td>
+</tr>
+<tr>
+<td><code>CPP_XIOS</code></td>
+<td>使用 <code>wxios_init</code> 初始化 XIOS，并可返回 <code>COMM_LMDZ</code>。</td>
+</tr>
+<tr>
+<td><code>CPP_OMCT</code>, <code>CPP_COUPLE</code></td>
+<td>使用 OASIS/PRISM coupling 路径初始化本地 communicator。</td>
+</tr>
+<tr>
+<td><code>CPP_IOIPSL</code></td>
+<td>从 IOIPSL 使用 <code>getin</code>；否则使用本地 <code>ioipsl_getincom::getin</code>。</td>
+</tr>
+<tr>
+<td><code>type_ocean</code></td>
+<td>配置键；默认 <code>force </code>，为 <code>couple</code> 时走耦合 communicator 初始化。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li><code>COMM_LMDZ</code> 是否已初始化取决于程序入口是否调用过 <code>Init_const_mpi</code> 或 <code>Init_mpi</code>。单看 <code>init_testphys1d_mod</code> 只能看到读取 <code>COMM_LMDZ</code>，不能证明初始化发生在该例程内部。</li>
+<li>未启用 <code>CPP_XIOS</code> 的 1D 初始化不会使用 <code>COMM_LMDZ</code>，而是把 <code>1</code> 传给 <code>init_physics_distribution</code>。</li>
+<li>启用 <code>CPP_XIOS</code> 时，如果 <code>COMM_LMDZ</code> 未被正确初始化，physics distribution 初始化可能拿到未定义 communicator。</li>
+<li>当前文件是公共并行 stub，不是 Mars 物理层 MPI 数据模块；物理层 communicator 另见 <code>mod_phys_lmdz_mpi_data.F90</code> 的 <code>COMM_LMDZ_PHY</code>。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>具体 <code>testphys1d</code> 构建入口是否总是在调用 <a href="init_testphys1d_mod.html">init_testphys1d_mod</a> 前调用 <code>Init_const_mpi</code>，需要结合 makefile 或运行入口继续核验。</li>
+<li>Windows 工作树把 dyn1d 入口呈现为一行路径文本；原始类 Unix 工作树中它可能是符号链接。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn1d/index.md</a> - dyn1d 子目录索引。</li>
+<li><a href="init_testphys1d_mod.html">init_testphys1d_mod</a> - 1D 初始化读取 <code>COMM_LMDZ</code>。</li>
+<li><a href="parallel_lmdz.html">parallel_lmdz.F90</a> - 并行运行时 stub。</li>
+<li><a href="mod_interface_dyn_phys.html">mod_interface_dyn_phys.F90</a> - 动力-物理接口 stub。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

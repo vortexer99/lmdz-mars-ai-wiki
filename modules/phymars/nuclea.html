@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nuclea - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/nuclea.md</span>
+    </nav>
+    <article class="content">
+<h1 id="nucleaf">nuclea.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\nuclea.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>nuclea.F</code> 定义 <code>nuclea_mod</code>，提供水冰云完整微物理中的异质成核率计算。它不负责水汽、尘埃或 CCN tracer 的更新；唯一主调用方 <code>improvedclouds_mod.F90</code> 先把尘埃矩展开成水云半径 bin 上的 <code>n_aer/m_aer</code>，再调用 <code>nuclea(ph2o, zt, satu, n_aer, rate)</code> 得到每个 bin 的成核率，随后用 <code>exp(-rate*microtimestep)</code> 把被激活的尘埃数/质量转入 CCN tracer。</p>
+<p>源码注释说明其物理基础为 Pruppacher &amp; Klett (1978) 的固体基底上水冰成核，并由 Keese (1989) 修订；当前 Mars GCM 版本还加入了 <code>temp_dependent_m</code> 温度依赖接触参数分支。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nuclea_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装水冰异质成核率例程和几何形状因子函数</td>
+</tr>
+<tr>
+<td><code>nuclea</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>按水汽分压、温度、饱和比和各半径 bin 的 CCN 数量计算成核率</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td>logical save/threadprivate</td>
+<td>52</td>
+<td>控制接触参数模式说明只在首次进入时打印</td>
+</tr>
+<tr>
+<td><code>fshape</code></td>
+<td>double precision function</td>
+<td>173</td>
+<td>计算临界胚胎在有限尘粒曲率上的接触几何形状因子</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>球体几何和临界胚胎自由能公式中的圆周率</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>nbin_cld</code>, <code>rad_cld</code>, <code>nav</code>, <code>mteta</code>, <code>m0</code></td>
+<td>水云 bin 数、bin 半径、Avogadro 常数、接触参数和水分子质量</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>desorp</code>, <code>kbz</code>, <code>nus</code>, <code>rgp</code>, <code>surfdif</code>, <code>vo1</code></td>
+<td>成核指数项所需的脱附能、Boltzmann 常数、跳跃频率、气体常数、表面扩散能和水分子体积</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>temp_dependent_m</code>, <code>cloud_adapt_ts</code></td>
+<td>控制接触参数是否由温度公式覆盖，以及使用线性还是 tanh 公式</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>sig_h2o_mod</code></td>
+<td><code>sig_h2o</code></td>
+<td>按温度给出水冰/水汽表面张力，用于 <code>rstar</code> 和 <code>fistar</code></td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sig_h2o</code></td>
+<td><code>sig_h2o_mod.F90</code></td>
+<td>119, 141</td>
+<td>计算温度相关的水冰表面张力</td>
+</tr>
+<tr>
+<td><code>fshape</code></td>
+<td>本文件</td>
+<td>138</td>
+<td>当尘粒半径不足以近似平面基底时计算曲率修正形状因子</td>
+</tr>
+<tr>
+<td><code>nuclea</code></td>
+<td>本文件</td>
+<td><code>improvedclouds_mod.F90:294</code></td>
+<td>水冰云成核段按 bin 返回成核率 <code>rate</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ph2o</code></td>
+<td><code>improvedclouds</code> 局部水汽分压</td>
+<td>double precision scalar</td>
+<td>Pa</td>
+<td>当前格点/层水汽分压</td>
+</tr>
+<tr>
+<td><code>temp</code></td>
+<td><code>improvedclouds</code> 的 <code>zt(ig,l)</code></td>
+<td>real scalar</td>
+<td>K</td>
+<td>当前温度</td>
+</tr>
+<tr>
+<td><code>sat</code></td>
+<td><code>improvedclouds</code> 的 <code>satu</code></td>
+<td>double precision scalar</td>
+<td>-</td>
+<td>水汽相对冰饱和比；必须大于 1 才激活成核</td>
+</tr>
+<tr>
+<td><code>n_ccn</code></td>
+<td><code>improvedclouds</code> 展开的 <code>n_aer</code></td>
+<td>double precision <code>(nbin_cld)</code></td>
+<td>number mixing / bin</td>
+<td>每个半径 bin 中可作为成核基底的尘埃或 CCN 数量</td>
+</tr>
+<tr>
+<td><code>rad_cld</code></td>
+<td><code>microphys_h</code>，由 <code>improvedclouds</code> firstcall 写入</td>
+<td>double precision <code>(nbin_cld)</code></td>
+<td>m</td>
+<td>水云微物理半径 bin</td>
+</tr>
+<tr>
+<td><code>mteta</code></td>
+<td><code>microphys_h</code>，由 <code>conf_phys.F</code> 初始化</td>
+<td>real saved scalar</td>
+<td>-</td>
+<td>接触参数 <code>m=cos(theta)</code>；可被温度依赖分支局部覆盖</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nucrate</code></td>
+<td><code>improvedclouds</code> 的 <code>rate</code></td>
+<td>real <code>(nbin_cld)</code></td>
+<td>s-1</td>
+<td>每个 bin 的异质成核率；调用方用于 <code>exp(-rate*microtimestep)</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本文件自身只保存 <code>firstcall</code>，并声明为 OpenMP <code>THREADPRIVATE</code>。</li>
+<li><code>firstcall</code> 为真时会打印当前接触参数模式：常数 <code>mteta</code>、Maattaanen et al. 2014 线性拟合，或 Maattaanen et al. 2014 tanh 拟合。</li>
+<li><code>mteta</code>、<code>rad_cld</code>、<code>vo1</code> 等关键输入来自 <code>microphys_h</code> 的线程私有共享状态；<code>rad_cld</code> 和 <code>vo1</code> 由 <code>improvedclouds_mod.F90:148-182</code> 初始化，<code>mteta</code> 由 <code>conf_phys.F:863-872</code> 或温度依赖分支决定。</li>
+<li>本文件不读写 restart、NetCDF、诊断文件，也不直接更新 tracer；副作用限于写输出数组和首次打印说明。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>从 <code>microphys_h::mteta</code> 复制本地双精度接触参数 <code>mtetalocal</code>。</li>
+<li>如果 <code>temp_dependent_m=.true.</code>，则按 <code>cloud_adapt_ts</code> 选择温度依赖公式：
+<ul>
+<li><code>cloud_adapt_ts=.false.</code>：<code>mtetalocal = min(0.0044*temp + 0.1831, 0.97)</code>。</li>
+<li><code>cloud_adapt_ts=.true.</code>：<code>mtetalocal = 0.469 + ((0.972-0.469)*tanh((temp/158.282)**4.244))</code>。</li>
+</ul></li>
+<li>首次调用时打印接触参数模式提示。</li>
+<li>若 <code>sat &lt;= 1</code>，所有 bin 的 <code>nucrate</code> 直接置零。</li>
+<li>若 <code>sat &gt; 1</code>，先计算水分子数密度 <code>nh2o = ph2o/(kbz*temp)</code>、临界胚胎半径 <code>rstar</code>、临界胚胎分子数 <code>gstar</code>。</li>
+<li>计算平面基底近似形状因子 <code>fshapesimple = (2+m)(1-m)^2/4</code>。</li>
+<li>对每个水云半径 bin：
+<ul>
+<li>若 <code>n_ccn(i) &lt; 1e-10</code>，跳过昂贵计算并令成核率为 0。</li>
+<li>若 <code>rad_cld(i) &gt; 3000*rstar</code>，使用平面近似形状因子。</li>
+<li>否则调用 <code>fshape(mtetalocal, rad_cld(i)/rstar)</code> 计算有限曲率形状因子。</li>
+<li>用 <code>fistar</code>、<code>deltaf</code> 和指数项计算 <code>nucrate(i)</code>；<code>deltaf</code> 被限制在 <code>[-100,100]</code> 以避免指数溢出。</li>
+</ul></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>nuclea(ph2o, temp, sat, n_ccn):
+    mtetalocal = mteta
+    if temp_dependent_m:
+        if cloud_adapt_ts:
+            mtetalocal = tanh fit from Maattaanen et al. 2014
+        else:
+            mtetalocal = min(linear fit, 0.97)
+
+    print contact-parameter mode on first call
+
+    if sat &lt;= 1:
+        nucrate(:) = 0
+        return
+
+    nh2o = ph2o / (kbz * temp)
+    rstar = 2 * sig_h2o(temp) * vo1 / (rgp * temp * log(sat))
+    gstar = 4 * nav * pi * rstar^3 / (3 * vo1)
+    fshapesimple = (2 + m) * (1 - m)^2 / 4
+
+    for each cloud bin i:
+        if n_ccn(i) is negligible:
+            nucrate(i) = 0
+            continue
+        if rad_cld(i) is much larger than rstar:
+            zefshape = fshapesimple
+        else:
+            zefshape = fshape(m, rad_cld(i)/rstar)
+        fistar = 4/3*pi*sig_h2o(temp)*rstar^2*zefshape
+        deltaf = clamp((2*desorp - surfdif - fistar)/(kbz*temp), -100, 100)
+        nucrate(i) = prefactor * exp(deltaf)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>水循环</td>
+<td>在 <code>microphys=.true.</code> 的完整水冰云微物理中计算尘核上水冰异质成核率</td>
+</tr>
+<tr>
+<td>尘埃清除 / CCN 转换</td>
+<td><code>improvedclouds</code> 用 <code>rate</code> 把 dust mass/number 减少并把对应质量/数目加入 <code>ccn_mass/ccn_number</code></td>
+</tr>
+<tr>
+<td>微物理配置</td>
+<td><code>temp_dependent_m</code>、<code>cloud_adapt_ts</code> 和 <code>mteta</code> 改变接触参数，从而改变成核能垒</td>
+</tr>
+<tr>
+<td>水冰云微物理</td>
+<td>与 <a href="growthrate.html">growthrate</a> 共同构成完整水云方案中的成核和冰晶增长两段</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 源码，模块名小写，主例程名小写。</li>
+<li><code>nucrate</code> 输出为 <code>REAL</code>，但内部大多数物理量用 <code>DOUBLE PRECISION</code> 计算。</li>
+<li><code>n_ccn(i) &lt; 1e-10</code> 分支在无尘核 bin 上跳过成核率公式，避免无意义计算。</li>
+<li><code>deltaf</code> 在指数前被限幅到 <code>[-100,100]</code>；当限到 <code>-100</code> 时源码直接给 <code>nucrate=0</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>直接调用 <code>nuclea</code> 前必须保证 <code>improvedclouds</code> firstcall 已经初始化 <code>microphys_h::rad_cld</code> 和 <code>vo1</code>；否则半径 bin 和分子体积可能未定义。</li>
+<li><code>mteta</code> 默认值在 <code>conf_phys.F</code> 中为 <code>0.95</code>；若 <code>temp_dependent_m=.false.</code>，还会读取 <code>mteta</code> 配置覆盖。</li>
+<li><code>cloud_adapt_ts=.true.</code> 要求 <code>temp_dependent_m=.true.</code>，该一致性检查在 <code>conf_phys.F:889-894</code>。</li>
+<li><code>sat &lt;= 1</code> 时成核率全为零；调用方 <code>improvedclouds</code> 也只在 <code>satu &gt;= 1</code> 分支中调用本例程。</li>
+<li><code>nucrate</code> 只影响成核概率；实际 dust/CCN tracer 更新发生在 <code>improvedclouds_mod.F90:296-308</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>fshape</code> 的输入 <code>rap=rad_cld/rstar</code> 在公式中是否要求额外下限保护；当前源码没有对 <code>rstar</code> 或 <code>rap</code> 做保护，依赖 <code>sat &gt; 1</code> 使 <code>log(sat)</code> 有效。</li>
+<li><code>rgp</code> 与 <code>vo1</code> 混用在 <code>rstar</code> 公式中的量纲细节未在源码注释中展开，本页按源码公式记录。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a>：本模块所属目录。</li>
+<li><a href="improvedclouds_mod.html">improvedclouds_mod</a>：唯一主调用方，负责把成核率转成 dust/CCN tracer 更新。</li>
+<li><a href="growthrate.html">growthrate</a>：完整水云微物理中的冰晶增长阻力例程。</li>
+<li><a href="microphys_h.html">microphys_h</a>：提供 <code>nbin_cld</code>、<code>rad_cld</code>、<code>mteta</code>、<code>vo1</code> 和分子常数。</li>
+<li><a href="../../architecture/water-cycle-config.html">water-cycle-config</a>：记录 <code>temp_dependent_m</code>、<code>cloud_adapt_ts</code>、<code>mteta</code> 等水云微物理配置。</li>
+<li><a href="nucleaco2.html">nucleaco2</a>：CO2 冰成核例程，结构上与本水冰成核例程相近但用于 CO2 云路径。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

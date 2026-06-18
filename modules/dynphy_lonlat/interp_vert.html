@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>interp_vert - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/interp_vert.md</span>
+    </nav>
+    <article class="content">
+<h1 id="interp_vertf">interp_vert.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\interp_vert.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>垂直坐标线性插值例程。将 GCM 变量从旧垂直离散化方案插值到新的垂直离散化方案，用于混合 σ-p 坐标系下的垂直重映射。典型应用场景包括读取初始场（restart）时，初始文件的垂直层与当前模拟的垂直层不一致，需要插值对齐。</p>
+<p>作者：Francois Forget（1995-01），混合坐标修改（2003-03）。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>interp_vert</code></td>
+<td>subroutine</td>
+<td>2</td>
+<td>将变量从旧垂直网格线性插值到新垂直网格</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<p>无 USE 依赖，无 INCLUDE。该例程为完全自包含的纯数值计算过程。</p>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<p>无外部调用。</p>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lmo</code></td>
+<td>参数</td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>旧垂直层数</td>
+</tr>
+<tr>
+<td><code>lmn</code></td>
+<td>参数</td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>新垂直层数</td>
+</tr>
+<tr>
+<td><code>apso</code></td>
+<td>参数</td>
+<td><code>real(lmo)</code></td>
+<td>Pa</td>
+<td>旧混合坐标 midlayer a 系数</td>
+</tr>
+<tr>
+<td><code>bpso</code></td>
+<td>参数</td>
+<td><code>real(lmo)</code></td>
+<td>—</td>
+<td>旧混合坐标 midlayer b 系数</td>
+</tr>
+<tr>
+<td><code>aps</code></td>
+<td>参数</td>
+<td><code>real(lmn)</code></td>
+<td>Pa</td>
+<td>新混合坐标 midlayer a 系数</td>
+</tr>
+<tr>
+<td><code>bps</code></td>
+<td>参数</td>
+<td><code>real(lmn)</code></td>
+<td>—</td>
+<td>新混合坐标 midlayer b 系数</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td>参数</td>
+<td><code>real(Nhoriz)</code></td>
+<td>Pa</td>
+<td>各水平点地表气压</td>
+</tr>
+<tr>
+<td><code>Nhoriz</code></td>
+<td>参数</td>
+<td><code>integer</code></td>
+<td>—</td>
+<td>水平点数</td>
+</tr>
+<tr>
+<td><code>varo</code></td>
+<td>参数</td>
+<td><code>real(Nhoriz, lmo)</code></td>
+<td>任意</td>
+<td>旧垂直网格上的变量值</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>varn</code></td>
+<td>参数</td>
+<td><code>real(Nhoriz, lmn)</code></td>
+<td>同 <code>varo</code></td>
+<td>新垂直网格上插值后的变量值</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p>无。不读写任何模块变量或公共块，不产生文件 I/O 或诊断输出。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>对每个水平点 <code>n = 1..Nhoriz</code>：</li>
+<li>计算新网格的 sigma 坐标：<code>sigmn(ln) = aps(ln)/ps(n) + bps(ln)</code>，<code>ln = 1..lmn</code></li>
+<li>计算旧网格的 sigma 坐标：<code>sigmo(lo) = apso(lo)/ps(n) + bpso(lo)</code>，<code>lo = 1..lmo</code></li>
+<li>对每个新层 <code>ln = 1..lmn</code>，按 sigma 值在旧网格中定位并插值：
+<ul>
+<li>若 <code>sigmn(ln) &gt;= sigmo(1)</code>（新层在旧网格顶部之上）：取旧顶层值 <code>varo(n,1)</code></li>
+<li>若 <code>sigmn(ln) &lt;= sigmo(lmo)</code>（新层在旧网格底部之下）：取旧底层值 <code>varo(n,lmo)</code></li>
+<li>否则：找到 <code>lo</code> 使得 <code>sigmo(lo+1) &lt; sigmn(ln) &lt;= sigmo(lo)</code>，线性插值 <code>varn = varo(lo) + coef * (varo(lo+1) - varo(lo))</code>，其中 <code>coef = (sigmn(ln) - sigmo(lo)) / (sigmo(lo+1) - sigmo(lo))</code></li>
+</ul></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>FOR each horizontal point n:
+    Compute sigma levels for new grid: sigmn(ln) = aps(ln)/ps(n) + bps(ln)
+    Compute sigma levels for old grid: sigmo(lo) = apso(lo)/ps(n) + bpso(lo)
+    FOR each new level ln:
+        IF new sigma &gt;= top of old grid:
+            varn(n,ln) = varo(n, 1)         -- 顶层外推
+        ELSE IF new sigma &lt;= bottom of old grid:
+            varn(n,ln) = varo(n, lmo)       -- 底层外推
+        ELSE:
+            Find bracketing old levels lo, lo+1
+            coef = linear interpolation weight
+            varn(n,ln) = varo(n,lo) + coef * (varo(n,lo+1) - varo(n,lo))</code></pre>
+<h2 id="调用方">调用方</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>所在文件</th>
+<th>行号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lect_start_archive</code></td>
+<td><code>lect_start_archive.F</code></td>
+<td>1528, 1538, 1550, 1558, 1598</td>
+<td>读取初始场时，将 restart 文件中的变量（温度、风场、示踪剂等）从旧垂直层插值到当前模拟垂直层</td>
+</tr>
+</tbody>
+</table>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>初始场读取与垂直重映射</td>
+<td>在 <code>lect_start_archive</code> 中将 restart 文件的垂直层插值到当前模拟层</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>固定格式 Fortran 77</strong>（<code>.F</code> 后缀但使用 f77 风格缩进与列格式）</li>
+<li><strong>无模块依赖</strong>：完全自包含，不 USE 任何模块，不使用 INCLUDE</li>
+<li><strong>坐标约定</strong>：sigma 坐标从上到下递增（<code>sigmo(1)</code> 为顶，<code>sigmo(lmo)</code> 为底），与混合坐标 <code>sigma = a/p_s + b</code> 的定义一致</li>
+<li><strong>边界处理</strong>：超出旧网格范围时取最近层值（零阶外推），不做外推</li>
+<li><strong>混合坐标</strong>：同时使用 <code>ap</code>（气压部分）和 <code>bp</code>（sigma 部分），通过地表气压 <code>ps</code> 计算实际 sigma 值</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>输入 <code>apso/bpso</code> 和 <code>aps/bps</code> 分别为旧/新网格的混合坐标系数</li>
+<li>需要地表气压 <code>ps</code> 将混合坐标转换为 sigma 坐标</li>
+<li>插值为逐点独立（水平方向无耦合），可并行化</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前实现为逐列串行循环，是否存在 OpenMP 并行版本待确认</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="lect_start_archive.html">lect_start_archive</a> — 唯一调用方，在初始场读取中调用 <code>interp_vert</code> 进行垂直插值</li>
+<li><a href="index.html">dynphy_lonlat/index</a> — 所属目录概览</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dust-cycle - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a class="active" href="index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>themes/dust-cycle.md</span>
+    </nav>
+    <article class="content">
+<h1 id="尘埃循环主题">尘埃循环主题</h1>
+<h2 id="主题目标">主题目标</h2>
+<p>尘埃循环是 LMDZ.MARS 物理包中影响最广的过程之一。火星大气尘埃决定了大气的辐射加热/冷却，进而驱动温度、环流和其他循环。本主题串联尘埃从"注入大气—被风/对流输运—改变粒径分布—产生光学厚度—被辐射模块使用—沉降回地表"的完整流程，目标是说明：</p>
+<ol type="1">
+<li>尘埃示踪剂（质量、数量、暴尘、地形尘）如何在大气中被抬升、注入与沉降。</li>
+<li>尘埃粒径分布如何由二阶矩（质量+数量）方案计算。</li>
+<li>尘埃光学厚度如何计算，并如何被缩放以匹配观测尘暴场景（dust scenario）。</li>
+<li>尘埃如何与辐射主题耦合。</li>
+</ol>
+<p><strong>源码依据</strong>：<code>dust_param_mod.F90</code> 第 1 行注释 "This module contains flags and saved variables for the dust cycle"。</p>
+<h2 id="入口">入口</h2>
+<p>尘埃循环没有单一入口，而是分散在 <code>physiq()</code> 主物理例程（<a href="../modules/phymars/physiq_mod.html"><code>physiq_mod.F</code></a>）的多个阶段中按顺序调用。</p>
+<table>
+<thead>
+<tr>
+<th>入口例程</th>
+<th>文件</th>
+<th>调用阶段</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>aeropacity()</code></td>
+<td><a href="../modules/phymars/aeropacity_mod.html"><code>aeropacity_mod.F</code></a></td>
+<td>辐射前（经 <code>callradite</code>）</td>
+<td>计算尘埃光学厚度并缩放</td>
+</tr>
+<tr>
+<td><code>compute_dustscaling()</code></td>
+<td><a href="../modules/phymars/dust_scaling_mod.html"><code>dust_scaling_mod.F90</code></a></td>
+<td>在 <code>aeropacity</code> 内</td>
+<td>计算/应用 <code>tauscaling</code> 或 <code>dust_rad_adjust</code></td>
+</tr>
+<tr>
+<td><code>updatereffrad()</code></td>
+<td><a href="../modules/phymars/updatereffrad_mod.html"><code>updatereffrad_mod.F</code></a></td>
+<td>辐射前（经 <code>callradite</code>）</td>
+<td>更新尘埃粒径 <code>rdust</code></td>
+</tr>
+<tr>
+<td><code>compute_dtau()</code></td>
+<td><a href="../modules/phymars/compute_dtau_mod.html"><code>compute_dtau_mod.F90</code></a></td>
+<td>物理 3.4 节</td>
+<td>计算地表尘埃注入率 <code>dustliftday</code></td>
+</tr>
+<tr>
+<td><code>dust_windstress_lift()</code></td>
+<td><a href="../modules/phymars/dust_windstress_lift.html"><code>dust_windstress_lift.F90</code></a></td>
+<td>在 <code>vdifc</code> 内</td>
+<td>风应力抬升尘埃</td>
+</tr>
+<tr>
+<td><code>dustdevil()</code></td>
+<td><a href="../modules/phymars/dustdevil.html"><code>dustdevil.F90</code></a></td>
+<td>物理尘卷风段</td>
+<td>尘卷风抬升尘埃</td>
+</tr>
+<tr>
+<td><code>rocketduststorm()</code></td>
+<td><a href="../modules/phymars/rocketduststorm_mod.html"><code>rocketduststorm_mod.F90</code></a></td>
+<td>物理 3.x 节</td>
+<td>火箭式尘暴垂直输运</td>
+</tr>
+<tr>
+<td><code>topmons()</code></td>
+<td><a href="../modules/phymars/topmons_mod.html"><code>topmons_mod.F90</code></a></td>
+<td>物理 3.x 节</td>
+<td>地形（山顶）尘流输运</td>
+</tr>
+<tr>
+<td><code>callsedim()</code></td>
+<td><a href="../modules/phymars/callsedim_mod.html"><code>callsedim_mod.F</code></a></td>
+<td>沉降段</td>
+<td>尘埃与水冰重力沉降</td>
+</tr>
+</tbody>
+</table>
+<p><strong>源码依据</strong>：<code>physiq_mod.F</code> 第 21-99、1379-1530、2107-2135 行的 <code>use</code>/<code>CALL</code> 语句。</p>
+<h2 id="参与文件">参与文件</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>参与阶段</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/phymars/dust_param_mod.html"><code>dust_param_mod.F90</code></a></td>
+<td>全局状态</td>
+<td>尘埃循环的开关与保存变量（<code>active</code>、<code>doubleq</code>、<code>lifting</code>、<code>freedust</code>、<code>tauscaling</code>、<code>dustscaling_mode</code>、<code>dust_rad_adjust</code>、<code>odpref</code> 等）</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/dust_windstress_lift.html"><code>dust_windstress_lift.F90</code></a></td>
+<td>抬升</td>
+<td>风应力抬升（White 1979/Marticorena 公式）</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/dustdevil.html"><code>dustdevil.F90</code></a></td>
+<td>抬升</td>
+<td>尘卷风抬升（Renno et al. 1998）</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/compute_dtau_mod.html"><code>compute_dtau_mod.F90</code></a></td>
+<td>抬升/注入</td>
+<td>由 GCM 与场景的光学厚度差计算注入率 <code>dustliftday</code></td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/read_dust_scenario_mod.html"><code>read_dust_scenario_mod.F90</code></a></td>
+<td>数据读取</td>
+<td>读取并时空插值观测尘暴场景文件 <code>dust_*.nc</code></td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/updaterad.html"><code>updaterad.F90</code></a></td>
+<td>粒径</td>
+<td><code>updaterdust</code> 等：由质量/数量混合比算几何平均半径</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/updatereffrad_mod.html"><code>updatereffrad_mod.F</code></a></td>
+<td>粒径</td>
+<td>把 <code>rdust</code> 转换为辐射用有效半径 <code>reffrad</code></td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/aeropacity_mod.html"><code>aeropacity_mod.F</code></a></td>
+<td>光学厚度</td>
+<td>计算各层各类尘埃的可见光/红外光学厚度，输出 <code>dsodust</code>、<code>tau_pref_gcm</code></td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/dust_scaling_mod.html"><code>dust_scaling_mod.F90</code></a></td>
+<td>缩放</td>
+<td>把 GCM 尘埃光学厚度缩放到匹配场景</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/dust_rad_adjust_mod.html"><code>dust_rad_adjust_mod.F90</code></a></td>
+<td>缩放</td>
+<td>GCM v6 风格：仅对辐射传输做缩放（<code>dust_rad_adjust</code>）</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/rocketduststorm_mod.html"><code>rocketduststorm_mod.F90</code></a></td>
+<td>输运</td>
+<td>火箭式尘暴：辐射加热驱动暴尘垂直抬升</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/topmons_mod.html"><code>topmons_mod.F90</code></a></td>
+<td>输运</td>
+<td>地形尘流：山顶之上的次网格尘埃抬升</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/dust_coagulation_mod.html"><code>dust_coagulation_mod.F90</code></a></td>
+<td>微物理</td>
+<td>尘埃凝并（可选）</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/callsedim_mod.html"><code>callsedim_mod.F</code></a></td>
+<td>沉降</td>
+<td>重力沉降</td>
+</tr>
+</tbody>
+</table>
+<p><code>rocketduststorm</code>、<code>topmons</code>、<code>dust_coagulation</code> 的内部数值方案已由对应文件页覆盖；本主题只保留跨模块调用链、配置门控和复现检查点。</p>
+<h2 id="尘埃示踪剂">尘埃示踪剂</h2>
+<p>尘埃以一组示踪剂（tracer）形式存在，具体哪些被激活取决于配置开关。</p>
+<table>
+<thead>
+<tr>
+<th>示踪剂</th>
+<th>索引变量</th>
+<th>启用条件</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>尘埃质量</td>
+<td><code>igcm_dust_mass</code></td>
+<td><code>dustbin&gt;=1</code></td>
+<td>背景尘埃质量混合比 (kg/kg)</td>
+</tr>
+<tr>
+<td>尘埃数量</td>
+<td><code>igcm_dust_number</code></td>
+<td><code>doubleq</code></td>
+<td>背景尘埃数量混合比 (kg⁻¹)</td>
+</tr>
+<tr>
+<td>亚微米尘</td>
+<td><code>igcm_dust_submicron</code></td>
+<td><code>submicron</code></td>
+<td>次级（亚微米）尘埃分布</td>
+</tr>
+<tr>
+<td>暴尘质量/数量</td>
+<td><code>igcm_stormdust_mass</code> / <code>igcm_stormdust_number</code></td>
+<td><code>rdstorm</code></td>
+<td>火箭式尘暴尘埃</td>
+</tr>
+<tr>
+<td>地形尘质量/数量</td>
+<td><code>igcm_topdust_mass</code> / <code>igcm_topdust_number</code></td>
+<td><code>topflows</code></td>
+<td>山顶尘流尘埃</td>
+</tr>
+</tbody>
+</table>
+<p><strong>源码依据</strong>：<code>tracer_mod</code> 中定义的 <code>igcm_*</code> 索引；<code>updatereffrad_mod.F</code> 第 13-23 行、<code>aeropacity_mod.F</code> 第 20-23 行的 <code>use tracer_mod</code>。</p>
+<h2 id="配置开关">配置开关</h2>
+<table>
+<thead>
+<tr>
+<th>开关</th>
+<th>文件/默认值</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dustbin</code></td>
+<td><code>conf_phys.F</code> L472 默认 <code>0</code></td>
+<td>传输的尘埃 bin 数量；<code>&gt;0</code> 才传输尘埃</td>
+</tr>
+<tr>
+<td><code>active</code></td>
+<td>L477 默认 <code>.false.</code></td>
+<td>尘埃是否辐射活跃（仅 <code>dustbin&gt;0</code> 时有意义）</td>
+</tr>
+<tr>
+<td><code>doubleq</code></td>
+<td>L492 默认 <code>.false.</code></td>
+<td>是否使用 2 阶矩（质量+数量）方案，需 <code>dustbin&gt;=2</code></td>
+</tr>
+<tr>
+<td><code>submicron</code></td>
+<td>L496 默认 <code>.false.</code></td>
+<td>是否加入亚微米尘埃分布</td>
+</tr>
+<tr>
+<td><code>lifting</code></td>
+<td>L518 默认 <code>.false.</code></td>
+<td>是否从地表抬升尘埃</td>
+</tr>
+<tr>
+<td><code>callddevil</code></td>
+<td>L689 默认 <code>.false.</code></td>
+<td>是否启用尘卷风抬升参数化</td>
+</tr>
+<tr>
+<td><code>freedust</code></td>
+<td>L550 默认 <code>.false.</code></td>
+<td>真：不再用 <code>tauscaling</code> 重缩放尘埃质量/数量；需配 <code>doubleq</code></td>
+</tr>
+<tr>
+<td><code>dustscaling_mode</code></td>
+<td>L563-567</td>
+<td><code>freedust</code> 时默认 <code>0</code>，否则默认 <code>1</code>；可被 <code>callphys.def</code> 覆盖</td>
+</tr>
+<tr>
+<td><code>iaervar</code></td>
+<td>L201 默认 <code>8</code></td>
+<td>尘埃光学厚度场景模式（见下表）</td>
+</tr>
+<tr>
+<td><code>dustinjection</code></td>
+<td>L532 默认 <code>0</code></td>
+<td><code>&gt;0</code> 启用地表注入方案（<code>compute_dtau</code>）</td>
+</tr>
+<tr>
+<td><code>coeff_injection</code></td>
+<td>L536 默认 <code>0.25</code></td>
+<td>尘埃注入方案系数</td>
+</tr>
+<tr>
+<td><code>rdstorm</code></td>
+<td>L378 默认 <code>.false.</code></td>
+<td>火箭式尘暴参数化</td>
+</tr>
+<tr>
+<td><code>topflows</code></td>
+<td>L388 默认 <code>.false.</code></td>
+<td>山顶尘流参数化</td>
+</tr>
+<tr>
+<td><code>windstress_lift_scheme</code></td>
+<td><code>dust_windstress_lift.F90</code> L88 默认 <code>0</code></td>
+<td>风应力抬升方案号（当前仅 <code>0</code> 合法）</td>
+</tr>
+<tr>
+<td><code>dust_devil_scheme</code></td>
+<td><code>dustdevil.F90</code> L89 默认 <code>0</code></td>
+<td>尘卷风方案号（当前仅 <code>0</code> 合法）</td>
+</tr>
+</tbody>
+</table>
+<p><code>dustscaling_mode</code> 三种取值（<code>dust_scaling_mod.F90</code> 与 <code>conf_phys.F</code> 注释）：</p>
+<ul>
+<li><code>0</code>：freedust，<code>tauscaling=1</code>，不重缩放。</li>
+<li><code>1</code>：GCM v5.3 风格，计算 <code>tauscaling</code> 使 GCM 光学厚度匹配 <code>tau_pref_scenario</code>。</li>
+<li><code>2</code>：GCM v6 风格，<code>tauscaling=1</code>，仅对辐射传输用 <code>dust_rad_adjust</code> 缩放。</li>
+</ul>
+<p><strong>源码依据</strong>：<code>conf_phys.F</code> 第 559-578 行；<code>dust_scaling_mod.F90</code> 第 42-107 行。</p>
+<p><strong>复现风险</strong>：<code>dustscaling_mode</code> 的默认值依赖 <code>freedust</code>，复现时必须先确定 <code>freedust</code>、<code>doubleq</code> 的组合，否则会触发 <code>abort_physic</code>（<code>conf_phys.F</code> L553-578 有多处互斥校验）。</p>
+<h2 id="尘埃场景iaervar">尘埃场景（iaervar）</h2>
+<p><code>read_dust_scenario</code> 根据 <code>iaervar</code> 决定读取哪个 NetCDF 场景文件：</p>
+<table>
+<thead>
+<tr>
+<th>iaervar</th>
+<th>文件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4</td>
+<td><code>dust_tes.nc</code></td>
+<td>旧 TES 同化 MY24（参考压力 700 Pa）</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>dust_cold.nc</code></td>
+<td>冷场景</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>dust_warm.nc</code></td>
+<td>暖场景</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>dust_clim.nc</code></td>
+<td>气候态（默认）</td>
+</tr>
+<tr>
+<td>24-37</td>
+<td><code>dust_MY24.nc</code> … <code>dust_MY37.nc</code></td>
+<td>观测火星年 MY24-MY37</td>
+</tr>
+<tr>
+<td>124/125/126</td>
+<td><code>dust_tes_MY24/25/26.nc</code></td>
+<td>旧 TES 同化（700 Pa）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>源码依据</strong>：<code>read_dust_scenario_mod.F90</code> 第 72-95 行。</p>
+<p>场景变量类型：<code>dustop</code>（可见光消光）或 <code>cdod</code>/<code>cdodext</code>（红外吸收/消光）。若为红外（<code>IRscenario=.true.</code>），最终乘 <code>IRtoVIScoef(ig)</code> 转换为可见光消光。旧 TES 文件额外乘 <code>1.3*(odpref/700.)</code> 校正；<code>swrtype==1</code>（Fouquart）时再乘 <code>0.825/1.3</code>。</p>
+<p><strong>源码依据</strong>：<code>read_dust_scenario_mod.F90</code> 第 139-174、387-411 行。</p>
+<h2 id="状态变量">状态变量</h2>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>来源</th>
+<th>单位</th>
+<th>含义</th>
+<th>生命周期</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tauscaling(ngrid)</code></td>
+<td><code>dust_param_mod</code></td>
+<td>-</td>
+<td>尘埃质量/数量的缩放转换系数</td>
+<td>SAVE，逐步更新</td>
+</tr>
+<tr>
+<td><code>dust_rad_adjust(ngrid)</code></td>
+<td><code>dust_param_mod</code></td>
+<td>-</td>
+<td>仅辐射用的尘埃缩放系数</td>
+<td>SAVE，逐步更新</td>
+</tr>
+<tr>
+<td><code>dust_rad_adjust_prev/next</code></td>
+<td><code>dust_rad_adjust_mod</code></td>
+<td>-</td>
+<td>用于跨 sol 线性插值的端点值</td>
+<td>SAVE</td>
+</tr>
+<tr>
+<td><code>dtau(ngrid)</code></td>
+<td><code>compute_dtau_mod</code></td>
+<td>-</td>
+<td>GCM 与场景在 610 Pa 处的光学厚度差</td>
+<td>SAVE</td>
+</tr>
+<tr>
+<td><code>rdust(ngrid,nlayer)</code></td>
+<td><code>updaterad</code>/<code>updatereffrad</code></td>
+<td>m</td>
+<td>尘埃几何平均半径</td>
+<td>每步重算</td>
+</tr>
+<tr>
+<td><code>reffrad(ngrid,nlayer,naerkind)</code></td>
+<td><code>updatereffrad</code></td>
+<td>m</td>
+<td>辐射用有效半径</td>
+<td>每步重算</td>
+</tr>
+<tr>
+<td><code>aerosol(ngrid,nlayer,naerkind)</code></td>
+<td><code>aeropacity</code></td>
+<td>-</td>
+<td>各层各类气溶胶光学厚度</td>
+<td>每步重算</td>
+</tr>
+<tr>
+<td><code>dsodust(ngrid,nlayer)</code></td>
+<td><code>aeropacity</code></td>
+<td>-</td>
+<td>背景尘埃密度缩放光学厚度（红外，供与观测比较）</td>
+<td>每步重算</td>
+</tr>
+<tr>
+<td><code>tau_pref_gcm(ngrid)</code></td>
+<td><code>aeropacity</code></td>
+<td>-</td>
+<td>GCM 在 610 Pa 处的可见光尘埃柱光学厚度</td>
+<td>每步重算</td>
+</tr>
+<tr>
+<td><code>tau_pref_scenario(ngrid)</code></td>
+<td><code>read_dust_scenario</code></td>
+<td>-</td>
+<td>场景在 610 Pa 处的可见光尘埃柱光学厚度</td>
+<td>每步重算</td>
+</tr>
+</tbody>
+</table>
+<p>参考压力常数 <code>odpref = 610. Pa</code>（<code>dust_param_mod.F90</code> 第 19 行）。</p>
+<h2 id="主调用链">主调用链</h2>
+<pre class="text"><code>physiq()  (physiq_mod.F)
+│
+├── [辐射前] callradite()
+│   ├── updatereffrad()          更新尘埃粒径 reffrad
+│   │   └── updaterdust()        doubleq: rdust = (r3n_q*qdust/ndust)^(1/3)
+│   ├── aeropacity()             计算尘埃光学厚度
+│   │   ├── read_dust_scenario() 读取并插值场景 tau_pref_scenario
+│   │   │   └── (IR场景) × IRtoVIScoef
+│   │   ├── [累加] aerosol(:,:,iaerdust)  及 dsodust, tau_pref_gcm
+│   │   └── compute_dustscaling()
+│   │       ├── mode 1: tauscaling = tau_pref_scenario*ps/odpref/taudust
+│   │       │           aerosol *= tauscaling
+│   │       └── mode 2: compute_dust_rad_adjust()  (跨 sol 插值)
+│   │                   aerosol *= dust_rad_adjust
+│   └── (lwmain/swmain 使用 aerosol)   → 辐射主题
+│
+├── [3.x 输运] rocketduststorm() / topmons()   暴尘/地形尘垂直输运
+├── [3.4 注入] compute_dtau()        → dustliftday (注入率)
+│
+├── [扩散 vdifc] dust_windstress_lift()  风应力抬升 (lifting=T)
+│                 使用 dustliftday 注入 (dustinjection&gt;0)
+├── [尘卷风] dustdevil()              callddevil=T
+└── [沉降] callsedim()                尘埃/水冰重力沉降</code></pre>
+<p><strong>源码依据</strong>：调用顺序见 <code>physiq_mod.F</code>；<code>updatereffrad</code> → <code>updaterdust</code> 见 <code>updatereffrad_mod.F</code> 第 99-106 行；<code>aeropacity</code> → <code>compute_dustscaling</code> 见 <code>aeropacity_mod.F</code> 第 39 行 <code>use dust_scaling_mod</code>。</p>
+<p><strong>推断</strong>：<code>rocketduststorm</code>、<code>topmons</code>、<code>compute_dtau</code> 在 <code>physiq</code> 中的精确先后次序按 <code>physiq_mod.F</code> 第 1379-1530 行的出现顺序判断；其与扩散/沉降段的相对位置以源码行号为准，但完整控制流（含各 <code>IF</code> 分支条件）未逐一展开。</p>
+<h2 id="计算阶段">计算阶段</h2>
+<h3 id="阶段-1粒径更新updatereffrad--updaterdust">阶段 1：粒径更新（<code>updatereffrad</code> → <code>updaterdust</code>）</h3>
+<p><code>doubleq.AND.active</code> 时，对每层每点由质量与数量混合比计算几何平均半径：</p>
+<pre class="text"><code>rdust = ( r3n_q * qdust / ndust )^(1/3)</code></pre>
+<p>并对极小/极大值用阈值 <code>r3dustmin</code>/<code>r3dustmax</code>（对应 <code>rdustmin=1e-8 m</code>、<code>rdustmax=500e-6 m</code>）截断；否则（非 doubleq）固定 <code>rdust=0.8e-6 m</code>、<code>nueffdust=0.3</code>。随后转为辐射有效半径：<code>dust_doubleq</code> 用 <code>reffrad = rdust*ref_r0</code>，<code>dust_conrath</code> 用 <code>reffrad = rdust*(1+nueffdust)^2.5</code>。</p>
+<p><strong>源码依据</strong>：<code>updaterad.F90</code> 第 203-238 行；<code>updatereffrad_mod.F</code> 第 99-113、228-234 行。</p>
+<h3 id="阶段-2光学厚度计算aeropacity">阶段 2：光学厚度计算（<code>aeropacity</code>）</h3>
+<p>每层各类尘埃光学厚度按下式累加（doubleq）：</p>
+<pre class="text"><code>aerosol(ig,l,iaer) = 0.75 * QREFvis3d / (rho_dust * reffrad) * qmass * dp / g</code></pre>
+<p>同时计算红外密度缩放光学厚度 <code>dsodust</code>（用 <code>QREFir3d</code>，供与 TES/MCS 观测比较）和 GCM 柱光学厚度 <code>tau_pref_gcm</code>（换算到 610 Pa 参考压力）。</p>
+<p><strong>源码依据</strong>：<code>aeropacity_mod.F</code> 第 423-455、888-910、726-736 行。</p>
+<h3 id="阶段-3尘埃缩放compute_dustscaling">阶段 3：尘埃缩放（<code>compute_dustscaling</code>）</h3>
+<ul>
+<li><strong>mode 1</strong>：先对所有尘埃类累加柱光学厚度 <code>taudust</code>，再令 <code>tauscaling = tau_pref_scenario * pplev(:,1) / odpref / taudust</code>， 然后 <code>aerosol *= tauscaling</code>（下限 <code>1e-20</code>）。这样 GCM 光学厚度被强制匹配观测场景。</li>
+<li><strong>mode 2</strong>：<code>tauscaling=1</code>，调用 <code>compute_dust_rad_adjust</code> 算 <code>dust_rad_adjust</code>，仅对辐射传输用的 <code>aerosol</code> 缩放。</li>
+<li><strong>mode 0（freedust）</strong>：<code>tauscaling=1</code>，不缩放。</li>
+</ul>
+<p><strong>源码依据</strong>：<code>dust_scaling_mod.F90</code> 第 40-108 行。</p>
+<p><code>compute_dust_rad_adjust</code>（mode 2）逻辑：在每个格点本地时间跨越 <code>t_scenario_sol=14/24</code> sol（即 14:00）时更新目标，目标 = <code>tau_pref_scenario_next*ps/odpref/taudust</code>（上限 5），再在前后两天的 14:00 端点间按本地时间线性插值。</p>
+<p><strong>源码依据</strong>：<code>dust_rad_adjust_mod.F90</code> 第 66-119 行；<code>dust_param_mod.F90</code> 第 28 行 <code>t_scenario_sol</code>。</p>
+<h3 id="阶段-4地表抬升与注入">阶段 4：地表抬升与注入</h3>
+<ul>
+<li><p><strong>风应力抬升</strong>（<code>dust_windstress_lift</code>，由 <code>vdifc</code> 在 <code>lifting=T</code> 时调用）：当摩擦速度 <code>us = pcdh/sqrt(pcdh_true)</code> 超过阈值 <code>ust = sqrt(stress_seuil/rho)</code>（<code>stress_seuil=0.0225 N/m²</code>）时，水平通量 <code>fhoriz = 2.61*(rho/g)*(us-ust)*(us+ust)^2</code>（White 1979），垂直注入通量 <code>dqslift(ig,iq) = -alpha_lift(iq)*fhoriz</code>。有 CO₂ 冰覆盖（<code>co2ice&gt;0</code>）的点不抬升。</p>
+<p><strong>源码依据</strong>：<code>dust_windstress_lift.F90</code> 第 102-162 行；<code>vdifc_mod.F</code> 第 813-883 行。</p></li>
+<li><p><strong>尘卷风</strong>（<code>dustdevil</code>，<code>callddevil=T</code>）：基于 Renno et al. 1998，尘卷风活动 <code>devila = max(0,(1-b)*Fs - seuil)</code>，其中 <code>Fs</code> 为地表感热通量（用固定风速 15 m/s），抬升通量 <code>pdqs_dev = -alpha_devil*devila</code>，并把尘埃注入到边界层顶。</p>
+<p><strong>源码依据</strong>：<code>dustdevil.F90</code> 第 137-221 行。</p></li>
+<li><p><strong>场景注入</strong>（<code>compute_dtau</code>，<code>dustinjection&gt;0</code>）：在本地 14:00 时计算 GCM 与场景目标光学厚度差 <code>dtau</code>，当 <code>dtau&gt;0</code> 时给出注入率 <code>dustliftday = coeff_injection*(dtau*ps/odpref)/(daysec*(tf-ti))</code>，该率随后在 <code>vdifc</code> 中用于注入。</p>
+<p><strong>源码依据</strong>：<code>compute_dtau_mod.F90</code> 第 87-102 行；<code>vdifc_mod.F</code> 第 813-857 行。</p></li>
+</ul>
+<h3 id="阶段-5沉降callsedim">阶段 5：沉降（<code>callsedim</code>）</h3>
+<p>尘埃（与水冰）按重力沉降回地表。</p>
+<p>沉降调度见 <a href="../modules/phymars/callsedim_mod.html">callsedim_mod</a>，单粒径下落速度公式和 Stokes-Cunningham 修正见 <a href="../modules/phymars/newsedim_mod.html">newsedim_mod</a>，守恒输运格式见 <a href="../modules/phymars/vlz_fi.html">vlz_fi</a>。</p>
+<h2 id="数据依赖">数据依赖</h2>
+<table>
+<thead>
+<tr>
+<th>数据</th>
+<th>来源</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dust_*.nc</code> 尘暴场景</td>
+<td><code>datadir/</code>（<code>callphys.def</code> 的 <code>datadir</code>）</td>
+<td>提供 <code>tau_pref_scenario</code> 用于缩放/注入</td>
+</tr>
+<tr>
+<td>光学属性（<code>QREFvis3d</code>/<code>QREFir3d</code>）</td>
+<td>经 <code>callradite</code>/<code>suaer</code> 查找表</td>
+<td>光学厚度计算的消光效率</td>
+</tr>
+<tr>
+<td><code>rho_dust</code>、<code>ref_r0</code>、<code>r3n_q</code>、<code>alpha_lift</code>、<code>alpha_devil</code></td>
+<td><code>tracer_mod</code></td>
+<td>密度、参考半径、半径换算与抬升系数</td>
+</tr>
+<tr>
+<td><code>stress.def</code>（仅 MESOSCALE 编译）</td>
+<td>工作目录</td>
+<td>自定义抬升阈值</td>
+</tr>
+</tbody>
+</table>
+<p><strong>源码依据</strong>：<code>read_dust_scenario_mod.F90</code> 第 100-110 行；<code>dust_windstress_lift.F90</code> 第 60-84 行（<code>#ifdef MESOSCALE</code>）。</p>
+<h2 id="与其他主题的耦合">与其他主题的耦合</h2>
+<table>
+<thead>
+<tr>
+<th>其他主题</th>
+<th>耦合方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>辐射</td>
+<td><code>aerosol</code>（缩放后的尘埃光学厚度）直接进入 <code>lwmain</code>/<code>swmain</code>；尘埃粒径 <code>reffrad</code> 决定光学属性。详见 <code>themes/radiation.md</code></td>
+</tr>
+<tr>
+<td>水循环</td>
+<td>尘埃作为水冰凝结核（CCN），<code>updaterccn</code>/微物理使用尘埃；尘埃粒径影响水冰云</td>
+</tr>
+<tr>
+<td>CO₂ 循环</td>
+<td>尘埃作为 CO₂ 冰凝结核（<code>updaterccnCO2</code>）；CO₂ 冰覆盖地表时抑制尘埃抬升（<code>co2ice&gt;0</code> 则不抬升）</td>
+</tr>
+<tr>
+<td>边界层/扩散</td>
+<td><code>vdifc</code> 同时处理尘埃湍流扩散与风应力抬升；尘卷风依赖边界层结构</td>
+</tr>
+<tr>
+<td>动力核心</td>
+<td>辐射加热（受尘埃控制）驱动环流，风场反过来决定抬升与输运</td>
+</tr>
+</tbody>
+</table>
+<p><strong>源码依据</strong>：<code>vdifc_mod.F</code> 第 31、43 行 <code>use dust_param_mod</code>/<code>use dust_windstress_lift_mod</code>；<code>updaterad.F90</code> 第 255-292 行 <code>updaterccn</code>/<code>updaterccnCO2</code>。</p>
+<h2 id="输出结果">输出结果</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>aerosol</code></td>
+<td>辐射模块</td>
+<td>各层尘埃光学厚度</td>
+</tr>
+<tr>
+<td><code>dsodust</code>/<code>dsords</code>/<code>dsotop</code></td>
+<td>诊断输出</td>
+<td>背景/暴/地形尘的密度缩放红外光学厚度（与观测比较）</td>
+</tr>
+<tr>
+<td><code>tau_pref_gcm</code></td>
+<td>诊断/缩放</td>
+<td>GCM 尘埃柱光学厚度（610 Pa）</td>
+</tr>
+<tr>
+<td><code>tau_pref_scenario</code></td>
+<td>缩放/诊断</td>
+<td>场景目标光学厚度</td>
+</tr>
+<tr>
+<td><code>tau_pref_target</code>、<code>dtau</code>、<code>dustliftday</code></td>
+<td><code>write_output</code> 诊断</td>
+<td>注入方案诊断量</td>
+</tr>
+<tr>
+<td><code>rdust</code></td>
+<td>诊断/微物理</td>
+<td>尘埃粒径</td>
+</tr>
+<tr>
+<td>尘埃示踪剂趋势 <code>pdq*</code></td>
+<td>大气示踪剂演化</td>
+<td>抬升/注入/沉降/输运对尘埃质量与数量的趋势</td>
+</tr>
+</tbody>
+</table>
+<p><strong>源码依据</strong>：<code>compute_dtau_mod.F90</code> 第 83-108 行的 <code>write_output</code>；<code>aeropacity_mod.F</code> 输出参数列表第 95-117 行。</p>
+<h2 id="伪代码总览">伪代码总览</h2>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">! ---- 每个物理步，按 physiq 顺序 ----</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co">! A. 辐射前：粒径与光学厚度</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co">CALL updatereffrad(...)       ! rdust = (r3n_q*qdust/ndust)^(1/3) ; reffrad</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co">CALL aeropacity(...)</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">IF</span> (iaervar<span class="op">/=</span><span class="dv">1</span>) <span class="kw">CALL</span> read_dust_scenario(... tau_pref_scenario)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">DO</span> 各层各尘类:</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    aerosol <span class="kw">=</span> <span class="fl">0.75</span><span class="kw">*</span>QREFvis3d<span class="kw">/</span>(rho_dust<span class="kw">*</span>reffrad)<span class="kw">*</span>qmass<span class="kw">*</span>dp<span class="kw">/</span>g</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    累加 dsodust, tau_pref_gcm</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> compute_dustscaling(...)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">SELECT CASE</span> (dustscaling_mode)</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>      <span class="kw">CASE</span>(<span class="dv">1</span>): tauscaling <span class="kw">=</span> tau_pref_scenario<span class="kw">*</span>ps<span class="kw">/</span>odpref<span class="kw">/</span>taudust</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>               aerosol <span class="kw">=</span> <span class="bu">max</span>(<span class="fl">1e-20</span>, aerosol<span class="kw">*</span>tauscaling)</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>      <span class="kw">CASE</span>(<span class="dv">2</span>): <span class="kw">CALL</span> compute_dust_rad_adjust(...)   <span class="co">! 跨 sol 14:00 插值</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>               aerosol <span class="kw">=</span> <span class="bu">max</span>(<span class="fl">1e-20</span>, aerosol<span class="kw">*</span>dust_rad_adjust)</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>      <span class="kw">CASE</span>(<span class="dv">0</span>): tauscaling <span class="kw">=</span> <span class="dv">1</span>                       <span class="co">! freedust</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a><span class="co">! (随后 lwmain/swmain 使用 aerosol —— 见辐射主题)</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="co">! B. 输运与注入</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (rdstorm)  <span class="kw">CALL</span> rocketduststorm(...)</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (topflows) <span class="kw">CALL</span> topmons(...)</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (dustinjection<span class="op">&gt;</span><span class="dv">0</span>) <span class="kw">CALL</span> compute_dtau(... dustliftday)</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="co">! C. 抬升（在 vdifc 内）</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (lifting) <span class="kw">CALL</span> dust_windstress_lift(... dqslift)</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>             <span class="kw">+</span> 用 dustliftday 注入</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (callddevil) <span class="kw">CALL</span> dustdevil(... pdqdev,pdqs_dev)</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a><span class="co">! D. 沉降</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a><span class="co">CALL callsedim(...)            ! 尘埃 + 水冰</span></span></code></pre></div>
+<h2 id="复现检查点">复现检查点</h2>
+<h3 id="必须保留的逻辑">必须保留的逻辑</h3>
+<ol type="1">
+<li><strong>二阶矩半径公式</strong>：<code>rdust = (r3n_q*qdust/ndust)^(1/3)</code>，并保留 <code>r3dustmin/max</code> 阈值截断。</li>
+<li><strong>光学厚度公式</strong>：<code>0.75*QREF/(rho_dust*reffrad)*qmass*dp/g</code>，可见光用 <code>QREFvis3d</code>，红外（<code>dsodust</code>）用 <code>QREFir3d</code>。</li>
+<li><strong>参考压力 610 Pa</strong>：所有柱光学厚度换算都用 <code>odpref=610</code>（旧 TES 文件需 700→610 校正）。</li>
+<li><strong>缩放模式选择</strong>：<code>dustscaling_mode</code> 与 <code>freedust</code>/<code>doubleq</code>/<code>iaervar</code> 的互斥约束必须保留，否则运行会中止。</li>
+<li><strong>抬升阈值与公式</strong>：White 1979 水平通量公式与 <code>stress_seuil=0.0225</code>；CO₂ 冰覆盖点不抬升。</li>
+<li><strong><code>dust_rad_adjust</code> 跨 sol 插值</strong>：以本地 14:00（<code>t_scenario_sol=14/24</code>）为锚点，上限 5。</li>
+</ol>
+<h3 id="关键公式">关键公式</h3>
+<ol type="1">
+<li>几何平均半径：<code>rdust = (r3n_q*qdust/ndust)^(1/3)</code></li>
+<li>层光学厚度：<code>aerosol = 0.75*QREFvis3d/(rho_dust*reffrad)*qmass*(p_l - p_{l+1})/g</code></li>
+<li>mode1 缩放：<code>tauscaling = tau_pref_scenario*ps/odpref/taudust</code></li>
+<li>风应力水平通量：<code>fhoriz = 2.61*(rho/g)*(us-ust)*(us+ust)^2</code>，<code>ust = sqrt(stress_seuil/rho)</code></li>
+<li>注入率：<code>dustliftday = coeff_injection*(dtau*ps/odpref)/(daysec*(tf-ti))</code></li>
+</ol>
+<h3 id="验证检查点">验证检查点</h3>
+<ol type="1">
+<li><strong>光学厚度合理性</strong>：背景尘埃可见光柱光学厚度典型 0.1-1（晴期），尘暴期可达数倍。<strong>待确认</strong>：未在本任务核验具体量级。</li>
+<li><strong>缩放一致性</strong>：mode1 下 <code>tau_pref_gcm</code> 经缩放后应≈<code>tau_pref_scenario</code>。</li>
+<li><strong>质量守恒</strong>：抬升/注入为负趋势（离开地表），沉降为正向地表通量，长期收支应闭合。<strong>待确认</strong>：未核验收支闭合实现。</li>
+</ol>
+<h2 id="相关模块">相关模块</h2>
+<ul>
+<li><strong>辐射</strong>：<a href="../modules/phymars/callradite_mod.html"><code>callradite_mod.F</code></a>、<a href="../modules/phymars/lwmain_mod.html"><code>lwmain_mod.F</code></a>、<a href="../modules/phymars/swmain_mod.html"><code>swmain_mod.F</code></a>、<a href="../modules/phymars/aeroptproperties.html"><code>aeroptproperties.F</code></a>、<a href="../modules/phymars/suaer.html"><code>suaer.F90</code></a>（见 <a href="radiation.html">radiation.md</a>）</li>
+<li><strong>粒径</strong>：<a href="../modules/phymars/updaterad.html"><code>updaterad.F90</code></a>、<a href="../modules/phymars/updatereffrad_mod.html"><code>updatereffrad_mod.F</code></a></li>
+<li><strong>抬升/注入</strong>：<a href="../modules/phymars/dust_windstress_lift.html"><code>dust_windstress_lift.F90</code></a>、<a href="../modules/phymars/dustdevil.html"><code>dustdevil.F90</code></a>、<a href="../modules/phymars/compute_dtau_mod.html"><code>compute_dtau_mod.F90</code></a></li>
+<li><strong>缩放</strong>：<a href="../modules/phymars/dust_scaling_mod.html"><code>dust_scaling_mod.F90</code></a>、<a href="../modules/phymars/dust_rad_adjust_mod.html"><code>dust_rad_adjust_mod.F90</code></a>、<a href="../modules/phymars/read_dust_scenario_mod.html"><code>read_dust_scenario_mod.F90</code></a></li>
+<li><strong>暴尘/地形尘</strong>：<a href="../modules/phymars/rocketduststorm_mod.html"><code>rocketduststorm_mod.F90</code></a>、<a href="../modules/phymars/topmons_mod.html"><code>topmons_mod.F90</code></a></li>
+<li><strong>微物理</strong>：<a href="../modules/phymars/dust_coagulation_mod.html"><code>dust_coagulation_mod.F90</code></a>、<a href="../modules/phymars/watercloud_mod.html"><code>watercloud_mod.F</code></a>、<a href="../modules/phymars/improvedclouds_mod.html"><code>improvedclouds_mod.F90</code></a></li>
+<li><strong>沉降</strong>：<a href="../modules/phymars/callsedim_mod.html"><code>callsedim_mod.F</code></a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>submicron</code>（亚微米尘）分布在抬升/输运中的完整处理（<code>vdifc</code> 第 815 行起 <code>doubleq.AND.submicron</code> 分支）只读到片段。</li>
+<li>各尘埃光学厚度的典型量级与收支闭合未做数值验证。</li>
+<li><code>physiq</code> 中 <code>rocketduststorm</code>/<code>topmons</code>/<code>compute_dtau</code> 与沉降段的完整控制流分支条件未全部展开（仅按行号顺序判断）。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

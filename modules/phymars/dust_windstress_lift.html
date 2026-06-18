@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dust_windstress_lift - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dust_windstress_lift.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dust_windstress_liftf90">dust_windstress_lift.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dust_windstress_lift.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>该文件定义风应力起尘（dust lifting by surface winds）模块 <code>dust_windstress_lift_mod</code>（168 行），导出例程 <code>dust_windstress_lift</code>，由 <code>vdifc</code>（行 881，地表交换段，<code>lifting</code> 路径）调用。它的职责是：根据近地面摩擦速度是否超过起尘阈值，按 White (1979) / Marticorena 公式计算水平尘埃通量 <code>fhoriz</code>，再乘以各 tracer 的起尘效率 <code>alpha_lift</code> 得到地表向第一层中点的尘埃通量 <code>dqslift</code>（起尘时为负，表示从地表注入大气）。</p>
+<p>模块保存起尘方案号 <code>windstress_lift_scheme</code>（默认 0，旧方案；当前仅支持 0）和起尘应力阈值 <code>stress_seuil</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dust_windstress_lift_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>风应力起尘模块</td>
+</tr>
+<tr>
+<td><code>windstress_lift_scheme</code></td>
+<td>integer SAVE</td>
+<td>5</td>
+<td>起尘方案号，默认 0（旧方案），当前仅支持 0</td>
+</tr>
+<tr>
+<td><code>dust_windstress_lift</code></td>
+<td>subroutine</td>
+<td>12</td>
+<td>按摩擦速度阈值算水平通量并转为地表尘埃通量 <code>dqslift</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code>（非 MESOSCALE）</td>
+<td><code>alpha_lift, radius</code></td>
+<td>各 tracer 起尘效率系数、粒径</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code>（MESOSCALE）</td>
+<td><code>alpha_lift, radius, igcm_dust_mass, igcm_dust_number, ref_r0, r3n_q</code></td>
+<td>额外用于 MESOSCALE 下从 <code>stress.def</code> 重设起尘系数</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code></td>
+<td>重力加速度（水平通量公式分母）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td><code>getin_p</code></td>
+<td>firstcall 读取 <code>windstress_lift_scheme</code></td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin_p</code></td>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td>行 89</td>
+<td>读取 <code>windstress_lift_scheme</code> 配置键</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>（phymars 公共中止例程）</td>
+<td>行 95</td>
+<td><code>windstress_lift_scheme/=0</code> 时致命中止</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid, nlay, nq</code></td>
+<td><code>vdifc</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>格点数、层数、tracer 数</td>
+</tr>
+<tr>
+<td><code>rho(ngrid)</code></td>
+<td><code>vdifc</code></td>
+<td>real</td>
+<td>kg/m³</td>
+<td>地表空气密度</td>
+</tr>
+<tr>
+<td><code>pcdh_true(ngrid)</code></td>
+<td><code>vdifc</code></td>
+<td>real</td>
+<td>-</td>
+<td>拖曳系数 Cd</td>
+</tr>
+<tr>
+<td><code>pcdh(ngrid)</code></td>
+<td><code>vdifc</code></td>
+<td>real</td>
+<td>m/s</td>
+<td>Cd·|V|（摩擦速度计算用）</td>
+</tr>
+<tr>
+<td><code>co2ice(ngrid)</code></td>
+<td><code>vdifc</code>（<code>pqsurf_tmp(:,igcm_co2)</code>）</td>
+<td>real</td>
+<td>kg/m²</td>
+<td>地表 CO2 冰；&gt;0 时该点不起尘</td>
+</tr>
+<tr>
+<td><code>alpha_lift(nq)</code></td>
+<td><code>tracer_mod</code></td>
+<td>real</td>
+<td>-</td>
+<td>各 tracer 起尘效率系数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dqslift(ngrid,nq)</code></td>
+<td><code>vdifc</code>（<code>pdqsdif_tmp</code>）→地表交换/tracer 注入</td>
+<td>real (OUT)</td>
+<td>通量单位</td>
+<td>地表向第一层中点的尘埃通量（起尘时&lt;0）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>module 级 <code>SAVE</code>+<code>THREADPRIVATE</code>：<code>windstress_lift_scheme</code>（行 8）。</li>
+<li>例程内 <code>SAVE</code>+<code>THREADPRIVATE</code>：<code>stress_seuil</code>（默认 0.0225 N/m²）、<code>firstcall</code>（行 53、56）。</li>
+<li>firstcall：<code>getin_p("windstress_lift_scheme")</code>（默认 0）；非 0 则 <code>abort_physic</code>。</li>
+<li>MESOSCALE 编译下额外尝试读 <code>stress.def</code>，并就地改 <code>alpha_lift(igcm_dust_mass/igcm_dust_number)</code>（改 <code>tracer_mod</code> 共享状态）。</li>
+<li>标准输出副作用：MESOSCALE 下打印用户阈值；非法 scheme 打印错误。</li>
+<li>不写普通文件（非 MESOSCALE）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>MESOSCALE 块（行 60-84，仅宏开启）</strong>：尝试读 <code>stress.def</code> 得 <code>ulim</code>/<code>alpha</code>，重设 <code>stress_seuil=0.02*ulim²</code> 与 <code>alpha_lift</code>。</li>
+<li><strong>firstcall（行 86-99）</strong>：<code>getin_p</code> 读 <code>windstress_lift_scheme</code>（默认 0）；非 0 则中止。</li>
+<li><strong>方案 0（行 102-164）</strong>：
+<ul>
+<li><strong>水平通量（行 108-140）</strong>：逐格点初始化 <code>fhoriz=0</code>；若 <code>co2ice&gt;0</code> 跳过（极冠/霜覆盖不起尘）；算阈值摩擦速度 <code>ust=sqrt(stress_seuil/rho)</code> 与实际摩擦速度 <code>us=pcdh/sqrt(pcdh_true)</code>；若 <code>us&gt;ust</code>，按 White(1979) <code>fhoriz=2.61*(rho/g)*(us-ust)*(us+ust)²</code>。</li>
+<li><strong>垂直通量（行 146-162）</strong>：对每个 tracer <code>dqslift(:,iq)=-alpha_lift(iq)*fhoriz</code>（负号表示向大气注入）。</li>
+</ul></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>#ifdef MESOSCALE: 读 stress.def 重设 stress_seuil, alpha_lift
+
+if firstcall:
+    getin windstress_lift_scheme (default 0)
+    if scheme != 0: abort_physic
+
+if windstress_lift_scheme == 0:
+    for ig:
+        fhoriz(ig) = 0
+        if co2ice(ig) &gt; 0: skip                 # 冰/霜覆盖不起尘
+        ust = sqrt(stress_seuil/rho(ig))         # 阈值摩擦速度
+        us  = pcdh(ig)/sqrt(pcdh_true(ig))       # 实际摩擦速度
+        if us &gt; ust:
+            fhoriz(ig) = 2.61*(rho/g)*(us-ust)*(us+ust)^2   # White 1979
+    for iq, ig:
+        dqslift(ig,iq) = -alpha_lift(iq)*fhoriz(ig)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>尘埃循环</td>
+<td>实现风应力起尘源项：把超阈值近地风转为地表尘埃注入通量 <code>dqslift</code>，是尘埃循环的源端，经 <code>vdifc</code> 注入大气</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 Fortran 90（<code>.F90</code>）。</li>
+<li>module 级与例程内均用 <code>SAVE</code>+<code>THREADPRIVATE</code>。</li>
+<li><code>goto 99</code> 跳过冰覆盖点（固定格式遗留风格）；大段注释掉的硬编码地理屏蔽（Olympus/Arsia/极冠等）保留为历史痕迹。</li>
+<li>硬编码常数：<code>stress_seuil=0.0225</code>、White 公式系数 <code>2.61</code>、MESOSCALE 的 <code>0.02</code>。</li>
+<li><code>windstress_lift_scheme</code> 当前仅 0 合法，非 0 直接 <code>abort_physic</code>（预留扩展）。</li>
+<li>MESOSCALE 与非 MESOSCALE 用不同 <code>use</code> 列表与 <code>stress.def</code> 逻辑。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>由 <code>vdifc</code>（行 881）在 <code>lifting</code> 路径调用；实参 <code>co2ice</code> 来自 <code>pqsurf_tmp(:,igcm_co2)</code>。</li>
+<li>起尘判据：<code>us&gt;ust</code>，<code>ust=sqrt(stress_seuil/rho)</code>，<code>us=pcdh/sqrt(pcdh_true)</code>；<code>stress_seuil=0.0225 N/m²</code>（非 MESOSCALE 默认）。</li>
+<li>水平通量 White(1979)：<code>fhoriz=2.61*(rho/g)*(us-ust)*(us+ust)²</code>。</li>
+<li>地表通量：<code>dqslift(:,iq)=-alpha_lift(iq)*fhoriz</code>，负号表示向大气注入；<code>alpha_lift</code> 来自 <code>tracer_mod</code>（initracer 设定）。</li>
+<li><code>co2ice&gt;0</code> 的格点不起尘（霜/极冠覆盖）。</li>
+<li><code>windstress_lift_scheme</code> 默认 0；非 0 中止（当前无其它方案）。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>非 MESOSCALE 编译下 <code>radius</code>（<code>use tracer_mod, only: alpha_lift, radius</code>）在方案 0 可见逻辑中未见直接使用，疑为与 MESOSCALE 分支共用 import 列表的遗留；推断不影响非 MESOSCALE 结果，复现时可忽略。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="dust_param_mod.html">dust_param_mod</a> — <code>lifting</code> 开关控制是否起尘</li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle 主题</a></li>
+<li><a href="../../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a> — 同属 <code>vdifc</code> 地表交换段；本例程在 <code>vdifc</code> 行 881 被调用</li>
+<li><a href="vdifc_mod.html">vdifc_mod.md</a>：本例程唯一调用方，消费 <code>dqslift</code>。</li>
+<li><a href="initracer.html">initracer.md</a>：设定 <code>alpha_lift</code>。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

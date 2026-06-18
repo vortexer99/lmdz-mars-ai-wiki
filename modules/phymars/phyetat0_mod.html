@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>phyetat0_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/phyetat0_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="phyetat0_modf90">phyetat0_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\phyetat0_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>phyetat0_mod.F90</code> 是物理初始状态读取和兜底初始化模块。它在 <code>startphy_file=.true.</code> 时打开 <code>startfi.nc</code>，通过 <code>iostart</code> 读取地表、土壤、坡面、云分数、热羽流、非地形重力波、tracer 表面储量、古气候和质量修正相关状态；在 <code>startphy_file=.false.</code> 时走无 <code>startfi.nc</code> 的学术/理想化初始化路径，给反照率、发射率、土壤地热通量和少量共享状态设置缺省值。</p>
+<p>本文件不是物理倾向计算器，而是把 <code>tabfi</code>、<code>iostart</code>、<code>soil_settings</code> 和多个共享状态模块串起来，决定一次运行从哪一个物理初始场和 restart 记忆状态开始。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phyetat0_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>物理初始状态读取模块</td>
+</tr>
+<tr>
+<td><code>tab_cntrl_mod(100)</code></td>
+<td>saved module array</td>
+<td>5</td>
+<td>为 XIOS/动力控制表缓存行星、网格和时间控制参数</td>
+</tr>
+<tr>
+<td><code>phyetat0</code></td>
+<td>subroutine</td>
+<td>13</td>
+<td>读取或构造物理初始状态，填充调用方传入的物理状态数组和多个共享模块变量</td>
+</tr>
+<tr>
+<td><code>ini_tab_controle_dyn_xios</code></td>
+<td>subroutine</td>
+<td>961</td>
+<td>把动力网格、物理常数和时间步参数写入 <code>tab_cntrl_mod</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>noms</code></td>
+<td>按 tracer 名称读取地表 tracer 字段</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>phisfi</code>, <code>albedodat</code>, <code>z0</code>, <code>z0_default</code>, <code>zmea</code>, <code>zstd</code>, <code>zsig</code>, <code>zgam</code>, <code>zthe</code>, <code>hmons</code>, <code>summit</code>, <code>base</code>, <code>watercaptag</code></td>
+<td>读取或初始化地表位势、反照率、粗糙度、次网格地形和水冰标签</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>surfini_mod</code></td>
+<td><code>icelocationmode</code></td>
+<td>缺少 <code>watercaptag</code> 时切换水冰定位模式</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>iostart</code></td>
+<td><code>nid_start</code>, <code>open_startphy</code>, <code>close_startphy</code>, <code>get_field</code>, <code>get_var</code>, <code>inquire_field</code>, <code>inquire_dimension</code>, <code>inquire_dimension_length</code></td>
+<td>打开 <code>startfi.nc</code>、查询维度/字段并读取 NetCDF 初始场</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>nonoro_gwd_ran_mod</code></td>
+<td><code>du_nonoro_gwd</code>, <code>dv_nonoro_gwd</code></td>
+<td>恢复非地形随机重力波动量记忆项</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>nonoro_gwd_mix_mod</code></td>
+<td><code>du_eddymix_gwd</code>, <code>dv_eddymix_gwd</code>, <code>de_eddymix_rto</code>, <code>df_eddymix_flx</code>, <code>dh_eddymix_gwd</code>, <code>dq_eddymix_gwd</code></td>
+<td>恢复非地形重力波混合方案记忆项</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>tracer_mass_fixer_dyn_mod</code></td>
+<td><code>mass_predyn_*</code>, <code>found_startfi_*</code>, <code>call_mass_fixer_dyn</code></td>
+<td>恢复动力 tracer 质量修正的前一步全局质量</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>compute_dtau_mod</code></td>
+<td><code>dtau</code></td>
+<td>恢复尘埃光学厚度时间记忆</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>dust_rad_adjust_mod</code></td>
+<td><code>dust_rad_adjust_prev</code>, <code>dust_rad_adjust_next</code></td>
+<td>恢复尘埃辐射调整前后状态</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td><code>dustscaling_mode</code></td>
+<td>控制 <code>tauscaling</code> 缺省值</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td><code>getin_p</code></td>
+<td>读取 <code>run.def</code> 中的 <code>timestart</code> 和无 startfi 缺省参数</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>flux_geo</code></td>
+<td>无 <code>startfi.nc</code> 时清零地热通量</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comslope_mod</code></td>
+<td><code>nslope</code>, <code>major_slope</code></td>
+<td>读取坡面分布并确定主坡面 bin</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>paleoclimate_mod</code></td>
+<td><code>paleoclimate</code>, <code>h2oice_depth</code>, <code>co2ice_depth</code>, <code>coef_ssdif</code></td>
+<td>读取或缺省初始化古气候地下冰状态</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>no-startfi 路径下设置表面压力缺省值</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>latitude</code></td>
+<td>南极古气候 CO2 冰缺省值判定</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>soil_settings_mod</code></td>
+<td><code>soil_settings</code></td>
+<td>读取土壤层深、热惯量、土壤温度和土壤 tracer</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>tabfi_mod</code></td>
+<td><code>tabfi</code></td>
+<td>读取或构造物理控制表和初始日期</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>startphy_file</code>, <code>rdstorm</code>, <code>hdo</code>, <code>CLFvarying</code>, <code>CLFfixval</code></td>
+<td>控制是否读 startfi、沙尘暴地形字段、HDO 地表 tracer 和云分数路径</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code>, <code>mugaz</code>, <code>omeg</code>, <code>rad</code>, <code>rcp</code></td>
+<td><code>ini_tab_controle_dyn_xios</code> 写控制表</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>hour_ini</code>, <code>daysec</code>, <code>dtphys</code></td>
+<td><code>ini_tab_controle_dyn_xios</code> 写控制表</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>nbp_lon</code>, <code>nbp_lat</code>, <code>nbp_lev</code></td>
+<td><code>ini_tab_controle_dyn_xios</code> 写控制表</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>open_startphy</code></td>
+<td><code>iostart.F90</code></td>
+<td>141</td>
+<td>打开 <code>startfi.nc</code></td>
+</tr>
+<tr>
+<td><code>tabfi</code></td>
+<td><code>tabfi.F</code> / <code>tabfi_mod</code></td>
+<td>145, 148</td>
+<td>从文件或 no-startfi 路径读取/构造物理控制表</td>
+</tr>
+<tr>
+<td><code>get_field</code></td>
+<td><code>iostart.F90</code></td>
+<td>多处</td>
+<td>读取网格场、地表场、三维场、土壤和 restart 记忆字段</td>
+</tr>
+<tr>
+<td><code>get_var</code></td>
+<td><code>iostart.F90</code></td>
+<td>多处</td>
+<td>读取标量、时间轴和质量修正标量</td>
+</tr>
+<tr>
+<td><code>getin_p</code></td>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td>242, 389, 558</td>
+<td>读取 <code>surfalbedo_without_startfi</code>、<code>timestart</code>、<code>surfemis_without_startfi</code></td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td><code>abort</code></td>
+<td>多处</td>
+<td>必需字段缺失或时间索引不合法时中止</td>
+</tr>
+<tr>
+<td><code>ini_tab_controle_dyn_xios</code></td>
+<td>本文件</td>
+<td>435</td>
+<td>填充 <code>tab_cntrl_mod</code></td>
+</tr>
+<tr>
+<td><code>soil_settings</code></td>
+<td><code>soil_settings.F</code></td>
+<td>878</td>
+<td>读取和插值土壤初始状态</td>
+</tr>
+<tr>
+<td><code>close_startphy</code></td>
+<td><code>iostart.F90</code></td>
+<td>文件末段</td>
+<td>关闭 <code>startfi.nc</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fichnom</code></td>
+<td>调用方</td>
+<td>character</td>
+<td>-</td>
+<td>物理初始场文件名，常见为 <code>startfi.nc</code></td>
+</tr>
+<tr>
+<td><code>tab0</code></td>
+<td>调用方 / <code>tabfi</code></td>
+<td>real array</td>
+<td>-</td>
+<td>物理控制表缓存</td>
+</tr>
+<tr>
+<td><code>Lmodif</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td><code>tabfi</code> 的修改/读取模式标志</td>
+</tr>
+<tr>
+<td><code>nsoil</code>, <code>ngrid</code>, <code>nlay</code>, <code>nq</code>, <code>nqsoil</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>土壤层、物理格点、垂直层、tracer 和土壤 tracer 数量</td>
+</tr>
+<tr>
+<td><code>startphy_file</code></td>
+<td><code>callkeys_mod</code></td>
+<td>logical</td>
+<td>-</td>
+<td>是否读取 <code>startfi.nc</code></td>
+</tr>
+<tr>
+<td><code>timestart</code></td>
+<td><code>run.def</code> / <code>getin_p</code></td>
+<td>integer</td>
+<td>-</td>
+<td>多时间初始场中选择的 <code>Time</code> 索引；缺省 <code>-9999</code> 表示最后一个时刻</td>
+</tr>
+<tr>
+<td><code>surfalbedo_without_startfi</code></td>
+<td><code>run.def</code> / <code>getin_p</code></td>
+<td>real</td>
+<td>-</td>
+<td>无 startfi 时的地表反照率</td>
+</tr>
+<tr>
+<td><code>surfemis_without_startfi</code></td>
+<td><code>run.def</code> / <code>getin_p</code></td>
+<td>real</td>
+<td>-</td>
+<td>无 startfi 时的地表发射率</td>
+</tr>
+<tr>
+<td><code>CLFvarying</code>, <code>CLFfixval</code>, <code>rdstorm</code>, <code>hdo</code>, <code>paleoclimate</code></td>
+<td><code>callkeys_mod</code> / <code>paleoclimate_mod</code></td>
+<td>logical/real</td>
+<td>-</td>
+<td>控制云分数、沙尘暴地形字段、HDO 和古气候 restart 字段路径</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tsurf</code>, <code>tsoil</code>, <code>emis</code>, <code>albedo</code>, <code>q2</code>, <code>qsurf</code>, <code>qsoil</code>, <code>co2ice</code>, <code>watercap</code>, <code>perennial_co2ice</code>, <code>totcloudfrac</code>, <code>wstar</code> 等实参</td>
+<td><code>physiq_mod.F</code>、<code>newstart.F</code> 等调用方</td>
+<td>arrays</td>
+<td>混合</td>
+<td>物理初始状态、地表储量、土壤和 restart 记忆场</td>
+</tr>
+<tr>
+<td><code>phisfi</code>, <code>albedodat</code>, <code>z0</code>, <code>zmea/zstd/zsig/zgam/zthe</code>, <code>hmons/summit/base</code>, <code>watercaptag</code></td>
+<td><code>surfdat_h</code></td>
+<td>module arrays</td>
+<td>混合</td>
+<td>地表位势、反照率、粗糙度、次网格地形和水冰标签</td>
+</tr>
+<tr>
+<td><code>subslope_dist</code>, <code>major_slope</code></td>
+<td><code>comslope_mod</code></td>
+<td>module arrays/scalar</td>
+<td>-</td>
+<td>次网格坡面分布和主坡面索引</td>
+</tr>
+<tr>
+<td><code>dtau</code>, <code>tauscaling</code>, <code>dust_rad_adjust_prev/next</code></td>
+<td>dust 相关模块/调用方</td>
+<td>arrays</td>
+<td>-</td>
+<td>尘埃光学厚度和辐射调整 restart 状态</td>
+</tr>
+<tr>
+<td><code>du_*</code>, <code>dv_*</code>, <code>dh_*</code>, <code>dq_*</code>, <code>de_*</code>, <code>df_*</code></td>
+<td>非地形重力波模块</td>
+<td>arrays</td>
+<td>-</td>
+<td>随机 GW 和 eddy-mix GW 的记忆 tendency/flux</td>
+</tr>
+<tr>
+<td><code>mass_predyn_*</code>, <code>found_startfi_*</code></td>
+<td><code>tracer_mass_fixer_dyn_mod</code></td>
+<td>scalars/logicals</td>
+<td>kg 或源码定义</td>
+<td>动力 tracer 质量修正的 restart 标量和存在性标志</td>
+</tr>
+<tr>
+<td><code>h2oice_depth</code>, <code>co2ice_depth</code>, <code>coef_ssdif</code>, <code>perennial_co2ice</code></td>
+<td><code>paleoclimate_mod</code> / 调用方</td>
+<td>arrays</td>
+<td>m 或源码定义</td>
+<td>古气候地下冰和常年 CO2 冰状态</td>
+</tr>
+<tr>
+<td><code>tab_cntrl_mod</code></td>
+<td>本模块 / XIOS 控制表路径</td>
+<td><code>real(100)</code></td>
+<td>混合</td>
+<td>网格、物理常数、时间步和初始时刻控制参数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>tab_cntrl_mod</code> 使用 <code>SAVE</code>，并声明为 <code>!$OMP THREADPRIVATE(tab_cntrl_mod)</code>；多线程运行时每个线程持有独立控制表副本。</li>
+<li><code>phyetat0</code> 在 <code>startphy_file=.true.</code> 时会打开并关闭 <code>startfi.nc</code>，大量读取 NetCDF 字段；缺少必需字段时调用 <code>abort_physic</code> 终止。</li>
+<li>函数会写入多个 module 级状态，而不只填调用方实参，包括 <code>surfdat_h</code>、<code>comslope_mod</code>、<code>paleoclimate_mod</code>、非地形重力波模块、尘埃模块和 tracer 质量修正模块。</li>
+<li>no-startfi 路径不会调用 <code>soil_settings</code>，而是把 <code>flux_geo(:,:)=0.</code>；同时要求 <code>nslope==1</code>，否则中止。</li>
+<li>多时间轴 <code>startfi.nc</code> 通过 <code>timestart</code> 选择 <code>indextime</code>；缺省 <code>-9999</code> 使用最后一个 <code>Time</code>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>根据 <code>startphy_file</code> 决定是否打开 <code>startfi.nc</code>，随后调用 <code>tabfi</code>。有 startfi 时从文件读控制表；无 startfi 时用空文件标识走理想化初始化。</li>
+<li>如果 start 文件存在坡面定义，读取 <code>def_slope</code> 和 <code>subslope_dist</code>，归一化坡面分布并确定 <code>major_slope</code>；若无 startfi 且 <code>nslope!=1</code>，直接中止。</li>
+<li>读取必需地表字段：<code>phisfi</code>、<code>albedodat</code>、<code>ZMEA</code>、<code>ZSTD</code>、<code>ZSIG</code>、<code>ZGAM</code>、<code>ZTHE</code>、<code>tsurf</code>、<code>emis</code>、<code>q2</code> 等。缺字段时按源码规则中止或给缺省值。</li>
+<li>若存在 <code>Time</code> 维度，读取时间轴并用 <code>timestart</code> 选择 <code>indextime</code>；随后初始化 <code>tab_cntrl_mod</code>。</li>
+<li>读取尘埃、云分数、热羽流、地表温度/反照率/发射率、粗糙度、湍流能量和非地形重力波记忆场。</li>
+<li>若 <code>call_mass_fixer_dyn</code> 为真，读取 8 个主要大气成分的 <code>mass_predyn_*</code> 标量，只有字段存在且值大于 0 时才设置对应 <code>found_startfi_*</code>。</li>
+<li>按 tracer 名称读取 <code>qsurf</code>：<code>h2o_vap</code> 读取 <code>h2o_ice</code> 地表 tracer，HDO 分支把 <code>hdo_vap</code> 映射到 <code>hdo_ice</code>，<code>co2</code> 优先读 <code>co2ice</code>，其他缺失非 CO2 tracer 清零。</li>
+<li>读取 <code>watercap</code> 和 <code>watercaptag</code>。没有 <code>watercap</code> 时把负的 <code>h2o_ice</code> 地表储量转移到 <code>watercap</code> 后清零；没有 <code>watercaptag</code> 时设置 <code>icelocationmode=4</code>。</li>
+<li>有 startfi 时调用 <code>soil_settings</code> 读取土壤状态；古气候字段存在时读取 <code>h2oice_depth</code>、<code>coef_ssdif</code>、<code>co2ice_depth</code>、<code>perennial_co2ice</code>，缺失时填源码缺省值。</li>
+<li>关闭 <code>startfi.nc</code>，返回已填充的物理初始状态。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>phyetat0(fichnom, ...)
+  if startphy_file:
+    open_startphy(fichnom)
+    tabfi(nid_start, Lmodif, ...)
+  else:
+    tabfi(0, 0, 0, ...)
+
+  read or initialize slope distribution
+  read required surface/orography fields or apply no-startfi defaults
+  choose Time index from timestart if Time dimension exists
+  ini_tab_controle_dyn_xios(day_ini)
+
+  read dust scaling, dust radiative adjustment, dtau
+  read cloud fraction, wstar, tsurf, albedo, emis, z0, q2
+  read non-orographic gravity-wave restart memory
+  read tracer-mass-fixer mass_predyn_* scalars when enabled
+
+  for each tracer:
+    map selected tracer names to surface storage field names
+    read qsurf, abort only for missing CO2 surface state
+
+  read watercap/watercaptag and soil settings
+  read paleoclimate arrays or set defaults
+  close_startphy when opened
+
+ini_tab_controle_dyn_xios(idayref)
+  tab_cntrl_mod(1:11,27) = grid sizes, constants, day/time controls</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>物理初始化</td>
+<td>从 <code>startfi.nc</code> 或 no-startfi 缺省路径构造 <code>physiq</code> 首步需要的地表、土壤、tracer 和记忆状态</td>
+</tr>
+<tr>
+<td>restart 兼容</td>
+<td>对缺字段提供源码定义的 fallback，或在必需字段缺失时中止</td>
+</tr>
+<tr>
+<td>次网格坡面</td>
+<td>读取 <code>def_slope</code>、<code>subslope_dist</code>，归一化坡面分布并设置 <code>major_slope</code></td>
+</tr>
+<tr>
+<td>尘埃循环</td>
+<td>恢复 <code>tauscaling</code>、<code>dtau</code> 和尘埃辐射调整状态</td>
+</tr>
+<tr>
+<td>水循环 / HDO</td>
+<td>读取水冰地表储量、<code>watercap</code>、<code>watercaptag</code>，并处理 HDO 地表冰映射</td>
+</tr>
+<tr>
+<td>CO2 循环</td>
+<td>读取 <code>co2ice</code> 地表状态和古气候常年 CO2 冰字段</td>
+</tr>
+<tr>
+<td>非地形重力波</td>
+<td>恢复随机 GW 和 eddy-mix GW 记忆 tendency/flux</td>
+</tr>
+<tr>
+<td>古气候 / lag-layer</td>
+<td>初始化地下 H2O/CO2 冰深度和地下水扩散系数</td>
+</tr>
+<tr>
+<td>XIOS/控制表</td>
+<td><code>ini_tab_controle_dyn_xios</code> 填充 <code>tab_cntrl_mod</code> 供控制表路径使用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>本文件是大型初始化例程，许多字段的缺省值和错误处理是 restart 格式契约的一部分；复现时不能只看变量名，需要逐字段确认 <code>found</code> 分支。</li>
+<li><code>get_field</code> 的 <code>indextime</code> 参数只在存在时间轴或相应字段按时间保存时有意义；<code>timestart=-9999</code> 表示选择最后一个可用时间。</li>
+<li><code>tab_cntrl_mod</code> 只填了固定槽位：<code>1=nbp_lon</code>、<code>2=nbp_lat-1</code>、<code>3=nbp_lev</code>、<code>4=idayref</code>、<code>5=rad</code>、<code>6=omeg</code>、<code>7=g</code>、<code>8=mugaz</code>、<code>9=rcp</code>、<code>10=daysec</code>、<code>11=dtphys</code>、<code>27=hour_ini</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>startfi.nc</code> 至少需要包含 <code>phisfi</code>、<code>albedodat</code>、<code>ZMEA</code>、<code>ZSTD</code>、<code>ZSIG</code>、<code>ZGAM</code>、<code>ZTHE</code>、<code>tsurf</code>、<code>emis</code>、<code>q2</code>；若定义了坡面字段，还需要可读的 <code>subslope_dist</code>。</li>
+<li><code>hmons</code>、<code>summit</code>、<code>base</code> 缺失时只有 <code>rdstorm=.true.</code> 才中止；否则三者清零。</li>
+<li><code>totcloudfrac</code> 分支按源码字面行为记录：<code>CLFvarying</code> 为真时尝试读取 <code>totcloudfrac</code>，但随后仍把 <code>totcloudfrac(:)=CLFfixval</code>。这看起来可能覆盖文件值，复现时应按源码执行并等待开发者确认意图。</li>
+<li>非地形 GW 读取块中 <code>dv_nonoro_gwd</code> 出现两次读取；<code>df_eddymix_flx</code> 的字段名字符串带尾随空格 <code>"df_eddymix_flx "</code>，这可能影响 restart 字段匹配。</li>
+<li><code>mass_predyn_*</code> 只有在 <code>startphy_file .and. call_mass_fixer_dyn</code> 时读取，且字段值必须大于 0 才视为有效。</li>
+<li><code>watercap</code> 缺失时，负的 <code>h2o_ice</code> 地表储量会被解释为永久水冰储库并转移到 <code>watercap</code>；负的 <code>hdo_ice</code> 地表储量会直接清零。</li>
+<li><code>paleoclimate</code> 字段缺省值包括 <code>h2oice_depth=-999.</code>、<code>co2ice_depth=-999.</code>、<code>coef_ssdif=4.e-4</code>；若最后一个纬度为南极，<code>perennial_co2ice(ngrid,:)=10*1.6e3</code>。</li>
+<li>无 <code>startfi.nc</code> 路径要求 <code>nslope==1</code>，并通过 <code>surfalbedo_without_startfi</code>、<code>surfemis_without_startfi</code> 提供地表反照率和发射率。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>totcloudfrac</code> 在 <code>CLFvarying</code> 分支中读入后又被 <code>CLFfixval</code> 覆盖，需确认是有意固定云分数还是遗漏了 <code>else</code>。</li>
+<li><code>dv_nonoro_gwd</code> 的重复读取块是否为拷贝残留。</li>
+<li><code>get_field("df_eddymix_flx ",...)</code> 字段名包含尾随空格，需确认 restart 文件中实际变量名是否也包含空格或 NetCDF 层是否会裁剪。</li>
+<li>局部变量 <code>igcm_co2_tmp</code> 在古气候块中被查找但后续未见实际使用，需确认是否为遗留逻辑。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="iostart.html">iostart</a></li>
+<li><a href="soil_settings.html">soil_settings</a></li>
+<li><a href="paleoclimate_mod.html">paleoclimate_mod</a></li>
+<li><a href="nonoro_gwd_mix_mod.html">nonoro_gwd_mix_mod</a></li>
+<li><a href="nonoro_gwd_ran_mod.html">nonoro_gwd_ran_mod</a></li>
+<li><a href="tracer_mass_fixer_dyn_mod.html">tracer_mass_fixer_dyn_mod</a></li>
+<li><a href="phyredem.html">phyredem</a></li>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

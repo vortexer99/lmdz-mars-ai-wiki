@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>co2cloud_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/co2cloud_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="co2cloud_modf90">co2cloud_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\co2cloud_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>CO2 云形成的主调度模块。根据物理时间步驱动微时间子循环，每个子循环内依次调用 <code>improvedco2clouds</code> 微物理方案、重力沉降（<code>newsedim</code>），并做非负保护。包含 CLFvaryingCO2 次网格云覆盖分数计算（含饱和指数 SatIndex）、CO2 冰粒半径和密度更新、1 µm 光学厚度计算、CO2 饱和诊断输出。被 <code>physiq</code> 在每个物理时间步调用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>co2cloud_mod</code></td>
+<td>module</td>
+<td>10</td>
+<td>CO2 云主调度模块</td>
+</tr>
+<tr>
+<td><code>co2cloud</code></td>
+<td>subroutine</td>
+<td>89</td>
+<td>CO2 云形成主例程：微时间循环、微物理调用、沉降、非负保护、半径更新、饱和诊断</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ioipsl_getincom</code></td>
+<td><code>getin</code></td>
+<td>读取 <code>imicroco2</code> 参数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>naerkind</code></td>
+<td>气溶胶种类数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code>, <code>g</code>, <code>cpp</code></td>
+<td>物理常数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>updaterad</code></td>
+<td><code>updaterice_microco2</code>, <code>updaterice_micro</code>, <code>updaterdust</code></td>
+<td>更新 CO2 冰/水冰/尘埃粒子半径和密度</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="conc_mod.html">conc_mod</a></td>
+<td><code>mmean</code>, <code>rnew</code></td>
+<td>平均分子量、新气体常数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_co2</code>, <code>igcm_co2_ice</code>, <code>igcm_dust_mass</code>, <code>igcm_dust_number</code>, <code>igcm_h2o_ice</code>, <code>igcm_ccn_mass</code>, <code>igcm_ccn_number</code>, <code>igcm_ccnco2_mass</code>, <code>igcm_ccnco2_number</code>, <code>igcm_ccnco2_h2o_number</code>, <code>igcm_ccnco2_h2o_mass_ice</code>, <code>igcm_ccnco2_h2o_mass_ccn</code>, <code>rho_dust</code>, <code>nuiceco2_sed</code>, <code>nuiceco2_ref</code>, <code>r3n_q</code>, <code>rho_ice</code>, <code>nuice_sed</code>, <code>igcm_ccnco2_meteor_mass</code>, <code>igcm_ccnco2_meteor_number</code></td>
+<td>tracer 索引和物理常数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>newsedim_mod</code></td>
+<td><code>newsedim</code></td>
+<td>重力沉降核心计算</td>
+<td></td>
+</tr>
+<tr>
+<td><code>datafile_mod</code></td>
+<td><code>datadir</code></td>
+<td>数据文件目录路径</td>
+<td></td>
+</tr>
+<tr>
+<td><code>density_co2_ice_mod</code></td>
+<td><code>density_co2_ice</code></td>
+<td>CO2 冰密度计算</td>
+<td>待确认：use 但代码中未直接调用</td>
+</tr>
+<tr>
+<td><code>tcondco2_mod</code></td>
+<td><code>tcondco2</code></td>
+<td>CO2 凝结温度计算</td>
+<td></td>
+</tr>
+<tr>
+<td><code>improvedCO2clouds_mod</code></td>
+<td><code>improvedCO2clouds</code></td>
+<td>CO2 云微物理核心方案</td>
+<td></td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>nbinco2_cld</code>, <code>rad_cldco2</code>, <code>mco2</code></td>
+<td>微物理参数（bin 数、半径网格、CO2 分子量）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>write_output_mod</code></td>
+<td><code>write_output</code></td>
+<td>诊断输出（<code>#ifndef MESOSCALE</code> 保护）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>sedimentation</code>, <code>CLFvaryingCO2</code>, <code>co2useh2o</code>, <code>satindexco2</code>, <code>meteo_flux</code></td>
+<td>运行时物理开关</td>
+<td></td>
+</tr>
+<tr>
+<td><code>vertical_layers_mod</code></td>
+<td><code>ap</code>, <code>bp</code></td>
+<td>垂直层接口系数（<code>#ifndef MESOSCALE</code> 保护）</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin("imicroco2",imicroco2)</code></td>
+<td><code>ioipsl_getincom</code></td>
+<td>行 310</td>
+<td>读取微时间子循环步数</td>
+</tr>
+<tr>
+<td><code>tcondco2</code></td>
+<td><code>tcondco2_mod</code></td>
+<td>行 515</td>
+<td>计算 CO2 凝结温度（CLFvaryingCO2 路径）</td>
+</tr>
+<tr>
+<td><code>improvedco2clouds</code></td>
+<td><code>improvedCO2clouds_mod</code></td>
+<td>行 632</td>
+<td>CO2 云微物理核心方案，每个 microstep 调用</td>
+</tr>
+<tr>
+<td><code>newsedim</code></td>
+<td><code>newsedim_mod</code></td>
+<td>行 819, 830, 838, 847, 856, 866, 875, 884</td>
+<td>重力沉降（co2_ice、ccnco2_mass/number、meteor、h2o 相关）</td>
+</tr>
+<tr>
+<td><code>updaterice_microco2</code></td>
+<td><code>updaterad</code></td>
+<td>行 783, 1069</td>
+<td>更新 CO2 冰粒半径和云密度</td>
+</tr>
+<tr>
+<td><code>updaterice_micro</code></td>
+<td><code>updaterad</code></td>
+<td>行 1093</td>
+<td>更新水冰粒半径（<code>co2useh2o</code> 路径）</td>
+</tr>
+<tr>
+<td><code>updaterdust</code></td>
+<td><code>updaterad</code></td>
+<td>行 1101</td>
+<td>更新尘埃有效半径</td>
+</tr>
+<tr>
+<td><code>co2sat</code></td>
+<td>(外部)</td>
+<td>行 1126</td>
+<td>计算 CO2 饱和蒸汽压</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>(GCM 内部)</td>
+<td>行 346, 974</td>
+<td>文件缺失或 NaN 时终止运行</td>
+</tr>
+<tr>
+<td><code>write_output</code></td>
+<td><code>write_output_mod</code></td>
+<td>行 500-502, 1192-1208</td>
+<td>诊断输出（<code>#ifndef MESOSCALE</code>）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>physiq</td>
+<td>INT, scalar</td>
+<td>-</td>
+<td>大气格点数</td>
+</tr>
+<tr>
+<td><code>nlay</code></td>
+<td>physiq</td>
+<td>INT, scalar</td>
+<td>-</td>
+<td>大气层数</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>physiq</td>
+<td>REAL, scalar</td>
+<td>s</td>
+<td>物理时间步长</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay+1)</td>
+<td>Pa</td>
+<td>层界面气压</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>Pa</td>
+<td>层中气压</td>
+</tr>
+<tr>
+<td><code>pdpsrf</code></td>
+<td>physiq</td>
+<td>REAL (ngrid)</td>
+<td>Pa/s</td>
+<td>地面气压倾向</td>
+</tr>
+<tr>
+<td><code>pzlay</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>m</td>
+<td>层中高度</td>
+</tr>
+<tr>
+<td><code>pzlev</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay+1)</td>
+<td>m</td>
+<td>层界面高度</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>K</td>
+<td>温度</td>
+</tr>
+<tr>
+<td><code>pdt</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>K/s</td>
+<td>温度倾向（其他过程）</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay,nq)</td>
+<td>kg/kg</td>
+<td>tracer 混合比</td>
+</tr>
+<tr>
+<td><code>pdq</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay,nq)</td>
+<td>kg/kg/s</td>
+<td>tracer 倾向（其他过程）</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>physiq</td>
+<td>INT, scalar</td>
+<td>-</td>
+<td>tracer 数量</td>
+</tr>
+<tr>
+<td><code>tau</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,naerkind)</td>
+<td>-</td>
+<td>柱尘埃光学厚度</td>
+</tr>
+<tr>
+<td><code>tauscaling</code></td>
+<td>physiq</td>
+<td>REAL (ngrid)</td>
+<td>-</td>
+<td>尘埃量转换因子</td>
+</tr>
+<tr>
+<td><code>pu</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>m/s</td>
+<td>纬向风（SatIndex 用）</td>
+</tr>
+<tr>
+<td><code>pdu</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>m/s/s</td>
+<td>纬向风倾向（SatIndex 用）</td>
+</tr>
+<tr>
+<td><code>nuice</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>-</td>
+<td>尺度分布有效方差（输入，但本模块未使用）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdqcloudco2</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay,nq)</td>
+<td>kg/kg/s</td>
+<td>CO2 云凝结产生的 tracer 倾向</td>
+</tr>
+<tr>
+<td><code>pdtcloudco2</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>K/s</td>
+<td>CO2 云潜热释放温度倾向</td>
+</tr>
+<tr>
+<td><code>rice</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>m</td>
+<td>水冰粒质量平均半径（INOUT，<code>co2useh2o</code> 时更新）</td>
+</tr>
+<tr>
+<td><code>riceco2</code></td>
+<td>physiq</td>
+<td>DOUBLE PRECISION (ngrid,nlay)</td>
+<td>m</td>
+<td>CO2 冰粒质量平均半径</td>
+</tr>
+<tr>
+<td><code>rhocloud</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>kg/m³</td>
+<td>水云密度（INOUT，<code>co2useh2o</code> 时更新）</td>
+</tr>
+<tr>
+<td><code>rhocloudco2</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>kg/m³</td>
+<td>CO2 云密度</td>
+</tr>
+<tr>
+<td><code>rsedcloudco2</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>m</td>
+<td>CO2 云沉降半径</td>
+</tr>
+<tr>
+<td><code>pdqs_sedco2</code></td>
+<td>physiq</td>
+<td>REAL (ngrid)</td>
+<td>kg/m²/s</td>
+<td>CO2 冰地表沉积通量</td>
+</tr>
+<tr>
+<td><code>pdqs_sedccn</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nq)</td>
+<td>kg/m²/s</td>
+<td>CCN 地表沉积通量</td>
+</tr>
+<tr>
+<td><code>pcondicea</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>kg/kg/s</td>
+<td>CO2 凝结/升华速率</td>
+</tr>
+<tr>
+<td><code>rdust</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>m</td>
+<td>尘埃几何平均半径（INOUT）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>SAVE 变量</strong>：<code>imicroco2</code>（微时间子循环步数）、<code>sigma_iceco2</code>、<code>microtimestep</code>、<code>dev2</code>、<code>Qext1bins</code>、<code>Qextv1mic</code>、<code>radv</code>、<code>rb_cldco2</code>、<code>firstcall</code>——全部 <code>SAVE + THREADPRIVATE</code>。</li>
+<li><strong>firstcall</strong>：首次调用时读取 <code>imicroco2</code>，计算 CO2 冰粒半径网格和 1 µm 消光系数（从 <code>optprop_co2ice_1mic.dat</code> 读取）。</li>
+<li><strong>标准输出</strong>：firstcall 打印 bin-Qext 信息；NaN 检测时打印诊断并终止。</li>
+<li><strong>诊断输出</strong>（<code>#ifndef MESOSCALE</code>）：SatIndex、SatIndexmap、satuco2、precip_co2_ice_rate、co2ice_cond_rate、pdtcloudco2、riceco2、Tau3D1mic、tau1mic、co2cloudfrac。</li>
+<li><strong>数据文件依赖</strong>：<code>optprop_co2ice_1mic.dat</code>（CO2 冰 1 µm 光学属性，位于 <code>datadir</code>）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><p><strong>firstcall 初始化</strong>（行 300-406）：</p>
+<ul>
+<li>读取 <code>imicroco2</code>（默认 MESOSCALE=2，否则=30），计算 <code>microtimestep = ptimestep/imicroco2</code>。</li>
+<li>计算 CO2 冰粒半径网格 <code>rad_cldco2</code>（100 bins，对数等间距，rmin=1nm 到 rmax=5µm）和边界 <code>rb_cldco2</code>。</li>
+<li>从 <code>optprop_co2ice_1mic.dat</code> 读取 10000 点消光数据，插值到 <code>rb_cldco2</code> 网格得到 <code>Qext1bins</code>。</li>
+<li>将 <code>rb_cldco2</code> 转为对数空间存储。</li>
+</ul></li>
+<li><p><strong>初始化倾向和默认值</strong>（行 410-428）：所有累积器清零；<code>rhocloudco2</code> 默认 <code>rho_dust</code>；<code>riceco2</code> 默认 0。</p></li>
+<li><p><strong>计算层质量和厚度</strong>（行 432-441）：<code>masse = (pplev(l)-pplev(l+1) + (bp(l)-bp(l+1))) / g</code>（非 MESOSCALE 时含 <code>bp</code> 修正）。</p></li>
+<li><p><strong>CLFvaryingCO2 次网格云覆盖</strong>（行 447-565）：</p>
+<ul>
+<li>有效温度 <code>zt = pt + pdt*ptimestep</code>，有效 CO2 vap <code>zq_co2vap = pq(co2) + pdq(co2)*ptimestep</code>。</li>
+<li><strong>SatIndex</strong>（<code>satindexco2=true</code> 时，行 473-511）：在层 12-26（约 12-85 km）计算 Brunt-Väisälä 频率 N、风速 |u|、密度 ρ，按 Spiga et al. (2012) 公式 <code>SatIndex = sqrt(Fo*λ_H*N/(ρ*|u|³))</code> 计算饱和指数；取层 12-26 最大值为 <code>SatIndexmap</code>。若 <code>satindexco2=false</code>，设 <code>SatIndexmap=0.05</code>。</li>
+<li><strong>tcond 计算</strong>（行 515）：调用 <code>tcondco2(ngrid,nlay,pplay,zq_co2vap,tcond)</code>。</li>
+<li><strong>cloud fraction</strong>（行 519-554）：仅 <code>SatIndexmap ≤ 0.1</code> 时计算。三段逻辑：若 <code>tcond ≥ zt+zdelt</code>（完全饱和），<code>co2cloudfrac=1</code>；若 <code>tcond ≤ zt-zdelt</code>（不饱和），<code>co2cloudfrac=mincloud</code>；否则按线性插值计算。<code>mincloud=0.1</code> 为下限。</li>
+</ul></li>
+<li><p><strong>主微时间循环</strong>（行 582-951）：</p>
+<ul>
+<li><strong>有效 tracer 调整</strong>（行 574-580）：CLFvaryingCO2 时 <code>pqeff(ccnco2/co2_ice) /= co2cloudfrac</code>。</li>
+<li><strong>关键分支差异</strong>：<code>improvedco2clouds</code> 接收的是 <code>pteff/pqeff</code>——在 CLFvaryingCO2 路径中 <code>pteff</code> 被覆盖为 <code>pt</code>（行 570），但 <code>pqeff</code> 经过 cloudfrac 调整。这与 watercloud 中 <code>improvedclouds</code> 接收原始 <code>pt/pq</code> 不同。</li>
+<li>每个 microstep：
+<ul>
+<li>阶梯输入累加 pdt/pdq 到 <code>sum_subpdt/sum_subpdq</code>（行 586-628），覆盖 co2/co2_ice/ccnco2/dust 及条件性 h2o 相关/meteor tracer。</li>
+<li>调用 <code>improvedco2clouds</code>（行 632-633）。</li>
+<li><strong>非负保护</strong>（行 635-700）：co2_ice/co2 双向互反（阈值 1e-12）；ccnco2_number/mass 阈值 1/1e-20 与 dust 互反；meteor CCN 同理（<code>meteo_flux</code>）；ccnco2_h2o 相关三组 tracer 同理（<code>co2useh2o</code>）。</li>
+<li>累加 cloud tendency 到 <code>sum_subpdq/sum_subpdt</code>（行 704-746）。</li>
+</ul></li>
+<li><strong>重力沉降</strong>（<code>sedimentation=true</code> 时，行 750-950）：
+<ul>
+<li>计算沉降时温度和 tracer <code>ztsed/zqsed</code>，调用 <code>updaterice_microco2</code> 得到 <code>riceco2</code> 和 <code>rhocloudco2t</code>。</li>
+<li><code>rsedcloudco2 = max(riceco2*(1+nuiceco2_sed)³, rdust)</code>。</li>
+<li>对 co2_ice、ccnco2_mass/number、meteor、h2o 相关分别调用 <code>newsedim</code> 沉降。</li>
+<li>计算沉降倾向 <code>subpdqsed</code> 并累加回 <code>sum_subpdq</code>。</li>
+</ul></li>
+</ul></li>
+<li><p><strong>最终倾向计算</strong>（行 953-1026）：</p>
+<ul>
+<li><code>pcondicea = sum_subpdq(co2_ice) / imicroco2</code>。</li>
+<li><code>pdqs_sedco2/pdqs_sedccn = sum_subpdqs / imicroco2</code>。</li>
+<li><code>pdtcloudco2 = sum_subpdt/imicroco2 - pdt</code>。</li>
+<li><code>pdqcloudco2(tracer) = sum_subpdq(tracer)/imicroco2 - pdq(tracer)</code>。</li>
+<li><strong>关键</strong>：<code>pdqcloudco2(co2) = 0</code>（行 982），注释说"this tendency is computed in co2condens"——CO2 气相倾向由 <code>co2condens</code> 处理。</li>
+</ul></li>
+<li><p><strong>更新粒子半径和光学厚度</strong>（行 1028-1106）：</p>
+<ul>
+<li>用最终状态调用 <code>updaterice_microco2</code> 更新 <code>riceco2</code> 和 <code>rhocloudco2</code>。</li>
+<li>计算 1 µm 消光 <code>Qext1bins2</code>（基于 log-normal 分布和 <code>Qext1bins</code> 插值）。</li>
+<li><code>co2useh2o</code> 时调用 <code>updaterice_micro</code> 更新水冰 <code>rice</code>/<code>rhocloud</code>。</li>
+<li>调用 <code>updaterdust</code> 更新 <code>rdust</code>。</li>
+</ul></li>
+<li><p><strong>CO2 升华第一层修正</strong>（行 1111-1120）：若 <code>pdpsrf*ptimestep &gt; 0.9*(pplev(1)-pplev(2))</code>，用上层 <code>riceco2</code> 覆盖；极端情况（&gt;0.9*(pplev(1)-pplev(3))）用第 3 层覆盖第 2 层。</p></li>
+<li><p><strong>CO2 饱和诊断</strong>（行 1122-1135）：调用 <code>co2sat</code> 计算饱和蒸汽压 <code>zqsatco2</code>；计算饱和比 <code>satuco2 = q(co2) * (mmean/mco2*1e3) * pplay / zqsatco2</code>。</p></li>
+<li><p><strong>CLFvaryingCO2 均值化</strong>（行 1139-1178）：所有倾向乘以 <code>co2cloudfrac</code>，将云内值映射回网格平均。</p></li>
+<li><p><strong>1 µm 柱光学厚度</strong>（行 1182-1187）：<code>tau1mic = sum(Qext1bins2, dim=layer)</code>。</p></li>
+<li><p><strong>诊断输出</strong>（行 1188-1209，<code>#ifndef MESOSCALE</code>）。</p></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>co2cloud(ngrid, nlay, ptimestep, ...):
+
+  if firstcall:
+    imicroco2 = getin(&quot;imicroco2&quot;)  // default: 30 (global), 2 (MESOSCALE)
+    microtimestep = ptimestep / imicroco2
+    构建 rad_cldco2 半径网格 (100 bins, 1nm~5µm)
+    读取 optprop_co2ice_1mic.dat → Qext1bins (1µm 消光)
+    rb_cldco2 转对数空间
+
+  初始化: sum_subpdq=0, sum_subpdt=0, rhocloudco2=rho_dust, riceco2=0
+  计算 masse, epaisseur
+
+  // --- CLFvaryingCO2 次网格方案 ---
+  if CLFvaryingCO2:
+    zt = pt + pdt*ptimestep
+    zq_co2vap = pq(co2) + pdq(co2)*ptimestep
+    if satindexco2:
+      SatIndex = sqrt(Fo*λ_H*N/(ρ*|u|³))  // 层 12-26
+      SatIndexmap = maxval(SatIndex, 12:26)
+    else:
+      SatIndexmap = 0.05
+    tcond = tcondco2(pplay, zq_co2vap)
+    // cloudfrac ∈ [mincloud, 1] 由 tcond 与 zt±zdelt 的关系决定
+    // 仅 SatIndexmap ≤ 0.1 时计算
+
+  // --- 主微时间循环 ---
+  pqeff = pq
+  pteff = pt  // 注意：覆盖了 CLFvaryingCO2 中计算的 pteff
+  if CLFvaryingCO2:
+    pqeff(ccnco2/co2_ice) /= co2cloudfrac
+
+  for microstep = 1..imicroco2:
+    累加 pdt, pdq 到 sum_subpdt, sum_subpdq (阶梯输入)
+    subpdqcloudco2, subpdtcloudco2 = improvedco2clouds(pteff, pqeff, ...)
+    非负保护: co2↔co2_ice, ccnco2↔dust, ccnco2_h2o, meteor
+    累加 cloud tendency 到 sum
+    if sedimentation:
+      计算 ztsed, zqsed, riceco2, rhocloudco2t
+      rsedcloudco2 = max(riceco2*(1+nuiceco2_sed)³, rdust)
+      对 co2_ice, ccnco2, meteor, h2o 相关分别调用 newsedim
+      累加沉降倾向回 sum
+
+  // --- 最终倾向 ---
+  pcondicea = sum_subpdq(co2_ice) / imicroco2
+  pdqs_sedco2 = sum_subpdqs_sedco2 / imicroco2
+  pdtcloudco2 = sum_subpdt/imicroco2 - pdt
+  pdqcloudco2(tracer) = sum_subpdq(tracer)/imicroco2 - pdq(tracer)
+  pdqcloudco2(co2) = 0  // 由 co2condens 处理
+
+  // --- 更新粒子半径和光学厚度 ---
+  updaterice_microco2 → riceco2, rhocloudco2
+  Qext1bins2 = 基于 log-normal 和 Qext1bins 的 1µm 消光
+  if co2useh2o: updaterice_micro → rice, rhocloud
+  updaterdust → rdust
+  CO2 升华第一层修正
+
+  // --- CO2 饱和诊断 ---
+  zqsatco2 = co2sat(pteff + (pdt+pdtcloudco2)*ptimestep)
+  satuco2 = q(co2) * (mmean/mco2*1e3) * pplay / zqsatco2
+
+  // --- CLFvaryingCO2 均值化 ---
+  if CLFvaryingCO2:
+    所有倾向 *= co2cloudfrac
+
+  // --- 1µm 柱光学厚度 ---
+  tau1mic = sum(Qext1bins2, dim=layer)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CO2 循环 (CO2-cycle)</td>
+<td>主调度：驱动 CO2 凝结/升华微物理、重力沉降、更新冰粒半径和云密度</td>
+</tr>
+<tr>
+<td><a href="../../themes/co2-cycle.html">CO2 循环主题页</a></td>
+<td>TASK-0011</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>自由格式 Fortran 90</strong>（.F90 后缀）。</li>
+<li><strong>SAVE + THREADPRIVATE</strong>：<code>imicroco2</code>、<code>sigma_iceco2</code>、<code>microtimestep</code>、<code>dev2</code>、<code>Qext1bins</code>、<code>Qextv1mic</code>、<code>radv</code>、<code>rb_cldco2</code>、<code>firstcall</code>。</li>
+<li><strong>firstcall 模式</strong>：首次调用时读取参数、构建半径网格、读取光学属性文件、打印诊断。</li>
+<li><strong>阶梯输入法</strong>：与 watercloud 相同，每个 microstep 累加 pdt/pdq。</li>
+<li><strong>非负保护逻辑</strong>：co2↔︎co2_ice 双向互反（阈值 1e-12），ccnco2↔︎dust 互反（阈值 1/1e-20），meteor 和 h2o 相关 CCN 同理。</li>
+<li><strong>pdqcloudco2(co2) = 0</strong>（行 982）：CO2 气相倾向故意设为零，由 <code>co2condens</code> 负责计算——这是与 watercloud 的关键差异。</li>
+<li><strong>pteff 覆盖</strong>（行 570）：CLFvaryingCO2 路径中先计算 pteff（行 449-539），但行 570 将其覆盖为 <code>pt</code>。实际传给 <code>improvedco2clouds</code> 的是 <code>pteff=pt</code> + cloudfrac 调整后的 <code>pqeff</code>——与 watercloud 中 <code>improvedclouds</code> 接收原始 <code>pt/pq</code> 不同。</li>
+<li><strong>SatIndex</strong>（Spiga et al. 2012）：仅在 <code>satindexco2=true</code> 时计算，用于调制云覆盖分数。</li>
+<li><strong>编译宏</strong>：<code>MESOSCALE</code> 影响 <code>imicroco2</code> 默认值、层质量计算（<code>bp</code> 修正）和诊断输出。</li>
+<li><strong>硬编码常数</strong>：<code>mincloud=0.1</code>、<code>beta=0.85</code>（不规则粒子形状修正）、<code>threshold=1e-30</code>、<code>threshold_2=1e-13</code>、<code>rmin_cld=1e-9 m</code>、<code>rmax_cld=5e-6 m</code>、<code>Fo=7.5e-7 J/m³</code>、<code>lambdaH=150 km</code>。</li>
+<li><strong>数据文件依赖</strong>：<code>optprop_co2ice_1mic.dat</code>（10000 点 CO2 冰 1 µm 消光系数）。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>imicroco2</code> 默认值依赖编译宏 MESOSCALE（2 vs 30），可通过 <code>imicroco2</code> 覆盖。</li>
+<li><code>pdqcloudco2(co2)</code> 始终为零——CO2 气相倾向由 <code>co2condens</code> 在外部计算，调用者必须知道这一点。</li>
+<li>非负保护的执行顺序（co2↔︎co2_ice → ccnco2↔︎dust → meteor → h2o 相关）影响最终倾向值。</li>
+<li>CO2 升华第一层修正阈值 0.9 与 watercloud 相同。</li>
+<li><code>optprop_co2ice_1mic.dat</code> 必须存在于 <code>datadir</code>，否则 <code>abort_physic</code> 终止。</li>
+<li>沉降半径 <code>rsedcloudco2 = max(riceco2*(1+nuiceco2_sed)³, rdust)</code>，使用 <code>nuiceco2_sed</code>（来自 <code>tracer_mod</code>）。</li>
+<li>SatIndex 仅在层 12-26（约 12-85 km）计算，反映 CO2 云主要形成在高层大气。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>zdelt</code>（行 250 声明、行 524-536 使用）：Delta T for temperature distribution，<strong>声明但未赋值</strong>——可能是未初始化变量的 bug，或依赖编译器默认零初始化。复现时需确认其值。</li>
+<li><code>density_co2_ice</code>（行 107 use）：在 <code>co2cloud</code> 本体中未被直接调用，是否为 <code>improvedco2clouds</code> 内部所需——Fortran use 不自动传递，需确认是否多余。</li>
+<li><code>nuice</code>（输入参数）：声明为输入但代码中未使用，可能是接口遗留。</li>
+<li><code>r3n_q</code>（从 tracer_mod use）：代码中未直接使用，可能为 <code>improvedco2clouds</code> 或其他模块所需。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li><code>zdelt</code> 未初始化：CLFvaryingCO2 云覆盖分数计算依赖 <code>zdelt</code>，若其值不确定则整个次网格方案不可复现。</li>
+<li><code>pdqcloudco2(co2) = 0</code> 是硬编码行为：调用者必须确保 <code>co2condens</code> 正确计算 CO2 气相倾向，否则 CO2 质量不守恒。</li>
+<li><code>optprop_co2ice_1mic.dat</code> 缺失将导致运行终止。</li>
+<li>SatIndex 中 <code>NN = sqrt(g/zt(iq,l) * ...)</code> 使用 <code>iq</code> 而非 <code>ig</code>（行 479）——<code>iq</code> 是 tracer 循环变量，此处应为 <code>ig</code>（grid point），可能是 bug。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="co2-saturation-helpers.html">co2-saturation-helpers — CO2 饱和与凝结温度</a></li>
+<li><a href="updaterad.html">updaterad — 冰粒/尘埃半径更新</a></li>
+<li><a href="newsedim_mod.html">newsedim_mod — 单示踪物重力沉降</a></li>
+<li><a href="improvedco2clouds_mod.html">improvedco2clouds_mod</a>（TASK-0046）- CO2 云微物理核心方案</li>
+<li><a href="../../routines/co2condens.html">co2condens</a>（TASK-0043）- CO2 地表/大气凝结（计算 pdqcloudco2(co2)）</li>
+<li><a href="co2snow.html">co2snow</a>（TASK-0041）- CO2 雪/地表沉积</li>
+<li><a href="../../themes/co2-cycle.html">CO2 循环主题页</a>（TASK-0011）</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

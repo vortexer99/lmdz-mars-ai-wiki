@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lmdz_atke_turbulence_ini - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/lmdz_atke_turbulence_ini.md</span>
+    </nav>
+    <article class="content">
+<h1 id="lmdz_atke_turbulence_inif90">lmdz_atke_turbulence_ini.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\lmdz_atke_turbulence_ini.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>lmdz_atke_turbulence_ini.F90</code> 是 ATKE 湍流方案的初始化与参数共享模块。它定义 <code>lmdz_atke_turbulence_ini</code> 模块和唯一入口 <code>atke_ini</code>，从 <code>physiq_mod.F</code> 在 <code>callatke</code> 打开时调用，接收行星常数和分子黏性系数，再读取一组 <code>atke_*</code> / <code>iflag_*</code> 配置键，生成后续 ATKE 交换系数、TKE 演化、地表层稳定度函数和 PBL 诊断共用的模块变量。</p>
+<p>该文件本身不计算扩散通量；它的职责是把 ATKE 方案的开关、经验常数、稳定度函数参数和分子黏性系数集中初始化，并通过 <code>SAVE</code> + <code>!$OMP THREADPRIVATE</code> 的模块状态供下游读取。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lmdz_atke_turbulence_ini</code></td>
+<td>module</td>
+<td>1</td>
+<td>保存 ATKE 湍流方案的全局参数和初始化入口</td>
+</tr>
+<tr>
+<td><code>atke_ini</code></td>
+<td>subroutine</td>
+<td>30</td>
+<td>复制行星常数、读取 ATKE 配置键，并派生稳定度函数参数</td>
+</tr>
+<tr>
+<td><code>iflag_atke</code></td>
+<td>module integer</td>
+<td>8</td>
+<td>控制 <code>atke_compute_km_kh</code> 中 TKE 数值格式</td>
+</tr>
+<tr>
+<td><code>iflag_num_atke</code></td>
+<td>module integer</td>
+<td>8</td>
+<td>控制 ATKE 扩散系数计算的数值处理</td>
+</tr>
+<tr>
+<td><code>iflag_atke_lmix</code></td>
+<td>module integer</td>
+<td>8</td>
+<td>控制混合长度 <code>l_exchange</code> 的参数化路径</td>
+</tr>
+<tr>
+<td><code>kappa</code></td>
+<td>module real</td>
+<td>10</td>
+<td>Von Karman 常数，默认 <code>0.4</code></td>
+</tr>
+<tr>
+<td><code>l0</code>, <code>lmin</code></td>
+<td>module real</td>
+<td>14, 22</td>
+<td>渐近混合长度和最小混合长度</td>
+</tr>
+<tr>
+<td><code>ric</code>, <code>ri0</code>, <code>ri1</code></td>
+<td>module real</td>
+<td>14</td>
+<td>临界 Richardson 数和 ATKE 稳定度函数过渡尺度</td>
+</tr>
+<tr>
+<td><code>cinf</code>, <code>cn</code>, <code>cepsilon</code>, <code>ctkes</code></td>
+<td>module real</td>
+<td>14</td>
+<td>ATKE 稳定度函数、TKE 耗散和地表 TKE 常数</td>
+</tr>
+<tr>
+<td><code>pr_slope</code>, <code>pr_asym</code>, <code>pr_neut</code></td>
+<td>module real</td>
+<td>14</td>
+<td>湍流 Prandtl 数函数参数</td>
+</tr>
+<tr>
+<td><code>clmix</code>, <code>clmixshear</code>, <code>smmin</code>, <code>cke</code></td>
+<td>module real</td>
+<td>14</td>
+<td>混合长度、稳定度下限和 TKE 扩散系数调参</td>
+</tr>
+<tr>
+<td><code>rg</code>, <code>rd</code>, <code>rpi</code>, <code>rcpd</code>, <code>rv</code></td>
+<td>module real</td>
+<td>18</td>
+<td>行星/气体常数缓存</td>
+</tr>
+<tr>
+<td><code>viscom</code>, <code>viscoh</code></td>
+<td>module real</td>
+<td>20</td>
+<td>动量与热量的运动分子黏性系数</td>
+</tr>
+<tr>
+<td><code>atke_ok_vdiff</code>, <code>atke_ok_virtual</code></td>
+<td>module logical</td>
+<td>25</td>
+<td>TKE 垂直扩散开关与虚温/浮力修正开关</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td><code>getin_p</code></td>
+<td>从 <code>.def</code> 配置读取 ATKE 开关和调参常数</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin_p</code></td>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td>行 62, 66, 75, 80, 85, 91, 95, 100, 109, 124, 132, 137, 147, 151, 157, 163</td>
+<td>用 <code>.def</code> 键覆盖本模块默认值</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>待确认：未在本文件显式 <code>use</code></td>
+<td>行 69, 112, 126, 139</td>
+<td>配置组合或参数范围不满足方案假设时中止</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rg_in</code></td>
+<td><code>physiq_mod.F</code> 行 815，传入 <code>g</code></td>
+<td>real scalar</td>
+<td>m/s2</td>
+<td>重力加速度</td>
+</tr>
+<tr>
+<td><code>rd_in</code></td>
+<td><code>physiq_mod.F</code> 行 815，传入 <code>r</code></td>
+<td>real scalar</td>
+<td>J/kg/K</td>
+<td>干空气/背景气体气体常数</td>
+</tr>
+<tr>
+<td><code>rpi_in</code></td>
+<td><code>physiq_mod.F</code> 行 815，传入 <code>pi</code></td>
+<td>real scalar</td>
+<td>1</td>
+<td>圆周率</td>
+</tr>
+<tr>
+<td><code>rcpd_in</code></td>
+<td><code>physiq_mod.F</code> 行 815，传入 <code>cpp</code></td>
+<td>real scalar</td>
+<td>J/kg/K</td>
+<td>定压比热</td>
+</tr>
+<tr>
+<td><code>rv_in</code></td>
+<td><code>physiq_mod.F</code> 行 815，传入 <code>0.</code></td>
+<td>real scalar</td>
+<td>J/kg/K</td>
+<td>水汽气体常数；火星路径中当前传 0</td>
+</tr>
+<tr>
+<td><code>viscom_in</code></td>
+<td><code>physiq_mod.F</code> 行 813-815</td>
+<td>real scalar</td>
+<td>m2/s</td>
+<td>动量分子黏性系数，当前调用处设为 <code>0.001</code></td>
+</tr>
+<tr>
+<td><code>viscoh_in</code></td>
+<td><code>physiq_mod.F</code> 行 814-815</td>
+<td>real scalar</td>
+<td>m2/s</td>
+<td>热量分子黏性系数，当前调用处设为 <code>0.001</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iflag_atke</code>, <code>iflag_num_atke</code>, <code>iflag_atke_lmix</code></td>
+<td><code>lmdz_atke_exchange_coeff</code>, <code>lmdz_call_atke</code></td>
+<td>module integer</td>
+<td>1</td>
+<td>ATKE 数值格式、扩散系数处理和混合长度路径</td>
+</tr>
+<tr>
+<td><code>rg</code>, <code>rd</code>, <code>rpi</code>, <code>rcpd</code>, <code>rv</code></td>
+<td><code>lmdz_atke_exchange_coeff</code>, <code>lmdz_call_atke</code></td>
+<td>module real</td>
+<td>mixed</td>
+<td>下游 ATKE 计算需要的行星/气体常数</td>
+</tr>
+<tr>
+<td><code>viscom</code>, <code>viscoh</code></td>
+<td><code>lmdz_atke_exchange_coeff</code></td>
+<td>module real</td>
+<td>m2/s</td>
+<td>Km/Kh 与 TKE 扩散中的分子黏性基值</td>
+</tr>
+<tr>
+<td><code>ric</code>, <code>ri0</code>, <code>ri1</code>, <code>cinf</code>, <code>cn</code>, <code>cepsilon</code>, <code>pr_*</code>, <code>smmin</code></td>
+<td><code>lmdz_atke_exchange_coeff</code>, <code>vdif_cd_mod</code>, <code>pbl_parameters_mod</code></td>
+<td>module real</td>
+<td>mixed</td>
+<td>ATKE 稳定度函数与 Prandtl 数函数参数</td>
+</tr>
+<tr>
+<td><code>l0</code>, <code>lmin</code>, <code>clmix</code>, <code>clmixshear</code>, <code>ctkes</code>, <code>cke</code></td>
+<td><code>lmdz_atke_exchange_coeff</code></td>
+<td>module real</td>
+<td>mixed</td>
+<td>混合长度、地表 TKE 和 TKE 垂直扩散调参</td>
+</tr>
+<tr>
+<td><code>atke_ok_vdiff</code>, <code>atke_ok_virtual</code></td>
+<td><code>lmdz_atke_exchange_coeff</code></td>
+<td>module logical</td>
+<td>1</td>
+<td>是否扩散 TKE、是否使用虚温/浮力修正</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>模块状态</strong>：本文件所有 ATKE 参数均为 <code>SAVE</code> 模块变量，并声明为 <code>!$OMP THREADPRIVATE</code>。并行复现时要确认每个 OpenMP 线程都已经经过初始化或正确继承初始化值。</li>
+<li><strong>配置读取</strong>：<code>atke_ini</code> 会读取 <code>.def</code> 键并覆盖默认值；这些值不会作为参数显式传给下游，而是由其他模块 <code>use lmdz_atke_turbulence_ini, only: ...</code> 读取。</li>
+<li><strong>中止路径</strong>：当 <code>iflag_atke==0</code> 且 <code>iflag_atke_lmix&gt;0</code>、<code>cinf&lt;=cn</code>、<code>pr_slope&lt;=1</code>、<code>pr_asym&gt;=pr_neut</code> 时调用 <code>abort_physic</code> 中止。</li>
+<li><strong>无文件 I/O</strong>：本文件不直接打开或写文件，也不输出诊断字段。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>复制调用方常数</strong>：<code>atke_ini</code> 先把 <code>rg_in/rd_in/rpi_in/rcpd_in/rv_in/viscom_in/viscoh_in</code> 写入同名模块缓存，供 ATKE 下游模块读取。</li>
+<li><strong>读取方案开关</strong>：依次读取 <code>iflag_atke</code>、<code>iflag_atke_lmix</code>、<code>atke_ok_vdiff</code>、<code>atke_ok_virtual</code>、<code>iflag_num_atke</code>。其中 <code>iflag_atke==0</code> 表示 stationary TKE 路径；该路径不允许使用依赖 TKE 的混合长度公式。</li>
+<li><strong>读取长度与临界参数</strong>：读取 <code>atke_l0</code>、<code>atke_ric</code> 和 <code>atke_cepsilon</code>，并由 <code>cepsilon</code> 计算 <code>cn</code>。</li>
+<li><strong>构造 ATKE 稳定度函数常数</strong>：读取 <code>atke_cinffac</code>，计算 <code>cinf=cinffac*cn</code>，要求 <code>cinf&gt;cn</code>；再计算 <code>ctkes=cepsilon**(2./3.)</code>。</li>
+<li><strong>读取 Prandtl 数函数参数</strong>：读取 <code>atke_pr_slope</code>、<code>atke_pr_neut</code>、<code>atke_pr_asym</code>，要求 <code>pr_slope&gt;1</code> 且 <code>pr_asym&lt;pr_neut</code>。</li>
+<li><strong>读取混合长度和 TKE 扩散调参</strong>：读取 <code>atke_clmix</code>、<code>atke_clmixshear</code>、<code>atke_smmin</code>、<code>atke_cke</code>。</li>
+<li><strong>派生过渡尺度</strong>：计算 <code>ri0=2./rpi*(cinf-cn)*ric/cn</code> 和 <code>ri1=-2./rpi*(pr_asym-pr_neut)</code>，下游用它们在不稳定 Richardson 数区间平滑过渡。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>atke_ini(constants, molecular_viscosities):
+  保存 g, R, pi, cp, rv, viscom, viscoh 到 module 变量
+
+  iflag_atke = getin_p(&quot;iflag_atke&quot;, default=0)
+  iflag_atke_lmix = getin_p(&quot;iflag_atke_lmix&quot;, default=0)
+  if iflag_atke == 0 and iflag_atke_lmix &gt; 0:
+    abort_physic(...)
+
+  atke_ok_vdiff = getin_p(&quot;atke_ok_vdiff&quot;, default=.false.)
+  atke_ok_virtual = getin_p(&quot;atke_ok_virtual&quot;, default=.false.)
+  iflag_num_atke = getin_p(&quot;iflag_num_atke&quot;, default=0)
+
+  读取 l0, ric, cepsilon
+  cn = (1 / sqrt(cepsilon)) ** (2/3)
+  读取 cinffac
+  cinf = cinffac * cn
+  if cinf &lt;= cn: abort_physic(...)
+
+  ctkes = cepsilon ** (2/3)
+  读取 pr_slope, pr_neut, pr_asym
+  if pr_slope &lt;= 1 or pr_asym &gt;= pr_neut:
+    abort_physic(...)
+
+  读取 clmix, clmixshear, smmin, cke
+  ri0 = 2/pi * (cinf-cn) * ric / cn
+  ri1 = -2/pi * (pr_asym-pr_neut)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>边界层与湍流</td>
+<td>初始化 ATKE 1.5 阶湍流闭合方案所需的稳定度函数、TKE 耗散、混合长度和扩散参数</td>
+</tr>
+<tr>
+<td>垂直扩散</td>
+<td><code>lmdz_atke_exchange_coeff</code> 用本模块参数计算 Km/Kh 和可选 TKE 垂直扩散</td>
+</tr>
+<tr>
+<td>PBL 诊断 / 地表层交换</td>
+<td><code>pbl_parameters_mod</code> 和 <code>vdif_cd_mod</code> 读取 <code>ric/cinf/cn/ri0/ri1/pr_*</code>，在 <code>callatke</code> 路径中复用 ATKE 稳定度函数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>集中式初始化模块</strong>：本文件只初始化和保存参数，下游模块通过 <code>use ... only</code> 读取，不通过显式参数链传递。</li>
+<li><strong><code>SAVE</code> + <code>THREADPRIVATE</code></strong>：所有关键状态均为线程私有，适合 OpenMP，但要求初始化路径在并行使用前完成。</li>
+<li><strong>配置键默认值写在源码中</strong>：例如 <code>atke_l0=15.0</code>、<code>atke_ric=0.25</code>、<code>atke_cepsilon=5.87</code>、<code>atke_cinffac=2.0</code>、<code>atke_pr_neut=0.8</code>。</li>
+<li><strong>参数合法性直接中止</strong>：范围检查只覆盖影响公式一致性的组合；其他数值如 <code>clmix</code>、<code>smmin</code>、<code>cke</code> 没有额外范围保护。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>只有 <code>physiq_mod.F</code> 中 <code>callatke</code> 为真时才调用 <code>atke_ini</code>；当前调用处把 <code>viscom</code> 和 <code>viscoh</code> 设为 <code>0.001</code>，并把 <code>rv</code> 传为 <code>0.</code>。</li>
+<li><code>.def</code> 中未提供键时使用源码默认值；复现实验必须记录 <code>iflag_atke</code>、<code>iflag_atke_lmix</code>、<code>iflag_num_atke</code> 和所有 <code>atke_*</code> 键。</li>
+<li><code>iflag_atke==0</code> 时不能设置 <code>iflag_atke_lmix&gt;0</code>，否则初始化立即中止。</li>
+<li><code>cinffac</code> 必须让 <code>cinf&gt;cn</code>；<code>pr_slope</code> 必须大于 1；<code>pr_asym</code> 必须小于 <code>pr_neut</code>。</li>
+<li><code>atke_ok_vdiff</code> 会打开 TKE 垂直扩散；<code>atke_ok_virtual</code> 会让下游 ATKE 计算考虑虚温/浮力修正。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>abort_physic</code> 在本文件中未显式 <code>use</code>，应由旧式隐式外部过程或构建环境提供；待确认具体接口来源。</li>
+<li>行 105 的 <code>cn=(1./sqrt(cepsilon))**(2/3)</code> 中 <code>2/3</code> 在 Fortran 中可能按整数除法求值为 0；若如此，<code>cn</code> 会变为 1，而注释意图更像 <code>2./3.</code>。这是复现风险，需要用实际编译器/告警选项确认。</li>
+<li><code>lunout</code> 和 <code>prt_level</code> 在本模块声明并设为 <code>THREADPRIVATE</code>，但本文件未赋值也未使用；待确认是否为历史遗留接口。</li>
+<li>OpenMP 场景下 <code>THREADPRIVATE</code> 参数是否通过主线程初始化后复制到工作线程，取决于调用时序和编译运行设置。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="lmdz_atke_exchange_coeff.html">lmdz_atke_exchange_coeff</a> - 读取本模块大部分参数来计算 ATKE Km/Kh、TKE 演化和 TKE 垂直扩散。</li>
+<li><a href="vdif_cd_mod.html">vdif_cd_mod</a> - 地表层交换系数模块，在 <code>callatke</code> 路径中复用 ATKE 稳定度函数参数。</li>
+<li><a href="pbl_parameters_mod.html">pbl_parameters_mod</a> - PBL 诊断模块，在 <code>callatke</code> 路径中复用 ATKE 稳定度函数参数。</li>
+<li><a href="lmdz_call_atke.html">lmdz_call_atke</a>：ATKE 调用包装层，读取 <code>iflag_num_atke</code>、<code>rg</code>、<code>rd</code>。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

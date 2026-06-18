@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>co2condens - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>routines/co2condens.md</span>
+    </nav>
+    <article class="content">
+<h1 id="co2condens">co2condens</h1>
+<h2 id="所属文件">所属文件</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\co2condens_mod.F</code></pre>
+<h2 id="所属模块">所属模块</h2>
+<pre class="text"><code>co2condens_mod</code></pre>
+<h2 id="例程定位">例程定位</h2>
+<pre class="text"><code>SUBROUTINE co2condens (行 11–890)</code></pre>
+<h2 id="例程职责">例程职责</h2>
+<p>CO2 地表和大气凝结/升华的主调度例程。根据 Forget et al. (Icarus, 1998) 方案，处理：</p>
+<ol type="1">
+<li>大气中 CO2 凝结/升华（<code>co2clouds=false</code> 时自行计算，<code>co2clouds=true</code> 时接收微物理方案的沉降通量）</li>
+<li>地表 CO2 冰凝结/升华（含降雪撞击加热、可用 CO2 tracer 限制、冰层完全升华保护）</li>
+<li>地表 CO2 冰 albedo/emissivity 更新</li>
+<li>sigma 层校正（Van Leer 垂直输送 T/U/V/Q）</li>
+<li>调用 <code>co2snow</code> 更新地表发射率</li>
+<li>可选的 CO2 清除尘埃/水冰（<code>scavenging_by_co2</code>）</li>
+</ol>
+<h2 id="被调用例程">被调用例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>co2snow</code></td>
+<td><code>co2snow_mod</code></td>
+<td>行 841</td>
+<td>更新地表发射率（CO2 雪/冰覆盖效应）</td>
+</tr>
+<tr>
+<td><code>albedocaps</code></td>
+<td><code>albedocaps_mod</code></td>
+<td>行 617</td>
+<td>更新极冠 albedo 和 emisref</td>
+</tr>
+<tr>
+<td><code>scavenging_by_co2</code></td>
+<td>本文件</td>
+<td>行 359</td>
+<td>CO2 凝结清除尘埃/水冰（<code>scavco2cond=true</code> 时）</td>
+</tr>
+<tr>
+<td><code>vl1d</code></td>
+<td>本文件</td>
+<td>行 703-712</td>
+<td>Van Leer 1D 垂直输送算子</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>(GCM 内部)</td>
+<td>行 559, 724, 980</td>
+<td>异常终止</td>
+</tr>
+<tr>
+<td><code>write_output</code></td>
+<td><code>write_output_mod</code></td>
+<td>行 368, 389, 394</td>
+<td>诊断输出</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>physiq</td>
+<td>INT</td>
+<td>-</td>
+<td>大气格点数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>physiq</td>
+<td>INT</td>
+<td>-</td>
+<td>大气层数</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>physiq</td>
+<td>INT</td>
+<td>-</td>
+<td>tracer 数量</td>
+</tr>
+<tr>
+<td><code>nslope</code></td>
+<td>physiq</td>
+<td>INT</td>
+<td>-</td>
+<td>子坡面数</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>physiq</td>
+<td>REAL</td>
+<td>s</td>
+<td>物理时间步长</td>
+</tr>
+<tr>
+<td><code>pcapcal</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nslope)</td>
+<td>J/K</td>
+<td>地表热容量</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlayer)</td>
+<td>Pa</td>
+<td>层中气压</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlayer+1)</td>
+<td>Pa</td>
+<td>层界面气压</td>
+</tr>
+<tr>
+<td><code>ptsrf</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nslope)</td>
+<td>K</td>
+<td>地表温度</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlayer)</td>
+<td>K</td>
+<td>大气温度</td>
+</tr>
+<tr>
+<td><code>pphi</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlayer)</td>
+<td>m²/s²</td>
+<td>位势高度</td>
+</tr>
+<tr>
+<td><code>pdt</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlayer)</td>
+<td>K/s</td>
+<td>温度倾向（其他过程）</td>
+</tr>
+<tr>
+<td><code>pdu</code>/<code>pdv</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlayer)</td>
+<td>m/s²</td>
+<td>风速倾向</td>
+</tr>
+<tr>
+<td><code>pdtsrf</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nslope)</td>
+<td>K/s</td>
+<td>地表温度倾向</td>
+</tr>
+<tr>
+<td><code>pu</code>/<code>pv</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlayer)</td>
+<td>m/s</td>
+<td>风速</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay,nq)</td>
+<td>kg/kg</td>
+<td>tracer 混合比</td>
+</tr>
+<tr>
+<td><code>pdq</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay,nq)</td>
+<td>kg/kg/s</td>
+<td>tracer 倾向</td>
+</tr>
+<tr>
+<td><code>zdqssed_co2</code></td>
+<td>co2cloud</td>
+<td>REAL (ngrid)</td>
+<td>kg/m²/s</td>
+<td>CO2 冰地表沉积通量（<code>co2clouds=true</code> 时）</td>
+</tr>
+<tr>
+<td><code>pcondicea_co2microp</code></td>
+<td>co2cloud</td>
+<td>REAL (ngrid,nlayer)</td>
+<td>kg/kg/s</td>
+<td>CO2 凝结速率（<code>co2clouds=true</code> 时）</td>
+</tr>
+<tr>
+<td><code>fluxsurf_sw</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,2)</td>
+<td>-</td>
+<td>地表短波通量</td>
+</tr>
+<tr>
+<td><code>zls</code></td>
+<td>physiq</td>
+<td>REAL</td>
+<td>rad</td>
+<td>太阳经度</td>
+</tr>
+<tr>
+<td><code>rdust</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlayer)</td>
+<td>m</td>
+<td>尘埃有效半径</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdtc</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlayer)</td>
+<td>K/s</td>
+<td>CO2 凝结/升华温度倾向</td>
+</tr>
+<tr>
+<td><code>pdtsrfc</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nslope)</td>
+<td>K/s</td>
+<td>地表温度倾向</td>
+</tr>
+<tr>
+<td><code>pdpsrf</code></td>
+<td>physiq</td>
+<td>REAL (ngrid)</td>
+<td>Pa/s</td>
+<td>地面气压倾向</td>
+</tr>
+<tr>
+<td><code>pduc</code>/<code>pdvc</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlayer)</td>
+<td>m/s²</td>
+<td>风速倾向</td>
+</tr>
+<tr>
+<td><code>pdqc</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlayer,nq)</td>
+<td>kg/kg/s</td>
+<td>tracer 倾向</td>
+</tr>
+<tr>
+<td><code>pdqsc</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nq,nslope)</td>
+<td>kg/m²/s</td>
+<td>地表 tracer 倾向</td>
+</tr>
+</tbody>
+</table>
+<h2 id="inout-参数">INOUT 参数</h2>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>piceco2</code></td>
+<td>REAL (ngrid,nslope)</td>
+<td>kg/m²</td>
+<td>地表 CO2 冰量</td>
+</tr>
+<tr>
+<td><code>perennial_co2ice</code></td>
+<td>REAL (ngrid,nslope)</td>
+<td>kg/m²</td>
+<td>多年 CO2 冰量（paleoclimate 用）</td>
+</tr>
+<tr>
+<td><code>psolaralb</code></td>
+<td>REAL (ngrid,2,nslope)</td>
+<td>-</td>
+<td>地表 albedo</td>
+</tr>
+<tr>
+<td><code>pemisurf</code></td>
+<td>REAL (ngrid,nslope)</td>
+<td>-</td>
+<td>地表发射率</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>module 变量</strong>：<code>scavco2cond</code>（SAVE+THREADPRIVATE，默认 <code>.false.</code>）控制 CO2 清除开关；<code>CO2cond_ps</code>（SAVE，默认 1.0）控制地表气压变化系数。</li>
+<li><strong>SAVE+THREADPRIVATE</strong>：<code>ico2</code>（CO2 tracer 索引）、<code>qco2</code>、<code>mmean</code>、<code>acond</code>/<code>bcond</code>/<code>ccond</code>（凝结公式系数）、<code>m_co2</code>/<code>m_noco2</code>/<code>A</code>/<code>B</code>（分子量参数）、<code>firstcall</code>。</li>
+<li><strong>firstcall</strong>：初始化凝结公式系数，搜索 CO2 tracer 索引，打印诊断。</li>
+<li><strong>诊断输出</strong>：<code>co2condens_zfallice</code>（CO2 降雪通量）、<code>co2condens_pdtc</code>（凝结温度倾向）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="firstcall-初始化行-203-230">firstcall 初始化（行 203-230）</h3>
+<ul>
+<li>凝结公式系数：<code>bcond = 1/tcond1mb</code>（tcond1mb=136.27 K @ 1 mbar），<code>ccond = cpp/(g*latcond)</code>，<code>acond = r/latcond</code>。</li>
+<li>搜索 CO2 tracer：遍历所有 tracer 找到 <code>noms(iq)="co2"</code>，记录 <code>ico2</code>。</li>
+<li>分子量参数：<code>m_co2 = 44.01e-3</code>，<code>m_noco2 = 33.37e-3</code>，<code>A = 1/m_co2 - 1/m_noco2</code>，<code>B = 1/m_noco2</code>。</li>
+<li>平均分子量：<code>mmean = 1/(A*qco2 + B)</code>。</li>
+</ul>
+<h3 id="大气凝结行-283-392">大气凝结（行 283-392）</h3>
+<p><strong>CO2 体积混合比</strong>（行 288-303）：</p>
+<ul>
+<li><code>improved_ztcond=true</code>（硬编码参数）且 <code>ico2≠0</code>：<code>vmr_co2 = qco2 * mmean / m_co2</code>。</li>
+<li>否则：<code>vmr_co2 = 0.95</code>（假设 95% CO2）。</li>
+</ul>
+<p><strong>分支：co2clouds=false（自计算凝结）</strong>（行 305-367）：</p>
+<ol type="1">
+<li>凝结温度：<code>ztcond = 1/(bcond - acond*log(0.01*vmr_co2*pplay))</code>。</li>
+<li>从顶层向下循环：若 <code>zt &lt; ztcond</code> 或有降雪落入，凝结发生。</li>
+<li>凝结率：<code>zcondicea = (pplev(l)-pplev(l+1)) * ccond * (ztcond-zt)/ptimestep - zfallheat</code>。</li>
+<li>降雪落入加热：<code>zfallheat = zfallice(l+1) * (ΔΦ + cpice*(ztcond(l+1)-ztcond(l))) / latcond</code>。</li>
+<li>冰完全升华保护：若 <code>zfallice(l+1) &lt; -zcondicea</code>，限制凝结率。</li>
+<li>可选 <code>scavenging_by_co2</code> 清除尘埃/水冰。</li>
+</ol>
+<p><strong>分支：co2clouds=true（接收微物理方案）</strong>（行 371-392）：</p>
+<ul>
+<li><code>condens_layer = pcondicea_co2microp * Δp / g</code>。</li>
+<li><code>zfallice(1) = zdqssed_co2</code>。</li>
+<li><code>piceco2 += zdqssed_co2 * ptimestep</code>。</li>
+</ul>
+<h3 id="地表凝结升华行-402-563">地表凝结/升华（行 402-563）</h3>
+<ol type="1">
+<li>地表凝结温度：<code>ztcondsol = 1/(bcond - acond*log(0.01*vmr_co2(1)*pplev(1)))</code>。</li>
+<li>对每个格点和子坡面：
+<ul>
+<li>条件：<code>ztsrf &lt; ztcondsol</code>（凝结）或有降雪或有冰可升华。</li>
+<li>凝结率：<code>zcondices = pcapcal*(ztcondsol-ztsrf) / ((latcond+cpp*(zt(1)-ztcond))*ptimestep) - zfallheat</code>。</li>
+<li>升华率：<code>zcondices = pcapcal*(ztcondsol-ztsrf) / (latcond*ptimestep) - zfallheat</code>。</li>
+<li>可用 CO2 限制（<code>ico2≠0</code>）：若第一层 CO2 不够凝结，限制 <code>zcondices</code>。</li>
+<li>冰完全升华保护。</li>
+<li>更新 <code>piceco2</code>、<code>pdpsrf = -g * zdiceco2_mesh_avg</code>。</li>
+</ul></li>
+<li><code>pdpsrf</code> 超过总气压时 <code>abort_physic</code>。</li>
+</ol>
+<h3 id="albedoemissivity-更新行-566-627">Albedo/emissivity 更新（行 566-627）</h3>
+<ul>
+<li>paleoclimate 时分离 <code>piceco2</code> 和 <code>perennial_co2ice</code>。</li>
+<li>负值保护（阈值 -5e-8 打印警告，强制归零）。</li>
+<li>调用 <code>albedocaps</code> 更新 albedo 和 emisref。</li>
+<li>无冰时 <code>pemisurf = emissiv</code>。</li>
+</ul>
+<h3 id="sigma-层校正行-630-825">Sigma 层校正（行 630-825）</h3>
+<p>对有凝结/升华的格点：</p>
+<ol type="1">
+<li>计算质量通量 <code>zmflux</code>：<code>zmflux(1) = -zcondices_mesh_avg - zdqssed_co2</code>，逐层减去 <code>condens_layer</code>。</li>
+<li>Van Leer 输送（<code>vl1d</code>）计算 T/U/V/Q 的界面值。</li>
+<li>计算 <code>zdtsig</code>（温度倾向）、<code>pduc</code>/<code>pdvc</code>（风速倾向）、<code>pdqc</code>（tracer 倾向）。</li>
+<li>CO2 tracer 特殊处理：凝结时 <code>pdqc(co2)</code> 含 <code>(zqm(co2)-1)</code> 项（CO2 从气相移除）。</li>
+</ol>
+<h3 id="南极极冠锁定行-871-888">南极极冠锁定（行 871-888）</h3>
+<p><code>caps=true</code> 且 <code>obliquit&lt;27°</code> 且非 paleoclimate 时，将南极点地表温度锁定为 <code>ztcondsol</code>。</p>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>co2condens(ngrid, nlayer, nq, nslope, ptimestep, ...):
+
+  if firstcall:
+    bcond = 1/136.27, ccond = cpp/(g*latcond), acond = r/latcond
+    搜索 ico2, 计算 A, B, m_co2, m_noco2
+
+  zt = pt + pdt*ptimestep
+  zq = pq + pdq*ptimestep
+
+  // --- CO2 体积混合比 ---
+  if improved_ztcond and ico2≠0:
+    vmr_co2 = qco2 * mmean / m_co2
+  else:
+    vmr_co2 = 0.95
+
+  // --- 大气凝结 ---
+  if NOT co2clouds:
+    ztcond = 1/(bcond - acond*log(0.01*vmr_co2*pplay))
+    从顶层向下: zt &lt; ztcond → 凝结, 计算 zcondicea, zfallice
+    可选 scavenging_by_co2
+  else:
+    condens_layer = pcondicea_co2microp * Δp/g
+    zfallice(1) = zdqssed_co2
+    piceco2 += zdqssed_co2 * ptimestep
+
+  // --- 地表凝结/升华 ---
+  ztcondsol = 1/(bcond - acond*log(0.01*vmr_co2(1)*pplev(1)))
+  对每个 ig, islope:
+    ztsrf &lt; ztcondsol → 凝结, 否则升华
+    可用 CO2 限制, 冰完全升华保护
+    更新 piceco2, pdpsrf
+
+  // --- Albedo/emissivity ---
+  albedocaps → 更新 albedo, emisref
+  无冰时 pemisurf = emissiv
+
+  // --- Sigma 层校正 ---
+  计算 zmflux, vl1d 输送 T/U/V/Q
+  pdtc += zdtsig, pduc/pdvc/pdqc 更新
+
+  // --- CO2 snow ---
+  co2snow → 更新 pemisurf
+
+  // --- 南极锁定 ---
+  if caps and obliquit&lt;27: pdtsrfc(south_pole) = (ztcondsol-ztsrf)/ptimestep</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CO2 循环 (CO2-cycle)</td>
+<td>核心：地表和大气 CO2 凝结/升华、地表冰量和气压变化、极冠 albedo/emissivity</td>
+</tr>
+<tr>
+<td>尘埃循环 (dust-cycle)</td>
+<td>清除路径：<code>scavenging_by_co2</code> 时尘埃被 CO2 冰捕获</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>固定格式 Fortran 77</strong>（.F 后缀，续行用第 6 列 <code>&amp;</code> 或 <code>c</code> 注释）。</li>
+<li><strong>SAVE + THREADPRIVATE</strong>：<code>ico2</code>、<code>qco2</code>、<code>mmean</code>、<code>acond/bcond/ccond</code>、<code>m_co2/m_noco2/A/B</code>、<code>firstcall</code>。</li>
+<li><strong>firstcall 模式</strong>。</li>
+<li><strong>硬编码常数</strong>：<code>latcond = 5.9e5 J/kg</code>、<code>tcond1mb = 136.27 K</code>、<code>cpice = 1000 J/kg/K</code>、<code>m_co2 = 44.01e-3 kg/mol</code>、<code>m_noco2 = 33.37e-3 kg/mol</code>、<code>improved_ztcond = .true.</code>（逻辑参数）。</li>
+<li><strong>子坡面循环</strong>：对 <code>nslope</code> 个子坡面分别计算凝结/升华，按 <code>cos(slope)</code> 加权求网格平均。</li>
+<li><strong>co2clouds 双路径</strong>：<code>co2clouds=false</code> 时自行计算大气凝结（含 ztcond、zfallice），<code>co2clouds=true</code> 时接收 co2cloud 微物理方案的沉降通量。</li>
+<li><strong>vl1d Van Leer 输送</strong>：行 895-1014，1D 垂直输送算子，处理 T/U/V/Q 和同位素比。</li>
+<li><strong>scavenging_by_co2</strong>：行 1017-1159，CO2 凝结时清除尘埃/水冰（<code>scav_ratio=20</code>），升华时释放。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>improved_ztcond = .true.</code> 硬编码——使用 CO2 分压计算凝结温度（而非固定 95% CO2）。</li>
+<li><code>m_noco2 = 33.37e-3</code> 非凝结气体平均分子量——假设大气仅含 CO2 和"非凝结气体"。</li>
+<li><code>scav_ratio_dust = 20</code> 硬编码——注释说"20 是在极夜去除尘埃而不干涸水循环的好折衷"。</li>
+<li><code>latcond = 5.9e5 J/kg</code>（CO2 冰升华潜热），<code>tcond1mb = 136.27 K</code>（1 mbar 凝结温度）。</li>
+<li>地表凝结率公式中分母含 <code>cpp*(zt(1)-ztcond)</code> 修正项（凝结时），升华时无此修正。</li>
+<li>南极极冠锁定仅在 <code>caps=true</code> 且 <code>obliquit&lt;27°</code> 且非 <code>paleoclimate</code> 时生效。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>CO2cond_ps</code> module 变量声明但代码中未使用——可能是遗留参数。</li>
+<li><code>improved_ztcond</code> 为逻辑参数（<code>.true.</code>）——始终使用分压计算，旧路径（<code>vmr_co2=0.95</code>）可能为历史遗留。</li>
+<li><code>scavenging_by_co2</code> 中 <code>scav_ccn_number</code> 的积累使用了 <code>scav_dust_number(l+1)</code> 而非 <code>scav_ccn_number(l+1)</code>（行 1132）——可能是 bug。</li>
+<li><code>co2condens</code> 不计算 <code>pdqcloudco2(co2)</code>——此倾向在此例程中通过 sigma 层校正的 <code>pdqc(co2)</code> 实现（含 <code>zqm(co2)-1</code> 项），而非 watercloud 式的 <code>pdqcloudco2</code>。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li><code>m_noco2 = 33.37e-3</code> 假设非凝结气体分子量——与实际火星大气不完全一致。</li>
+<li><code>scav_ratio_dust = 20</code> 硬编码——改变此值会显著影响尘埃清除和水循环。</li>
+<li>地表凝结/升华公式中 <code>pcapcal</code>（地表热容量）直接影响凝结率——不同 <code>pcapcal</code> 配置结果差异大。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/phymars/co2cloud_mod.html">co2cloud_mod — CO2 云主调度</a> - 提供 <code>zdqssed_co2</code> 和 <code>pcondicea_co2microp</code></li>
+<li><a href="../modules/phymars/co2-saturation-helpers.html">co2-saturation-helpers — CO2 饱和与凝结温度</a> - <code>tcondco2</code>/<code>co2sat</code> 的热力学基础</li>
+<li><a href="../modules/phymars/co2snow.html">co2snow — CO2 雪/地表沉积</a> - 地表发射率更新</li>
+<li><a href="../themes/co2-cycle.html">CO2 循环主题页</a>（TASK-0011）</li>
+<li><a href="co2condens-scavenging.html">co2condens-scavenging — CO2 清除尘埃/水冰</a> - scavenging 段详细逻辑</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

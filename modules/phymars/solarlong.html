@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>solarlong - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/solarlong.md</span>
+    </nav>
+    <article class="content">
+<h1 id="solarlongf">solarlong.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\solarlong.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>solarlong.F</code> 定义 <code>solarlong_mod</code> 模块和 <code>solarlong(pday, psollong)</code> 子程序，把以北半球春分为零点的火星日期 <code>pday</code> 转换为太阳经度 <code>Ls</code>。它读取 <code>planete_h</code> 中由 <code>iniorbit</code> 派生的轨道参数，先由日期相对近日点得到平均近点角，再用 Newton 迭代解 Kepler 方程，最后加上近日点太阳经度 <code>lsperi</code> 并把结果折回 <code>[0,2*pi]</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>solarlong_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>火星日期到太阳经度转换模块。</td>
+</tr>
+<tr>
+<td><code>solarlong</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>输入 sol 日期 <code>pday</code>，输出弧度制太阳经度 <code>psollong</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>planete_h</code></td>
+<td><code>lsperi</code>, <code>peri_day</code>, <code>year_day</code>, <code>e_elips</code></td>
+<td>提供近日点日期、年长、轨道偏心率和近日点太阳经度。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>构造 <code>2*pi</code> 周期和角度归一化。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 来源</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nint</code></td>
+<td>Fortran intrinsic</td>
+<td>33</td>
+<td>把日期相对近日点的年周期间隔折到最近周期。</td>
+</tr>
+<tr>
+<td><code>sin</code>, <code>cos</code>, <code>abs</code>, <code>sqrt</code>, <code>tan</code>, <code>atan</code></td>
+<td>Fortran intrinsic</td>
+<td>34-52</td>
+<td>Newton 迭代和偏近点角到真近点角转换。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="下游调用点">下游调用点</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>源码位置</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>physiq_mod.F</code></td>
+<td><code>use solarlong_mod</code> 在 65 行；调用在 879、881 行</td>
+<td>在主物理步中由 <code>zday</code> 或 <code>day_ini</code> 计算 <code>comsaison_h::zls</code>，供后续轨道几何、辐射和季节依赖过程使用。</td>
+</tr>
+<tr>
+<td><code>dyn1d\testphys1d.F90</code></td>
+<td>170 行注释调用</td>
+<td>历史或测试路径注释中展示由 <code>day</code> 计算 <code>zls</code> 的用法。</td>
+</tr>
+<tr>
+<td><code>dynphy_lonlat\phymars\lect_start_archive.F</code></td>
+<td>745 行注释调用</td>
+<td>归档读取路径中保留按时间列表计算太阳经度的注释调用。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pday</code></td>
+<td>调用方</td>
+<td>real scalar</td>
+<td>sol</td>
+<td>火星日期；注释说明 <code>pday=0</code> 对应北半球春分。</td>
+</tr>
+<tr>
+<td><code>peri_day</code></td>
+<td><code>planete_h</code></td>
+<td>real saved scalar</td>
+<td>sol</td>
+<td>近日点日期。</td>
+</tr>
+<tr>
+<td><code>year_day</code></td>
+<td><code>planete_h</code></td>
+<td>real saved scalar</td>
+<td>sol</td>
+<td>火星年长。</td>
+</tr>
+<tr>
+<td><code>e_elips</code></td>
+<td><code>planete_h</code></td>
+<td>real saved scalar</td>
+<td>-</td>
+<td>轨道偏心率。</td>
+</tr>
+<tr>
+<td><code>lsperi</code></td>
+<td><code>planete_h</code></td>
+<td>real saved scalar</td>
+<td>rad</td>
+<td>近日点太阳经度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>psollong</code></td>
+<td>调用方，通常为 <code>comsaison_h::zls</code></td>
+<td>real scalar</td>
+<td>rad</td>
+<td>太阳经度 <code>Ls</code>，经简单边界处理后落在 <code>[0,2*pi]</code> 附近。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本模块没有 <code>SAVE</code> 状态、文件 I/O 或标准输出。</li>
+<li>计算结果依赖 <code>planete_h</code> 的当前轨道状态；调用前需要确保 <code>iniorbit</code> 已初始化 <code>e_elips/lsperi</code>。</li>
+<li>Newton 循环最多 10 次，收敛阈值为 <code>abs(zdx)&lt;=1.e-7</code>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>计算相对近日点的年周期比例 <code>zz=(pday-peri_day)/year_day</code>。</li>
+<li>用 <code>zanom=2*pi*(zz-nint(zz))</code> 得到平均近点角，并取绝对值 <code>xref</code>。</li>
+<li>以 <code>xref + e_elips*sin(xref)</code> 为初值，解 <code>zx0 - e*sin(zx0) = xref</code>。</li>
+<li>若 <code>zanom&lt;0</code>，把偏近点角 <code>zx0</code> 改为负号。</li>
+<li>用椭圆轨道关系把偏近点角转换为真近点角 <code>zteta</code>。</li>
+<li><code>psollong=zteta+lsperi</code>，若小于 0 加 <code>2*pi</code>，若大于 <code>2*pi</code> 减 <code>2*pi</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>zz = (pday - peri_day) / year_day
+zanom = 2*pi * (zz - nearest_integer(zz))
+xref = abs(zanom)
+
+zx0 = xref + e_elips*sin(xref)
+repeat up to 10:
+    zdx = -(zx0 - e_elips*sin(zx0) - xref) / (1 - e_elips*cos(zx0))
+    if abs(zdx) &lt;= 1e-7: exit
+    zx0 = zx0 + zdx
+zx0 = zx0 + zdx
+if zanom &lt; 0: zx0 = -zx0
+
+zteta = 2*atan(sqrt((1+e_elips)/(1-e_elips))*tan(zx0/2))
+psollong = zteta + lsperi
+wrap once into [0, 2*pi]</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>季节推进</td>
+<td><code>physiq</code> 由当前 <code>zday</code> 计算 <code>zls</code>，作为季节相位的主入口。</td>
+</tr>
+<tr>
+<td>轨道 / 太阳几何</td>
+<td><code>solarlong</code> 输出的 <code>zls</code> 下游进入 <code>orbite</code>，计算日火距离和太阳赤纬。</td>
+</tr>
+<tr>
+<td>辐射与水/CO2 循环</td>
+<td><code>zls</code> 影响辐射、极冠、尘暴、坡面和季节性循环路径的判定。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 文件，使用模块封装。</li>
+<li>Newton 收敛后无论是否因阈值退出，都会再执行一次 <code>zx0=zx0+zdx</code>；复现时应保留这一字面行为。</li>
+<li>结果只做一次加/减 <code>2*pi</code> 的边界处理，而不是通用 <code>modulo</code> 归一化；当前输入通常接近一个火星年内日期，足够覆盖主路径。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>调用前必须先初始化 <code>planete_h</code> 的轨道派生量，通常由 <code>tabfi</code> 或 1D 初始化路径调用 <code>iniorbit</code> 完成。</li>
+<li><code>pday</code> 单位是 sol，不是秒；<code>year_day/peri_day</code> 必须使用同一单位。</li>
+<li><code>psollong</code> 输出是弧度；若页面或配置使用 degree，需要显式转换。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>结果归一化只处理一次越界；若调用方传入远离当前年周期的极端 <code>pday</code>，是否仍满足预期，需要结合上游日期范围确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a>：本模块所属目录。</li>
+<li><a href="planete_h.html">planete_h</a>：提供 <code>peri_day/year_day/e_elips/lsperi</code>。</li>
+<li><a href="orbite.html">orbite</a>：读取 <code>zls</code> 并计算日火距离和太阳赤纬。</li>
+<li><a href="solang.html">solang</a>：使用 <code>orbite</code> 输出的赤纬和当地时间计算太阳角。</li>
+<li><a href="comsaison_h.html">comsaison_h</a>：保存 <code>zls/dist_sol/declin/mu0/fract</code> 等季节状态。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

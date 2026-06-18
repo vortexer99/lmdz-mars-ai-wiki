@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>start2archive - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/start2archive.md</span>
+    </nav>
+    <article class="content">
+<h1 id="start2archivef">start2archive.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\start2archive.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>start2archive.F</code> 定义程序 <code>start2archive</code>，把一对起始场文件 <code>start.nc</code> 和 <code>startfi.nc</code> 转换/追加到统一的 <code>start_archive.nc</code>。它先读取动力初始状态和物理初始状态，初始化动力/物理网格，消去分辨率依赖的风、温度和物理网格字段，再在 <code>start_archive.nc</code> 中创建或追加一个 <code>Time</code> 记录及对应变量。若传入命令行选项启用 <code>add_sso_fields</code>，还会把亚网格地形/粗糙度等 SSO 字段加入归档。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>start2archive</code></td>
+<td>program</td>
+<td style="text-align: right;">2</td>
+<td>读取 <code>start.nc</code>/<code>startfi.nc</code>，转换动力与物理字段到归档坐标，创建或追加 <code>start_archive.nc</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>infotrac</code></td>
+<td><code>infotrac_init,nqtot,tname</code></td>
+<td>初始化 tracer 个数和名字，驱动 <code>q</code>/<code>qsurf</code> 分配和归档变量名。</td>
+<td>无。</td>
+</tr>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>nsoilmx,inertiedat,inertiesoil,nqsoil,qsoil,ini_comsoil_h</code></td>
+<td>提供土壤层数、土壤热惯量、土壤 tracer 数和土壤状态；<code>ini_comsoil_h</code> 在本文件中导入但未直接调用。</td>
+<td><code>ini_comsoil_h</code> 是否为历史残留需确认。</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>ini_surfdat_h,qsurf,watercaptag,phisfi,albedodat,z0,z0_default,zmea,zstd,zsig,zgam,zthe,hmons,summit,base</code></td>
+<td>提供物理地表字段、地表 tracer、watercap 标签和可选 SSO 字段。</td>
+<td><code>ini_surfdat_h</code>、<code>phisfi</code>、<code>z0_default</code> 在本文件中未直接使用。</td>
+</tr>
+<tr>
+<td><code>filtreg_mod</code></td>
+<td><code>inifilr</code></td>
+<td>初始化动力滤波相关状态。</td>
+<td>无。</td>
+</tr>
+<tr>
+<td><code>mod_const_mpi</code></td>
+<td><code>COMM_LMDZ</code></td>
+<td>传给 <code>iniphysiq</code> 作为 MPI communicator。</td>
+<td>无。</td>
+</tr>
+<tr>
+<td><code>control_mod</code></td>
+<td><code>planet_type</code></td>
+<td>设置 <code>planet_type='mars'</code>。</td>
+<td>无。</td>
+</tr>
+<tr>
+<td><code>comvert_mod</code></td>
+<td><code>ap,bp</code></td>
+<td>传给 <code>pression</code> 计算层界面压力。</td>
+<td>无。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>daysec,dtphys,rad,g,r,cpp</code></td>
+<td>为物理初始化和热力换算提供常数。</td>
+<td>无。</td>
+</tr>
+<tr>
+<td><code>temps_mod</code></td>
+<td><code>day_ini,hour_ini</code></td>
+<td>使用动力初始日和小时，写入 <code>Time</code> 坐标。</td>
+<td>无。</td>
+</tr>
+<tr>
+<td><code>iniphysiq_mod</code></td>
+<td><code>iniphysiq</code></td>
+<td>初始化物理网格和共享状态，使 <code>phyetat0</code> 读取后的字段可转换。</td>
+<td>无。</td>
+</tr>
+<tr>
+<td><code>phyetat0_mod</code></td>
+<td><code>phyetat0</code></td>
+<td>读取 <code>startfi.nc</code> 物理初始状态。</td>
+<td>无。</td>
+</tr>
+<tr>
+<td><code>exner_hyb_m</code></td>
+<td><code>exner_hyb</code></td>
+<td>由地表压和层界面压计算 Exner 函数，用于位温转温度。</td>
+<td>无。</td>
+</tr>
+<tr>
+<td><code>comslope_mod</code></td>
+<td><code>nslope,def_slope,def_slope_mean,subslope_dist</code></td>
+<td>提供坡面数量、坡角和坡面分布，参与物理字段转换与 CO2 冰质量积分。</td>
+<td>无。</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>CO2 冰质量按坡角修正时使用。</td>
+<td>无。</td>
+</tr>
+<tr>
+<td><code>surfini_mod</code></td>
+<td><code>surfini</code></td>
+<td>读取物理初始场后初始化/补全地表相关字段。</td>
+<td>无。</td>
+</tr>
+<tr>
+<td><code>program_options</code></td>
+<td><code>parse_args,add_sso_fields</code></td>
+<td>解析命令行选项；控制是否写出 SSO 字段。</td>
+<td><code>parse_args</code> 支持的完整参数集合需查模块页。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="include-依赖">include 依赖</h2>
+<table>
+<thead>
+<tr>
+<th>include</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimensions.h</code></td>
+<td>提供 <code>iim/jjm/llm</code>，并用于 <code>ngridmx=(2+(jjm-1)*iim - 1/jjm)</code>。</td>
+</tr>
+<tr>
+<td><code>paramet.h</code></td>
+<td>提供 <code>ip1jm/ip1jmp1/iip1/jjp1</code> 等派生维度。</td>
+</tr>
+<tr>
+<td><code>comdissip.h</code></td>
+<td>动力耗散公共状态，由 <code>defrun_new</code>/动力初始化链使用。</td>
+</tr>
+<tr>
+<td><code>comgeom.h</code></td>
+<td>提供动力经纬度、面积、<code>cu/cv</code> 等几何数组。</td>
+</tr>
+<tr>
+<td><code>netcdf.inc</code></td>
+<td>提供 NetCDF Fortran API 常量和例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>parse_args</code></td>
+<td><code>program_options</code></td>
+<td>行 150</td>
+<td>解析命令行选项，尤其是 <code>--add-sso</code>。</td>
+</tr>
+<tr>
+<td><code>defrun_new</code></td>
+<td><code>defrun_new.F</code></td>
+<td>行 157、178</td>
+<td>第一次按初始化模式读运行参数；第二次按非初始化模式校验/设置运行参数。</td>
+</tr>
+<tr>
+<td><code>infotrac_init</code></td>
+<td><code>infotrac</code></td>
+<td>行 166</td>
+<td>初始化 tracer 数和名字。</td>
+</tr>
+<tr>
+<td><code>dynetat0</code></td>
+<td>外部动力读取例程</td>
+<td>行 172</td>
+<td>从 <code>start.nc</code> 读取 <code>vcov/ucov/teta/q/masse/ps/phis/timedyn</code>。</td>
+</tr>
+<tr>
+<td><code>iniconst</code>、<code>inigeom</code>、<code>inifilr</code></td>
+<td>动力初始化链</td>
+<td>行 179-181</td>
+<td>初始化常数、动力几何和滤波。</td>
+</tr>
+<tr>
+<td><code>iniphysiq</code></td>
+<td><a href="iniphysiq_mod.html"><code>iniphysiq_mod</code></a></td>
+<td>行 184</td>
+<td>初始化物理网格，传入动力经纬度、面积、<code>cu/cv</code>、火星常数和 <code>iflag_phys=1</code>。</td>
+</tr>
+<tr>
+<td><code>phyetat0</code></td>
+<td><code>phyetat0_mod</code></td>
+<td>行 213</td>
+<td>从 <code>startfi.nc</code> 读取物理初始状态。</td>
+</tr>
+<tr>
+<td><code>NF_OPEN/NF_INQ_VARID/NF_GET_VAR_* / NF_CLOSE</code></td>
+<td>NetCDF API</td>
+<td>行 219-242</td>
+<td>读取 <code>startfi.nc</code> 的 <code>controle</code> 到 <code>tab_cntrl_fi</code>。</td>
+</tr>
+<tr>
+<td><code>surfini</code></td>
+<td><a href="../phymars/surfini_mod.html"><code>surfini_mod</code></a></td>
+<td>行 238</td>
+<td>补全/初始化地表状态。</td>
+</tr>
+<tr>
+<td><code>pression</code></td>
+<td>外部动力例程</td>
+<td>行 259</td>
+<td>由 <code>ap/bp/ps</code> 计算 <code>p3d</code> 层界面压力。</td>
+</tr>
+<tr>
+<td><code>exner_hyb</code></td>
+<td><code>exner_hyb_m</code></td>
+<td>行 260</td>
+<td>计算 <code>pks/pk/pkf</code>，供位温转温度。</td>
+</tr>
+<tr>
+<td><code>covnat</code></td>
+<td>外部动力例程</td>
+<td>行 276</td>
+<td>将协变风 <code>ucov/vcov</code> 转为自然风 <code>un/vn</code>。</td>
+</tr>
+<tr>
+<td><code>wind_scal</code></td>
+<td><a href="wind_scal.html"><code>wind_scal</code></a></td>
+<td>行 277</td>
+<td>把自然风转换到标量格点 <code>us/vs</code>。</td>
+</tr>
+<tr>
+<td><code>gr_fi_dyn</code></td>
+<td>外部网格转换例程</td>
+<td>多处</td>
+<td>将物理网格字段转换回动力标量网格。</td>
+</tr>
+<tr>
+<td><code>ini_archive</code></td>
+<td><a href="ini_archive.html"><code>ini_archive</code></a></td>
+<td>行 424</td>
+<td>若 <code>start_archive.nc</code> 不存在，创建头部和控制/静态变量。</td>
+</tr>
+<tr>
+<td><code>write_archive</code></td>
+<td><a href="write_archive.html"><code>write_archive</code></a></td>
+<td>多处</td>
+<td>向 <code>start_archive.nc</code> 追加变量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>start.nc</code></td>
+<td>当前工作目录</td>
+<td>NetCDF</td>
+<td>混合</td>
+<td>动力起始场，读入风、位温、tracer、质量、地表压、地表位势和动力时刻。</td>
+</tr>
+<tr>
+<td><code>startfi.nc</code></td>
+<td>当前工作目录</td>
+<td>NetCDF</td>
+<td>混合</td>
+<td>物理起始场，读入地表温度、土壤温度、反照率、发射率、地表 tracer、云/尘/水冰/CO2 冰等。</td>
+</tr>
+<tr>
+<td><code>run.def</code> 等运行配置</td>
+<td><code>defrun_new</code>/物理配置链</td>
+<td>文本配置</td>
+<td>-</td>
+<td>提供动力和物理初始化所需运行参数。</td>
+</tr>
+<tr>
+<td>命令行选项</td>
+<td><code>program_options::parse_args</code></td>
+<td>字符串</td>
+<td>-</td>
+<td><code>--add-sso</code> 控制是否额外写入 SSO 地形/粗糙度字段。</td>
+</tr>
+<tr>
+<td>现有 <code>start_archive.nc</code></td>
+<td>当前工作目录，可选</td>
+<td>NetCDF</td>
+<td>-</td>
+<td>若能打开则追加新时间记录；否则创建新文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>start_archive.nc</code></td>
+<td>当前工作目录</td>
+<td>NetCDF</td>
+<td>混合</td>
+<td>统一归档文件；包含 <code>Time</code> 记录、地表/大气/土壤/tracer/可选 SSO 字段。</td>
+</tr>
+<tr>
+<td><code>tab_cntrl_fi(49)</code></td>
+<td>传给 <code>ini_archive</code></td>
+<td><code>REAL</code></td>
+<td>kg（推断）</td>
+<td>旧网格大气总质量 <code>ptotal</code>。</td>
+</tr>
+<tr>
+<td><code>tab_cntrl_fi(50)</code></td>
+<td>传给 <code>ini_archive</code></td>
+<td><code>REAL</code></td>
+<td>kg（推断）</td>
+<td>旧网格 CO2 冰总质量 <code>co2icetotal</code>。</td>
+</tr>
+<tr>
+<td><code>Time</code></td>
+<td><code>start_archive.nc</code></td>
+<td>record coordinate</td>
+<td>sol/day</td>
+<td><code>date=day_ini+hour_ini</code>，追加到 unlimited <code>Time</code> 维。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>读取 <code>start.nc</code>、<code>startfi.nc</code>，并创建或修改 <code>start_archive.nc</code>。</li>
+<li>分配 <code>q</code>、物理网格数组、标量网格数组和临时 <code>watercaptag_tmp</code>，源码末尾没有显式 <code>deallocate</code>，程序结束时释放。</li>
+<li>设置全局 <code>planet_type='mars'</code>。</li>
+<li>修改 <code>day_ini</code>：若 <code>day_ini&gt;=669</code>，循环减去 669，把日期折回火星年内。</li>
+<li>将 <code>tab_cntrl_fi(49:50)</code> 改写为本程序重新计算的大气总质量和 CO2 冰总质量。</li>
+<li>若 <code>startfi.nc</code> 的 <code>day_ini_fi</code> 与动力 <code>day_ini</code> 模 669 不一致，程序 <code>stop</code>。</li>
+<li>若 <code>start_archive.nc</code> 不存在，使用 <code>NF_CREATE(... NF_CLOBBER,NF_64BIT_OFFSET ...)</code> 创建；若存在，则追加新记录而不重建头部。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>解析命令行选项，决定是否添加 SSO 字段。</li>
+<li>调用 <code>defrun_new(99,.TRUE.)</code> 读取初始化运行参数，设置 <code>planet_type='mars'</code>。</li>
+<li>初始化 tracer 信息，按 <code>nqtot</code> 分配动力 tracer 数组 <code>q</code>。</li>
+<li>从 <code>start.nc</code> 读取动力初始场：协变风、位温、tracer、空气质量、地表压、地表位势和动力时刻。</li>
+<li>再调用 <code>defrun_new(99,.FALSE.)</code>，随后初始化动力常数、几何、滤波和物理网格。</li>
+<li>分配物理网格和标量网格中间数组，从 <code>startfi.nc</code> 读取物理初始场，并读取其 <code>controle</code> 表。</li>
+<li>调用 <code>surfini</code> 补全地表状态，检查动力和物理初始日期是否同步；之后把 <code>day_ini</code> 折回 0-668。</li>
+<li>计算层界面压力和 Exner 函数；用 <code>covnat</code> + <code>wind_scal</code> 把风转到标量网格；用 <code>T=teta*pk/cpp</code> 把位温转温度。</li>
+<li>对每个坡面，把 <code>tsurf/watercap/perennial_co2ice/tsoil/inertiesoil/emis/albedo/qsurf/subslope_dist</code> 从物理网格转到动力标量网格；再转换 <code>inertiedat/q2/tauscaling/totcloudfrac/watercaptag</code>。</li>
+<li>若 <code>add_sso_fields</code> 为真，转换 <code>zmea/zstd/zsig/zthe/zgam/albedodat/z0/hmons/summit/base</code>。</li>
+<li>找到名为 <code>co2</code> 的 tracer 索引，按网格面积和重力积分大气质量，按坡面分布和坡角修正积分 CO2 冰质量。</li>
+<li>打开 <code>start_archive.nc</code>；若打开失败则创建文件并调用 <code>ini_archive</code> 写头。</li>
+<li>查询 <code>Time</code> 维长度，令 <code>ntime=timelen+1</code>，写入 <code>date=day_ini+hour_ini</code>。</li>
+<li>依次调用 <code>write_archive</code> 写地表冰、尘缩放、云量、发射率、反照率、地表压、地表温度、三维温度、风、<code>q2</code>、可选 SSO 字段、全部 tracer、全部地表 tracer、土壤温度和土壤热惯量。</li>
+<li>关闭 NetCDF 文件，打印完成信息。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>parse command line
+read run.def in initialization mode
+planet_type = &quot;mars&quot;
+initialize tracer metadata
+read start.nc dynamic state
+
+read run.def in checking/runtime mode
+initialize constants, geometry, filter, physics grid
+read startfi.nc physics state and controle table
+initialize surface state
+assert start.nc/startfi.nc dates match modulo 669
+fold day_ini into first Martian year
+
+compute p3d and Exner functions
+convert covariant winds to scalar-grid natural winds
+convert potential temperature to temperature
+map physics-grid surface/soil/tracer/cloud/dust/slope fields to scalar grid
+if add_sso_fields:
+    map SSO fields to scalar grid
+
+find CO2 tracer index
+integrate atmosphere mass and CO2 ice mass
+store totals in tab_cntrl_fi(49:50)
+
+open start_archive.nc
+if missing:
+    create it and call ini_archive
+append new Time record
+write all archive fields with write_archive
+close archive</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>start/startfi 到 start_archive 转换</td>
+<td>作为主程序入口，把成对 restart 文件规范化为可被 <code>newstart</code>/其他工具读取的 <code>start_archive.nc</code>。</td>
+</tr>
+<tr>
+<td>dynphy_lonlat 初始化链</td>
+<td>复用 <code>defrun_new</code>、<code>iniconst</code>、<code>inigeom</code>、<code>iniphysiq</code>，确保动力和物理网格状态与输入文件一致。</td>
+</tr>
+<tr>
+<td>start_archive NetCDF 写出</td>
+<td>通过 <code>ini_archive</code> 建头、<code>write_archive</code> 追加变量，维护多时刻初始状态库。</td>
+</tr>
+<tr>
+<td>SSO 参数归档</td>
+<td>在 <code>add_sso_fields</code> 为真时写出 ZMEA/ZSTD/ZSIG/ZTHE/ZGAM、albedodat、z0、summit/hmons/base。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 与现代 <code>USE</code> 混用，并依赖 <code>netcdf.inc</code> 和多个 include 公共块。</li>
+<li>以程序当前目录中的固定文件名 <code>start.nc</code>、<code>startfi.nc</code>、<code>start_archive.nc</code> 工作，源码中没有参数化输入文件名。</li>
+<li><code>start_archive.nc</code> 打不开就创建；已有文件则追加，因此同一文件可以保存多个 <code>Time</code> 初始状态。</li>
+<li><code>q2surf</code> 写 <code>q2S</code> 的第 1 层，<code>q2atm</code> 从 <code>q2S(1,2)</code> 开始写三维大气部分。</li>
+<li>土壤温度和土壤热惯量用 <code>write_archive</code> 的 <code>-3</code> 维度标记写出，表示包含 soil/slope 等非标准维度组合；具体维度解释在 <code>write_archive.F</code> 中待补页。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>运行目录必须同时有 <code>start.nc</code>、<code>startfi.nc</code> 和相关 <code>run.def</code>/物理配置；<code>start_archive.nc</code> 可不存在。</li>
+<li><code>start.nc</code> 与 <code>startfi.nc</code> 的初始日需要在模 669 意义下一致，否则程序停止。</li>
+<li>tracer 名称来自 <code>infotrac_init/tname</code>；归档中的 tracer 变量名直接使用 <code>tname(iq)</code> 和 <code>tname(iq)//"_surf"</code>。</li>
+<li>若要给后续 <code>startarchive2icosa</code> 等工具提供 SSO 字段，需要运行时启用 <code>--add-sso</code>。</li>
+<li><code>igcm_co2</code> 依赖存在名为 <code>co2</code> 的 tracer；若 tracer 表中没有 <code>co2</code>，源码没有显式保护。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>q2S(1,2)</code> 指针式传参已确认由 <code>write_archive</code> 按 <code>dim=3</code> 的 <code>edges</code> 控制写入长度；多形状实参仍需结合编译器接口检查确认。</li>
+<li><code>igcm_co2</code> 在未找到 <code>co2</code> tracer 时的行为没有保护，是否由 tracer 配置强制保证。</li>
+<li><code>tab_cntrl_fi(49:50)</code> 注释称传递 <code>ptotal/co2icetotal</code>，但前文注释又提到 99/100，需结合 <code>ini_archive</code> 的控制表布局继续核验。</li>
+<li>导入但未直接使用的 <code>ini_comsoil_h</code>、<code>ini_surfdat_h</code>、<code>phisfi</code>、<code>z0_default</code> 是否为旧版本残留。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dynphy_lonlat 目录</a></li>
+<li><a href="defrun_new.html">defrun_new</a></li>
+<li><a href="iniphysiq_mod.html">iniphysiq_mod</a></li>
+<li><a href="ini_archive.html">ini_archive</a></li>
+<li><a href="newstart.html">newstart</a></li>
+<li><a href="nogcm.html">nogcm</a></li>
+<li><a href="../phymars/surfini_mod.html">surfini_mod</a></li>
+<li><a href="../phymars/comsoil_h.html">comsoil_h</a></li>
+<li><a href="../util/startarchive2icosa.html">startarchive2icosa</a></li>
+<li><a href="wind_scal.html">wind_scal</a></li>
+<li><a href="write_archive.html">write_archive</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

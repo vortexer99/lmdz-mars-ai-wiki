@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>cvmgt - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/cvmgt.md</span>
+    </nav>
+    <article class="content">
+<h1 id="cvmgtf">cvmgt.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\cvmgt.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>cvmgt.F</code> 定义 <code>cvmgt_mod</code>，只提供一个 <code>REAL FUNCTION cvmgt(x1,x2,l)</code>。它是一个标量实数选择函数：当逻辑量 <code>l</code> 为真时返回 <code>x1</code>，否则返回 <code>x2</code>。源码没有 <code>use</code> 依赖、没有调用其他例程，也不保存任何 module 状态。</p>
+<p>当前源码树中，<code>cvmgt</code> 只被 <code>swr_toon.F</code> 和 <code>swr_fouquart.F</code> 使用。两个短波辐射例程都在归一化 aerosol 不对称因子 <code>ZCGAZ</code> 和单散射反照率 <code>ZPIZAZ</code> 时调用它：源码意图是在分母为零时给默认值，否则使用正常比值。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cvmgt_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>提供 <code>cvmgt</code> 选择函数的轻量模块。</td>
+</tr>
+<tr>
+<td><code>cvmgt</code></td>
+<td>real function</td>
+<td>7</td>
+<td>根据逻辑条件在两个 <code>REAL</code> 输入之间选择一个返回值。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>-</td>
+<td>-</td>
+<td>本文件没有 <code>use</code> 依赖。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>本文件不调用其他例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="上游调用点">上游调用点</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>源码位置</th>
+<th>调用条件</th>
+<th>传入 / 接收关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>swr_toon.F</code></td>
+<td><code>swr_toon.F:17</code>, <code>138-143</code></td>
+<td>短波 Toon 算法归一化 aerosol 光学量时</td>
+<td><code>ZPIZAZ==0</code> 时把 <code>ZCGAZ</code> 设为 <code>0</code>；<code>ZTAUAZ==0</code> 时把 <code>ZPIZAZ</code> 设为 <code>1</code>。</td>
+</tr>
+<tr>
+<td><code>swr_fouquart.F</code></td>
+<td><code>swr_fouquart.F:17</code>, <code>159-164</code></td>
+<td>短波 Fouquart 算法归一化 aerosol 光学量时</td>
+<td>与 <code>swr_toon</code> 相同，用默认值保护 <code>ZCGAZ/ZPIZAZ</code> 和 <code>ZPIZAZ/ZTAUAZ</code> 两个比值。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x1</code></td>
+<td>调用方</td>
+<td>real scalar, intent(in)</td>
+<td>由调用方决定</td>
+<td>条件为真时返回的值。</td>
+</tr>
+<tr>
+<td><code>x2</code></td>
+<td>调用方</td>
+<td>real scalar, intent(in)</td>
+<td>由调用方决定</td>
+<td>条件为假时返回的值。</td>
+</tr>
+<tr>
+<td><code>l</code></td>
+<td>调用方</td>
+<td>logical scalar, intent(in)</td>
+<td>-</td>
+<td>选择条件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cvmgt</code></td>
+<td>调用方表达式</td>
+<td>real scalar</td>
+<td>与 <code>x1/x2</code> 相同</td>
+<td><code>l=.true.</code> 时为 <code>x1</code>，否则为 <code>x2</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本文件没有 module 变量、<code>SAVE</code> 变量、common block、文件 I/O 或诊断输出。</li>
+<li><code>cvmgt</code> 是纯粹的值选择逻辑；源码没有写 <code>PURE</code> 属性，但按当前实现没有可见副作用。</li>
+<li>复现时要注意它只接受 <code>REAL</code> 标量输入，不是通用类型选择接口。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>接收两个实数候选值 <code>x1/x2</code> 和逻辑条件 <code>l</code>。</li>
+<li>若 <code>l</code> 为真，把函数返回值设为 <code>x1</code>。</li>
+<li>否则把函数返回值设为 <code>x2</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>cvmgt(x1, x2, l):
+    if l is true:
+        return x1
+    else:
+        return x2</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>短波辐射</td>
+<td><code>swr_toon</code> 和 <code>swr_fouquart</code> 用它在 aerosol 光学量归一化时选择除零保护默认值。</td>
+</tr>
+<tr>
+<td>辐射复现</td>
+<td>如果用标准 <code>merge</code> 或手写 <code>if</code> 替换，需要保持 <code>true</code> 分支返回第一个实参、<code>false</code> 分支返回第二个实参的顺序。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran <code>.F</code> 文件，但内容是一个 module + contained function。</li>
+<li>函数名与返回变量同名，<code>IF(l)</code> 分支直接给 <code>cvmgt</code> 赋值。</li>
+<li>该实现没有短路控制第二实参表达式的能力；在 Fortran 实参求值语义下，调用方若把除零表达式直接作为 <code>x2</code> 传入，编译器是否会先求值由实现相关行为影响。当前 <code>swr_toon</code> 和 <code>swr_fouquart</code> 的写法依赖原代码路径已有实践，复现时更稳妥的写法是显式 <code>if</code> 保护分母。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>选择顺序是 <code>cvmgt(x1,x2,l)</code>：<code>l</code> 为真返回 <code>x1</code>，为假返回 <code>x2</code>，不要按 C 风格三元表达式误读参数顺序。</li>
+<li>在 <code>swr_toon</code> / <code>swr_fouquart</code> 中，默认值分别是 <code>ZCGAZ=0</code> 和 <code>ZPIZAZ=1</code>，只在对应分母为零时使用。</li>
+<li>本函数不改变物理倾向，也不写共享状态；它只影响短波辐射中 aerosol 光学量的局部归一化结果。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>swr_toon</code> 和 <code>swr_fouquart</code> 把可能除零的比值作为 <code>x2</code> 实参传入。待确认：当前目标编译器是否保证该模式不会在条件为真时提前触发浮点异常；若移植到更严格环境，建议改为显式 <code>if</code>。</li>
+<li>源码树内 <code>rg</code> 只找到两个调用点；待确认：外部分支或预处理生成代码是否还会调用 <code>cvmgt_mod</code>。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars/index</a>：<code>phymars</code> 目录总览。</li>
+<li><a href="../../themes/radiation.html">radiation</a>：短波辐射主题页，包含 <code>swr_toon</code> 和 <code>swr_fouquart</code> 的流程位置。</li>
+<li><a href="swr_toon.html">swr_toon</a>：Toon 短波辐射算法。</li>
+<li><a href="swr_fouquart.html">swr_fouquart</a>：Fouquart 短波辐射算法。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

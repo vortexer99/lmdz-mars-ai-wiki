@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>microphys_h - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/microphys_h.md</span>
+    </nav>
+    <article class="content">
+<h1 id="microphys_hf90">microphys_h.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\microphys_h.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>microphys_h.F90</code> 定义 <code>microphys_h</code> 模块，是水冰和 CO2 云微物理共享的常数与线程私有状态头文件。它本身不含例程、不读配置、不执行计算；下游云方案、成核、增长阻力、质量传输和地表 HDO 通量例程通过 <code>use microphys_h, only: ...</code> 读取这些常数，或读写其中少量 <code>SAVE</code> 状态。</p>
+<p>源码可分为两段：</p>
+<ol type="1">
+<li>H2O/HDO/CO2/N2 的通用分子常数、水冰成核常数，以及水云微物理 bin 数和共享半径数组。</li>
+<li>CO2 云微物理常数、CO2 成核 bin 数、CO2 半径数组和接触参数。</li>
+</ol>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>microphys_h</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>微物理共享常数和状态模块。</td>
+</tr>
+<tr>
+<td><code>nbin_cld</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">10</td>
+<td>水云微物理半径 bin 数，固定为 5。</td>
+</tr>
+<tr>
+<td><code>To</code></td>
+<td>real parameter</td>
+<td style="text-align: right;">13</td>
+<td>参考温度 273.15 K。</td>
+</tr>
+<tr>
+<td><code>nav</code></td>
+<td>double precision parameter</td>
+<td style="text-align: right;">15</td>
+<td>阿伏伽德罗常数。</td>
+</tr>
+<tr>
+<td><code>rgp</code></td>
+<td>double precision parameter</td>
+<td style="text-align: right;">17</td>
+<td>理想气体常数。</td>
+</tr>
+<tr>
+<td><code>kbz</code></td>
+<td>double precision parameter</td>
+<td style="text-align: right;">19</td>
+<td>Boltzmann 常数。</td>
+</tr>
+<tr>
+<td><code>mh2o</code>, <code>mhdo</code>, <code>mco2</code>, <code>mn2</code></td>
+<td>double precision parameter</td>
+<td style="text-align: right;">21, 23, 25, 27</td>
+<td>H2O、HDO、CO2、N2 摩尔质量。</td>
+</tr>
+<tr>
+<td><code>molco2</code>, <code>molh2o</code>, <code>molhdo</code></td>
+<td>double precision parameter</td>
+<td style="text-align: right;">30, 32, 34</td>
+<td>气体分子有效半径。</td>
+</tr>
+<tr>
+<td><code>sigh2o</code></td>
+<td>double precision parameter</td>
+<td style="text-align: right;">36</td>
+<td>水冰/汽表面张力。</td>
+</tr>
+<tr>
+<td><code>desorp</code>, <code>nus</code>, <code>surfdif</code>, <code>m0</code></td>
+<td>double precision parameter</td>
+<td style="text-align: right;">40, 42, 46, 48</td>
+<td>水分子在尘埃基底上的脱附、跳跃、表面扩散和单分子质量常数。</td>
+</tr>
+<tr>
+<td><code>mteta</code></td>
+<td>real save, threadprivate</td>
+<td style="text-align: right;">52</td>
+<td>水冰接触参数 <code>m=cos(theta)</code>；由 <code>conf_phys</code> 初始化。</td>
+</tr>
+<tr>
+<td><code>vo1</code></td>
+<td>double precision save, threadprivate</td>
+<td style="text-align: right;">56</td>
+<td>水分子体积；由 <code>improvedclouds</code> firstcall 写入。</td>
+</tr>
+<tr>
+<td><code>rad_cld</code></td>
+<td>double precision save, threadprivate array</td>
+<td style="text-align: right;">59</td>
+<td>水云微物理半径 bin；由 <code>improvedclouds</code> firstcall 写入。</td>
+</tr>
+<tr>
+<td><code>nbinco2_cld</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">67</td>
+<td>CO2 成核/云微物理 bin 数，固定为 100。</td>
+</tr>
+<tr>
+<td><code>sigco2</code>, <code>desorpco2</code>, <code>nusco2</code>, <code>surfdifco2</code>, <code>m0co2</code></td>
+<td>double precision parameter</td>
+<td style="text-align: right;">69, 73, 77, 81, 83</td>
+<td>CO2 冰成核和质量传输常数。</td>
+</tr>
+<tr>
+<td><code>mtetaco2</code></td>
+<td>real parameter</td>
+<td style="text-align: right;">87</td>
+<td>CO2 在尘埃/流星尘 CCN 上使用的固定接触参数。</td>
+</tr>
+<tr>
+<td><code>vo1co2</code></td>
+<td>double precision save, threadprivate</td>
+<td style="text-align: right;">90</td>
+<td>CO2 分子体积；源码中声明为共享状态，本文件不初始化。</td>
+</tr>
+<tr>
+<td><code>rad_cldco2</code></td>
+<td>double precision save, threadprivate array</td>
+<td style="text-align: right;">94</td>
+<td>CO2 云微物理半径 bin；由 <code>co2cloud</code> firstcall 写入。</td>
+</tr>
+<tr>
+<td><code>threshJA</code></td>
+<td>real parameter</td>
+<td style="text-align: right;">97</td>
+<td>微物理阈值参数，当前值为 1。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>无</td>
+<td>本文件只声明常数和保存型变量，不 <code>use</code> 其他模块。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>无</td>
+<td>无</td>
+<td>本文件不含可执行例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mteta</code></td>
+<td><code>conf_phys.F</code> 的 <code>getin_p("mteta", mteta)</code>，仅 <code>temp_dependent_m=.false.</code> 时读配置</td>
+<td>real scalar</td>
+<td>-</td>
+<td>水冰接触参数，默认 0.95。</td>
+</tr>
+<tr>
+<td><code>rad_cld</code></td>
+<td><code>improvedclouds_mod.F90</code> firstcall</td>
+<td>double precision <code>nbin_cld</code></td>
+<td>m</td>
+<td>水云微物理半径 bin。</td>
+</tr>
+<tr>
+<td><code>vo1</code></td>
+<td><code>improvedclouds_mod.F90</code> firstcall</td>
+<td>double precision scalar</td>
+<td>m3</td>
+<td>水分子体积。</td>
+</tr>
+<tr>
+<td><code>rad_cldco2</code></td>
+<td><code>co2cloud_mod.F90</code> firstcall</td>
+<td>double precision <code>nbinco2_cld</code></td>
+<td>m</td>
+<td>CO2 云微物理半径 bin。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H2O/HDO/CO2/N2 常数</td>
+<td><code>growthrate</code>, <code>hdo_surfex</code>, <code>massflowrateco2</code>, <code>nuclea</code>, <code>nucleaco2</code>, <code>dust_coagulation_main</code> 等</td>
+<td>parameter</td>
+<td>见源码注释</td>
+<td>分子质量、半径、气体常数、表面张力和成核常数。</td>
+</tr>
+<tr>
+<td><code>mteta</code></td>
+<td><code>improvedclouds</code>, <code>improvedco2clouds</code>, <code>nuclea</code></td>
+<td>threadprivate saved scalar</td>
+<td>-</td>
+<td>水冰接触参数；CO2 水冰 CCN 分支也用它。</td>
+</tr>
+<tr>
+<td><code>rad_cld</code> / <code>rad_cldco2</code></td>
+<td><code>nuclea</code> / <code>nucleaco2</code>、CO2 云分布展开</td>
+<td>threadprivate arrays</td>
+<td>m</td>
+<td>成核和 CCN 尺度分布使用的半径网格。</td>
+</tr>
+<tr>
+<td><code>m0</code> / <code>m0co2</code></td>
+<td><code>nuclea</code> / <code>nucleaco2</code> / <code>dust_coagulation_mod</code></td>
+<td>parameter</td>
+<td>kg</td>
+<td>单分子质量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>mteta</code>、<code>vo1</code>、<code>rad_cld</code>、<code>vo1co2</code>、<code>rad_cldco2</code> 都是 <code>SAVE</code> 变量，并声明为 OpenMP <code>THREADPRIVATE</code>。</li>
+<li><code>microphys_h</code> 自身没有副作用；副作用来自下游初始化例程写这些共享变量。</li>
+<li><code>conf_phys.F</code> 行 863-872 默认 <code>mteta=0.95</code>，若 <code>temp_dependent_m=.false.</code> 则从 <code>callphys.def</code> 读 <code>mteta</code>。</li>
+<li><code>improvedclouds_mod.F90</code> 行 143-160 构造水云半径网格，行 182 写 <code>vo1</code>。</li>
+<li><code>co2cloud_mod.F90</code> 行 323-336 构造 CO2 半径网格，行 403-404 把 CO2 bin 边界取对数后保存到本地 <code>rb_cldco2</code>。</li>
+<li>复现风险：直接调用 <code>nuclea</code> 或 <code>nucleaco2</code> 前，必须确保对应云方案 firstcall 已经给 <code>rad_cld</code> 或 <code>rad_cldco2</code> 赋值，否则成核率会依赖未初始化的线程私有数组。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>声明水云微物理 bin 数、参考温度、分子常数和水冰成核参数。</li>
+<li>暴露水冰接触参数、单分子体积和半径数组，供 <code>conf_phys</code> / <code>improvedclouds</code> 初始化，供 <code>nuclea</code> 等例程读取。</li>
+<li>声明 CO2 云微物理 bin 数、CO2 成核/扩散常数和固定接触参数 <code>mtetaco2</code>。</li>
+<li>暴露 CO2 单分子体积和半径数组，供 CO2 云路径初始化并供 <code>nucleaco2</code>、<code>improvedco2clouds</code>、<code>co2cloud</code> 使用。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>module microphys_h:
+    define water/cloud constants:
+        nbin_cld = 5
+        To, nav, rgp, kbz
+        molecular masses and effective radii
+        water nucleation constants
+        m0 = mh2o / nav
+
+    declare threadprivate mutable water state:
+        mteta
+        vo1
+        rad_cld(nbin_cld)
+
+    define CO2 microphysics constants:
+        nbinco2_cld = 100
+        sigco2, desorpco2, nusco2, surfdifco2
+        m0co2 = mco2 / nav
+        mtetaco2 = 0.95
+
+    declare threadprivate mutable CO2 state:
+        vo1co2
+        rad_cldco2(nbinco2_cld)
+        threshJA = 1</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>水循环</td>
+<td>为 <code>improvedclouds</code>、<code>nuclea</code>、<code>growthrate</code>、<code>hdo_surfex</code> 提供分子常数、水冰半径 bin 和接触参数。</td>
+</tr>
+<tr>
+<td>CO2 循环</td>
+<td>为 <code>co2cloud</code>、<code>improvedco2clouds</code>、<code>nucleaco2</code>、<code>massflowrateco2</code> 提供 CO2 成核/增长常数和半径 bin。</td>
+</tr>
+<tr>
+<td>尘埃循环</td>
+<td><code>dust_coagulation_mod</code> 读取 <code>kbz</code> 和 <code>m0co2</code>，CO2 / 水云 CCN 也通过尘埃 tracer 与微物理常数耦合。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>这是头文件式 Fortran module：没有 <code>contains</code>、没有例程、没有本地初始化过程。</li>
+<li>参数常数和可写共享状态混在同一个模块内；读者需要区分 <code>PARAMETER</code> 常数和 <code>SAVE THREADPRIVATE</code> 状态。</li>
+<li><code>mh2o</code>、<code>mhdo</code>、<code>mco2</code>、<code>mn2</code> 注释为 <code>kg.mol-1</code>，但 <code>m0=mh2o/nav</code> 和 <code>m0co2=mco2/nav</code> 才是单分子质量。</li>
+<li><code>mtetaco2</code> 注释保留了 Bachnar 2016 值 0.78 和旧值 0.95，源码当前实际采用 0.95。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>水云成核路径需要先经过 <code>conf_phys</code> 初始化 <code>mteta</code>，再由 <code>improvedclouds</code> firstcall 初始化 <code>rad_cld</code> 和 <code>vo1</code>。</li>
+<li>CO2 成核路径需要先经过 <code>co2cloud</code> firstcall 初始化 <code>rad_cldco2</code>；<code>improvedco2clouds</code> 在尘埃、流星尘和水冰 CCN 分支中读取该数组。</li>
+<li><code>THREADPRIVATE</code> 表示并行线程各有一份变量；复现 OpenMP 运行时要保证每个线程都经历了相同初始化路径。</li>
+<li><code>microphys_h</code> 不读取 <code>callphys.def</code>；配置只通过 <code>conf_phys</code> 间接写入 <code>mteta</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>vo1co2</code> 在本文件中声明，但本次只在 <code>microphys_h.F90</code> 和直接 <code>use microphys_h</code> 搜索中未定位到写入点；若后续页面依赖它，应继续全仓库核验。</li>
+<li><code>improvedclouds_mod.md</code> 已记录 <code>mh2o</code> 在 <code>seq</code> 公式和 <code>vo1=mh2o/rho_ice</code> 用法中的量纲疑点；本页按 <code>microphys_h.F90</code> 注释和源码定义记录，不把该疑点改写为结论。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="improvedclouds_mod.html">improvedclouds_mod</a></li>
+<li><a href="co2cloud_mod.html">co2cloud_mod</a></li>
+<li><a href="improvedco2clouds_mod.html">improvedco2clouds_mod</a></li>
+<li><a href="nucleaco2.html">nucleaco2</a></li>
+<li><a href="massflowrateco2.html">massflowrateco2</a></li>
+<li><a href="growthrate.html">growthrate</a></li>
+<li><a href="hdo_surfex_mod.html">hdo_surfex_mod</a></li>
+<li><a href="../../themes/water-cycle.html">water-cycle</a></li>
+<li><a href="../../themes/co2-cycle.html">co2-cycle</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

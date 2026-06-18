@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nlte_calc - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/nlte_calc.md</span>
+    </nav>
+    <article class="content">
+<h1 id="nlte_calcf">nlte_calc.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\nlte_calc.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>nlte_calc.F</code> 是 CO2 15 微米 NLTE 冷却快速方案中的光学厚度、escape probability 和 Curtis-matrix 系数计算文件。文件顶部保留了注释掉的 <code>MODULE nlte_calc_mod</code> / <code>USE nlte_aux_mod</code> / <code>CONTAINS</code> 包装，当前源码实际提供一组外部子程序，由 <code>nlte_tcool_mod.F</code> 直接调用。</p>
+<p>本文件负责把 <code>nlte_commons_h</code> 中的温度、CO2 数密度、混合比、谱线参数和历史谱线表转换成 <code>c110/vc110</code>、<code>c121/vc121</code>、<code>taustar11_cts</code>、<code>taustar12</code> 等冷却矩阵输入。它不读文件；历史谱线表读取、插值定位、等效线宽和归一化工具来自 <a href="nlte_aux.html">nlte_aux</a>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MZESC110</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">35</td>
+<td>在 CTS 网格上计算 110 跃迁的 escape probability 光学厚度 <code>taustar11_cts</code>。</td>
+</tr>
+<tr>
+<td><code>MZTUD110</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">233</td>
+<td>计算主 110 带的 Curtis matrix <code>c110</code> 和边界向量 <code>vc110</code>。</td>
+</tr>
+<tr>
+<td><code>MZCUD110</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">626</td>
+<td>把 110 带的 <code>tau/tauinf</code> 转换为 <code>c110/vc110</code>。</td>
+</tr>
+<tr>
+<td><code>MZMC121</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">715</td>
+<td>合并 121 热带三个子带的 Curtis matrix 和边界向量，写入 <code>c121/vc121</code>。</td>
+</tr>
+<tr>
+<td><code>MZTUD121</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">789</td>
+<td>计算单个 121 子带的 Curtis matrix 和边界向量。</td>
+</tr>
+<tr>
+<td><code>MZCUD121</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1155</td>
+<td>把单个 121 子带的 <code>tau/tauinf</code> 转换为输出矩阵 <code>c/vc</code>。</td>
+</tr>
+<tr>
+<td><code>MZESC121</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1251</td>
+<td>汇总 121 三个子带的 escape probability，写入 <code>taustar12</code>。</td>
+</tr>
+<tr>
+<td><code>MZESC121sub</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1301</td>
+<td>计算单个 121 子带的 <code>taustar/tauinf</code>。</td>
+</tr>
+<tr>
+<td><code>MZTVC121</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1505</td>
+<td>汇总 121 三个子带的边界向量 <code>vc121</code>。</td>
+</tr>
+<tr>
+<td><code>MZTVC121sub</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1557</td>
+<td>计算单个 121 子带的边界向量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlte_tcool_mod</code></td>
+<td><code>errors</code></td>
+<td>把 <code>ierr/varerr</code> 转交给 NLTE cooling-time 错误处理。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>nlte_paramdef_h</code></td>
+<td><code>nl</code>, <code>nzy</code>, <code>nl_cts</code>, <code>nzy_cts</code>, <code>nbox_max</code>, <code>nhist</code>, <code>imr</code>, <code>ee</code>, <code>nu</code>, <code>nu12_0200</code>, <code>nu12_1000</code> 等</td>
+<td>维度、同位素混合比、谱线常数和热带频率。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>nlte_commons_h</code></td>
+<td><code>c110</code>, <code>vc110</code>, <code>c121</code>, <code>vc121</code>, <code>taustar11_cts</code>, <code>taustar12</code>, <code>co2y</code>, <code>co2y_cts</code>, <code>nty</code>, <code>nty_cts</code>, <code>v626t1</code>, <code>zl</code>, <code>zy</code>, <code>deltanu</code>, <code>deltaz</code>, <code>elow</code>, <code>eqw</code>, <code>aa</code>, <code>cc</code>, <code>dd</code> 等</td>
+<td>NLTE 状态剖面、谱线工作数组、矩阵输出和 escape probability 输出。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gethist_03</code></td>
+<td><code>nlte_aux.F</code></td>
+<td><code>MZESC110</code>、<code>MZTUD110</code>、<code>MZTUD121</code>、<code>MZESC121sub</code>、<code>MZTVC121sub</code></td>
+<td>选择当前谱带/子带的历史谱线表。</td>
+</tr>
+<tr>
+<td><code>initial</code></td>
+<td><code>nlte_aux.F</code></td>
+<td>多个积分循环入口</td>
+<td>清零 <code>eqw/aa/cc/dd</code> 和 box 累积数组。</td>
+</tr>
+<tr>
+<td><code>intzhunt</code> / <code>intzhunt_cts</code></td>
+<td><code>nlte_aux.F</code></td>
+<td>高度层循环</td>
+<td>在 GCM 或 CTS 高度网格上插值 CO2、压力、混合比和温度。</td>
+</tr>
+<tr>
+<td><code>interstrhunt</code> / <code>intershphunt</code></td>
+<td><code>nlte_aux.F</code></td>
+<td>光学厚度积分</td>
+<td>按温度历史表插值线强和线宽。</td>
+</tr>
+<tr>
+<td><code>we_clean</code></td>
+<td><code>nlte_aux.F</code></td>
+<td>光学厚度积分</td>
+<td>由路径吸收量、CO2 分压和线宽计算 Voigt 等效线宽。</td>
+</tr>
+<tr>
+<td><code>mztf_correccion</code></td>
+<td><code>nlte_aux.F</code></td>
+<td>110/121 主网格计算</td>
+<td>修正顶层柱量 <code>con</code>，连接外推柱量和内部表。</td>
+</tr>
+<tr>
+<td><code>mzescape_normaliz</code> / <code>mzescape_normaliz_02</code></td>
+<td><code>nlte_aux.F</code></td>
+<td><code>MZESC121</code> / <code>MZESC110</code></td>
+<td>归一化 escape probability 光学厚度数组。</td>
+</tr>
+<tr>
+<td><code>MZCUD110</code> / <code>MZCUD121</code></td>
+<td>本文件</td>
+<td><code>MZTUD110</code> / <code>MZTUD121</code></td>
+<td>把 transmissivity 差分转换为 Curtis matrix 和边界向量。</td>
+</tr>
+<tr>
+<td><code>MZESC121sub</code> / <code>MZTVC121sub</code></td>
+<td>本文件</td>
+<td><code>MZESC121</code> / <code>MZTVC121</code></td>
+<td>分别计算 121 子带 escape probability 和边界向量。</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部错误终止入口</td>
+<td><code>MZMC121</code></td>
+<td>热带索引超出 2/3/4 时终止。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ig</code></td>
+<td><code>nlte_tcool_mod.F</code> 调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>CTS 网格计算中的水平列索引，仅传入 <code>MZESC110</code>。</td>
+</tr>
+<tr>
+<td><code>nl_cts_real</code>, <code>nzy_cts_real</code></td>
+<td><code>nlte_tcool_mod.F</code> 调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>CTS 工作网格的实际层数和高度点数。</td>
+</tr>
+<tr>
+<td><code>co2y</code>, <code>co2y_cts</code>, <code>nty</code>, <code>nty_cts</code></td>
+<td><code>nlte_commons_h</code></td>
+<td>arrays</td>
+<td>数密度/总数密度</td>
+<td>CO2 与总数密度剖面，用于柱量和混合比。</td>
+</tr>
+<tr>
+<td><code>zl</code>, <code>zy</code>, <code>zl_cts</code></td>
+<td><code>nlte_commons_h</code></td>
+<td>arrays</td>
+<td>高度坐标</td>
+<td>目标层和历史表高度坐标。</td>
+</tr>
+<tr>
+<td><code>v626t1</code></td>
+<td><code>nlte_commons_h</code></td>
+<td>array</td>
+<td>K</td>
+<td>626 同位素振动温度表，用于插值修正柱量。</td>
+</tr>
+<tr>
+<td><code>deltanu</code>, <code>deltaz</code>, <code>deltaz_cts</code></td>
+<td><code>nlte_commons_h</code></td>
+<td>scalar/array</td>
+<td>波数宽度 / 高度步长</td>
+<td>把等效线宽转换为透过率和矩阵差分系数。</td>
+</tr>
+<tr>
+<td><code>ib</code></td>
+<td>本文件内部循环</td>
+<td>integer</td>
+<td>-</td>
+<td>121 热带子带索引，取 2、3、4。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>taustar11_cts</code></td>
+<td><code>nlte_commons_h</code>，<code>nlte_tcool_mod.F</code> 读取</td>
+<td><code>nl_cts</code> array</td>
+<td>无量纲/光学厚度相关</td>
+<td>110 跃迁 CTS 网格 escape probability。</td>
+</tr>
+<tr>
+<td><code>c110</code></td>
+<td><code>nlte_commons_h</code>，<code>nlte_tcool_mod.F</code> 读取</td>
+<td><code>nl x nl</code> matrix</td>
+<td>差分矩阵系数</td>
+<td>110 主带 Curtis matrix。</td>
+</tr>
+<tr>
+<td><code>vc110</code></td>
+<td><code>nlte_commons_h</code>，<code>nlte_tcool_mod.F</code> 读取</td>
+<td><code>nl</code> vector</td>
+<td>边界向量系数</td>
+<td>110 主带边界/外部贡献。</td>
+</tr>
+<tr>
+<td><code>c121</code></td>
+<td><code>nlte_commons_h</code>，<code>nlte_tcool_mod.F</code> 读取</td>
+<td><code>nl x nl</code> matrix</td>
+<td>差分矩阵系数</td>
+<td>121 热带三子带合成 Curtis matrix。</td>
+</tr>
+<tr>
+<td><code>vc121</code></td>
+<td><code>nlte_commons_h</code>，<code>nlte_tcool_mod.F</code> 读取</td>
+<td><code>nl</code> vector</td>
+<td>边界向量系数</td>
+<td>121 热带三子带合成边界贡献。</td>
+</tr>
+<tr>
+<td><code>taustar12</code></td>
+<td><code>nlte_commons_h</code>，<code>nlte_tcool_mod.F</code> 读取</td>
+<td><code>nl</code> array</td>
+<td>无量纲/光学厚度相关</td>
+<td>121 热带合成 escape probability。</td>
+</tr>
+<tr>
+<td><code>ierr</code>, <code>varerr</code></td>
+<td>调用方或 <code>errors</code></td>
+<td>integer + real*8</td>
+<td>-</td>
+<td>数值错误代码和触发值。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本文件主要通过 <code>nlte_commons_h</code> 读写共享工作数组；例如 <code>c110/vc110/c121/vc121/taustar11_cts/taustar12</code> 是下游 <code>nlte_tcool_mod.F</code> 继续使用的状态。</li>
+<li>多个例程直接写 <code>ibcode1</code>，用字符形式标识当前谱带/子带，再调用 <code>gethist_03(ib)</code> 切换历史谱线表。</li>
+<li>错误处理分两类：大多数数值问题设置 <code>ierr/varerr</code> 并返回，由调用方 <code>errors</code> 处理；<code>MZMC121</code> 的非法子带索引使用 <code>abort_physic</code>。</li>
+<li>例程会对 <code>c110/c121/vc110/vc121/taustar*</code> 和若干局部矩阵清零后重算；调用顺序依赖 <code>nlte_tcool_mod.F</code> 的初始化。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>MZESC110</code> 在 CTS 高度网格上用 <code>co2y_cts/nty_cts/ty_cts/py_cts</code> 建立柱量和混合比，读取 110 历史表，逐层积分得到 <code>tauinf</code>，最后调用 <code>mzescape_normaliz_02</code> 得到 <code>taustar11_cts</code>。</li>
+<li><code>MZTUD110</code> 把 GCM 主网格的 CO2 柱量按振动温度修正，读取 110 历史表，逐层/逐路径计算 <code>tau(in,ir)</code> 与 <code>tauinf(in)</code>；若最大透过率超过 1，返回错误 42。</li>
+<li><code>MZCUD110</code> 对 <code>tau/tauinf</code> 做差分，乘以 <code>pi*deltanu</code> 和垂直差分算子，写出 <code>c110</code> 与 <code>vc110</code>。</li>
+<li><code>MZMC121</code> 对 121 热带的三个子带 <code>ib=2,3,4</code> 逐一调用 <code>MZTUD121</code>，再按频率比例和温度指数因子合成 <code>c121/vc121</code>。</li>
+<li><code>MZESC121</code> 逐一调用 <code>MZESC121sub</code> 计算三个 121 子带的 escape probability，再按频率比例合成并调用 <code>mzescape_normaliz</code>。</li>
+<li><code>MZTVC121</code> 逐一调用 <code>MZTVC121sub</code> 计算三个子带边界向量，再按频率比例合成 <code>vc121</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>nlte_tcool_mod calls nlte_calc routines:
+
+for 110 band:
+  MZESC110:
+    build CTS CO2 column and mixing-ratio arrays
+    get history table 1
+    integrate layer-to-space optical depths
+    normalize taustar11_cts
+
+  MZTUD110:
+    interpolate vibration temperature to GCM grid
+    correct CO2 column and get history table 1
+    for each source layer in:
+      integrate optical paths to lower layers and to space
+      use interstrhunt/intershphunt + we_clean for equivalent widths
+    MZCUD110 converts tau differences into c110 and vc110
+
+for 121 hot band:
+  MZMC121:
+    for ib in 2, 3, 4:
+      MZTUD121 computes one sub-band matrix and vector
+      scale by frequency/temperature factors
+      accumulate into c121 and vc121
+
+  MZESC121:
+    for ib in 2, 3, 4:
+      MZESC121sub computes one sub-band taustar
+    scale and normalize into taustar12
+
+  MZTVC121:
+    for ib in 2, 3, 4:
+      MZTVC121sub computes one sub-band boundary vector
+    scale and accumulate into vc121</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NLTE 15 微米 CO2 冷却</td>
+<td>生成 <code>nlte_tcool_mod.F</code> 所需的 110/121 带 escape probability、Curtis matrix 和边界向量。</td>
+</tr>
+<tr>
+<td>辐射矩阵求解</td>
+<td><code>c110/c121/vc110/vc121</code> 进入后续 vibrational population 和 cooling-rate 矩阵计算。</td>
+</tr>
+<tr>
+<td>数值错误传播</td>
+<td>通过 <code>ierr/varerr</code> 把非正 CO2 柱量、非正压力、透过率大于 1、负 <code>vc</code> 等问题传给 <code>errors</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran，旧 1-D 文件名保留在注释中，顶层 module 包装未启用。</li>
+<li>110 和 121 代码结构高度相似：先积分光学路径得到 <code>tau/tauinf</code>，再转成矩阵或 escape probability。</li>
+<li><code>MZMC121</code>、<code>MZESC121</code> 和 <code>MZTVC121</code> 都把 <code>ib=2,3,4</code> 三个热带子带按频率比例合成；<code>MZMC121</code> 还含温度指数缩放因子。</li>
+<li>多处用 <code>ff=1.0d10</code> 防止过小数值，并用 <code>beta=1.8d5</code> 把 box 柱量传给 <code>we_clean</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>调用本文件前，<code>nlte_setup.F</code> 必须已经填好 <code>nlte_commons_h</code> 的 CO2/温度/高度/谱线表路径与历史表缓存。</li>
+<li><code>nlte_aux.F::rhist_03</code> 读入的历史谱线表必须覆盖 <code>ib=1..4</code>，否则 <code>gethist_03(ib)</code> 恢复的表不完整。</li>
+<li><code>co2y</code> 顶层非正、压力非正、混合比非正或 <code>tau &gt; 1</code> 都会触发 <code>ierr/varerr</code>，不能忽略返回值。</li>
+<li>121 热带只按源码支持 <code>ib=2,3,4</code>；扩展谱带时需要同时修改合成例程和历史表索引。</li>
+<li><code>MZTVC121sub</code> 遇到负 <code>vc</code> 会用上一层值替代，但仍在末尾统计 <code>minvc</code>；复现时要保留这个数值保护顺序。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>ierr</code> 代码 33、42、43、45、46、51、52、83 等的完整语义需要结合 <code>nlte_tcool_mod.F::errors</code> 继续整理。</li>
+<li><code>beta=1.8d5</code>、<code>ff=1.0d10</code>、<code>2.d5*deltaz</code> 等常数的物理单位来源需要旧 IAA/CSIC 文档确认。</li>
+<li>121 热带三个子带频率缩放因子的物理推导本页按源码记录，未外推解释。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a></li>
+<li><a href="nlte_aux.html">nlte_aux</a></li>
+<li><a href="nlte_tcool_mod.html">nlte_tcool_mod.md</a>：调用本文件并求解 NLTE cooling-time 矩阵。</li>
+<li><a href="nlte_setup.html">nlte_setup.md</a>：负责填充本文件依赖的 NLTE 表和状态。</li>
+<li><a href="nlte_commons_h.html">nlte_commons_h.md</a>：保存本文件读写的共享数组。</li>
+<li><a href="nlte_paramdef_h.html">nlte_paramdef_h.md</a>：保存维度和谱线常数。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

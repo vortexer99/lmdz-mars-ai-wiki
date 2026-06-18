@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>iono_h - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/iono_h.md</span>
+    </nav>
+    <article class="content">
+<h1 id="iono_hf90">iono_h.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\iono_h.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>iono_h.F90</code> 定义 <code>iono_h</code>，是电离层/离子化学的<strong>共享状态模块</strong>。它保存 18 个物种“平衡标志”字符数组（<code>*_eq</code>，长度 <code>nlayer</code>）和 27 个离子/中性物种反应系数数组 <code>tau*</code>（<code>real*8 (nreact,nlayer)</code>），全部 <code>SAVE/ALLOCATABLE</code> 并 <code>THREADPRIVATE</code>；提供分配例程 <code>allocate_param_iono</code> 和电子温度函数 <code>temp_elect</code>。<code>physiq_mod</code> 在初始化时调用 <code>allocate_param_iono</code> 分配数组，<code>paramfoto_compact</code> 读取 <code>tau*</code>/<code>*_eq</code> 计算离子化学速率，<code>calchim_mod</code> 调用 <code>temp_elect</code> 取电子温度。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iono_h</code></td>
+<td>module</td>
+<td>1（<code>END MODULE</code> 173）</td>
+<td>电离层共享状态模块</td>
+</tr>
+<tr>
+<td><code>allocate_param_iono</code></td>
+<td>subroutine</td>
+<td>57（<code>END</code> 110）</td>
+<td>按 <code>nlayer,nreact</code> 分配 18 个标志数组与 27 个 <code>tau*</code> 数组</td>
+</tr>
+<tr>
+<td><code>temp_elect</code></td>
+<td>function</td>
+<td>114（<code>end</code> 171）</td>
+<td>按高度计算电子温度（Viking 或 MAVEN 剖面）</td>
+</tr>
+<tr>
+<td><code>o1d_eq</code> 等 18 个</td>
+<td>character*1 save allocatable</td>
+<td>5–22</td>
+<td>物种平衡标志 <code>(nlayer)</code>：<code>o1d_eq,ho2_eq,oh_eq,h_eq,n2d_eq,no2_eq,o3_eq,no_eq,cplus_eq,coplus_eq,oplus_eq,n2plus_eq,hplus_eq,co2plus_eq,o2plus_eq,noplus_eq,nplus_eq,hco2plus_eq</code></td>
+</tr>
+<tr>
+<td><code>tauco2</code> 等 27 个</td>
+<td>real*8 save allocatable</td>
+<td>23–49</td>
+<td>物种反应系数 <code>(nreact,nlayer)</code>：<code>tauco2,tauo2,tauo3p,tauco,tauh,tauoh,tauho2,tauh2,tauh2o,tauo1d,tauh2o2,tauo3,taun,tauno,taun2,taun2d,tauno2,tauco2plus,tauoplus,tauo2plus,taucoplus,taucplus,taunplus,taunoplus,taun2plus,tauhplus,tauhco2plus</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>自包含模块，无 <code>use</code> 依赖</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无外部例程</td>
+<td>-</td>
+<td>-</td>
+<td><code>allocate_param_iono</code> 仅 <code>allocate</code>；<code>temp_elect</code> 仅用 <code>tanh</code> 与表插值</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<p><code>allocate_param_iono(nlayer,nreact)</code>：<code>nlayer</code>、<code>nreact</code>（integer）。 <code>temp_elect(zkm,tt,origin)</code>：<code>zkm</code> 高度(km)、<code>tt</code> 中性温度(K)、<code>origin</code> 来源（1=Viking，2=MAVEN）。</p>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>18 个 <code>*_eq</code> + 27 个 <code>tau*</code></td>
+<td><code>paramfoto_compact</code> 等读取</td>
+<td>char/real*8 数组</td>
+<td>离子化学平衡标志与反应系数</td>
+</tr>
+<tr>
+<td><code>temp_elect</code> 返回值</td>
+<td><code>calchim_mod:821</code></td>
+<td>real</td>
+<td>电子温度(K)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>45 个模块数组为 <code>SAVE, ALLOCATABLE</code>，并用 <code>!$OMP THREADPRIVATE</code>（第 51–53 行）声明；模块外可读取。</li>
+<li><code>allocate_param_iono</code> 仅分配，不赋初值，也无对应 <code>deallocate</code> 例程（见待确认）。</li>
+<li><code>temp_elect</code> 为纯函数性质（无副作用），但对 <code>origin</code> 非 1/2 打印错误并回退中性温度；<a href="photochemistry_mod.html">photochemistry_mod</a> 的 <code>temp_elect(nlayer)</code> 是调用方传入的电子温度数组，不是本函数调用。</li>
+<li>无文件 I/O、无 <code>getin</code>、无 <code>abort</code>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<p><code>allocate_param_iono(nlayer,nreact)</code>（第 57–110 行）：<code>allocate</code> 18 个 <code>*_eq(nlayer)</code> 与 27 个 <code>tau*(nreact,nlayer)</code>。</p>
+<p><code>temp_elect(zkm,tt,origin)</code>（第 114–171 行）：</p>
+<ol type="1">
+<li>Viking 表 <code>zhanson=(120,130,150,175,200,225,250,275,300)</code>、<code>tehanson=(tt,200,300,500,1250,2000,2200,2400,2500)</code>。</li>
+<li><code>origin=1</code>（Viking）：<code>zkm≤120</code> → <code>tt</code>；<code>zkm≥300</code> → 2500；其间对 <code>zhanson/tehanson</code> 线性插值。</li>
+<li><code>origin=2</code>（MAVEN，Ergun et al. GRL 2015）：<code>zkm≤120</code> → <code>tt</code>；否则 <code>temp_elect=(3140+120)/2 + (3140-120)/2*tanh((zkm-241)/60)</code>。</li>
+<li>其他 <code>origin</code>：打印错误，回退 <code>tt</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>allocate_param_iono(nlayer, nreact):
+  allocate *_eq(nlayer) for 18 species
+  allocate tau*(nreact, nlayer) for 27 species
+
+temp_elect(zkm, tt, origin):
+  if origin == 1:                       # Viking
+    if zkm &lt;= 120: return tt
+    if zkm &gt;= 300: return 2500
+    linear-interp tehanson over zhanson -&gt; return
+  else if origin == 2:                  # MAVEN
+    if zkm &lt;= 120: return tt
+    return (3140+120)/2 + (3140-120)/2 * tanh((zkm-241)/60)
+  else:
+    print error; return tt</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>电离层 / 离子化学</td>
+<td><code>physiq</code> 分配数组；<code>paramfoto_compact</code> 用 <code>tau*</code>/<code>*_eq</code> 算离子反应速率；<code>calchim</code> 用 <code>temp_elect</code> 取电子温度驱动电子温度依赖反应</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 <code>.F90</code> 模块；45 个数组全 <code>SAVE+ALLOCATABLE+THREADPRIVATE</code>。</li>
+<li><code>character*1</code> 平衡标志 + <code>real*8</code> 反应系数，物种覆盖中性（CO2/O2/O/H2O/…）与离子（CO2+/O+/O2+/…/HCO2+）。</li>
+<li><code>temp_elect</code> 内置 Viking 表与 MAVEN tanh 公式；MAVEN 公式注释说明 Langmuir 探针 &lt;500K 不敏感，低热层(&lt;150km)可能高估。</li>
+<li><code>allocate_param_iono</code> 无对应 deallocate；无分配前 <code>allocated</code> 守卫。</li>
+<li><a href="photochemistry_mod.html">photochemistry_mod</a> 另有同名哑元数组 <code>temp_elect(nlayer)</code>，与本函数无关（名称遮蔽）。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>须先 <code>allocate_param_iono(nlayer,nreact)</code> 再使用 <code>tau*</code>/<code>*_eq</code>；<code>nreact</code> 须与离子化学网络反应数一致。</li>
+<li><code>temp_elect</code> 依赖 <code>origin</code>：Viking(1) 用表插值，MAVEN(2) 用 tanh 公式；二者给出不同电子温度，影响电子温度依赖反应速率。</li>
+<li>数组 <code>THREADPRIVATE</code>，并行复现需确认各线程完成分配。</li>
+<li>无 deallocate 例程，重复分配需调用方自行避免。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>无 <code>deallocate_param_iono</code> 是否有意（依赖进程退出释放或调用方管理）。</li>
+<li><code>*_eq</code> 标志的取值约定（如 'y'/'n'）与赋值方，待 <code>paramfoto_compact</code>/<code>chemthermos</code> 文件页确认。</li>
+<li><code>tau*</code> 的赋值例程（疑为 <code>paramfoto_compact</code> 或 <code>jthermcalc*</code>），待相关文件页确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览，本文件在其“电离层”分类下。</li>
+<li><a href="../phymars/physiq_mod.html">physiq_mod</a>：调用 <code>allocate_param_iono</code>（第 765 行）分配数组。</li>
+<li><a href="calchim_mod.html">calchim_mod</a>：调用方文件页，调 <code>temp_elect</code>（第 821 行）。</li>
+<li><a href="photochemistry_mod.html">photochemistry_mod</a>：接收 <code>calchim_mod</code> 传入的电子温度数组，用于电子温度依赖反应速率。</li>
+<li><a href="paramfoto_compact.html">paramfoto_compact</a>：<code>tau*</code>/<code>*_eq</code> 消费和写入方，用于寿命、平衡标志、离子化学积分和平衡修正。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

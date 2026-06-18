@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>comsoil_h - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/comsoil_h.md</span>
+    </nav>
+    <article class="content">
+<h1 id="comsoil_hf90">comsoil_h.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\comsoil_h.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars — Mars 物理参数化模块</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>comsoil_h 是 Mars GCM 土壤子系统的核心共享状态模块。它定义了土壤层数常数 <code>nsoilmx=57</code>、层深度几何、热惯量、热扩散求解器系数数组、地下 tracer（水汽/冰/吸附水）以及相关控制开关。所有涉及土壤热传导、水循环地下过程、初始场读写和诊断输出的文件都依赖此模块。它本身不包含物理计算逻辑，仅提供数据声明、参数常量和分配/释放子程序。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comsoil_h</code></td>
+<td>module</td>
+<td>1</td>
+<td>土壤共享状态模块</td>
+</tr>
+<tr>
+<td><code>nsoilmx</code></td>
+<td>integer, parameter</td>
+<td>6</td>
+<td>土壤层数 = 57</td>
+</tr>
+<tr>
+<td><code>layer</code></td>
+<td>real, save, allocatable(:)</td>
+<td>8</td>
+<td>各层深度（m）</td>
+</tr>
+<tr>
+<td><code>mlayer</code></td>
+<td>real, save, allocatable(:)</td>
+<td>9</td>
+<td>各层中点深度（m）</td>
+</tr>
+<tr>
+<td><code>inertiedat</code></td>
+<td>real, save, allocatable(:,:)</td>
+<td>10</td>
+<td>当前气候土壤热惯量 (ngrid, nsoilmx)</td>
+</tr>
+<tr>
+<td><code>inertiesoil</code></td>
+<td>real, save, allocatable(:,:,:)</td>
+<td>11</td>
+<td>土壤热惯量 (ngrid, nsoilmx, nslope)</td>
+</tr>
+<tr>
+<td><code>volcapa</code></td>
+<td>real, save</td>
+<td>12</td>
+<td>土壤体积热容量 (J/m³/K)，从 start 文件 control(35) 读取</td>
+</tr>
+<tr>
+<td><code>tsoil</code></td>
+<td>real, save, allocatable(:,:,:)</td>
+<td>19</td>
+<td>土壤温度 (K) (ngrid, nsoilmx, nslope)</td>
+</tr>
+<tr>
+<td><code>mthermdiff</code></td>
+<td>real, save, allocatable(:,:,:)</td>
+<td>20</td>
+<td>层中点热扩散系数 (ngrid, 0:nsoilmx-1, nslope)</td>
+</tr>
+<tr>
+<td><code>thermdiff</code></td>
+<td>real, save, allocatable(:,:,:)</td>
+<td>21</td>
+<td>层界面热扩散系数 (ngrid, nsoilmx-1, nslope)</td>
+</tr>
+<tr>
+<td><code>coefq</code></td>
+<td>real, save, allocatable(:)</td>
+<td>22</td>
+<td>q_{k+1/2} 系数 (0:nsoilmx-1)</td>
+</tr>
+<tr>
+<td><code>coefd</code></td>
+<td>real, save, allocatable(:,:,:)</td>
+<td>23</td>
+<td>d_k 系数 (ngrid, nsoilmx-1, nslope)</td>
+</tr>
+<tr>
+<td><code>alph</code></td>
+<td>real, save, allocatable(:,:,:)</td>
+<td>24</td>
+<td>alpha_k 系数 (ngrid, nsoilmx-1, nslope)</td>
+</tr>
+<tr>
+<td><code>beta</code></td>
+<td>real, save, allocatable(:,:,:)</td>
+<td>25</td>
+<td>beta_k 系数 (ngrid, nsoilmx-1, nslope)</td>
+</tr>
+<tr>
+<td><code>flux_geo</code></td>
+<td>real, save, allocatable(:,:)</td>
+<td>26</td>
+<td>地热通量 (W/m²) (ngrid, nslope)</td>
+</tr>
+<tr>
+<td><code>mu</code></td>
+<td>real, save</td>
+<td>27</td>
+<td>热扩散求解辅助参数</td>
+</tr>
+<tr>
+<td><code>adsorption_soil</code></td>
+<td>logical, save</td>
+<td>32</td>
+<td>是否启用吸附过程</td>
+</tr>
+<tr>
+<td><code>choice_ads</code></td>
+<td>real, save</td>
+<td>33</td>
+<td>吸附等温线选择（3 = 无吸附，见 soilwater.F90）</td>
+</tr>
+<tr>
+<td><code>ads_const_D</code></td>
+<td>logical, save</td>
+<td>34</td>
+<td>是否使用常数扩散系数</td>
+</tr>
+<tr>
+<td><code>ads_massive_ice</code></td>
+<td>logical, save</td>
+<td>35</td>
+<td>是否有大块地下冰</td>
+</tr>
+<tr>
+<td><code>qsoil</code></td>
+<td>real, save, allocatable(:,:,:,:)</td>
+<td>36</td>
+<td>地下 tracer (kg/m³ regol) (ngrid, nsoilmx, nqsoil, nslope)</td>
+</tr>
+<tr>
+<td><code>nqsoil</code></td>
+<td>integer, parameter</td>
+<td>37</td>
+<td>地下 tracer 数 = 3</td>
+</tr>
+<tr>
+<td><code>igcm_h2o_vap_soil</code></td>
+<td>integer, parameter</td>
+<td>38</td>
+<td>tracer 索引：土壤水汽 = 1</td>
+</tr>
+<tr>
+<td><code>igcm_h2o_ice_soil</code></td>
+<td>integer, parameter</td>
+<td>39</td>
+<td>tracer 索引：土壤冰 = 2</td>
+</tr>
+<tr>
+<td><code>igcm_h2o_vap_ads</code></td>
+<td>integer, parameter</td>
+<td>40</td>
+<td>tracer 索引：吸附水 = 3</td>
+</tr>
+<tr>
+<td><code>porosity_reg</code></td>
+<td>real, parameter</td>
+<td>41</td>
+<td>表土孔隙率 = 0.45</td>
+</tr>
+<tr>
+<td><code>ini_comsoil_h</code></td>
+<td>subroutine</td>
+<td>49</td>
+<td>分配所有土壤数组（ngrid, nslope）</td>
+</tr>
+<tr>
+<td><code>end_comsoil_h</code></td>
+<td>subroutine</td>
+<td>73</td>
+<td>释放所有土壤数组</td>
+</tr>
+<tr>
+<td><code>ini_comsoil_h_slope_var</code></td>
+<td>subroutine</td>
+<td>94</td>
+<td>仅分配与坡面相关的子集（tsoil, inertiesoil, 热扩散系数, flux_geo, qsoil）</td>
+</tr>
+<tr>
+<td><code>end_comsoil_h_slope_var</code></td>
+<td>subroutine</td>
+<td>114</td>
+<td>释放坡面子集</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<p>无。comsoil_h 是纯声明模块，不 <code>use</code> 任何其他模块。</p>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<p>comsoil_h 本身不调用外部例程。其分配/释放子程序被以下模块调用：</p>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>位置</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phys_state_var_init_mod.F90</code></td>
+<td>行 41</td>
+<td><code>use comsoil_h, only: ini_comsoil_h, end_comsoil_h</code> — 物理状态变量初始化/释放</td>
+</tr>
+<tr>
+<td><code>start2archive.F</code></td>
+<td>行 25</td>
+<td><code>use comsoil_h, only: ini_comsoil_h</code> — 初始场转换时分配</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<p>comsoil_h 是共享状态模块，无传统输入参数。其数据来源：</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>写入方</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>layer</code>, <code>mlayer</code></td>
+<td><code>soil_settings.F</code></td>
+<td>根据 <code>nsoilmx</code> 计算层深度和中点深度</td>
+</tr>
+<tr>
+<td><code>inertiedat</code></td>
+<td><code>surfini_mod.F90</code> / <code>lect_start_archive.F</code></td>
+<td>从 start 文件读取当前气候热惯量</td>
+</tr>
+<tr>
+<td><code>inertiesoil</code></td>
+<td><code>soil_settings.F</code> / <code>newstart.F</code></td>
+<td>根据 <code>inertiedat</code> 和气候条件计算</td>
+</tr>
+<tr>
+<td><code>volcapa</code></td>
+<td><code>tabfi.F</code> / <code>soil_settings.F</code></td>
+<td>从 start 文件 control(35) 读取或初始化</td>
+</tr>
+<tr>
+<td><code>tsoil</code></td>
+<td><code>soil.F</code> / <code>phyredem.F90</code></td>
+<td>从 start 文件读取或由热扩散求解更新</td>
+</tr>
+<tr>
+<td><code>coefq</code>, <code>coefd</code>, <code>alph</code>, <code>beta</code>, <code>mu</code></td>
+<td><code>soil.F</code> (firstcall)</td>
+<td>热扩散隐式求解系数，在首次调用时计算</td>
+</tr>
+<tr>
+<td><code>flux_geo</code></td>
+<td><code>phyetat0_mod.F90</code> / <code>newstart.F</code></td>
+<td>从 start 文件读取地热通量</td>
+</tr>
+<tr>
+<td><code>qsoil</code></td>
+<td><code>vdifc_mod.F</code> / <code>phyredem.F90</code></td>
+<td>地下水 tracer，由垂直扩散或重启文件写入</td>
+</tr>
+<tr>
+<td><code>adsorption_soil</code>, <code>choice_ads</code>, <code>ads_const_D</code>, <code>ads_massive_ice</code></td>
+<td><code>conf_phys.F</code></td>
+<td>从 <code>callphys.def</code> 读取</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<p>作为共享状态模块，输出是所有 <code>use comsoil_h</code> 的文件可访问的变量。主要消费者：</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>主要消费者</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tsoil</code></td>
+<td><code>soil.F</code>, <code>vdifc_mod.F</code>, <code>physiq_mod.F</code></td>
+<td>土壤温度廓线，热扩散求解和地表能量收支</td>
+</tr>
+<tr>
+<td><code>inertiesoil</code></td>
+<td><code>soil.F</code>, <code>physiq_mod.F</code></td>
+<td>热惯量，决定土壤热扩散速率</td>
+</tr>
+<tr>
+<td><code>qsoil</code></td>
+<td><code>soilwater.F90</code>, <code>vdifc_mod.F</code></td>
+<td>地下水 tracer（水汽/冰/吸附水）</td>
+</tr>
+<tr>
+<td><code>layer</code>, <code>mlayer</code></td>
+<td><code>soil.F</code>, <code>soilwater.F90</code>, <code>vdifc_mod.F</code>, 多个 I/O 文件</td>
+<td>层深度几何</td>
+</tr>
+<tr>
+<td><code>nsoilmx</code></td>
+<td>几乎所有土壤相关文件</td>
+<td>层数常数</td>
+</tr>
+<tr>
+<td><code>coefq/coefd/alph/beta</code></td>
+<td><code>soil.F</code></td>
+<td>热扩散三对角矩阵系数</td>
+</tr>
+<tr>
+<td><code>flux_geo</code></td>
+<td><code>soil.F</code></td>
+<td>底边界地热通量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p>comsoil_h 是纯粹的共享状态容器。所有变量均为 <code>save</code> 属性，部分标记 <code>allocatable</code>。所有可分配数组标记 <code>!$OMP THREADPRIVATE</code> 以支持 OpenMP 并行。</p>
+<p>关键副作用：</p>
+<ul>
+<li><code>ini_comsoil_h</code> / <code>ini_comsoil_h_slope_var</code> 会分配数组；重复调用会导致内存泄漏（无已分配检查）。</li>
+<li><code>end_comsoil_h</code> / <code>end_comsoil_h_slope_var</code> 会释放数组；含 <code>allocated()</code> 保护。</li>
+<li><code>volcapa</code> 的值来自 start 文件 <code>control(35)</code>（在 <code>tabfi.F</code> 或 <code>soil_settings.F</code> 中设置），不同模拟可能不同。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<p>comsoil_h 不含物理计算逻辑，其结构为：</p>
+<ol type="1">
+<li><p><strong>参数声明（行 6, 37–41）</strong>：<code>nsoilmx=57</code> 定义土壤层数；<code>nqsoil=3</code> 定义地下 tracer 数；<code>igcm_h2o_vap_soil/ice/ads</code> 定义 tracer 索引；<code>porosity_reg=0.45</code> 定义表土孔隙率。</p></li>
+<li><p><strong>土壤层几何（行 8–9）</strong>：<code>layer(nsoilmx)</code> 和 <code>mlayer(0:nsoilmx-1)</code> 分别存储层界面深度和层中点深度，由 <code>soil_settings.F</code> 计算。</p></li>
+<li><p><strong>热性质（行 10–12）</strong>：<code>inertiedat</code>（当前气候参考值）和 <code>inertiesoil</code>（含坡面变化的实际值）控制热扩散速率；<code>volcapa</code> 是体积热容量。</p></li>
+<li><p><strong>热扩散求解器数组（行 19–27）</strong>：<code>tsoil</code> 是土壤温度；<code>mthermdiff</code>/<code>thermdiff</code> 是扩散系数；<code>coefq</code>/<code>coefd</code>/<code>alph</code>/<code>beta</code>/<code>mu</code> 是隐式三对角求解系数，在 <code>soil.F</code> 的 firstcall 中计算。</p></li>
+<li><p><strong>地下 tracer（行 32–43）</strong>：<code>qsoil(ngrid,nsoilmx,3,nslope)</code> 存储三个 tracer（水汽、冰、吸附水）；<code>adsorption_soil</code>/<code>choice_ads</code>/<code>ads_const_D</code>/<code>ads_massive_ice</code> 控制吸附行为。</p></li>
+<li><p><strong>分配/释放（行 49–128）</strong>：四个子程序分别处理全量和坡面子集的分配与释放。<code>ini_comsoil_h</code> 在 <code>phys_state_var_init</code> 中调用；<code>ini_comsoil_h_slope_var</code> 在需要重新分配坡面维度时调用。</p></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>module comsoil_h:
+    constant nsoilmx = 57              # 土壤层数
+    constant nqsoil = 3                # 地下 tracer 数
+    constant igcm_h2o_vap_soil = 1     # tracer 索引
+    constant igcm_h2o_ice_soil = 2
+    constant igcm_h2o_vap_ads = 3
+    constant porosity_reg = 0.45       # 表土孔隙率
+
+    save layer(nsoilmx)                # 层深度
+    save mlayer(0:nsoilmx-1)           # 层中点深度
+    save inertiedat(ngrid,nsoilmx)     # 参考热惯量
+    save inertiesoil(ngrid,nsoilmx,nslope)  # 实际热惯量
+    save volcapa                       # 体积热容量
+    save tsoil(ngrid,nsoilmx,nslope)   # 土壤温度
+    save mthermdiff, thermdiff         # 热扩散系数
+    save coefq, coefd, alph, beta, mu  # 求解系数
+    save flux_geo(ngrid,nslope)        # 地热通量
+    save qsoil(ngrid,nsoilmx,nqsoil,nslope)  # 地下 tracer
+    save adsorption_soil, choice_ads, ads_const_D, ads_massive_ice  # 控制开关
+
+    subroutine ini_comsoil_h(ngrid, nslope):
+        allocate all soil arrays
+
+    subroutine end_comsoil_h:
+        deallocate all soil arrays (with allocated() guard)
+
+    subroutine ini_comsoil_h_slope_var(ngrid, nslope):
+        allocate slope-dependent subset only
+
+    subroutine end_comsoil_h_slope_var:
+        deallocate slope-dependent subset (with allocated() guard)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/water-cycle.html">water-cycle</a></td>
+<td>提供地下 tracer（qsoil）和吸附控制开关，是 soilwater/vdifc 的数据基础</td>
+</tr>
+<tr>
+<td><a href="../../themes/radiation.html">radiation</a></td>
+<td>间接：土壤热惯量影响地表温度，进而影响辐射</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>纯声明模块</strong>：不含物理计算逻辑，仅数据声明 + 分配/释放。</li>
+<li><strong><code>!$OMP THREADPRIVATE</code></strong>：所有 save 变量均标记线程私有，支持 OpenMP 并行。</li>
+<li><strong>坡面子集分配</strong>：<code>ini_comsoil_h_slope_var</code> 允许在不重新分配 <code>layer</code>/<code>mlayer</code>/<code>inertiedat</code>/<code>volcapa</code>/<code>coefq</code> 的情况下重新分配坡面相关数组，用于 nslope 变化时。</li>
+<li><strong><code>volcapa</code> 的特殊初始化路径</strong>：注释说明它从 start 文件 <code>control(35)</code> 读取（在 <code>physdem</code> 中），或通过 <code>tabfi</code> 设置，或在 <code>soil_settings.F</code> 中初始化。</li>
+<li><strong>固定格式</strong>：部分使用大写关键字（<code>MODULE</code>/<code>SUBROUTINE</code>/<code>END</code>），混合 F77/F90 风格。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>nsoilmx=57</code> 是硬编码常数，改变需要重新编译整个 GCM。</li>
+<li><code>porosity_reg=0.45</code> 是表土孔隙率，用于 soilwater 吸附计算。</li>
+<li><code>choice_ads=3</code> 表示无吸附（见 soilwater.F90）。</li>
+<li><code>volcapa</code> 的值取决于 start 文件，不同初始条件可能不同。</li>
+<li><code>layer</code> 和 <code>mlayer</code> 的具体数值由 <code>soil_settings.F</code> 计算，取决于 <code>nsoilmx</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>ini_comsoil_h</code> 无 <code>allocated()</code> 保护，重复调用是否会导致内存泄漏（推断：是，但调用方 <code>phys_state_var_init</code> 通常只调用一次）。</li>
+<li><code>mu</code> 变量的用途未在本文件中注释，推断用于热扩散求解器（待确认：需查 <code>soil.F</code>）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="soilwater.html">soilwater</a> — 地下水吸附-扩散-相变求解器，使用 <code>qsoil</code>、<code>layer</code>、<code>mlayer</code>、<code>choice_ads</code> 等</li>
+<li><a href="../../architecture/water-cycle-config.html">water-cycle-config</a> — 水循环配置，含 <code>adsorption_soil</code> 开关</li>
+<li><a href="../../themes/water-cycle.html">water-cycle</a> — 水循环主题页</li>
+<li><a href="soil.html">soil</a> — 土壤热扩散隐式求解器，Thomas 算法三对角矩阵求解</li>
+<li><a href="soil_settings.html">soil_settings</a> — 土壤初始化设置，从 startfi.nc 读取层深度/热惯量/温度</li>
+<li><a href="waterice_tifeedback_mod.html">waterice_tifeedback_mod</a> — 水冰热惯量反馈，使用 <code>inertiedat</code>、<code>layer</code>、<code>porosity_reg</code></li>
+<li><a href="iniwritesoil.html">iniwritesoil</a> — 土壤诊断 NetCDF 初始化，创建维度和固定字段</li>
+<li><a href="writediagsoil.html">writediagsoil</a> — 土壤诊断 NetCDF 逐时步写入后端</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

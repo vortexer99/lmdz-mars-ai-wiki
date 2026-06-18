@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>callradite_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/callradite_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="callradite_modf">callradite_mod.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\callradite_mod.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars
+MODULE callradite_mod</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>callradite_mod.F</code> 是 <code>phymars</code> 辐射传输的主调度入口。它不直接实现长波或短波辐射主算法，而是在每个辐射时间步完成以下工作：识别当前配置启用的气溶胶 scatterer，首次调用时加载光学查找表；把 tracer/微物理状态转成辐射需要的粒径和三维光学参数；计算每层气溶胶光学厚度；按 <code>ndomainsz</code> 把水平网格切成子域；在 LTE 有效层 <code>nlaylte</code> 内调用 <code>lwmain</code> 和 <code>swmain</code>；最后把长波/短波加热率和地表/顶层通量写回全局输出数组。</p>
+<p>它的上游主要是 <code>physiq_mod.F</code> 的 <code>callrad</code> 分支；<code>rocketduststorm_mod.F90</code> 和 <code>topmons_mod.F90</code> 也会进行二次辐射调用，用来估算 stormdust 或 topdust 带来的额外辐射加热。它的下游是 <code>updatereffrad</code>、<code>aeroptproperties</code>、<code>aeropacity</code>、<code>lwmain</code> 和 <code>swmain</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>callradite_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>辐射调用入口模块</td>
+</tr>
+<tr>
+<td><code>callradite</code></td>
+<td>subroutine</td>
+<td>7-616</td>
+<td>辐射调度例程；准备气溶胶光学输入，分块调用长波/短波主程序，输出加热率和通量</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td><code>LOGICAL,SAVE</code>, <code>THREADPRIVATE</code></td>
+<td>291-292</td>
+<td>首次调用时识别 scatterer、写 <code>gcp</code> 并调用 <code>SUAER</code>；后续调用跳过这些初始化</td>
+</tr>
+</tbody>
+</table>
+<p>本文件没有 common block，没有其他 <code>SAVE</code> 局部状态。</p>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>aeropacity_mod</code></td>
+<td><code>aeropacity</code></td>
+<td>根据 tracer、粒径和光学参数计算逐层/柱气溶胶光学厚度</td>
+<td></td>
+</tr>
+<tr>
+<td><code>updatereffrad_mod</code></td>
+<td><code>updatereffrad</code></td>
+<td>从 dust/H2O/CO2 tracer 和微物理状态更新 <code>reffrad/nueffrad</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>aeroptproperties_mod</code></td>
+<td><code>aeroptproperties</code></td>
+<td>按 <code>reffrad/nueffrad</code> 对查找表做尺寸分布积分，输出 VIS/IR 三维散射参数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>ndomainsz</code>, <code>nflev</code>, <code>nsun</code>, <code>nir</code>, <code>naerkind</code>, <code>name_iaer</code>, <code>iaer_*</code>, <code>flux_1AU</code></td>
+<td>辐射维度、scatterer 名称/索引、太阳常数和光学表共享状态</td>
+<td></td>
+</tr>
+<tr>
+<td><code>yomlw_h</code></td>
+<td><code>gcp</code>, <code>nlaylte</code></td>
+<td><code>gcp=g/cpp</code> 由本文件首次写入；<code>nlaylte</code> 限定 LTE 辐射计算层数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code>, <code>cpp</code></td>
+<td>计算 <code>gcp</code>，并作为辐射链物理常数上下文</td>
+<td></td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>daysec</code></td>
+<td>仅用于注释掉的调试输出</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="lwmain_mod.html"><code>lwmain_mod</code></a></td>
+<td><code>lwmain</code></td>
+<td>长波热红外辐射主程序</td>
+<td></td>
+</tr>
+<tr>
+<td><code>swmain_mod</code></td>
+<td><code>swmain</code></td>
+<td>短波太阳辐射主程序</td>
+<td></td>
+</tr>
+<tr>
+<td><code>suaer_mod</code></td>
+<td><code>suaer</code></td>
+<td>首次调用时加载离散气溶胶光学查找表</td>
+<td></td>
+</tr>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td><code>doubleq</code>, <code>active</code>, <code>submicron</code></td>
+<td>决定 dust scatterer 名称和索引匹配路径</td>
+<td></td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>water</code>, <code>activice</code>, <code>rdstorm</code>, <code>topflows</code>, <code>co2clouds</code>, <code>activeco2ice</code></td>
+<td>决定 H2O ice、CO2 ice、stormdust、topdust scatterer 是否应存在</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abort_physic</code></td>
+<td>公共物理错误处理</td>
+<td>393</td>
+<td>scatterer 数量/名称与 <code>naerkind</code> 不一致时终止</td>
+</tr>
+<tr>
+<td><code>SUAER</code> / <code>suaer</code></td>
+<td><code>suaer.F90</code></td>
+<td>408</td>
+<td>首次调用时加载 VIS/IR 气溶胶光学查找表</td>
+</tr>
+<tr>
+<td><code>updatereffrad</code></td>
+<td><code>updatereffrad_mod.F</code></td>
+<td>418-421</td>
+<td>更新 dust/stormdust/topdust/H2O ice/CO2 ice 的辐射有效半径和方差</td>
+</tr>
+<tr>
+<td><code>aeroptproperties</code></td>
+<td><code>aeroptproperties.F</code></td>
+<td>424-428</td>
+<td>由粒径分布积分得到 <code>QVISsQREF3d/omegaVIS3d/gVIS3d</code> 和 IR 对应场</td>
+</tr>
+<tr>
+<td><code>aeropacity</code></td>
+<td><code>aeropacity_mod.F</code></td>
+<td>430-436</td>
+<td>计算 <code>aerosol</code>、<code>tau</code>、<code>taucloudtes</code>、<code>dsodust/dsords/dsotop</code> 和尘埃缩放相关输出</td>
+</tr>
+<tr>
+<td><code>lwmain</code></td>
+<td><a href="lwmain_mod.html"><code>lwmain_mod.F</code></a></td>
+<td>533-539</td>
+<td>在当前子域上计算长波加热率、地表/顶层长波通量和长波净辐射</td>
+</tr>
+<tr>
+<td><code>swmain</code></td>
+<td><a href="swmain_mod.html"><code>swmain_mod.F</code></a></td>
+<td>547-551</td>
+<td>在当前子域上计算短波加热率和上下行短波通量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="直接调用方">直接调用方</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>位置</th>
+<th>调用目的</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>physiq_mod.F::physiq</code></td>
+<td>1097-1107</td>
+<td>主辐射调用，<code>clearsky=.false.</code>，计算含云/背景状态的 <code>zdtlw/zdtsw</code> 和辐射通量</td>
+</tr>
+<tr>
+<td><code>physiq_mod.F::physiq</code></td>
+<td>1121-1134</td>
+<td><code>CLFvarying</code> 时的 clear-sky 二次调用，随后按 <code>totcloudfrac</code> 混合 clear/cloudy 通量和加热率</td>
+</tr>
+<tr>
+<td><code>rocketduststorm_mod.F90</code></td>
+<td>259-267</td>
+<td>stormdust 二次辐射试算，获得尘暴额外加热</td>
+</tr>
+<tr>
+<td><code>topmons_mod.F90</code></td>
+<td>291-299</td>
+<td>topdust 二次辐射试算，获得山顶尘流额外加热并推导辐射驱动垂直速度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>icount</code></td>
+<td><code>physiq</code> 或二次辐射调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>物理步计数；传给 <code>lwmain</code></td>
+</tr>
+<tr>
+<td><code>ngrid</code>, <code>nlayer</code>, <code>nq</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>水平格点、垂直层和 tracer 数</td>
+</tr>
+<tr>
+<td><code>zday</code>, <code>ls</code></td>
+<td>轨道/季节状态</td>
+<td>real</td>
+<td>sol, rad</td>
+<td>自 Ls=0 起日期和太阳经度；<code>aeropacity</code> 用于尘埃场景</td>
+</tr>
+<tr>
+<td><code>pq(ngrid,nlayer,nq)</code></td>
+<td>物理 tracer 状态</td>
+<td>real</td>
+<td>kg/kg 或 tracer 自身单位</td>
+<td>dust、water ice、CO2 ice、stormdust/topdust 等光学厚度和粒径输入</td>
+</tr>
+<tr>
+<td><code>albedo(ngrid,2)</code></td>
+<td>地表状态</td>
+<td>real</td>
+<td>-</td>
+<td>两个短波太阳波段地表反照率</td>
+</tr>
+<tr>
+<td><code>emis(ngrid)</code></td>
+<td>地表状态</td>
+<td>real</td>
+<td>-</td>
+<td>热红外发射率</td>
+</tr>
+<tr>
+<td><code>mu0(ngrid)</code>, <code>fract(ngrid)</code></td>
+<td>太阳几何</td>
+<td>real</td>
+<td>-</td>
+<td>太阳天顶角余弦和当前步日照分数</td>
+</tr>
+<tr>
+<td><code>pplev</code>, <code>pplay</code></td>
+<td>大气网格</td>
+<td>real</td>
+<td>Pa</td>
+<td>层界面和层中心压力</td>
+</tr>
+<tr>
+<td><code>pt</code>, <code>tsurf</code></td>
+<td>热力状态</td>
+<td>real</td>
+<td>K</td>
+<td>大气层温度和地表温度</td>
+</tr>
+<tr>
+<td><code>dist_sol</code></td>
+<td>轨道状态</td>
+<td>real</td>
+<td>AU</td>
+<td>日火距离；短波太阳常数按 <code>1/dist_sol^2</code> 缩放</td>
+</tr>
+<tr>
+<td><code>co2ice(ngrid)</code></td>
+<td>地表 CO2 冰</td>
+<td>real</td>
+<td>kg/m2</td>
+<td>传给长波主程序用于 CO2 ice 相关边界</td>
+</tr>
+<tr>
+<td><code>totstormfract</code>, <code>clearatm</code></td>
+<td>stormdust 调用上下文</td>
+<td>real/logical</td>
+<td>-</td>
+<td>stormdust 亚格点面积分数；是否计算不含 stormdust 的背景大气</td>
+</tr>
+<tr>
+<td><code>nohmons</code></td>
+<td>topdust 调用上下文</td>
+<td>logical</td>
+<td>-</td>
+<td>是否计算不含 topdust/hmons 的背景大气</td>
+</tr>
+<tr>
+<td><code>clearsky</code>, <code>totcloudfrac</code></td>
+<td>水冰云分数路径</td>
+<td>logical/real</td>
+<td>-</td>
+<td><code>CLFvarying</code> 下是否排除云，以及总云分数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dtlw</code>, <code>dtsw</code></td>
+<td>调用方温度倾向</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K/s</td>
+<td>长波和短波辐射加热率；<code>nlaylte+1:nlayer</code> 被置零</td>
+</tr>
+<tr>
+<td><code>fluxsurf_lw</code>, <code>fluxtop_lw</code></td>
+<td>地表能量/诊断</td>
+<td>real <code>(ngrid)</code></td>
+<td>W/m2</td>
+<td>地表向下长波通量、顶层向上长波通量</td>
+</tr>
+<tr>
+<td><code>fluxsurf_dn_sw</code>, <code>fluxsurf_up_sw</code></td>
+<td>地表能量/诊断</td>
+<td>real <code>(ngrid,2)</code></td>
+<td>W/m2</td>
+<td>两个太阳波段的地表下行/上行短波通量</td>
+</tr>
+<tr>
+<td><code>fluxtop_dn_sw</code>, <code>fluxtop_up_sw</code></td>
+<td>诊断/能量收支</td>
+<td>real <code>(ngrid,2)</code></td>
+<td>W/m2</td>
+<td>大气顶下行/上行短波通量</td>
+</tr>
+<tr>
+<td><code>tau_pref_scenario</code>, <code>tau_pref_gcm</code></td>
+<td>尘埃缩放/诊断</td>
+<td>real <code>(ngrid)</code></td>
+<td>-</td>
+<td>场景规定和 GCM 计算的参考压力处尘埃柱光学厚度</td>
+</tr>
+<tr>
+<td><code>tau(ngrid,naerkind)</code></td>
+<td>诊断/后续粒径更新</td>
+<td>real</td>
+<td>-</td>
+<td>每类气溶胶柱总可见光光学厚度</td>
+</tr>
+<tr>
+<td><code>aerosol(ngrid,nlayer,naerkind)</code></td>
+<td><code>lwmain/swmain</code> 输入和诊断</td>
+<td>real</td>
+<td>-</td>
+<td>每层每类气溶胶可见光光学厚度</td>
+</tr>
+<tr>
+<td><code>dsodust</code>, <code>dsords</code>, <code>dsotop</code></td>
+<td>尘埃过程</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>-</td>
+<td>density-scaled opacity，分别用于背景尘埃、stormdust 和 topdust</td>
+</tr>
+<tr>
+<td><code>tauscaling</code>, <code>dust_rad_adjust</code>, <code>IRtoVIScoef</code></td>
+<td>尘埃缩放共享状态</td>
+<td>real <code>(ngrid)</code></td>
+<td>-</td>
+<td><code>aeropacity</code> 更新的尘埃/场景缩放系数</td>
+</tr>
+<tr>
+<td><code>rdust</code>, <code>rstormdust</code>, <code>rtopdust</code>, <code>rice</code>, <code>nuice</code>, <code>riceco2</code>, <code>nuiceco2</code></td>
+<td>诊断/下游</td>
+<td>real arrays</td>
+<td>m 或 -</td>
+<td>各类气溶胶粒径和方差</td>
+</tr>
+<tr>
+<td><code>taucloudtes</code></td>
+<td>云诊断</td>
+<td>real <code>(ngrid)</code></td>
+<td>-</td>
+<td>用 IR 吸收效率计算的水冰云 TES 对比不透明度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>首次调用会写 <code>dimradmars_mod</code> 中的 <code>iaer_dust_conrath</code>、<code>iaer_dust_doubleq</code>、<code>iaer_dust_submicron</code>、<code>iaer_h2o_ice</code>、<code>iaer_co2_ice</code>、<code>iaer_stormdust_doubleq</code>、<code>iaer_topdust_doubleq</code>。这些索引由 <code>name_iaer</code> 和开关组合决定。</li>
+<li>首次调用会写 <code>yomlw_h::gcp = g/cpp</code>，供长波/短波链使用。</li>
+<li>首次调用会调用 <code>suaer</code>，后者读取外部光学表并写入 <code>dimradmars_mod</code> 的共享查找表。</li>
+<li>每次调用都会通过 <code>updatereffrad</code> 写入粒径输出数组，并可能更新 <code>dimradmars_mod::nueffdust</code>。</li>
+<li>每次调用都会通过 <code>aeropacity</code> 更新 <code>tauscaling</code>、<code>dust_rad_adjust</code>、<code>IRtoVIScoef</code>、<code>tau</code>、<code>aerosol</code>、<code>dsodust/dsords/dsotop</code> 等输出。</li>
+<li>本文件自身没有 <code>write_output</code> 调用；尾部调试打印全部被注释。</li>
+</ul>
+<h2 id="初始化--firstcall--restart--diagnostic-行为">初始化 / firstcall / restart / diagnostic 行为</h2>
+<ol type="1">
+<li>行 301-304 每次调用都重新计算 <code>ndomain=(ngrid-1)/ndomainsz+1</code>。注释说明该逻辑被移出 <code>firstcall</code>，用于支持 nesting 或演化网格。</li>
+<li>行 306-413 只在 <code>firstcall</code> 执行：打印子域切分信息；按物理开关和 <code>name_iaer</code> 匹配 scatterer；若 <code>aer_count != naerkind</code>，打印已识别项并 <code>abort_physic</code>；成功后写 <code>gcp</code> 并调用 <code>SUAER</code>。</li>
+<li>本文件不读写 restart；它依赖上游在辐射调用前准备 <code>nlaylte</code>。<code>physiq_mod.F</code> 在每 sol 开头调用 <code>nlthermeq</code> 更新 <code>nlaylte</code>。</li>
+<li>尾部行 597-613 保留了调试打印模板，可打印辐射输入和每层 <code>dtsw/dtlw</code>，但当前全部注释，不产生运行时诊断输出。</li>
+</ol>
+<h2 id="核心流程">核心流程</h2>
+<h3 id="1-scatterer-识别和光学表加载">1. Scatterer 识别和光学表加载</h3>
+<p>首次调用时，源码先把所有 <code>iaer_*</code> 置零，再按开关识别应出现的气溶胶名称：</p>
+<ul>
+<li><code>(.NOT.active)</code> 要求 <code>dust_conrath</code>。</li>
+<li><code>doubleq.AND.active</code> 要求 <code>dust_doubleq</code>。</li>
+<li><code>submicron.AND.active</code> 要求 <code>dust_submicron</code>。</li>
+<li><code>water.AND.activice</code> 要求 <code>h2o_ice</code>。</li>
+<li><code>co2clouds.AND.activeco2ice</code> 要求 <code>co2_ice</code>。</li>
+<li><code>rdstorm.AND.active</code> 要求 <code>stormdust_doubleq</code>。</li>
+<li><code>topflows.AND.active</code> 要求 <code>topdust_doubleq</code>。</li>
+</ul>
+<p>每匹配一个名称就写对应 <code>iaer_*</code> 索引并递增 <code>aer_count</code>。<code>aer_count</code> 必须等于 <code>naerkind</code>，否则说明 <code>callphys.def</code> 中的气溶胶数量、名称或开关不一致，程序终止。通过校验后，<code>SUAER</code> 读取外部光学属性表。</p>
+<h3 id="2-气溶胶粒径光学属性和光学厚度准备">2. 气溶胶粒径、光学属性和光学厚度准备</h3>
+<p>每次调用都按固定顺序执行三段：</p>
+<ol type="1">
+<li><code>updatereffrad</code>：从 <code>pq</code>、<code>tauscaling</code>、已有 <code>tau</code>、<code>pplay</code> 和 <code>pt</code> 推导 <code>rdust/rice/riceco2/...</code>，并填 <code>reffrad/nueffrad</code>。</li>
+<li><code>aeroptproperties</code>：用 <code>suaer</code> 预加载的离散光学表和 <code>reffrad/nueffrad</code>，生成每个格点/层/气溶胶的 VIS 与 IR 散射参数。</li>
+<li><code>aeropacity</code>：计算 <code>aerosol</code>、<code>tau</code>、<code>taucloudtes</code>、<code>dsodust/dsords/dsotop</code>，并处理场景尘埃、stormdust/topdust、clear-sky 等开关。</li>
+</ol>
+<p>这三段的顺序不能调换：<code>aeroptproperties</code> 依赖粒径，<code>aeropacity</code> 依赖参考波长的 <code>QREF*</code> 和粒径。</p>
+<h3 id="3-子域切分">3. 子域切分</h3>
+<p>行 445-451 按 <code>ndomainsz</code> 切分水平网格。每个子域起点 <code>ig0=(jd-1)*ndomainsz</code>，最后一个子域大小 <code>nd=ngrid-ig0</code>，其余为 <code>ndomainsz</code>。这是为高分辨率/LES 节省辐射工作数组内存。</p>
+<p>子域内行 456-507 复制 <code>nlaylte</code> 层以内的 VIS/IR 光学参数、压力、温度、气溶胶光学厚度和反照率。<code>nlaylte</code> 以上不传给 <code>lwmain/swmain</code>。</p>
+<h3 id="4-层界温度构造">4. 层界温度构造</h3>
+<p>行 509-528 构造 <code>zztlev</code>：</p>
+<ul>
+<li>第一个界面用第一、第二层温度按压力外推到地表上方界面；</li>
+<li>中间界面用相邻层温度平均；</li>
+<li>顶部界面取第 <code>nlaylte</code> 层温度。</li>
+</ul>
+<p>同时 <code>zdt0=tsurf-zztlev(:,1)</code> 作为地表和最低层界面温度差传给长波链。</p>
+<h3 id="5-长波和短波调用">5. 长波和短波调用</h3>
+<p>行 533-539 调 <code>lwmain</code>。输入包括子域层厚 <code>zdp</code>、地表温度差 <code>zdt0</code>、发射率、界面压力/温度、层温、气溶胶光学厚度、IR 光学参数和 <code>co2ice</code>。输出 <code>zzdtlw</code>、<code>fluxsurf_lw</code>、<code>fluxtop_lw</code> 和 <code>znetrad</code>。</p>
+<p>行 543-551 调 <code>swmain</code>。先用 <code>cste_mars=flux_1AU/(dist_sol*dist_sol)</code> 计算当前日火距离下的太阳常数，再传入 albedo、<code>mu0</code>、层厚、界面压力、<code>aerosol</code>、<code>fract</code> 和 VIS 光学参数，输出 <code>zzdtsw</code> 与短波上下行通量。</p>
+<h3 id="6-合并输出和-lte-层之外置零">6. 合并输出和 LTE 层之外置零</h3>
+<p>行 556-584 把子域 <code>zzdtlw/zzdtsw</code> 和短波 flux 拷回全局数组。<code>fluxsurf_lw/fluxtop_lw</code> 已由 <code>lwmain</code> 直接写到全局切片 <code>ig0+1</code> 起始位置。行 588-596 对 <code>nlaylte+1:nlayer</code> 的 <code>dtlw/dtsw</code> 置零，符合文件头注释“只在 LTE 有效层计算辐射倾向”的设计。</p>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>callradite:
+  ndomain = ceil(ngrid / ndomainsz)
+
+  if firstcall:
+    reset iaer_* indices
+    for each enabled physical aerosol branch:
+      find matching name_iaer entry and set iaer_* index
+    if aer_count != naerkind:
+      abort with scatterer consistency error
+    gcp = g / cpp
+    call suaer to load optical lookup tables
+    firstcall = false
+
+  call updatereffrad to compute reffrad/nueffrad
+  call aeroptproperties to compute VIS/IR 3D optical properties
+  call aeropacity to compute aerosol optical depth and dust/cloud diagnostics
+
+  for each horizontal subdomain jd:
+    copy nlaylte layers of optical fields, pressure, temperature, aerosol, albedo
+    build interface temperatures zztlev and surface temperature jump zdt0
+    call lwmain for thermal IR heating and LW fluxes
+    cste_mars = flux_1AU / dist_sol^2
+    call swmain for solar heating and SW fluxes
+    copy subdomain heating rates and fluxes back to global outputs
+
+  if nlayer &gt; nlaylte:
+    dtlw(:, nlaylte+1:nlayer) = 0
+    dtsw(:, nlaylte+1:nlayer) = 0</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>辐射</td>
+<td>主入口，调度 LTE 长波、短波、气溶胶光学准备和 flux/heating 输出</td>
+</tr>
+<tr>
+<td>尘埃循环</td>
+<td>读取 dust/stormdust/topdust tracer，计算粒径、光学厚度和 density-scaled opacity，并支持背景/风暴/山顶尘流的多次辐射试算</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td><code>water.AND.activice</code> 时要求 <code>h2o_ice</code> scatterer；<code>CLFvarying</code> 时支持 clear/cloudy 辐射混合</td>
+</tr>
+<tr>
+<td>CO2 循环</td>
+<td><code>co2clouds.AND.activeco2ice</code> 时要求 <code>co2_ice</code> scatterer；传入地表 <code>co2ice</code> 给长波链</td>
+</tr>
+<tr>
+<td>热层 / LTE-NLTE</td>
+<td>只计算 <code>nlaylte</code> 以内的 LTE 辐射倾向；<code>nlaylte</code> 由 <code>nlthermeq</code> 根据当前大气剖面更新</td>
+</tr>
+<tr>
+<td>地表能量收支</td>
+<td>输出地表长波、短波上下行通量，供地表温度/能量平衡路径使用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 模块；主例程是调度器，真正长波/短波和气溶胶公式分散在被调用例程中。</li>
+<li><code>firstcall</code> 为 <code>SAVE THREADPRIVATE</code>，但它只保护一次性 scatterer 识别和光学表加载；每步的 <code>ndomain</code> 会重新计算。</li>
+<li>多次辐射调用通过 <code>clearatm/nohmons/clearsky</code> 这三个逻辑开关复用同一接口，分别排除 stormdust、topdust 或云。</li>
+<li>只复制 <code>nlaylte</code> 层到子域工作数组，最后显式把更高层加热率置零；NLTE/NIR CO2 处理在 <code>physiq</code> 的其他路径中完成，不在本文件内。</li>
+<li><code>gVIS3d</code> 在调用 <code>aeroptproperties</code> 前被清零，子域 <code>zgVIS3d/zflux*</code> 也会清零，避免沿用上次调用工作数组。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>name_iaer</code>、<code>naerkind</code> 和物理开关必须一致；否则首次调用会中止。新增气溶胶时必须同步 <code>conf_phys</code>/<code>callphys.def</code> 名称、本文件识别分支、<code>suaer</code> 光学表和 <code>aeropacity</code> 光学厚度公式。</li>
+<li>必须保持 <code>SUAER -&gt; updatereffrad -&gt; aeroptproperties -&gt; aeropacity -&gt; lwmain/swmain</code> 的数据顺序。</li>
+<li><code>nlaylte</code> 由 <code>physiq</code> 侧调用 <code>nlthermeq</code> 更新；本文件只读取它。复现高层加热率时不要把 <code>callradite</code> 的零值误解成 NLTE 冷却。</li>
+<li><code>CLFvarying</code> 的 clear/cloudy 混合不在本文件内完成，而在 <code>physiq</code> 调两次 <code>callradite</code> 后按 <code>totcloudfrac</code> 混合。</li>
+<li><code>fluxsurf_lw</code> 和 <code>fluxtop_lw</code> 由 <code>lwmain</code> 直接写入传入的全局切片；短波通量则先存于子域 <code>zfluxd_sw/zfluxu_sw</code>，再由本文件拷回。</li>
+<li><code>dist_sol</code> 必须是 AU；短波太阳常数按 <code>flux_1AU/(dist_sol^2)</code> 缩放。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>首次调用的 scatterer 校验只比较 <code>aer_count</code> 与 <code>naerkind</code>，且打印已识别名称时循环到 <code>aer_count</code> 而不是遍历实际匹配到的 <code>iaer_*</code> 索引；若名称顺序异常但数量相等，是否会被完全捕获需结合 <code>conf_phys</code> 初始化确认。</li>
+<li><code>igout</code> 和 <code>daysec</code> 只出现在注释掉的调试输出中；是否仍需要保留在接口中待确认。</li>
+<li>文件头仍提到 <code>SULW</code>，但源码行 410 注释说明该步骤已移到 <code>ini_yomlw_h</code>；长波初始化生命周期以 <code>yomlw_h</code> 页面为准。</li>
+<li><code>nflev</code> 作为子域数组维度传给 <code>lwmain/swmain</code>，实际循环限制使用 <code>nlaylte</code>；<code>nflev</code> 与 <code>nlaylte</code> 的约束关系由 <code>dimradmars_mod</code>/<code>nlthermeq</code> 保证，本文未进一步验证。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../themes/radiation.html">radiation</a> - 辐射主题流程。</li>
+<li><a href="physiq_mod.html">physiq_mod</a> - 主调用方和 clear/cloudy 混合位置。</li>
+<li><a href="lwmain_mod.html">lwmain_mod.F</a> - 长波主程序：Planck/吸收量/交换率/通量/半隐式冷却率调度。</li>
+<li><a href="swmain_mod.html">swmain_mod.F</a> - 短波主程序：两太阳谱段、Fouquart/Toon 分支、通量缩放和短波加热率。</li>
+<li><a href="updatereffrad_mod.html">updatereffrad_mod</a> - 粒径/方差更新。</li>
+<li><a href="aeroptproperties.html">aeroptproperties</a> - 三维散射参数计算。</li>
+<li><a href="aeropacity_mod.html">aeropacity_mod</a> - 气溶胶光学厚度和尘埃缩放。</li>
+<li><a href="suaer.html">suaer</a> - 光学查找表加载。</li>
+<li><a href="dimradmars_mod.html">dimradmars_mod</a> - 辐射维度和 scatterer 共享状态。</li>
+<li><a href="yomlw_h.html">yomlw_h</a> - <code>gcp</code>、<code>nlaylte</code> 和长波共享表。</li>
+<li><a href="nlthermeq.html">nlthermeq</a> - 更新 LTE 计算层数。</li>
+<li><a href="rocketduststorm_mod.html">rocketduststorm_mod</a>, <a href="topmons_mod.html">topmons_mod</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

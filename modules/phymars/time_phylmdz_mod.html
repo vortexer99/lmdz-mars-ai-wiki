@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>time_phylmdz_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/time_phylmdz_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="time_phylmdz_modf90">time_phylmdz_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\time_phylmdz_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>time_phylmdz_mod.F90</code> 是 <code>phymars</code> 物理包的共享时间状态模块。它不推进模型时间，也不直接读写配置文件；它保存物理时间步、sol 长度、运行起止日、诊断输出频率和 restart 写出频率等全局标量，供初始化、配置、主物理调度、诊断输出、辐射和云物理等下游代码读取。</p>
+<p>3D 路径中，<code>phys_state_var_init_mod.F90</code> 通过 <code>init_time(day_ini,day_end,hour_ini,pdaysec,ptimestep)</code> 写入基础日历状态；随后 <code>conf_phys.F</code> 读取配置并补写 <code>outputs_per_sol</code>、<code>slow_diagfi</code>、<code>iphysiq</code> 和 <code>ecritstart</code>。1D <code>dyn1d/init_testphys1d_mod.F90</code> 也直接写入部分变量，并在调用 <code>phys_state_var_init</code> 后把 <code>iphysiq</code> 约束为 1。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>保存物理时间和输出调度共享状态。</td>
+</tr>
+<tr>
+<td><code>dtphys</code></td>
+<td>real saved module variable</td>
+<td>4</td>
+<td>物理时间步，单位 s。</td>
+</tr>
+<tr>
+<td><code>daysec</code></td>
+<td>real saved module variable</td>
+<td>7</td>
+<td>一个 sol 的秒数。</td>
+</tr>
+<tr>
+<td><code>steps_per_sol</code></td>
+<td>integer saved module variable</td>
+<td>10</td>
+<td>每个 sol 的物理步数，由 <code>nint(daysec/dtphys)</code> 得到。</td>
+</tr>
+<tr>
+<td><code>day_ini</code></td>
+<td>integer saved module variable</td>
+<td>13</td>
+<td>运行初始 sol。</td>
+</tr>
+<tr>
+<td><code>day_end</code></td>
+<td>integer saved module variable</td>
+<td>15</td>
+<td>运行结束 sol。</td>
+</tr>
+<tr>
+<td><code>hour_ini</code></td>
+<td>real saved module variable</td>
+<td>17</td>
+<td>运行初始时刻，源码注释约束为 <code>0 &lt;= hour_ini &lt; 1</code>。</td>
+</tr>
+<tr>
+<td><code>outputs_per_sol</code></td>
+<td>integer saved module variable</td>
+<td>21</td>
+<td><code>diagfi.nc</code> 每 sol 输出次数，由 <code>conf_phys</code> 设置。</td>
+</tr>
+<tr>
+<td><code>slow_diagfi</code></td>
+<td>logical saved module variable</td>
+<td>25</td>
+<td>控制 1D <code>diagfi.nc</code> 是一次打开还是按输出频率打开/关闭，由 <code>conf_phys</code> 设置。</td>
+</tr>
+<tr>
+<td><code>iphysiq</code></td>
+<td>integer saved module variable</td>
+<td>29</td>
+<td>每 <code>iphysiq</code> 个动力步调用一次物理，由 <code>conf_phys</code> 设置。</td>
+</tr>
+<tr>
+<td><code>ecritstart</code></td>
+<td>integer saved module variable</td>
+<td>32</td>
+<td>每多少个动力步写一次 restart，由 <code>conf_phys</code> 设置。</td>
+</tr>
+<tr>
+<td><code>init_time</code></td>
+<td>subroutine</td>
+<td>37</td>
+<td>写入运行起止日、初始时刻、sol 长度和物理时间步，并派生 <code>steps_per_sol</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>本文件没有 <code>use</code> 语句。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td><code>init_time</code> 只做标量赋值和 <code>nint(daysec/dtphys)</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="被调用位置">被调用位置</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phys_state_var_init</code></td>
+<td><code>phys_state_var_init_mod.F90</code></td>
+<td>121</td>
+<td>在物理共享数组分配流程中写入基础时间状态。</td>
+</tr>
+<tr>
+<td><code>init_testphys1d</code></td>
+<td><code>dyn1d/init_testphys1d_mod.F90</code></td>
+<td>430</td>
+<td>1D 初始化路径通过 <code>phys_state_var_init</code> 间接调用本例程；同文件还直接设置 <code>daysec</code>、<code>steps_per_sol</code>、<code>outputs_per_sol</code> 和 <code>iphysiq</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>day_ini_</code></td>
+<td><code>phys_state_var_init</code> 调用方</td>
+<td>integer scalar</td>
+<td>sol</td>
+<td>运行初始日。</td>
+</tr>
+<tr>
+<td><code>day_end_</code></td>
+<td><code>phys_state_var_init</code> 调用方</td>
+<td>integer scalar</td>
+<td>sol</td>
+<td>运行结束日。</td>
+</tr>
+<tr>
+<td><code>hour_ini_</code></td>
+<td><code>phys_state_var_init</code> 调用方</td>
+<td>real scalar</td>
+<td>sol fraction</td>
+<td>初始时刻。</td>
+</tr>
+<tr>
+<td><code>daysec_</code></td>
+<td><code>phys_state_var_init</code> 调用方</td>
+<td>real scalar</td>
+<td>s</td>
+<td>一个 sol 的秒数。</td>
+</tr>
+<tr>
+<td><code>dtphys_</code></td>
+<td><code>phys_state_var_init</code> 调用方</td>
+<td>real scalar</td>
+<td>s</td>
+<td>物理时间步。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>day_ini</code>, <code>day_end</code>, <code>hour_ini</code></td>
+<td>本模块共享状态</td>
+<td>integer/real scalar</td>
+<td>sol / sol fraction</td>
+<td>供 <code>physiq</code>、诊断和 restart 路径读取的运行时间边界。</td>
+</tr>
+<tr>
+<td><code>daysec</code>, <code>dtphys</code></td>
+<td>本模块共享状态</td>
+<td>real scalar</td>
+<td>s</td>
+<td>供时间换算、辐射/云物理速率换算和诊断初始化读取。</td>
+</tr>
+<tr>
+<td><code>steps_per_sol</code></td>
+<td>本模块共享状态</td>
+<td>integer scalar</td>
+<td>steps/sol</td>
+<td>供 <code>conf_phys</code> 校验输出频率、<code>physiq</code> 每 sol 调度、诊断输出时间轴使用。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p>本文件声明的所有模块变量都是 <code>SAVE</code>，并逐个标记为 OpenMP <code>THREADPRIVATE</code>。这意味着 OpenMP 物理区内每个线程都有自己的副本；复现初始化顺序时必须保证 <code>init_time</code> 和后续 <code>conf_phys</code> 的调用上下文与源码一致，否则某些线程可能读取未初始化或未同步的时间/输出调度状态。</p>
+<p><code>init_time</code> 只写入 <code>day_ini/day_end/hour_ini/daysec/dtphys/steps_per_sol</code>。<code>outputs_per_sol</code>、<code>slow_diagfi</code>、<code>iphysiq</code> 和 <code>ecritstart</code> 虽然定义在本模块中，但不在 <code>init_time</code> 内初始化；3D 常规路径由 <code>conf_phys.F</code> 在读取配置时设置，1D 路径还会在 <code>dyn1d/init_testphys1d_mod.F90</code> 中直接覆盖部分变量。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>接收上游传入的运行初始日、结束日、初始时刻、sol 长度和物理时间步。</li>
+<li>把这些输入直接写入同名模块变量。</li>
+<li>用 <code>steps_per_sol = nint(daysec/dtphys)</code> 派生每 sol 物理步数。</li>
+<li>不处理输出频率、物理调用频率和 restart 频率；这些变量留给 <code>conf_phys</code> 或 1D 初始化路径设置。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>init_time(day_ini_, day_end_, hour_ini_, daysec_, dtphys_)
+  day_ini = day_ini_
+  day_end = day_end_
+  hour_ini = hour_ini_
+  daysec = daysec_
+  dtphys = dtphys_
+  steps_per_sol = nearest_integer(daysec / dtphys)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>物理初始化</td>
+<td><code>phys_state_var_init_mod</code> 调用 <code>init_time</code>，把动力/上游传入的日历和物理时间步写入物理共享状态。</td>
+</tr>
+<tr>
+<td>物理调度与 restart</td>
+<td><code>conf_phys</code> 设置 <code>iphysiq/ecritstart</code>，<code>physiq</code> 用这些变量决定物理调用和 restart 写出时机。</td>
+</tr>
+<tr>
+<td>诊断输出</td>
+<td><code>conf_phys</code> 设置 <code>outputs_per_sol/slow_diagfi</code>，<code>writediagfi</code>、<code>writediagmicrofi</code>、<code>writediagsoil</code> 用 <code>steps_per_sol/outputs_per_sol</code> 计算采样间隔和输出时间轴。</td>
+</tr>
+<tr>
+<td>时间单位换算</td>
+<td><code>daysec</code> 和 <code>dtphys</code> 被 <code>compute_dtau_mod</code>、<code>dust_rad_adjust_mod</code>、<code>lwi</code>、<code>nirco2abs</code>、<code>nlte_tcool_mod</code>、<code>wstats_mod</code> 等模块用于 sol/秒、K/s/K/day 或本地时刻换算。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>文件只定义共享标量和一个初始化例程，没有本地数组、外部 I/O 或显式错误处理。</li>
+<li><code>steps_per_sol</code> 使用 <code>nint(daysec/dtphys)</code>，源码没有检查 <code>daysec/dtphys</code> 是否严格为整数。</li>
+<li>所有共享变量都是 <code>THREADPRIVATE</code>，与 OpenMP 初始化上下文强相关。</li>
+<li><code>outputs_per_sol</code>、<code>slow_diagfi</code>、<code>iphysiq</code>、<code>ecritstart</code> 的注释都说明由 <code>conf_phys</code> 设置；不要把 <code>init_time</code> 误认为完整时间配置入口。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现诊断输出频率时，需要同时核对 <code>steps_per_sol</code> 和 <code>outputs_per_sol</code>；<code>conf_phys.F</code> 会检查 <code>steps_per_sol</code> 能否被 <code>outputs_per_sol</code> 整除。</li>
+<li><code>steps_per_sol=nint(daysec/dtphys)</code> 会把接近整数的比值四舍五入；若实验使用非整除的 <code>daysec/dtphys</code>，后续时间轴和采样间隔可能与实际秒数有偏差。</li>
+<li><code>daysec</code> 是多个物理速率换算的全局尺度，例如 CO2 雪发射率弛豫、近红外 CO2 加热、NLTE K/day 换算和 dust optical depth 时间记忆。</li>
+<li>OpenMP 路径下必须保证 <code>THREADPRIVATE</code> 副本在正确并行区内初始化；否则不同线程可能看到不一致的时间状态。</li>
+<li>1D 路径会直接写 <code>daysec/steps_per_sol/outputs_per_sol/iphysiq</code>，不要只按 3D <code>phys_state_var_init</code> 顺序推断 1D 行为。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>源码没有在本模块内验证 <code>dtphys_ &gt; 0</code> 或 <code>daysec_/dtphys_</code> 的整数性；是否完全由上游配置保证，需结合运行配置入口继续确认。</li>
+<li><code>hour_ini</code> 的单位由注释描述为 sol fraction；旧诊断/控制表路径中如何与小时制显示对应，需要结合 <code>iniwrite</code>、<code>phyetat0_mod</code> 和动力时间模块继续核对。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod</a></li>
+<li><a href="tabfi.html">tabfi</a></li>
+<li><a href="phyetat0_mod.html">phyetat0_mod</a></li>
+<li><a href="phyredem.html">phyredem</a></li>
+<li><a href="iniwrite.html">iniwrite</a></li>
+<li><a href="writediagsoil.html">writediagsoil</a></li>
+<li><a href="../../architecture/testphys1d-config.html">testphys1d-config</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

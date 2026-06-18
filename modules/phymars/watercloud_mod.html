@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>watercloud_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/watercloud_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="watercloud_modf">watercloud_mod.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\watercloud_mod.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>水冰云形成的主调度模块。根据 <code>microphys</code> 开关选择简化云方案 (<code>simpleclouds</code>) 或完整微物理方案 (<code>improvedclouds</code>)，包含时间子循环、次网格云覆盖分数计算、冰粒半径更新、非负保护、HDO 分馏和尘埃清除等逻辑。被 <code>physiq</code> 在每个物理时间步调用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>watercloud_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>水冰云主调度模块</td>
+</tr>
+<tr>
+<td><code>watercloud</code></td>
+<td>subroutine</td>
+<td>12</td>
+<td>水冰云形成主例程：时间子循环、方案分派、倾向汇总、半径更新、非负保护</td>
+</tr>
+<tr>
+<td><code>zdqcloud</code></td>
+<td>module variable (REAL, SAVE, ALLOCATABLE)</td>
+<td>5</td>
+<td>H2O 凝结对 tracer 的倾向 (kg/kg/s)，3D</td>
+</tr>
+<tr>
+<td><code>zdqscloud</code></td>
+<td>module variable (REAL, SAVE, ALLOCATABLE)</td>
+<td>6</td>
+<td>H2O 凝结对地表倾向（仅 calchim 使用），2D</td>
+</tr>
+<tr>
+<td><code>ini_watercloud_mod</code></td>
+<td>subroutine</td>
+<td>715</td>
+<td>分配 zdqcloud、zdqscloud</td>
+</tr>
+<tr>
+<td><code>end_watercloud_mod</code></td>
+<td>subroutine</td>
+<td>730</td>
+<td>释放 zdqcloud、zdqscloud</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td><code>getin_p</code></td>
+<td>从 run.def 读取 <code>imicro</code> 参数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>updaterad</code></td>
+<td><code>updaterdust</code>, <code>updaterice_micro</code>, <code>updaterice_typ</code></td>
+<td>更新尘埃/冰粒有效半径和云密度</td>
+<td></td>
+</tr>
+<tr>
+<td><code>simpleclouds_mod</code></td>
+<td><code>simpleclouds</code></td>
+<td>简化云方案（非微物理路径）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>improvedclouds_mod</code></td>
+<td><code>improvedclouds</code></td>
+<td>完整微物理云方案</td>
+<td></td>
+</tr>
+<tr>
+<td><code>watersat_mod</code></td>
+<td><code>watersat</code></td>
+<td>计算水饱和混合比（supersat=false 时用）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>tcondwater_mod</code></td>
+<td><code>tcondwater</code></td>
+<td>计算水凝结温度（CLFvarying 次网格方案用）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>nqmx</code>, <code>igcm_h2o_vap</code>, <code>igcm_h2o_ice</code>, <code>igcm_hdo_vap</code>, <code>igcm_hdo_ice</code>, <code>igcm_dust_mass</code>, <code>igcm_dust_number</code>, <code>igcm_ccn_mass</code>, <code>igcm_ccn_number</code>, <code>rho_dust</code>, <code>nuice_sed</code>, <code>nuice_ref</code>, <code>qparentmin</code></td>
+<td>tracer 索引和物理常数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>naerkind</code></td>
+<td>气溶胶种类数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>conc_mod</code></td>
+<td><code>mmean</code></td>
+<td>未直接使用（推断：improvedclouds 内部需要）</td>
+<td>待确认：watercloud 本体未调用 mmean</td>
+</tr>
+<tr>
+<td><code>write_output_mod</code></td>
+<td><code>write_output</code></td>
+<td>诊断输出（当前代码中相关调用已注释）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>activice</code>, <code>microphys</code>, <code>supersat</code>, <code>hdo</code>, <code>scavenging</code>, <code>CLFvarying</code></td>
+<td>运行时物理开关</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin_p("imicro",imicro)</code></td>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td>行 182</td>
+<td>读取时间子循环步数</td>
+</tr>
+<tr>
+<td><code>simpleclouds</code></td>
+<td><code>simpleclouds_mod</code></td>
+<td>行 349</td>
+<td>简化云方案，在 <code>microphys=false</code> 时每个 microstep 调用</td>
+</tr>
+<tr>
+<td><code>improvedclouds</code></td>
+<td><code>improvedclouds_mod</code></td>
+<td>行 316</td>
+<td>完整微物理方案，在 <code>microphys=true</code> 时单次调用</td>
+</tr>
+<tr>
+<td><code>tcondwater</code></td>
+<td><code>tcondwater_mod</code></td>
+<td>行 248</td>
+<td>计算凝结温度，用于 CLFvarying 次网格云覆盖</td>
+</tr>
+<tr>
+<td><code>watersat</code></td>
+<td><code>watersat_mod</code></td>
+<td>行 564</td>
+<td>计算饱和混合比，<code>supersat=false</code> 时强制不超饱和</td>
+</tr>
+<tr>
+<td><code>updaterice_micro</code></td>
+<td><code>updaterad</code></td>
+<td>行 618</td>
+<td>微物理路径下更新冰粒半径和云密度</td>
+</tr>
+<tr>
+<td><code>updaterice_typ</code></td>
+<td><code>updaterad</code></td>
+<td>行 638</td>
+<td>简化路径下更新冰粒半径</td>
+</tr>
+<tr>
+<td><code>updaterdust</code></td>
+<td><code>updaterad</code></td>
+<td>行 543</td>
+<td>更新尘埃有效半径（scavenging 路径）</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>(GCM 内部)</td>
+<td>行 170</td>
+<td>nq &gt; nqmx 时终止运行</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>physiq</td>
+<td>INT, scalar</td>
+<td>-</td>
+<td>大气格点数</td>
+</tr>
+<tr>
+<td><code>nlay</code></td>
+<td>physiq</td>
+<td>INT, scalar</td>
+<td>-</td>
+<td>大气层数</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>physiq</td>
+<td>REAL, scalar</td>
+<td>s</td>
+<td>物理时间步长</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay+1)</td>
+<td>Pa</td>
+<td>层界面气压</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>Pa</td>
+<td>层中气压</td>
+</tr>
+<tr>
+<td><code>pdpsrf</code></td>
+<td>physiq</td>
+<td>REAL (ngrid)</td>
+<td>Pa/s</td>
+<td>地面气压倾向</td>
+</tr>
+<tr>
+<td><code>pzlay</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>m</td>
+<td>层中高度</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>K</td>
+<td>温度</td>
+</tr>
+<tr>
+<td><code>pdt</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>K/s</td>
+<td>温度倾向（其他过程）</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay,nq)</td>
+<td>kg/kg</td>
+<td>tracer 混合比</td>
+</tr>
+<tr>
+<td><code>pdq</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay,nq)</td>
+<td>kg/kg/s</td>
+<td>tracer 倾向（其他过程）</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>physiq</td>
+<td>INT, scalar</td>
+<td>-</td>
+<td>tracer 数量</td>
+</tr>
+<tr>
+<td><code>tau</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,naerkind)</td>
+<td>-</td>
+<td>柱尘埃光学厚度</td>
+</tr>
+<tr>
+<td><code>tauscaling</code></td>
+<td>physiq</td>
+<td>REAL (ngrid)</td>
+<td>-</td>
+<td>尘埃量转换因子</td>
+</tr>
+<tr>
+<td><code>rdust</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>m</td>
+<td>尘埃几何平均半径（INOUT）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdqcloud</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay,nq)</td>
+<td>kg/kg/s</td>
+<td>水冰云凝结产生的 tracer 倾向</td>
+</tr>
+<tr>
+<td><code>pdtcloud</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>K/s</td>
+<td>水冰云潜热释放温度倾向</td>
+</tr>
+<tr>
+<td><code>rice</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>m</td>
+<td>冰粒质量平均半径（INOUT）</td>
+</tr>
+<tr>
+<td><code>nuice</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>-</td>
+<td>尺度分布有效方差（设为 nuice_ref）</td>
+</tr>
+<tr>
+<td><code>rsedcloud</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>m</td>
+<td>云沉降半径</td>
+</tr>
+<tr>
+<td><code>rhocloud</code></td>
+<td>physiq</td>
+<td>REAL (ngrid,nlay)</td>
+<td>kg/m³</td>
+<td>云密度</td>
+</tr>
+<tr>
+<td><code>totcloudfrac</code></td>
+<td>physiq</td>
+<td>REAL (ngrid)</td>
+<td>-</td>
+<td>柱总云覆盖分数（INOUT）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>module 变量</strong>：<code>zdqcloud</code>（3D）、<code>zdqscloud</code>（2D）为 SAVE+ALLOCATABLE，带 OMP THREADPRIVATE，在 <code>ini_watercloud_mod</code> 分配、<code>end_watercloud_mod</code> 释放。</li>
+<li><strong>SAVE 变量</strong>：<code>imicro</code>（子循环步数）、<code>microtimestep</code>、<code>microtimestep_prev</code>、<code>firstcall</code>、<code>flagcloud</code> 均为 SAVE+THREADPRIVATE。</li>
+<li><strong>firstcall</strong>：首次调用时检查 nq &lt;= nqmx，读取 <code>imicro</code> 参数。</li>
+<li><strong>标准输出</strong>：firstcall 打印 tracer 索引和 imicro 值；microtimestep 变化时打印新值；CLFvarying 首次打印 spant 和 mincloud。</li>
+<li><strong>诊断输出</strong>：代码中 write_output 调用已被注释掉（行 293-300、698-710）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>firstcall 初始化</strong>（行 165-186）：验证 nq &lt;= nqmx；根据是否 MESOSCALE 编译宏设 imicro 默认值（2 或 30），通过 <code>getin_p</code> 允许用户覆盖。</li>
+<li><strong>计算 microtimestep</strong>（行 190-196）：<code>microtimestep = ptimestep / real(imicro)</code>；变化时打印通知。</li>
+<li><strong>初始化倾向累积器和默认值</strong>（行 199-203）：<code>sum_subpdq</code>=0, <code>sum_subpdt</code>=0, <code>rhocloud</code>=rho_dust。</li>
+<li><strong>CLFvarying 次网格云覆盖计算</strong>（行 206-301）：
+<ul>
+<li>用 <code>pdt*ptimestep</code> 和 <code>pdq*ptimestep</code> 更新有效温度 <code>pteff</code> 和有效 tracer <code>pqeff</code>。</li>
+<li>调用 <code>tcondwater</code> 计算凝结温度 <code>tcond</code>。</li>
+<li>根据 <code>tcond</code> 与 <code>ztclf ± spant</code> 的关系计算网格内云覆盖分数 <code>cloudfrac</code>，mincloud=0.1 为下限。</li>
+<li>按冰含量加权求柱总覆盖 <code>totcloudfrac</code>。</li>
+<li>将 CCN 和 h2o_ice tracer 除以 cloudfrac 得到云内有效值。</li>
+</ul></li>
+<li><strong>主方案分派</strong>（行 315-387）：
+<ul>
+<li><code>microphys=true</code>：单次调用 <code>improvedclouds</code>，传入<strong>原始网格平均量</strong> <code>pt</code>/<code>pq</code>（不受 CLFvarying 影响），自适应时间步在 improvedclouds 内部处理。</li>
+<li><code>microphys=false</code>：imicro 步子循环调用 <code>simpleclouds</code>，传入 <strong>CLFvarying 修改后的云内有效值</strong> <code>pteff</code>/<code>pqeff</code>（行 349-351）；每步累加 pdt/pdq 作为阶梯输入，simpleclouds 返回的倾向也累加回 sum_subpdq/sum_subpdt；循环结束后从 zt_micro/zq_micro 中恢复最终状态。</li>
+<li><strong>关键分支差异</strong>：CLFvarying 方案中 <code>pteff</code>/<code>pqeff</code> 经过云覆盖分数调整（<code>pqeff(ccn,h2o_ice) /= cloudfrac</code>），但 <code>improvedclouds</code> 接收的是未经 cloudfrac 调整的 <code>pt</code>/<code>pq</code>——两个方案对次网格云的处理方式完全不同。最终 CLFvarying 均值化（行 677-695 将倾向乘以 cloudfrac）在两种路径之后统一执行。</li>
+</ul></li>
+<li><strong>计算最终倾向</strong>（行 393-453）：从 zt_micro/zq_micro 减去初始状态和输入倾向，得到纯云过程倾向 pdtcloud/pdqcloud；涉及 h2o_vap, h2o_ice, hdo_vap, hdo_ice, ccn_mass, ccn_number, dust_mass, dust_number（后者受 microphys/scavenging 开关控制）。</li>
+<li><strong>非负保护</strong>（行 457-534）：
+<ul>
+<li>CCN：若 <code>pq + ptimestep*(pdq+pdqcloud) &lt;= 1.</code> 或质量阈值 1.e-20，强制归零并反推 dust 倾向。</li>
+<li>dust（scavenging 路径）：同理。</li>
+<li>h2o_ice/h2o_vap：若最终值 &lt;= qparentmin，强制归零并保持质量守恒（vap↔︎ice 互反）。</li>
+<li>HDO：跟随 H2O 的非负保护同步处理。</li>
+</ul></li>
+<li><strong>更新粒子半径</strong>（行 536-674）：
+<ul>
+<li>scavenging 路径：调用 <code>updaterdust</code> 更新尘埃半径。</li>
+<li>microphys=true 且 supersat=false 时：调用 <code>watersat</code> 检查饱和，强制凝结过量水汽，同时计算 HDO 分馏系数 α（Lamb et al. 2017 公式 <code>exp(13525/T² - 0.0559)</code>）。</li>
+<li>microphys=true：调用 <code>updaterice_micro</code> 更新 ice 半径和 rhocloud。</li>
+<li>microphys=false：调用 <code>updaterice_typ</code> 更新 ice 半径。</li>
+<li>CO2 升华修正（行 651-660）：若第一层气压变化接近层厚，用上层 rice 覆盖。</li>
+<li>计算 <code>rsedcloud = max(rice*(1+nuice_sed)³, rdust)</code>。</li>
+<li>设 <code>nuice = nuice_ref</code>（常数，对数正态分布假设）。</li>
+</ul></li>
+<li><strong>CLFvarying 倾向缩放</strong>（行 677-695）：所有倾向乘以 cloudfrac，将云内值映射回网格平均。</li>
+<li><strong>清理</strong>：返回 pdqcloud、pdtcloud、rice、nuice、rsedcloud、rhocloud、totcloudfrac。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>watercloud(ngrid, nlay, ptimestep, ...):
+
+  if firstcall:
+    assert nq &lt;= nqmx
+    imicro = getin_p(&quot;imicro&quot;)   // default: 30 (global), 2 (MESOSCALE)
+    firstcall = false
+
+  microtimestep = ptimestep / imicro
+  sum_subpdq = 0, sum_subpdt = 0
+  rhocloud = rho_dust
+
+  // --- CLFvarying 次网格方案 ---
+  if CLFvarying:
+    pteff = pt + pdt*ptimestep         // 有效温度
+    pqeff = pq + pdq*ptimestep         // 有效 tracer
+    tcond = tcondwater(pplay, h2o_vap + h2o_ice)
+    // cloudfrac ∈ [mincloud, 1] 由 tcond 与温度分布宽度决定
+    totcloudfrac = 按冰含量加权的 cloudfrac 柱平均
+    pqeff(ccn, h2o_ice) /= cloudfrac  // 转为云内值
+
+  // --- 主方案分派 ---
+  if microphys:
+    // improvedclouds 接收原始 pt/pq（网格平均量），不用 pteff/pqeff
+    zt_micro, zq_micro = improvedclouds(pt, pq, ...)   // 自适应时间步
+  else:
+    // simpleclouds 接收 CLFvarying 修改后的 pteff/pqeff（云内有效值）
+    for microstep = 1..imicro:
+      累加 pdt, pdq 为阶梯输入
+      subpdqcloud, subpdtcloud = simpleclouds(pteff, pqeff, sum_subpdq, ...)
+      累加 subpdqcloud, subpdtcloud 回 sum
+    zt_micro = pt + ptimestep * sum_subpdt / imicro
+    zq_micro = pq + ptimestep * sum_subpdq / imicro
+
+  // --- 最终倾向 ---
+  pdtcloud = (zt_micro - pt)/ptimestep - pdt
+  pdqcloud[tracer] = (zq_micro[tracer] - pq[tracer])/ptimestep - pdq[tracer]
+
+  // --- 非负保护 (CCN → dust → h2o_ice/h2o_vap → HDO) ---
+  enforce_positive(pq, pdq, pdqcloud, qparentmin/thresholds)
+
+  // --- 粒子半径更新 ---
+  if scavenging: rdust = updaterdust(dust updated)
+  if microphys:
+    if not supersat: enforce_no_supersaturation(watersat)
+    rice, rhocloud = updaterice_micro(ice, ccn)
+  else:
+    rice = updaterice_typ(ice, tau, pzlay)
+  CO2 升华第一层修正
+  rsedcloud = max(rice*(1+nuice_sed)³, rdust)
+  nuice = nuice_ref
+
+  // --- CLFvarying 均值化 ---
+  if CLFvarying:
+    pdqcloud *= cloudfrac
+    pdtcloud *= cloudfrac</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>水循环 (water-cycle)</td>
+<td>主调度：驱动水汽凝结/冰升华、更新冰粒半径、计算云倾向</td>
+</tr>
+<tr>
+<td>尘埃循环 (dust-cycle)</td>
+<td>清除路径：scavenging 时尘埃被 CCN 捕获，更新尘埃半径</td>
+</tr>
+<tr>
+<td>辐射 (radiation)</td>
+<td>提供 rice、nuice、rhocloud 用于辐射计算</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>固定格式 Fortran 77</strong>（.F 后缀，续行用第 6 列 <code>&amp;</code> 或 <code>c</code> 注释）。</li>
+<li><strong>SAVE + THREADPRIVATE</strong>：<code>imicro</code>、<code>microtimestep</code>、<code>microtimestep_prev</code>、<code>firstcall</code>、<code>flagcloud</code>，保证 OpenMP 线程安全。</li>
+<li><strong>firstcall 模式</strong>：首次调用时读取参数和打印诊断，之后 <code>firstcall=.false.</code>。</li>
+<li><strong>阶梯输入法</strong>：simpleclouds 路径中，每个 microstep 将 pdt/pdq 累加为阶梯式输入（而非简单平分），这可能导致其他过程倾向累积到负值，因此需要后续非负保护。</li>
+<li><strong>非负保护逻辑</strong>：先处理 CCN（阈值 1.0 和 1.e-20），再处理 dust，最后处理 h2o_ice/h2o_vap（阈值 qparentmin），每层保证质量守恒（vap↔︎ice 互反、ccn↔︎dust 互反）。</li>
+<li><strong>HDO 分馏</strong>（行 577-608）：仅在 <code>microphys=true</code> + <code>supersat=false</code> + <code>hdo=true</code> + 凝结时激活，使用 Lamb et al. 2017 公式 <code>α = exp(13525/T² - 0.0559)</code>；升华时按 HDO/H2O 比例分配。</li>
+<li><strong>编译宏</strong>：<code>MESOSCALE</code> 影响 imicro 默认值；<code>#ifndef MESOSCALE</code> 保护诊断输出代码。</li>
+<li><strong>硬编码常数</strong>：<code>spant=3.0</code>（K）、<code>mincloud=0.1</code>、CCN 阈值 <code>1.</code>/<code>1.e-20</code>、CO2 升华修正系数 <code>0.9</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>imicro</code> 默认值依赖编译宏 MESOSCALE（2 vs 30），可通过 run.def 的 <code>imicro</code> 覆盖。</li>
+<li><code>supersat=false</code> 时的额外饱和检查会修改 pdqcloud，改变 H2O/HDO 倾向分配。</li>
+<li>CLFvarying 方案中 <code>spant=3.0 K</code> 和 <code>mincloud=0.1</code> 为硬编码，无法通过配置修改。</li>
+<li>非负保护的执行顺序（CCN → dust → h2o → HDO）影响最终倾向值，不同顺序可能导致不同结果。</li>
+<li>CO2 升华第一层修正（行 654-660）在 pdpsrf<em>ptimestep &gt; 0.9</em>(pplev层差) 时触发，仅影响第 1-2 层 rice。</li>
+<li>simpleclouds 路径中最终 zt_micro/zq_micro 的除以 <code>real(imicro)</code> 平均化（行 383-385）意味着子循环内所有 microstep 的累积倾向被均摊。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>conc_mod</code> 的 <code>mmean</code> 在 watercloud 本体中未被直接调用，但在 use 列表中——推断是为了让 <code>improvedclouds</code> 内部可见，但 Fortran module 的 use 不自动传递，需确认是否多余或 improvedclouds 自行 use。</li>
+<li><code>zdqcloud</code> 和 <code>zdqscloud</code> 声明为 module 变量但在 watercloud 子程序中使用的是参数 <code>pdqcloud</code>，module 变量可能由外部（如 calchim）直接读写——待确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录总览</a></li>
+<li><a href="simpleclouds_mod.html">simpleclouds_mod</a>（TASK-0033）：简化水冰云方案。</li>
+<li><a href="improvedclouds_mod.html">improvedclouds_mod</a>（TASK-0034）：完整水冰云微物理方案。</li>
+<li><a href="water-saturation-helpers.html">water-saturation-helpers</a>（TASK-0032）：<code>watersat</code> 和 <code>tcondwater</code>。</li>
+<li><a href="updaterad.html">updaterad — 冰粒/尘埃半径更新</a></li>
+<li><a href="../../themes/dust-cycle.html">尘埃循环主题</a></li>
+<li><a href="../../themes/water-cycle.html">水循环主题</a>（TASK-0010）</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

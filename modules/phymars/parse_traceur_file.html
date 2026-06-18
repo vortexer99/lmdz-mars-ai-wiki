@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>parse_traceur_file - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/parse_traceur_file.md</span>
+    </nav>
+    <article class="content">
+<h1 id="parse_traceur_filef90">parse_traceur_file.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\parse_traceur_file.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>parse_traceur_file.F90</code> 是旧格式 <code>traceur.def</code> 的解析接口模块。它不依赖外部 tracer 解析库，只按文件字面读取 tracer 数量、名称和父子关系，再把结果广播给所有 MPI 进程。它只在 <a href="tracer_mod.html">tracer_mod</a> 的 <code>ini_tracer_mod</code> 初始化阶段被调用。</p>
+<p>同目录的 <a href="parse_tracer_file.html">parse_tracer_file</a> 处理新格式 <code>tracer.def</code>。<code>tracer_mod</code> 会先查找 <code>traceur.def</code>；只有旧格式文件不存在时才改用 <code>tracer.def</code>，因此两个文件同时存在时旧格式会优先生效。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>parse_traceur_file_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>包裹旧格式 <code>traceur.def</code> 读取子程序的模块</td>
+</tr>
+<tr>
+<td><code>get_nq_from_traceur_file</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>从 <code>traceur.def</code> 第一行读取 tracer 总数 <code>nq</code></td>
+</tr>
+<tr>
+<td><code>get_names_from_traceur_file</code></td>
+<td>subroutine</td>
+<td>29</td>
+<td>读取 tracer 名称、父 tracer 名和每个 tracer 的子 tracer 数量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code>, <code>bcast</code></td>
+<td>并行控制：只让 master 进程读文件，再广播 <code>nq</code>、<code>noms</code>、<code>nqparents</code>、<code>nqchildren</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_para</code></td>
+<td>行 23, 78-81</td>
+<td>把 master 进程读到的 tracer 数量、名称和父子计数广播到所有进程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<h3 id="get_nq_from_traceur_file">get_nq_from_traceur_file</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>traceur.def</code></td>
+<td>运行目录文件</td>
+<td>文本文件</td>
+<td>—</td>
+<td>第一行必须是 tracer 总数</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get_names_from_traceur_file">get_names_from_traceur_file</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nq</code></td>
+<td>调用方，来自 <code>get_nq_from_traceur_file</code></td>
+<td>integer</td>
+<td>—</td>
+<td>tracer 数量，也决定后续读取的行数</td>
+</tr>
+<tr>
+<td><code>traceur.def</code></td>
+<td>运行目录文件</td>
+<td>文本文件</td>
+<td>—</td>
+<td>第一行后每行以 tracer 名开头，可选跟一个父 tracer 名</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<h3 id="get_nq_from_traceur_file-1">get_nq_from_traceur_file</h3>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nq</code></td>
+<td><code>tracer_mod::ini_tracer_mod</code></td>
+<td>integer</td>
+<td>—</td>
+<td>tracer 总数</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get_names_from_traceur_file-1">get_names_from_traceur_file</h3>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>noms</code></td>
+<td><code>tracer_mod::ini_tracer_mod</code></td>
+<td>character(len=*)(nq)</td>
+<td>—</td>
+<td>tracer 名称数组</td>
+</tr>
+<tr>
+<td><code>nqparents</code></td>
+<td><code>tracer_mod::ini_tracer_mod</code></td>
+<td>integer</td>
+<td>—</td>
+<td>没有父 tracer 字段的顶层 tracer 数量</td>
+</tr>
+<tr>
+<td><code>nqchildren</code></td>
+<td><code>tracer_mod::ini_tracer_mod</code></td>
+<td>integer(nq)</td>
+<td>—</td>
+<td>每个 tracer 被其他行声明为 parent 的次数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>读运行目录中的 <code>traceur.def</code>，使用硬编码 Fortran unit <code>42</code>。</li>
+<li>只有 <code>is_master</code> 进程打开和解析文件；非 master 进程依赖后续 <code>bcast</code> 获取结果。</li>
+<li>本模块不保存 module 变量，所有结果都通过参数返回。</li>
+<li>源码未在 <code>open</code>/<code>read</code> 上使用 <code>status='old'</code>、<code>iostat</code> 或显式错误处理；文件是否存在由上游 <code>tracer_mod::ini_tracer_mod</code> 的 <code>inquire</code> 判断。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="get_nq_from_traceur_file行-7-25">get_nq_from_traceur_file（行 7-25）</h3>
+<ol type="1">
+<li>master 进程打开 <code>traceur.def</code>。</li>
+<li>读取第一行到 <code>nq</code>。</li>
+<li>关闭文件。</li>
+<li>调用 <code>bcast(nq)</code>，让所有进程拿到同一个 tracer 数量。</li>
+</ol>
+<h3 id="get_names_from_traceur_file行-29-83">get_names_from_traceur_file（行 29-83）</h3>
+<ol type="1">
+<li>master 进程重新打开 <code>traceur.def</code>，先读掉第一行 tracer 总数。</li>
+<li>初始化 <code>nqparents=0</code> 和本地 <code>parent(:)=""</code>。</li>
+<li>循环读取后续 <code>nq</code> 行：
+<ul>
+<li>用 <code>index(line," ")</code> 找第一个空格；</li>
+<li>第一个空格前的字段读入 <code>noms(i)</code>；</li>
+<li>如果整行去尾空格后长度等于名称长度，认为该 tracer 是 parent；</li>
+<li>否则把第一个空格后的字符串作为 <code>parent(i)</code>。</li>
+</ul></li>
+<li>双重循环统计每个 <code>noms(i)</code> 被多少个 <code>parent(j)</code> 引用，写入 <code>nqchildren(i)</code>。</li>
+<li>逐个广播 <code>noms(i)</code>，再广播 <code>nqparents</code> 和整个 <code>nqchildren</code> 数组。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>get_nq_from_traceur_file:
+  if master:
+    open traceur.def on unit 42
+    read first record as nq
+    close unit 42
+  bcast(nq)
+
+get_names_from_traceur_file:
+  if master:
+    open traceur.def on unit 42
+    skip first record
+    nqparents = 0
+    parent[:] = &quot;&quot;
+    for i in 1..nq:
+      read full line
+      first_blank = first index of &quot; &quot;
+      noms[i] = text before first_blank
+      if trimmed line contains only noms[i]:
+        nqparents += 1
+      else:
+        parent[i] = text after first_blank
+
+    for i in 1..nq:
+      nqchildren[i] = count(parent[j] == noms[i] for j in 1..nq)
+
+  for i in 1..nq: bcast(noms[i])
+  bcast(nqparents)
+  bcast(nqchildren)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tracer 配置体系</td>
+<td>旧格式 <code>traceur.def</code> 的解析入口，为 <code>tracer_mod</code> 提供 tracer 数量、名称和父子关系</td>
+</tr>
+<tr>
+<td>水循环配置</td>
+<td>间接：旧格式 tracer 名称决定 <code>h2o_vap</code>、<code>h2o_ice</code> 等水相关 tracer 的索引</td>
+</tr>
+<tr>
+<td>CO2 循环配置</td>
+<td>间接：旧格式 tracer 名称决定 <code>co2</code>、<code>co2_ice</code> 和 CO2 云相关 tracer 的索引</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>旧格式优先</strong>：调用方先查 <code>traceur.def</code>，存在时不会再解析 <code>tracer.def</code>。</li>
+<li><strong>轻量解析</strong>：直接用 Fortran 内建 <code>read</code> 和字符串切片处理，不调用 <code>readtracfiles_mod</code>。</li>
+<li><strong>master-only I/O</strong>：文件 I/O 集中在 master 进程，所有并行进程只接收广播结果。</li>
+<li><strong>空格分隔假设</strong>：源码用第一个普通空格拆分名称和 parent 字段，不按任意空白字符做健壮 tokenization。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>运行目录存在 <code>traceur.def</code> 时，<code>tracer_mod</code> 会使用本模块，而不是 <a href="parse_tracer_file.html">parse_tracer_file</a>。</li>
+<li>第一行必须能读成整数 <code>nq</code>，后面必须至少有 <code>nq</code> 行 tracer 定义。</li>
+<li>只有名称字段的行被计为 parent tracer；形如 <code>child parent</code> 的行会把 <code>child</code> 记为 tracer 名，把 <code>parent</code> 记为它的父 tracer。</li>
+<li>所有进程最终依赖 master 广播结果；如果 master 读错或文件格式错，错误会传播到整个并行作业。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>源码没有检查 <code>open</code>/<code>read</code> 返回状态；格式错误、行数不足或权限问题会以 Fortran 运行时错误还是静默错误出现，取决于编译器和运行环境。</li>
+<li><code>index(line," ")</code> 只找普通空格。制表符分隔、空行或前导空格在当前解析器中没有专门保护，复现时应按源码字面准备 <code>traceur.def</code>。</li>
+<li><code>parent(i)</code> 使用 <code>character(len=50)</code>，而 <code>noms(i)</code> 的长度由调用方决定；极长 tracer 名或 parent 名是否会被截断需要结合实际配置文件确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="tracer_mod.html">tracer_mod</a> — 唯一调用方，决定旧格式/新格式 tracer 配置的选择顺序</li>
+<li><a href="parse_tracer_file.html">parse_tracer_file</a> — 新格式 <code>tracer.def</code> 解析接口模块</li>
+<li><a href="../../architecture/config-system.html">config-system</a> — 配置体系总览，含 <code>traceur.def</code>/<code>tracer.def</code> 说明</li>
+<li><a href="../../architecture/water-cycle-config.html">water-cycle-config</a> — 水循环 tracer 配置</li>
+<li><a href="../../architecture/co2-cycle-config.html">co2-cycle-config</a> — CO2 循环 tracer 配置</li>
+<li><a href="../../routines/initracer-co2-tracers.html">initracer-co2-tracers</a> — <code>tracer_mod</code> 初始化之后的 CO2 tracer 一致性检查段</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

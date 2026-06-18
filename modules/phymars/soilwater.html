@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>soilwater - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/soilwater.md</span>
+    </nav>
+    <article class="content">
+<h1 id="soilwaterf90">soilwater.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\soilwater.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>地下水/吸附水/地下冰储库的一维垂直求解器。计算 regolith（风化层）内从地表到约 18 m 深处（<code>layer(nsoil)</code>）的水汽、吸附水、地下冰三相剖面，并返回地下与大气之间的水汽通量 <code>zdqsdifrego</code>，作为 <code>vdifc</code> 计算大气水汽垂直廓线的下边界条件。同时计算地表冰与地下的交换。</p>
+<p>只在 <code>callphys.def</code> 中 <code>adsorption_soil=.true.</code> 且 <code>water=.true.</code> 时由 <code>vdifc</code> 调用。需要在 <code>traceur.def</code> 定义三个地下 tracer：<code>h2o_vap_soil</code>（地下水汽）、<code>h2o_ice_soil</code>（地下冰）、<code>h2o_ads_vap</code>（吸附水）。</p>
+<p>本文件是单个自由格式的 <code>subroutine</code>（无 module 封装），作者 Pierre-Yves Meslin，Lucas Lange 清理。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>soilwater</code></td>
+<td>subroutine</td>
+<td>1</td>
+<td>地下水汽/吸附水/冰的吸附-扩散-相变一维求解器</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>igcm_h2o_vap_soil</code>, <code>igcm_h2o_ice_soil</code>, <code>igcm_h2o_vap_ads</code>, <code>layer</code>, <code>mlayer</code>, <code>choice_ads</code>, <code>porosity_reg</code>, <code>ads_const_D</code>, <code>ads_massive_ice</code></td>
+<td>地下 tracer 索引、层深、吸附方案开关、孔隙率</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code>, <code>r</code></td>
+<td>圆周率、干空气气体常数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_h2o_vap</code></td>
+<td>大气水汽 tracer 索引</td>
+<td></td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>watercaptag</code></td>
+<td>永久极冠标记（极冠点跳过 regolith 计算）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>cell_area</code>, <code>latitude_deg</code></td>
+<td>网格面积（全球质量统计）、纬度</td>
+<td>待确认：<code>latitude_deg</code> 在主体未见使用</td>
+</tr>
+<tr>
+<td><code>write_output_mod</code></td>
+<td><code>write_output</code></td>
+<td>诊断输出（<code>#ifndef MESOSCALE</code>）</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>write_output</code></td>
+<td><code>write_output_mod</code></td>
+<td>行 1218-1226</td>
+<td>输出地下通量、冰饱和度、水/冰柱质量等诊断字段</td>
+</tr>
+</tbody>
+</table>
+<p>本例程不调用其他物理子程序，是一个自包含的数值求解器。</p>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>vdifc</td>
+<td>INT</td>
+<td>-</td>
+<td>格点数（调用时为 1，逐点调用）</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>vdifc</td>
+<td>INT</td>
+<td>-</td>
+<td>大气层数</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>vdifc</td>
+<td>INT</td>
+<td>-</td>
+<td>大气 tracer 数</td>
+</tr>
+<tr>
+<td><code>nsoil</code></td>
+<td>vdifc</td>
+<td>INT</td>
+<td>-</td>
+<td>地下层数</td>
+</tr>
+<tr>
+<td><code>nqsoil</code></td>
+<td>vdifc</td>
+<td>INT</td>
+<td>-</td>
+<td>地下 tracer 数（=3）</td>
+</tr>
+<tr>
+<td><code>ptsrf</code></td>
+<td>vdifc (<code>ztsrf</code>)</td>
+<td>REAL (ngrid)</td>
+<td>K</td>
+<td>地表温度</td>
+</tr>
+<tr>
+<td><code>ptsoil</code></td>
+<td>vdifc (<code>ptsoil(ig,:,islope)</code>)</td>
+<td>REAL (ngrid,nsoil)</td>
+<td>K</td>
+<td>地下各层温度</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>vdifc (<code>subtimestep</code>)</td>
+<td>REAL</td>
+<td>s</td>
+<td>子时间步长</td>
+</tr>
+<tr>
+<td><code>exchange</code></td>
+<td>vdifc</td>
+<td>LOGICAL (ngrid)</td>
+<td>-</td>
+<td>当前步是否与大气交换水汽</td>
+</tr>
+<tr>
+<td><code>qsat_surf</code></td>
+<td>vdifc (<code>qsat</code>)</td>
+<td>REAL (ngrid)</td>
+<td>kg/kg</td>
+<td>地表温度下的饱和混合比</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td>vdifc (<code>zq_tmp_vap</code>)</td>
+<td>REAL (ngrid,nlayer,nq)</td>
+<td>kg/kg</td>
+<td>大气 tracer 混合比</td>
+</tr>
+<tr>
+<td><code>pa</code>,<code>pb</code>,<code>pc</code>,<code>pd</code></td>
+<td>vdifc (<code>za</code>/<code>zb</code>/<code>zc</code>/<code>zd</code>)</td>
+<td>REAL (ngrid,nlayer)</td>
+<td>-</td>
+<td>vdifc 隐式扩散三对角系数</td>
+</tr>
+<tr>
+<td><code>pdqsdifpot</code></td>
+<td>vdifc (<code>zdqsdif_surf</code>)</td>
+<td>REAL (ngrid)</td>
+<td>kg/m²/s</td>
+<td>不含地下交换的潜在地表通量</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td>vdifc</td>
+<td>REAL (ngrid,nlayer+1)</td>
+<td>Pa</td>
+<td>大气压力层界</td>
+</tr>
+<tr>
+<td><code>rhoatmo</code></td>
+<td>vdifc (<code>rho</code>)</td>
+<td>REAL (ngrid)</td>
+<td>kg/m³</td>
+<td>第一层大气密度（当前未实际使用）</td>
+</tr>
+<tr>
+<td><code>writeoutput</code></td>
+<td>vdifc</td>
+<td>LOGICAL</td>
+<td>-</td>
+<td>是否为最后子步（触发输出）</td>
+</tr>
+<tr>
+<td><code>pqsurf</code></td>
+<td>vdifc (<code>zqsurf</code>)</td>
+<td>REAL (ngrid)</td>
+<td>kg/m²</td>
+<td>地表水冰量（intent(in)）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pqsoil</code></td>
+<td>vdifc (<code>qsoil</code>)</td>
+<td>REAL (ngrid,nsoil,nqsoil)</td>
+<td>见下</td>
+<td>地下三相 tracer（inout）：水汽（kg/m³孔隙气）、冰、吸附水（kg/m³regolith）</td>
+</tr>
+<tr>
+<td><code>zdqsdifrego</code></td>
+<td>vdifc (<code>zdqsdif_regolith</code>)</td>
+<td>REAL (ngrid)</td>
+<td>kg/m²/s</td>
+<td>地下→大气水汽通量（正=向外）</td>
+</tr>
+<tr>
+<td><code>zq1temp2</code></td>
+<td>vdifc (<code>zq1temp_regolith</code>)</td>
+<td>REAL (ngrid)</td>
+<td>kg/kg</td>
+<td>交换后地表上方临时水汽混合比</td>
+</tr>
+<tr>
+<td><code>saturation_water_ice</code></td>
+<td>vdifc (<code>pore_icefraction</code>)</td>
+<td>REAL*8 (ngrid,nsoil)</td>
+<td>-</td>
+<td>孔隙水冰饱和度（孔隙被冰填充的体积分数）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>SAVE allocatable 数组</strong>：<code>znsoil</code>（地下水汽浓度）、<code>ice</code>（地下冰）、<code>adswater</code>（吸附水）、<code>ztot1</code>、<code>porosity_ice_free</code>、<code>porosity</code>、<code>tortuosity</code>、<code>D0</code>、<code>zalpha</code>、<code>zbeta</code>、<code>meshsize</code>、<code>rho_soil</code>、<code>cste_ads</code>、<code>H2O</code>、<code>H2O_depth</code>、<code>close_top</code>、<code>close_bottom</code>、<code>over_mono_sat_flag</code>、<code>interlayer_dz</code>、<code>midlayer_dz</code>。首次调用 <code>allocate</code>，跨时间步保留。</li>
+<li><strong>SAVE 标量</strong>：<code>firstcall_soil</code>、<code>adswater_sat_mono</code>、<code>n</code>（调用计数）。</li>
+<li><strong>firstcall_soil</strong>：初始化层间距、孔隙率、密度、吸附单层饱和值，从 <code>pqsoil</code> 读入冰/水汽/吸附水初值。</li>
+<li><strong><code>pqsoil</code> 原位更新</strong>（行 1158-1160）：把求解后的 <code>znsoil</code>/<code>ice</code>/<code>adswater</code> 写回。</li>
+<li><strong>诊断输出</strong>（<code>writeoutput=.true.</code> 且非 MESOSCALE）：<code>flux_soillayer</code>、<code>ice_saturation_soil</code>、<code>mass_h2o_soil</code>、<code>mass_ice_soil</code>、<code>znsoil</code>、<code>nsatsoil</code>、<code>nsurf</code>、<code>adswater</code>、<code>flux_rego</code>。</li>
+<li><strong>不收敛即 <code>stop</code></strong>：升华循环 &gt;100 次直接 <code>stop</code>（行 610、898）——硬终止程序。</li>
+<li><strong>大量 <code>print</code></strong>：单层饱和、负冰、闭合/重开等都会打印到 stdout。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><p><strong>分配 + 首次初始化</strong>（行 242-364）：分配 SAVE 数组；逐点逐层设置 <code>midlayer_dz</code>/<code>interlayer_dz</code>、<code>porosity_ice_free</code>（<code>ads_massive_ice</code> 时冰超 <code>tol_massiveice=50</code> kg/m³ 的格点设孔隙率 0.999999）、<code>tortuosity=1.5</code>、<code>rho_soil=1300</code>、<code>meshsize=5e-6</code>、<code>D0=porosity/tortuosity</code>；从 <code>pqsoil</code> 读入三相初值；算 <code>saturation_water_ice</code> 和 <code>porosity</code>。</p></li>
+<li><p><strong>massive ice 孔隙率更新</strong>（行 366-377）：每步根据当前冰量重置 <code>porosity_ice_free</code>。</p></li>
+<li><p><strong>扩散系数</strong>（行 382-458，跳过 <code>watercaptag</code> 极冠点）：</p>
+<ul>
+<li><code>saturation_water_ice = ice/(rho_H2O_ice*porosity_ice_free)</code>，封顶 0.999。</li>
+<li>热速度 <code>vth</code>、H2O-CO2 碰撞积分 <code>omega</code>（Mellon &amp; Jakosky 1993）、分子扩散 <code>Dm</code>、Knudsen 扩散 <code>Dk</code>。</li>
+<li>中层 <code>D_mid = D0*(1-Sw)²/(1/Dm+1/Dk)</code>（Meslin 2010 饱和度依赖）；<code>ads_const_D</code> 时用 <code>default_diffcoeff=4e-4</code>。</li>
+<li>层间 <code>D_inter</code> 由中层值插值；闭合标志 <code>close_*</code> 时层间饱和度设 0.999。</li>
+</ul></li>
+<li><p><strong>吸附/解吸系数</strong>（行 463-549）：按 <code>choice_ads</code>（1=固定 D0，2=2020 修正 DeltaQ，0=无吸附）算平衡吸附系数 <code>k_ads_eq</code>、吸附/解吸时间常数 <code>Ka</code>/<code>Kd</code>，及单层饱和后的第二段 <code>Ka2</code>/<code>Kd2</code>（双线性吸附等温线）。算 <code>C</code>/<code>E</code>/<code>F</code>/<code>E2</code>/<code>F2</code> 系数；保存上一步 <code>znsoilprev</code>/<code>adswprev</code>/<code>iceprev</code>；算总量 <code>ztot1</code>。</p></li>
+<li><p><strong>主求解循环</strong>（行 554-1098，逐点，跳过极冠）：</p>
+<ul>
+<li>算地表层 <code>delta0</code>/<code>alpha0</code>/<code>beta0</code>（耦合 vdifc 系数和地表冰 <code>pqsurf</code>）。</li>
+<li><strong>升华外循环</strong>（<code>while sublimation_flag</code>，行 604）：
+<ul>
+<li><strong>单层饱和内循环</strong>（<code>while recompute_all_cells_ads_flag</code>，行 618）：自上而下算三对角系数 <code>zdelta</code>/<code>zalpha</code>/<code>zbeta</code>（有冰层固定为饱和 <code>nsatsoil</code>），底层显式解 <code>znsoil(nsoil)</code>，再自下而上回代解各层 <code>znsoil</code> 和 <code>adswater_temp</code>；检查每层是否越过单层饱和 <code>adswater_sat_mono</code>，越界则切换 A/B 系数段并标记整列重算。</li>
+<li>算层间通量 <code>flux</code>、<code>dztot1</code>；做凝结/升华：有冰层用 <code>ice=ztot1+dztot1*dt-porosity*nsatsoil</code>，冰耗尽则清零并重启升华循环；过饱和无冰层则置冰标志重启。</li>
+</ul></li>
+<li><strong>地表通量</strong>（行 839-852）：<code>exchange</code> 时 <code>zdqsdifrego</code> 由 vdifc 系数耦合算出；否则按地表冰用 <code>D_mid</code> 梯度算。</li>
+<li><strong>特例</strong>（行 860-1085）：无交换且地表冰不足以供应整个时间步时，改用通量边界条件，把剩余地表冰全部升华转入地下（重跑一遍带 <code>znsoilprev2</code> 的求解）。</li>
+<li>更新 <code>ztot1</code>/<code>h2otot</code>。</li>
+</ul></li>
+<li><p><strong>choke 闭合检测</strong>（行 1100-1138）：冰饱和度超 <code>choke_fraction=0.8</code> 时，按层间通量方向设 <code>close_top</code>/<code>close_bottom</code>（阻止进一步扩散）；冰量回落则重开。</p></li>
+<li><p><strong>质量统计 + 写回</strong>（行 1140-1186）：算每点水柱/冰柱质量；把 <code>znsoil</code>/<code>ice</code>/<code>adswater</code> 写回 <code>pqsoil</code>；极冠点 <code>saturation_water_ice=-1</code>；<code>exch</code> 数值化。</p></li>
+<li><p><strong>全球总量 + 输出</strong>（行 1188-1228）：全球水/冰质量；<code>n+1</code>；重排 <code>flux</code> 后写诊断。</p></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>soilwater(... pqsoil[inout], zdqsdifrego[out], zq1temp2[out], saturation_water_ice[out]):
+
+  if .not.allocated: allocate SAVE arrays
+  if firstcall_soil:
+    设层间距、孔隙率、密度、meshsize、D0
+    adswater_sat_mono = 2.6998e-7 * S * rho_soil
+    从 pqsoil 读 znsoil/ice/adswater 初值
+
+  if ads_massive_ice: 按冰量更新 porosity_ice_free
+
+  for ig (跳过 watercaptag 极冠):
+    for ik: Sw = ice/(rho_ice*porosity_free); porosity = porosity_free*(1-Sw)
+    算 vth, omega, Dm, Dk, D_mid, D_inter (饱和度依赖扩散)
+    按 choice_ads 算 Ka/Kd/Ka2/Kd2, k_ads_eq, C/E/F/E2/F2
+    保存 znsoilprev/adswprev/iceprev; ztot1 = porosity*znsoil + ice
+
+    算地表层 delta0/alpha0/beta0 (耦合 vdifc 的 pa..pd 和 pqsurf)
+
+    while sublimation_flag:
+      while recompute_all_cells_ads_flag:   // 单层饱和迭代
+        自上而下: zdelta/zalpha/zbeta (有冰层固定 nsatsoil)
+        底层显式 znsoil(nsoil)
+        自下而上回代: znsoil(ik), adswater_temp(ik)
+        if adswater_temp 越过/回落单层饱和: 切 A/B 段, 标记整列重算
+      算 flux, dztot1
+      凝结/升华: 有冰 ice = ztot1+dztot1*dt - porosity*nsatsoil
+                 冰耗尽 -&gt; 清零 + 重启; 过饱和无冰 -&gt; 置冰标志 + 重启
+
+    if exchange: zq1temp2 = beta0 + alpha0*znsoil(1)/rho
+                 zdqsdifrego = porosity_free*pb(1)/dt*(zq1temp2 - znsoil(1)/rho)
+    else:        zdqsdifrego = D_mid(1)/midlayer_dz(0)*(znsoil(1) - qsat_surf*rhosurf)
+
+    if 无交换 且 地表冰不足供应整步:   // 特例
+      zdqsdifrego = -(pqsurf + pdqsdifpot*dt)/dt
+      重跑求解 (用 znsoilprev2), 把剩余地表冰转入地下
+
+    更新 ztot1, h2otot
+
+  choke 检测: Sw &gt; 0.8 -&gt; close_top/close_bottom 按通量方向
+  写回 pqsoil = (znsoil, ice, adswater)
+  算质量, 写诊断输出</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>水循环 (water-cycle)</td>
+<td>地下储库：regolith 吸附水/地下冰与大气水汽交换，提供 vdifc 下边界通量</td>
+</tr>
+<tr>
+<td><a href="../../themes/water-cycle.html">水循环主题页</a></td>
+<td>TASK-0010</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>自由格式 Fortran 90</strong>，但为裸 <code>subroutine</code>（无 module 封装）——与多数 <code>_mod.F90</code> 不同。</li>
+<li><strong>SAVE allocatable + 首调用分配</strong>：跨时间步保留地下状态，无显式 deallocate。</li>
+<li><strong>嵌套 while 迭代</strong>：外层升华/凝结相变循环套内层单层吸附饱和迭代，二者均靠标志位驱动重算。</li>
+<li><strong>双线性吸附等温线</strong>（2020 新增）：单层饱和 <code>adswater_sat_mono</code> 前后用两套系数（<code>E</code>/<code>F</code> vs <code>E2</code>/<code>F2</code>），模拟 Type II/III 等温线。</li>
+<li><strong>隐式三对角求解</strong>：<code>zalpha</code>/<code>zbeta</code> 系数自上而下递推、<code>znsoil</code> 自下而上回代（Thomas 算法变体），与 vdifc 大气扩散系数耦合。</li>
+<li><strong>不收敛硬 <code>stop</code></strong>：升华迭代 &gt;100 次直接终止程序（行 610、898）。</li>
+<li><strong>大量硬编码常数</strong>：见复现要点。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>仅 <code>adsorption_soil=.true.</code> 时被调用；<code>choice_ads</code> 选吸附方案（0/1/2）。</li>
+<li>三个地下 tracer 必须在 <code>traceur.def</code> 定义：<code>h2o_vap_soil</code>/<code>h2o_ice_soil</code>/<code>h2o_ads_vap</code>，对应 <code>igcm_h2o_vap_soil=1</code>/<code>igcm_h2o_ice_soil=2</code>/<code>igcm_h2o_vap_ads=3</code>（<code>comsoil_h</code> 固定）。</li>
+<li>关键硬编码常数：<code>kinetic_factor=0.01</code>、<code>choke_fraction=0.8</code>、<code>tol_massiveice=50</code>、<code>enthalpy_ads=35e3</code>、<code>enthalpy_ads2=21e3</code>、<code>DeltaQ_ads=DeltaQ_ads2=21e3</code>、<code>S=17e3</code>、<code>Sm=10.6e-20</code>、<code>Dk0=0.459</code>、<code>tau0=1e-14</code>、<code>rho_H2O_ice=920</code>、<code>default_diffcoeff=4e-4</code>、<code>porosity_reg=0.45</code>（<code>comsoil_h</code>）。</li>
+<li><code>choice_ads==2</code> 用 <code>Kref=0.205e-6</code>、<code>Kref2=0.108e-7</code>（Pommerol 2009 拟合）；<code>adswater_sat_mono=2.6998e-7*S*rho_soil</code>。</li>
+<li>饱和压力用 <code>P_sat_soil=611*exp(22.5*(1-273.16/T))</code>（行 585）——内置 Clausius-Clapeyron 近似，<strong>不</strong>调用 <code>watersat</code>。</li>
+<li><code>tortuosity=1.5</code>、<code>rho_soil=1300 kg/m³</code>、<code>meshsize=5e-6 m</code> 在 firstcall 硬编码，注释提示可改为自定义剖面。</li>
+<li>地表层 <code>delta0</code>/<code>alpha0</code>/<code>beta0</code> 耦合 vdifc 的 <code>pa</code>/<code>pb</code>/<code>pc</code>/<code>pd</code> 系数——必须与 vdifc 的隐式扩散方案配套，单独看本文件无法复现边界条件。</li>
+<li><code>vdifc</code> 以 <code>ngrid=1</code> 逐点、逐坡面（<code>islope</code>）调用本例程（<code>vdifc_mod.F:1052</code>）。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>choice_ads</code> 在 <code>comsoil_h</code> 声明为 <code>real</code>，但本文件用 <code>== 1/2/0</code> 整数比较——浮点等值比较，依赖 conf 阶段赋整值；注释又称"3 means no adsorption"，与代码里 0 表示无吸附不符（注释疑过时）。</li>
+<li><code>rhoatmo</code> 形参注释标"not used right now"（行 76）——传入但未实际使用。</li>
+<li><code>latitude_deg</code>、<code>H2O</code>/<code>H2O_depth</code>/<code>latH2O</code> 等 H2O 地图变量已声明，firstcall 仅打印"initializing H2O data"但未见实际读图插值代码——可能为半完成/遗留功能。</li>
+<li><code>nref</code>/<code>Kd_ref</code>/<code>Ka_ref</code> 标注"not used anymore/for the time being"。</li>
+<li><code>cste_ads</code>、<code>H2O</code>、<code>H2O_depth</code> 已分配但主体未见赋值/使用。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li>升华或特例升华迭代 &gt;100 次会 <code>stop</code>，整个 GCM 终止——极端条件下可能中断长积分。</li>
+<li><code>znsoilprev(ig,ik)=ztot1/porosity_prev</code>（行 816）注释自标"Watch out! could go wrong"——冰耗尽时的水汽回填可能不稳定。</li>
+<li>浮点 <code>choice_ads</code> 等值比较在不同编译器/优化下有风险。</li>
+<li><code>firstcall_soil</code> 的 SAVE 数组在多 islope/MPI 分块下的初始化一致性需注意（无 OMP THREADPRIVATE 标注本文件 SAVE 变量）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange — vdifc 水汽地表交换段</a> - 唯一调用方（<code>adsorption_soil</code> 分支）；TASK-0035</li>
+<li><a href="water-saturation-helpers.html">water-saturation-helpers — 水饱和与凝结温度</a> - 大气侧饱和（本文件用内置 Clausius-Clapeyron）</li>
+<li><a href="comsoil_h.html">comsoil_h</a> — 地下层定义与吸附开关，提供 <code>igcm_h2o_vap_soil</code>/<code>igcm_h2o_ice_soil</code>/<code>igcm_h2o_vap_ads</code>/<code>layer</code>/<code>mlayer</code>/<code>choice_ads</code>/<code>porosity_reg</code>/<code>ads_const_D</code>/<code>ads_massive_ice</code></li>
+<li><a href="soil.html">soil</a> — 土壤热扩散求解器，提供 <code>tsoil</code> 温度场</li>
+<li><a href="soil_settings.html">soil_settings</a> — 土壤初始化设置，读取 <code>tsoil</code>/<code>qsoil</code> 初值</li>
+<li><a href="../../architecture/water-cycle-config.html">水循环配置页</a>（TASK-0038）- <code>adsorption_soil</code>/<code>choice_ads</code>/<code>ads_*</code> 开关</li>
+<li><a href="../../themes/water-cycle.html">水循环主题页</a>（TASK-0010）</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

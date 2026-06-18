@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>phyredem - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/phyredem.md</span>
+    </nav>
+    <article class="content">
+<h1 id="phyredemf90">phyredem.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\phyredem.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>phyredem.F90</code> 是物理 start/restart 文件写出模块。它通过 <code>iostart</code> 的 <code>open_restartphy</code>、<code>put_var</code>、<code>put_field</code>、<code>close_restartphy</code> 创建或追加 <code>startfi.nc</code>/<code>restartfi.nc</code> 物理状态文件：<code>physdem0</code> 写控制表、网格和静态地表字段；<code>physdem1</code> 写带时间的表面、土壤、tracer、尘埃、云分数、重力波、吸附、古气候和 tracer 质量修正状态。</p>
+<p>读入端对应 <a href="phyetat0_mod.html">phyetat0_mod</a>。复现一次 restart 续跑时，<code>phyredem</code> 写出的字段名、是否带时间轴、以及哪些开关控制字段存在，都会决定下一次 <code>phyetat0</code> 能恢复哪些物理记忆。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phyredem</code></td>
+<td>module</td>
+<td>1</td>
+<td>物理 start/restart 写出模块</td>
+</tr>
+<tr>
+<td><code>physdem0</code></td>
+<td>subroutine</td>
+<td>9</td>
+<td>创建物理文件并写 time-independent 控制表、网格、地表和坡面字段</td>
+</tr>
+<tr>
+<td><code>physdem1</code></td>
+<td>subroutine</td>
+<td>194</td>
+<td>写 time-dependent 物理状态、tracer、土壤、尘埃、GW、古气候和质量修正字段</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>inertiedat</code>, <code>volcapa</code>, <code>mlayer</code></td>
+<td><code>physdem0</code> 写土壤深度和控制表土壤热容量；<code>inertiedat</code> 在源码中未直接使用</td>
+<td><code>inertiedat</code> unused</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>cell_area</code></td>
+<td>写物理格点面积</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>zmea</code>, <code>zstd</code>, <code>zsig</code>, <code>zgam</code>, <code>zthe</code>, <code>z0_default</code>, <code>albedice</code>, <code>emisice</code>, <code>emissiv</code>, <code>iceradius</code>, <code>dtemisice</code>, <code>phisfi</code>, <code>z0</code>, <code>hmons</code>, <code>summit</code>, <code>base</code>, <code>watercaptag</code></td>
+<td>写地表、次网格地形、水冰标签和控制表极冠/粗糙度参数</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>tauvis</code></td>
+<td>写控制表平均可见光学厚度</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>iostart</code></td>
+<td><code>open_restartphy</code>, <code>close_restartphy</code>, <code>put_var</code>, <code>put_field</code>, <code>length</code>, <code>ldscrpt</code>, <code>ndscrpt</code></td>
+<td>创建/打开物理 restart 文件并写变量/字段</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>klon_glo</code></td>
+<td>写控制表物理网格总列数</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>planete_h</code></td>
+<td><code>aphelie</code>, <code>emin_turb</code>, <code>lmixmin</code>, <code>obliquit</code>, <code>peri_day</code>, <code>periheli</code>, <code>year_day</code></td>
+<td>写控制表行星轨道和边界层参数</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code>, <code>mugaz</code>, <code>omeg</code>, <code>rad</code>, <code>rcp</code></td>
+<td>写控制表物理常数</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>daysec</code></td>
+<td>写控制表 sol 长度</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comslope_mod</code></td>
+<td><code>nslope</code></td>
+<td>声明坡面维度并写坡面分布</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>noms</code>, <code>igcm_co</code>, <code>igcm_o2</code>, <code>igcm_h2</code>, <code>igcm_ho2</code>, <code>igcm_h2o2</code>, <code>igcm_n2</code>, <code>igcm_ar</code>, <code>igcm_he</code></td>
+<td>按 tracer 名称写地表 tracer，按索引写质量修正标量</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>nonoro_gwd_ran_mod</code></td>
+<td><code>du_nonoro_gwd</code>, <code>dv_nonoro_gwd</code></td>
+<td>写非地形随机重力波记忆 tendency</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>compute_dtau_mod</code></td>
+<td><code>dtau</code></td>
+<td>写尘埃光学厚度情景差值</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>dust_rad_adjust_mod</code></td>
+<td><code>dust_rad_adjust_prev</code>, <code>dust_rad_adjust_next</code></td>
+<td>写尘埃辐射调整前后状态</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td><code>dustscaling_mode</code></td>
+<td>控制是否写尘埃辐射调整字段</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>flux_geo</code>, <code>adsorption_soil</code>, <code>igcm_h2o_vap_soil</code>, <code>igcm_h2o_ice_soil</code>, <code>igcm_h2o_vap_ads</code></td>
+<td>写地热通量和可选吸附土壤水字段</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>paleoclimate_mod</code></td>
+<td><code>paleoclimate</code>, <code>h2oice_depth</code>, <code>co2ice_depth</code>, <code>coef_ssdif</code></td>
+<td>控制并写古气候地下冰字段</td>
+<td>源码中 <code>paleoclimate</code> 被 <code>use</code> 两次</td>
+</tr>
+<tr>
+<td><code>tracer_mass_fixer_dyn_mod</code></td>
+<td><code>call_mass_fixer_dyn</code>, <code>mass_predyn</code></td>
+<td>写 8 个大气成分的前一步全局质量标量</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>calltherm</code>, <code>dustinjection</code>, <code>calllott_nonoro</code>, <code>CLFvarying</code></td>
+<td>控制 <code>wstar</code>、<code>dtau</code>、非地形 GW 和云分数字段是否写出</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>open_restartphy</code></td>
+<td><code>iostart.F90</code></td>
+<td>87, 248</td>
+<td>创建或打开目标 <code>startfi.nc</code> / <code>restartfi.nc</code></td>
+</tr>
+<tr>
+<td><code>put_var</code></td>
+<td><code>iostart.F90</code></td>
+<td>139, 142, 145, 184, 252, 398-419</td>
+<td>写控制表、描述符、土壤深度、坡面 bin 边界、<code>Time</code> 和质量修正标量</td>
+</tr>
+<tr>
+<td><code>put_field</code></td>
+<td><code>iostart.F90</code></td>
+<td>多处</td>
+<td>写网格、地表、土壤、tracer、尘埃、GW、古气候等数组字段</td>
+</tr>
+<tr>
+<td><code>close_restartphy</code></td>
+<td><code>iostart.F90</code></td>
+<td>188, 424</td>
+<td>关闭目标 NetCDF 文件</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>filename</code></td>
+<td>调用方</td>
+<td>character</td>
+<td>-</td>
+<td>待创建或追加的物理文件，常见为 <code>restartfi.nc</code> 或 <code>startfi.nc</code></td>
+</tr>
+<tr>
+<td><code>lonfi</code>, <code>latfi</code></td>
+<td><code>physdem0</code> 调用方</td>
+<td><code>real(ngrid)</code></td>
+<td>degrees</td>
+<td>物理格点经纬度</td>
+</tr>
+<tr>
+<td><code>nsoil</code>, <code>ngrid</code>, <code>nlay</code>, <code>nq</code>, <code>nqsoil</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>土壤层、物理格点、垂直层、tracer 和土壤 tracer 数量</td>
+</tr>
+<tr>
+<td><code>phystep</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>s</td>
+<td>物理时间步；<code>physdem0</code> 写入控制表，<code>physdem1</code> 声明但未直接使用</td>
+</tr>
+<tr>
+<td><code>day_ini</code>, <code>time</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>sol / sol fraction</td>
+<td>初始日期和当前时间；<code>physdem1</code> 首先写 <code>Time</code></td>
+</tr>
+<tr>
+<td><code>airefi</code></td>
+<td><code>physdem0</code> 调用方</td>
+<td><code>real(ngrid)</code></td>
+<td>m^2</td>
+<td>传入网格面积；源码实际写 <code>geometry_mod::cell_area</code> 而非该实参</td>
+</tr>
+<tr>
+<td><code>alb</code>, <code>ith</code></td>
+<td><code>physdem0</code> 调用方</td>
+<td><code>real(ngrid)</code>, <code>real(ngrid,nsoil)</code></td>
+<td>- / SI</td>
+<td>裸地反照率和当代土壤热惯量</td>
+</tr>
+<tr>
+<td><code>def_slope</code>, <code>subslope_dist</code></td>
+<td><code>physdem0</code> 调用方</td>
+<td><code>real(nslope+1)</code>, <code>real(ngrid,nslope)</code></td>
+<td>-</td>
+<td>坡面 bin 边界和次网格坡面分布</td>
+</tr>
+<tr>
+<td><code>tsurf</code>, <code>tsoil</code>, <code>inertiesoil</code>, <code>albedo</code>, <code>emis</code>, <code>q2</code>, <code>qsurf</code>, <code>qsoil</code></td>
+<td><code>physdem1</code> 调用方</td>
+<td>arrays</td>
+<td>混合</td>
+<td>当前物理状态、表面/土壤/tracer 状态</td>
+</tr>
+<tr>
+<td><code>tauscaling</code>, <code>totcloudfrac</code>, <code>wstar</code>, <code>watercap</code>, <code>perennial_co2ice</code></td>
+<td><code>physdem1</code> 调用方</td>
+<td>arrays</td>
+<td>混合</td>
+<td>尘埃缩放、云分数、热羽流速度、水冰库和常年 CO2 冰</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>controle</code>, <code>controle_descriptor</code>, <code>soildepth</code></td>
+<td>目标 NetCDF 文件</td>
+<td>variables</td>
+<td>混合</td>
+<td>控制表、控制表槽位说明和土壤中层深度</td>
+</tr>
+<tr>
+<td><code>longitude</code>, <code>latitude</code>, <code>area</code></td>
+<td>目标 NetCDF 文件</td>
+<td>fields</td>
+<td>degrees / m^2</td>
+<td>物理网格坐标和面积</td>
+</tr>
+<tr>
+<td><code>phisfi</code>, <code>albedodat</code>, <code>ZMEA</code>, <code>ZSTD</code>, <code>ZSIG</code>, <code>ZGAM</code>, <code>ZTHE</code>, <code>hmons</code>, <code>summit</code>, <code>base</code>, <code>z0</code>, <code>watercaptag</code></td>
+<td>目标 NetCDF 文件</td>
+<td>fields</td>
+<td>混合</td>
+<td>静态地表、次网格地形、粗糙度和水冰标签</td>
+</tr>
+<tr>
+<td><code>def_slope</code>, <code>subslope_dist</code></td>
+<td>目标 NetCDF 文件</td>
+<td>variable/field</td>
+<td>-</td>
+<td>坡面 bin 边界和坡面分布</td>
+</tr>
+<tr>
+<td><code>Time</code></td>
+<td>目标 NetCDF 文件</td>
+<td>scalar/time variable</td>
+<td>sol</td>
+<td>当前写出时间；必须先写以设置 <code>iostart</code> 的时间索引</td>
+</tr>
+<tr>
+<td><code>watercap</code>, <code>perennial_co2ice</code>, <code>tsurf</code>, <code>inertiesoil</code>, <code>tsoil</code>, <code>albedo</code>, <code>emis</code>, <code>q2</code></td>
+<td>目标 NetCDF 文件</td>
+<td>time-dependent fields</td>
+<td>混合</td>
+<td>主要物理表面、土壤和 PBL restart 状态</td>
+</tr>
+<tr>
+<td><code>totcloudfrac</code>, <code>tauscaling</code>, <code>dust_rad_adjust_prev/next</code>, <code>dtau</code>, <code>wstar</code></td>
+<td>目标 NetCDF 文件</td>
+<td>conditional fields</td>
+<td>混合</td>
+<td>云分数、尘埃缩放/调整、尘埃注入记忆和热羽流记忆</td>
+</tr>
+<tr>
+<td>surface tracer fields</td>
+<td>目标 NetCDF 文件</td>
+<td><code>real(ngrid,nslope)</code> per tracer</td>
+<td>kg/m^2 或源码定义</td>
+<td>地表 tracer 储量；特定 tracer 会跳过或改名</td>
+</tr>
+<tr>
+<td><code>du_nonoro_gwd</code>, <code>dv_nonoro_gwd</code></td>
+<td>目标 NetCDF 文件</td>
+<td>arrays</td>
+<td>tendency</td>
+<td>非地形随机 GW 记忆项</td>
+</tr>
+<tr>
+<td><code>flux_geo</code>, <code>h2o_vap_soil</code>, <code>h2o_ice_soil</code>, <code>h2o_vap_ads</code></td>
+<td>目标 NetCDF 文件</td>
+<td>fields</td>
+<td>混合</td>
+<td>地热通量和可选吸附土壤水字段</td>
+</tr>
+<tr>
+<td><code>h2oice_depth</code>, <code>co2ice_depth</code>, <code>coef_ssdif</code></td>
+<td>目标 NetCDF 文件</td>
+<td>fields</td>
+<td>m / -</td>
+<td>古气候地下冰和扩散系数字段</td>
+</tr>
+<tr>
+<td><code>mass_predyn_co/o2/h2/ho2/h2o2/n2/ar/he</code></td>
+<td>目标 NetCDF 文件</td>
+<td>scalar variables</td>
+<td>kg</td>
+<td>动力 tracer 质量修正的前一步全局质量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>physdem0</code> 和 <code>physdem1</code> 都会打开、写入并关闭由 <code>filename</code> 指定的 NetCDF 文件；这是本模块的主要副作用。</li>
+<li><code>physdem0</code> 不只使用实参，也读取多个 module 级物理常数和地表共享状态来构造 <code>controle</code> 与静态字段。</li>
+<li><code>physdem1</code> 的字段集合受运行开关控制：<code>CLFvarying</code>、<code>dustscaling_mode==2</code>、<code>dustinjection&gt;0</code>、<code>calltherm</code>、<code>calllott_nonoro</code>、<code>adsorption_soil</code>、<code>paleoclimate</code>、<code>call_mass_fixer_dyn</code>。</li>
+<li><code>physdem1</code> 会打印跳过 <code>h2o_vap</code>、<code>hdo_vap</code>、<code>co2_ice</code> surface tracer 的诊断信息。</li>
+<li><code>watercaptag</code> 是 logical module array，写出前被转换为 <code>0/1</code> real field。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>physdem0</code> 打开目标文件，构造长度为 <code>iostart::length</code> 的 <code>tab_cntrl</code> 控制表。</li>
+<li>控制表写入网格总点数、垂直层数、初始日/时刻、火星物理常数、行星轨道参数、PBL 参数、极冠反照率/发射率、尘埃平均光学厚度和土壤体积热容量。</li>
+<li><code>physdem0</code> 写 <code>controle_descriptor</code>、<code>soildepth</code>、经纬度、网格面积、地表位势、裸地反照率、次网格地形统计量、土壤热惯量、粗糙度、水冰标签和坡面分布，然后关闭文件。</li>
+<li><code>physdem1</code> 打开目标文件，并首先写 <code>Time</code>；<code>iostart</code> 用该变量推进/设置后续 time-dependent 字段的时间索引。</li>
+<li><code>physdem1</code> 写水冰库、可选常年 CO2 冰、表面温度、土壤热惯量、土壤温度、反照率第一谱段、发射率和 PBL <code>q2</code>。</li>
+<li>根据开关写云分数、尘埃缩放、尘埃辐射调整、<code>dtau</code>、热羽流 <code>wstar</code>。</li>
+<li>扫描 <code>tracer_mod::noms</code> 找水汽/水冰和 HDO 汽/冰 tracer；随后逐 tracer 写地表 <code>qsurf</code>，但跳过已由其他字段表示或无地表储量意义的 tracer。</li>
+<li>根据开关写非地形随机 GW 记忆、地热通量、吸附土壤水字段、古气候地下冰字段和 tracer 质量修正标量。</li>
+<li>关闭目标文件。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>physdem0(filename, ...)
+  open_restartphy(filename)
+  tab_cntrl = 0
+  fill tab_cntrl with grid size, date, constants, orbit, PBL, caps, dust, soil
+  put_var controle and descriptor
+  put_var soildepth
+  put_field longitude, latitude, area
+  put_field static surface/topography/roughness/water tag fields
+  put_var def_slope
+  put_field subslope_dist
+  close_restartphy
+
+physdem1(filename, ...)
+  open_restartphy(filename)
+  put_var Time first
+  put_field main time-dependent surface and soil states
+  if option enabled: put cloud, dust, thermal, GW, adsorption, paleoclimate fields
+  for each tracer name:
+    skip h2o_vap/hdo_vap when matching ice tracer exists
+    skip co2_ice because CO2 ice is included in qsurf(:,igcm_co2)
+    put_field surface tracer using trim(name)
+  if call_mass_fixer_dyn:
+    put_var mass_predyn_* for existing target tracers
+  close_restartphy</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>物理 restart 输出</td>
+<td>写 <code>restartfi.nc</code>，供下一段运行的 <code>phyetat0_mod</code> 读取</td>
+</tr>
+<tr>
+<td>1D startfi 生成</td>
+<td><code>testphys1d.F90</code> 在缺少 start 文件时调用 <code>physdem0/physdem1</code> 写 <code>startfi.nc</code></td>
+</tr>
+<tr>
+<td>newstart 初始场生成</td>
+<td><code>newstart.F</code> 写动力 restart 后调用本模块写物理 <code>restartfi.nc</code></td>
+</tr>
+<tr>
+<td>次网格坡面</td>
+<td>写 <code>def_slope</code> 与 <code>subslope_dist</code>，供下一次初始化恢复坡面分布</td>
+</tr>
+<tr>
+<td>水循环 / HDO</td>
+<td>写 <code>watercap</code>、地表 water/HDO tracer 和可选土壤吸附水字段</td>
+</tr>
+<tr>
+<td>CO2 循环 / 古气候</td>
+<td>写 <code>perennial_co2ice</code>、CO2 地表 tracer 关系和古气候地下 CO2 冰深度</td>
+</tr>
+<tr>
+<td>尘埃循环</td>
+<td>写 <code>tauscaling</code>、可选 <code>dust_rad_adjust_prev/next</code> 和 <code>dtau</code></td>
+</tr>
+<tr>
+<td>非地形重力波</td>
+<td>写 <code>du_nonoro_gwd</code>、<code>dv_nonoro_gwd</code> 记忆项</td>
+</tr>
+<tr>
+<td>tracer 质量修正</td>
+<td>写 <code>mass_predyn_*</code> 标量，供下一次 <code>phyetat0_mod</code> 恢复质量修正参考值</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>physdem0</code> 的 <code>airefi</code> 实参没有被源码使用，实际写出的面积来自 <code>geometry_mod::cell_area</code>；局部变量 <code>ig</code> 也未使用。</li>
+<li><code>physdem1</code> 的 <code>phystep</code> 实参没有被源码使用，时间轴只由 <code>time</code> 写入。</li>
+<li><code>physdem1</code> 中 <code>paleoclimate</code> 被 <code>use paleoclimate_mod</code> 导入两次，属于源码重复导入但不改变行为。</li>
+<li><code>albedo</code> 实参是 <code>(ngrid,2,nslope)</code>，但写出 <code>albedo</code> 字段时只写 <code>albedo(:,1,:)</code>。</li>
+<li>古气候 <code>h2oice_depth/co2ice_depth/coef_ssdif</code> 在 <code>physdem1</code> 中未带 <code>time</code> 实参写出，而 <code>perennial_co2ice</code> 带 <code>time</code> 写出；读端仍在 <code>paleoclimate</code> 分支中读取这些字段。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>写 time-dependent 字段前必须先写 <code>Time</code>；<code>iostart</code> 的 <code>timeindex</code> 由 <code>put_var("Time",...)</code> 更新。</li>
+<li>是否能从 restart 恢复某个可选状态，取决于写出时对应开关是否开启。例如 <code>CLFvarying</code> 控制 <code>totcloudfrac</code>，<code>calltherm</code> 控制 <code>wstar</code>，<code>calllott_nonoro</code> 控制随机 GW 记忆项。</li>
+<li><code>co2_ice</code> 地表 tracer 不单独写出；源码注释说明它已加入 <code>qsurf(:,igcm_co2)</code>，因此读端需要按 CO2 地表状态路径恢复。</li>
+<li>对 <code>h2o_vap</code> / <code>hdo_vap</code>，若没有对应 ice tracer，源码会改写为 <code>h2o_ice</code> / <code>hdo_ice</code> 字段名；若 ice tracer 存在，则跳过 vapor surface tracer，等待 ice tracer 自己写出。</li>
+<li><code>watercaptag</code> 写成 0/1 real field，读端再按阈值转换回 logical。</li>
+<li><code>mass_predyn_*</code> 只为存在的 8 个目标 tracer 写出；缺少对应 tracer 索引时不会产生该标量。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>physdem0</code> 的 <code>airefi</code> 实参和 <code>comsoil_h::inertiedat</code> 导入未被直接使用，需确认是否为历史接口遗留。</li>
+<li><code>physdem1</code> 的 <code>phystep</code> 实参未使用，需确认是否保留给旧版接口兼容。</li>
+<li>古气候地下冰字段不带 <code>time</code> 写出，而 <code>phyetat0_mod</code> 读取时传入 <code>indextime</code>；需以 <code>iostart</code> 当前维度分派行为为准复现。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="phyetat0_mod.html">phyetat0_mod</a></li>
+<li><a href="iostart.html">iostart</a></li>
+<li><a href="paleoclimate_mod.html">paleoclimate_mod</a></li>
+<li><a href="nonoro_gwd_ran_mod.html">nonoro_gwd_ran_mod</a></li>
+<li><a href="tracer_mass_fixer_dyn_mod.html">tracer_mass_fixer_dyn_mod</a></li>
+<li><a href="../../architecture/testphys1d-config.html">testphys1d-config</a></li>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

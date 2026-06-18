@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>co2snow - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/co2snow.md</span>
+    </nav>
+    <article class="content">
+<h1 id="co2snowf">co2snow.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\co2snow.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>该文件定义 <code>co2snow_mod</code> 模块及其唯一例程 <code>co2snow</code>。它的职责是：在某列发生 CO2 凝结/升华时，根据落到地表的 CO2 冰通量更新地表（红外）发射率 <code>pemisurf</code>。新沉降的 CO2 雪由散射性小颗粒组成，会降低地表发射率；同时存在一个使发射率向参考值 <code>emisref</code> 弛豫（雪变质/metamorphism）的过程。这是一个纯辅助过程，不改变质量或温度，只改 <code>pemisurf</code> 一个输出。</p>
+<p>文件头注释说明算法分两步：1 初始化，2 计算地表发射率，并引用 Forget &amp; Pollack (1996, JGR Vol.101 No.E7) 作为物理依据。</p>
+<p>注意：本例程被 <code>co2condens</code>（文件 <code>co2condens_mod.F</code>）的 CO2 snow/clouds 段按地表坡度 <code>nslope</code> 循环逐个坡面调用，每次只处理一个坡面的发射率（见调用点）。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>co2snow_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>容器模块</td>
+</tr>
+<tr>
+<td><code>co2snow</code></td>
+<td>subroutine</td>
+<td>26</td>
+<td>按 CO2 雪沉降更新地表发射率</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>iceradius</code>, <code>dtemisice</code></td>
+<td><code>iceradius(2)</code>：CO2 雪平均散射半径（南/北半球，m）；<code>dtemisice(2)</code>：雪变质时间尺度（南/北半球，单位为火星日 sol）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>latitude</code></td>
+<td>格点纬度（rad），用于判断南/北半球选择 <code>icap</code></td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>daysec</code></td>
+<td>一个火星日的秒数（s），把 <code>dtemisice</code> 的 sol 单位换算为秒</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<p><code>iceradius</code> 与 <code>dtemisice</code> 的取值不在本文件内设定。默认值来源（推断：取决于运行方式）：</p>
+<ul>
+<li>1D：<code>dyn1d/init_testphys1d_mod.F90:163-166</code> 设 <code>iceradius=100e-6</code>、<code>dtemisice=2.</code>。</li>
+<li>3D 从 start 文件读取：<code>tabfi.F:206-209</code> 由 <code>tab_cntrl</code> 读入；缺省/老 start 文件回退为 <code>iceradius=100e-6</code>、<code>dtemisice=0.4</code>（<code>tabfi.F:142-145, 554-561</code>）。</li>
+<li>写 restart：<code>phyredem.F90:127-130</code> 写入 <code>tab_cntrl(31..34)</code>。</li>
+</ul>
+<p>待确认：3D 正式运行时 <code>dtemisice</code> 的实际生效值（0.4 还是其他），取决于 start 文件中的 <code>tab_cntrl</code>。</p>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>—</td>
+<td>—</td>
+<td>本例程不调用其他例程，仅含算术与 <code>write(*,*)</code> 诊断输出</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer, intent(in)</td>
+<td>—</td>
+<td>大气列数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>调用方</td>
+<td>integer, intent(in)</td>
+<td>—</td>
+<td>大气层数</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>调用方</td>
+<td>real, intent(in)</td>
+<td>s</td>
+<td>物理时间步长</td>
+</tr>
+<tr>
+<td><code>emisref(ngrid)</code></td>
+<td>调用方</td>
+<td>real, intent(in)</td>
+<td>—</td>
+<td>无雪时的地表/冰参考发射率</td>
+</tr>
+<tr>
+<td><code>condsub(ngrid)</code></td>
+<td>调用方</td>
+<td>logical, intent(in)</td>
+<td>—</td>
+<td>该列是否存在 CO2 凝结或升华</td>
+</tr>
+<tr>
+<td><code>pplev(ngrid,nlayer+1)</code></td>
+<td>调用方</td>
+<td>real, intent(in)</td>
+<td>Pa</td>
+<td>层间压力</td>
+</tr>
+<tr>
+<td><code>pcondicea(ngrid,nlayer)</code></td>
+<td>调用方</td>
+<td>real, intent(in)</td>
+<td>kg/m2/s</td>
+<td>各层 CO2 凝结率</td>
+</tr>
+<tr>
+<td><code>pcondices(ngrid)</code></td>
+<td>调用方</td>
+<td>real, intent(in)</td>
+<td>kg/m2/s</td>
+<td>地表 CO2 凝结率</td>
+</tr>
+<tr>
+<td><code>pfallice(ngrid,nlayer+1)</code></td>
+<td>调用方</td>
+<td>real, intent(in)</td>
+<td>kg/m2/s</td>
+<td>下落的 CO2 冰通量</td>
+</tr>
+</tbody>
+</table>
+<p>复现风险：<code>pplev</code>、<code>pcondicea</code>、<code>pcondices</code> 在当前实现中被声明为 <code>intent(in)</code> 但例程主体未使用（核心公式只用到 <code>pfallice(ig,1)</code>）。它们应是为接口兼容/历史保留。详见“写法特点”。</p>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pemisurf(ngrid)</code></td>
+<td>调用方</td>
+<td>real, intent(out)</td>
+<td>—</td>
+<td>更新后的地表发射率</td>
+</tr>
+</tbody>
+</table>
+<p>注意：<code>pemisurf</code> 声明为 <code>intent(out)</code>，但例程在 <code>condsub(ig)</code> 为真的分支里读取其入口值（<code>pemisurf(ig)/emisref(ig)</code>）参与计算。调用方 <code>co2condens_mod.F</code> 在调用前已用 <code>pemisurf_tmp(:) = pemisurf(:,islope)</code> 传入上一步的发射率，因此实际作为 in/out 使用。详见“写法特点”。</p>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>模块级无 common block。读取 <code>surfdat_h</code> 的 <code>iceradius</code>、<code>dtemisice</code>（只读）。</li>
+<li><code>SAVE</code> 变量：<code>Kscat(2)</code> 与 <code>firstcall</code>，均为 <code>THREADPRIVATE</code>（OpenMP 每线程私有）。<code>Kscat</code> 在 firstcall 时由 <code>iceradius</code> 一次性算出后保存复用。</li>
+<li>副作用：当 <code>pemisurf(ig) &lt; 0.1</code> 时向标准输出打印告警（<code>ds co2snow: emis &lt; 0.1 !!!</code> 及 <code>ig</code>、<code>pemisurf</code>、<code>zdemisurf*ptimestep</code>），不中断运行。</li>
+<li>不写文件、不改 tracer、不改温度或质量。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>firstcall（每线程一次）：用 <code>Kscat(icap) = (0.001/3.) * alpha / iceradius(icap)</code> 计算南/北半球散射系数，<code>alpha = 0.45</code>（硬编码 parameter），随后置 <code>firstcall=.false.</code>。</li>
+<li>对每个格点 <code>ig</code> 循环：
+<ul>
+<li>若 <code>condsub(ig)</code> 为假（无凝结/升华）：直接令 <code>pemisurf(ig) = emisref(ig)</code>（回到裸地/冰参考发射率），不做雪修正。</li>
+<li>若 <code>condsub(ig)</code> 为真：
+<ul>
+<li>按纬度选半球：<code>latitude(ig) &lt; 0</code> → <code>icap=2</code>（南），否则 <code>icap=1</code>（北）。</li>
+<li>计算发射率变化率 <code>zdemisurf</code>，由两项相加：
+<ul>
+<li>弛豫项 <code>(emisref - pemisurf) / (dtemisice(icap) * daysec)</code>：把发射率以时间尺度 <code>dtemisice</code>（sol，乘 <code>daysec</code> 转秒）拉回参考值，代表雪变质恢复。</li>
+<li>新雪沉降项：用一个积分形式更新——<code>emisref * ((pemisurf/emisref)^(-3) + 3*Kscat(icap)*pfallice(ig,1)*ptimestep)^(-1/3) - pemisurf</code>，再除以 <code>ptimestep</code>。源码注释标明这是为“数值安全”采用的积分形式。该项随地表落冰通量 <code>pfallice(ig,1)</code> 增大而压低发射率。</li>
+</ul></li>
+<li>更新 <code>pemisurf(ig) = pemisurf(ig) + zdemisurf * ptimestep</code>。</li>
+<li>若结果 <code>&lt; 0.1</code>，打印告警（不做钳制，发射率不被强制抬回）。</li>
+</ul></li>
+</ul></li>
+</ol>
+<p>复现风险：指数 <code>(-1/3.)</code> 中分子 <code>-1</code> 为整数、分母 <code>3.</code> 为实数，按 Fortran 运算 <code>-1/3.</code> 等于 <code>-0.3333...</code>（实数除法，因为有一个实数操作数）。<code>(...)**(-3)</code> 的 <code>-3</code> 为整数指数。复现实现时需保持该混合整型/实型写法对应的数值，不要误写成整数除法 <code>-1/3 = 0</code>。</p>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>subroutine co2snow(ngrid, nlayer, ptimestep, emisref, condsub,
+                   pplev, pcondicea, pcondices, pfallice, pemisurf):
+
+    if firstcall:                       # 每 OpenMP 线程一次
+        for icap in {1,2}:
+            Kscat(icap) = (0.001/3.) * 0.45 / iceradius(icap)
+        firstcall = false
+
+    for ig in 1..ngrid:
+        if not condsub(ig):
+            pemisurf(ig) = emisref(ig)          # 无凝结：直接取参考发射率
+        else:
+            icap = (latitude(ig) &lt; 0) ? 2 : 1   # 南/北半球
+
+            relax = (emisref(ig) - pemisurf(ig)) / (dtemisice(icap) * daysec)
+
+            snow  = ( emisref(ig) *
+                      ( (pemisurf(ig)/emisref(ig))**(-3)
+                        + 3*Kscat(icap)*pfallice(ig,1)*ptimestep )**(-1/3.)
+                      - pemisurf(ig) ) / ptimestep
+
+            zdemisurf = relax + snow
+            pemisurf(ig) = pemisurf(ig) + zdemisurf * ptimestep
+
+            if pemisurf(ig) &lt; 0.1:
+                print warning(ig, pemisurf(ig), zdemisurf*ptimestep)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CO2 循环</td>
+<td>CO2 凝结后处理的一环：把地表 CO2 雪沉积对地表红外发射率的影响反馈给地表能量收支（发射率影响地表辐射冷却）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran（<code>.F</code>），续行用第 6 列 <code>&amp;</code>，注释用 <code>c</code>。</li>
+<li><code>Kscat</code>、<code>firstcall</code> 为 <code>SAVE</code> 且 <code>!$OMP THREADPRIVATE</code>，firstcall 一次性初始化模式。</li>
+<li>硬编码常数：<code>alpha = 0.45</code>（parameter）、<code>0.001/3.</code>、阈值 <code>0.1</code>、指数 <code>3</code>/<code>-3</code>/<code>-1/3.</code>。</li>
+<li>声明了但未在主体使用的形参：<code>pplev</code>、<code>pcondicea</code>、<code>pcondices</code>、局部变量 <code>l</code>、<code>sumdaer</code>（声明于第 67、72 行但未赋值/使用）。推断：接口保留或历史遗留。</li>
+<li><code>pemisurf</code> 名义 <code>intent(out)</code> 实为 in/out（读取入口值参与公式）。Fortran 允许在 <code>intent(out)</code> 变量被赋值前读取属于未定义行为风险，但此处调用方在调用前显式赋了入口值（<code>co2condens_mod.F:839</code>），实际可用。复现实现应保证传入有效的初始 <code>pemisurf</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>例程纯算地表发射率，不改质量/温度/tracer。</li>
+<li>关键唯一驱动量是地表落冰通量 <code>pfallice(ig,1)</code>（地表层）；其余落冰层与凝结率数组未参与。</li>
+<li><code>dtemisice</code> 单位是火星日（sol），公式里乘 <code>daysec</code> 转秒；<code>iceradius</code> 单位 m。两者取值随 start 文件/1D 配置不同（见“依赖的模块”），影响结果。</li>
+<li>半球选择基于 <code>latitude(ig)</code> 符号；赤道（<code>latitude=0</code>）归北半球 <code>icap=1</code>。</li>
+<li>注意混合整型/实型指数 <code>(-1/3.)</code> 的求值（= -0.3333），勿写成整数除法。</li>
+<li>调用方按 <code>nslope</code> 坡面循环、对各坡面量乘 <code>cos(slope)</code> 后逐面调用（<code>co2condens_mod.F:830-846</code>）。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>3D 正式运行中 <code>dtemisice</code> 的生效值（0.4 vs 其他），取决于 start 文件 <code>tab_cntrl(33/34)</code>。</li>
+<li><code>pplev</code>、<code>pcondicea</code>、<code>pcondices</code> 是否在某历史版本中曾被使用；当前版本确认未使用。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../routines/co2condens.html">co2condens</a>（TASK-0043，已写）：CO2 凝结主例程，本例程的唯一调用方。</li>
+<li><a href="co2cloud_mod.html">co2cloud_mod</a>：CO2 云总调度（TASK-0045，已写）。</li>
+<li><a href="co2-saturation-helpers.html">co2-saturation-helpers</a>：CO2 饱和/凝结温度基础公式（TASK-0040，已写）。</li>
+<li><a href="density_co2_ice.html">density_co2_ice</a>：CO2 冰密度（TASK-0042，已写）。</li>
+<li><a href="../../themes/co2-cycle.html">CO2 循环父级主题页</a>（TASK-0011）。</li>
+<li><a href="surfdat_h.html">surfdat_h</a>：定义 <code>iceradius</code>、<code>dtemisice</code> 等地表参数。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

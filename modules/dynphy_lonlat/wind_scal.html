@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>wind_scal - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/wind_scal.md</span>
+    </nav>
+    <article class="content">
+<h1 id="wind_scalf">wind_scal.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\wind_scal.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>wind_scal</code> 是 lon-lat 动力网格上的风场位置转换辅助例程。它把输入的 zonal/meridional 风或质量通量 <code>pbaru/pbarv</code> 平均回标量格点数组 <code>us/vs</code>：zonal 分量沿经向相邻点平均并设置周期边界，meridional 分量沿纬向相邻点平均并把南北极行置零。当前源码调用方是 <a href="start2archive.html"><code>start2archive</code></a>，用于把 <code>covnat</code> 生成的自然风 <code>un/vn</code> 转为可写入 <code>start_archive.nc</code> 的标量格点风 <code>us/vs</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>wind_scal</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1</td>
+<td>将 <code>pbaru/pbarv</code> 平均到标量格点，输出 <code>us/vs</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<p>无 <code>USE</code> 模块依赖。</p>
+<h2 id="include-依赖">include 依赖</h2>
+<table>
+<thead>
+<tr>
+<th>include</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimensions.h</code></td>
+<td>提供 <code>iim/jjm/llm</code> 等基本维度。</td>
+</tr>
+<tr>
+<td><code>paramet.h</code></td>
+<td>提供 <code>ip1jmp1/ip1jm/iip1/iip2/jjp1</code> 等派生维度。</td>
+</tr>
+<tr>
+<td><code>comgeom.h</code></td>
+<td>本例程未直接引用其中变量；可能为历史接口保留。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SCOPY</code></td>
+<td>BLAS/外部向量拷贝例程</td>
+<td>行 31</td>
+<td>将 <code>us(iip1,j,l)</code> 周期边界列复制到 <code>us(1,j,l)</code>，步长为 <code>iip1</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用方">调用方</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="start2archive.html"><code>start2archive</code></a></td>
+<td><code>start2archive.F:277</code></td>
+<td>在 <code>covnat(llm,ucov,vcov,un,vn)</code> 后调用 <code>wind_scal(un,vn,us,vs)</code>，把自然风转换到标量格点并写入 archive。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pbaru</code></td>
+<td>参数</td>
+<td><code>REAL(ip1jmp1,llm)</code></td>
+<td>与风速或通量一致</td>
+<td>zonal 分量输入，<code>start2archive</code> 中为自然风 <code>un</code>。</td>
+</tr>
+<tr>
+<td><code>pbarv</code></td>
+<td>参数</td>
+<td><code>REAL(ip1jm,llm)</code></td>
+<td>与风速或通量一致</td>
+<td>meridional 分量输入，<code>start2archive</code> 中为自然风 <code>vn</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>us</code></td>
+<td>参数</td>
+<td><code>REAL(ip1jmp1,llm)</code></td>
+<td>与 <code>pbaru</code> 相同</td>
+<td>标量格点上的 zonal 风。</td>
+</tr>
+<tr>
+<td><code>vs</code></td>
+<td>参数</td>
+<td><code>REAL(ip1jmp1,llm)</code></td>
+<td>与 <code>pbarv</code> 相同</td>
+<td>标量格点上的 meridional 风，南北极行置零。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>不读写模块变量或 common block。</li>
+<li>不做文件 I/O，不输出日志。</li>
+<li>覆盖写 <code>us/vs</code>；输入数组只读。</li>
+<li>依赖外部 <code>SCOPY</code> 可链接，否则周期边界复制阶段会缺符号。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>对每个垂直层 <code>l=1..llm</code>，对线性索引 <code>ij=2..ip1jmp1</code>，计算 <code>us(ij,l)=0.5*(pbaru(ij,l)+pbaru(ij-1,l))</code>。</li>
+<li>调用 <code>SCOPY(jjp1*llm,us(iip1,1),iip1,us(1,1),iip1)</code>，把每一纬圈最后一个经向点复制到第一个经向点，保证周期边界。</li>
+<li>对每个垂直层，在线性索引 <code>ij=iip2..ip1jm</code> 上计算 <code>vs(ij,l)=0.5*(pbarv(ij,l)+pbarv(ij-iip1,l))</code>，即沿纬向相邻 v 点平均。</li>
+<li>对每个垂直层和 <code>ij=1..iip1</code>，将第一行 <code>vs(ij,l)</code> 与最后一行 <code>vs(ip1jm+ij,l)</code> 设为 0。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>for l in 1..llm:
+    for ij in 2..ip1jmp1:
+        us(ij,l) = 0.5 * (pbaru(ij,l) + pbaru(ij-1,l))
+copy us(iip1,j,l) to us(1,j,l) for all j,l
+
+for l in 1..llm:
+    for ij in iip2..ip1jm:
+        vs(ij,l) = 0.5 * (pbarv(ij,l) + pbarv(ij-iip1,l))
+    for i in 1..iip1:
+        vs(i,l) = 0
+        vs(ip1jm+i,l) = 0</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>start/startfi 到 start_archive 转换</td>
+<td><a href="start2archive.html"><code>start2archive</code></a> 写 archive 前，用本例程把自然风转为标量格点风变量 <code>u/v</code>。</td>
+</tr>
+<tr>
+<td>风场位置转换</td>
+<td>与 <a href="scal_wind.html"><code>scal_wind</code></a> 方向相反：<code>scal_wind</code> 从标量/源位置平均到 u/v 风点，本例程从 u/v 自然风位置平均回标量格点。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran，无 <code>INTENT</code> 标注。</li>
+<li>使用线性索引遍历二维 lon-lat 网格，依赖 <code>paramet.h</code> 中的 <code>ip1jmp1/ip1jm/iip1/iip2</code>。</li>
+<li>zonal 分量用 <code>SCOPY</code> 做周期边界；meridional 分量直接把极区边界置零。</li>
+<li><code>comgeom.h</code> 被 include 但未直接引用。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>pbaru</code> 的线性排列必须与 <code>ip1jmp1</code> 标量网格一致，因为例程用 <code>ij-1</code> 做经向相邻点。</li>
+<li><code>pbarv</code> 只有 <code>ip1jm</code> 个输入点；输出 <code>vs</code> 有 <code>ip1jmp1</code>，首尾纬向边界由本例程置零。</li>
+<li>例程不乘 <code>cu/cv</code>，也不做协变/反变 metric 转换；这些工作由调用方前后的动力例程完成。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>SCOPY</code> 的提供位置需结合构建系统确认。</li>
+<li>注释写“flux de masse / vents”，当前 <code>start2archive</code> 实参是自然风；是否仍有质量通量调用路径未在当前范围内发现。</li>
+<li><code>comgeom.h</code> 是否为历史残留。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="start2archive.html">start2archive</a></li>
+<li><a href="scal_wind.html">scal_wind</a></li>
+<li><a href="index.html">dynphy_lonlat 目录</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>call_dayperi - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/call_dayperi.md</span>
+    </nav>
+    <article class="content">
+<h1 id="call_dayperif">call_dayperi.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\call_dayperi.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>该文件定义 <code>call_dayperi_mod</code> 模块和一个轨道日历换算例程 <code>call_dayperi</code>。例程输入近日点太阳经度 <code>Lsperi</code>、轨道偏心率 <code>e_elips</code> 和火星年长度 <code>year_day</code>，输出从北半球春分 <code>Ls=0</code> 起算的近日点日期 <code>dayperi</code>（sol）。</p>
+<p>确认调用方是 1D 初始化模块 <code>init_testphys1d_mod.F90</code>：它从配置读取 <code>Lsperi</code>（单位为度）和 <code>eccentric</code>，把 <code>Lsperi</code> 转成弧度后调用 <code>call_dayperi(Lsperi,eccentric,peri_day,year_day)</code>，再把结果写入 <code>planete_h</code> 的 <code>peri_day</code>。3D 主路径中也有 <code>planete_h:lsp2solp</code> 可根据 <code>lsperi</code> 计算近日点 sol，因此本文件主要服务于 1D/testphys 初始化的轨道参数换算。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>call_dayperi_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装近日点日期换算例程</td>
+</tr>
+<tr>
+<td><code>call_dayperi</code></td>
+<td>subroutine</td>
+<td>8</td>
+<td>根据 <code>Lsperi</code>、<code>e_elips</code>、<code>year_day</code> 计算 <code>dayperi</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>仅使用 Fortran intrinsic：<code>asin</code>、<code>sqrt</code>、<code>tan</code>、<code>atan</code>、<code>sin</code>、<code>cos</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Lsperi</code></td>
+<td>调用方</td>
+<td>real scalar</td>
+<td>rad</td>
+<td>近日点太阳经度；<code>init_testphys1d</code> 调用前把配置中的度转换为弧度</td>
+</tr>
+<tr>
+<td><code>e_elips</code></td>
+<td>调用方</td>
+<td>real scalar</td>
+<td>-</td>
+<td>轨道偏心率，1D 初始化中来自 <code>eccentric</code></td>
+</tr>
+<tr>
+<td><code>year_day</code></td>
+<td>调用方 / <code>planete_h</code></td>
+<td>real scalar</td>
+<td>sol</td>
+<td>火星年长度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dayperi</code></td>
+<td>调用方 / <code>planete_h:peri_day</code></td>
+<td>real scalar</td>
+<td>sol</td>
+<td>从 <code>Ls=0</code> 北半球春分起算的近日点日期</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>不读写 module 变量或 common block。</li>
+<li>不写文件、不输出日志、不分配内存。</li>
+<li>通过 <code>dayperi</code> 形参把结果返回给调用方。</li>
+<li>形参未声明 <code>intent</code>，但源码注释明确 <code>Lsperi</code>、<code>e_elips</code>、<code>year_day</code> 为输入，<code>dayperi</code> 为输出。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>用 <code>pi = 2.*asin(1.)</code> 计算圆周率。</li>
+<li>计算椭圆轨道变换中的两个中间量：
+<ul>
+<li><code>x1 = sqrt((1-e_elips)/(1+e_elips))</code></li>
+<li><code>x2 = e_elips*sqrt(1-e_elips**2)</code></li>
+</ul></li>
+<li>用源码公式计算从 <code>Ls=0</code> 到近日点的日期：</li>
+</ol>
+<pre class="text"><code>dayperi = 0.5*(year_day/pi) *
+          ( 2*atan(x1*tan(0.5*Lsperi))
+            - x2*sin(Lsperi)/(1+e_elips*cos(Lsperi)) )</code></pre>
+<ol start="4" type="1">
+<li>若结果为负，则加一个火星年：<code>dayperi = dayperi + year_day</code>，把日期放回 <code>[0, year_day)</code> 的年度范围。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>call_dayperi(Lsperi, e_elips, dayperi, year_day):
+    pi = 2 * asin(1)
+    x1 = sqrt((1 - e_elips) / (1 + e_elips))
+    x2 = e_elips * sqrt(1 - e_elips**2)
+
+    anomaly_part = 2 * atan(x1 * tan(0.5 * Lsperi))
+    correction = x2 * sin(Lsperi) / (1 + e_elips * cos(Lsperi))
+    dayperi = 0.5 * (year_day / pi) * (anomaly_part - correction)
+
+    if dayperi &lt; 0:
+        dayperi = dayperi + year_day</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1D/testphys 初始化</td>
+<td>根据 <code>Lsperi</code> 和偏心率计算 <code>peri_day</code>，使 1D 运行的轨道日历与用户输入的近日点太阳经度一致</td>
+</tr>
+<tr>
+<td>轨道/季节换算</td>
+<td>生成 <code>peri_day</code> 后，<code>solarlong</code> 等例程可用 <code>peri_day</code>、<code>lsperi</code>、<code>e_elips</code>、<code>year_day</code> 做 sol 与 Ls 的互算</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>.F</code> 文件内使用 <code>module</code>/<code>contains</code>，代码为固定格式风格。</li>
+<li>无 <code>implicit none</code> 之外的模块依赖，公式完全由输入标量和 intrinsic 组成。</li>
+<li>未使用 <code>intent(in/out)</code> 标注，复现接口时应按源码注释理解输入输出方向。</li>
+<li>输入 <code>Lsperi</code> 必须是弧度；<code>init_testphys1d_mod.F90</code> 在调用前显式做 <code>Lsperi = Lsperi*pi/180.</code>。</li>
+<li>只在 <code>dayperi &lt; 0</code> 时加 <code>year_day</code>，没有对 <code>dayperi &gt;= year_day</code> 的情形做取模。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>不要把 <code>Lsperi</code> 的配置单位（度）直接传入本例程；调用前必须转弧度。</li>
+<li><code>e_elips</code> 应满足 <code>0 &lt;= e_elips &lt;= 1</code>。1D 初始化在调用前检查 <code>eccentric</code> 范围。</li>
+<li>公式使用普通单精度 <code>real</code>，不是 double precision。</li>
+<li><code>atan(x1*tan(0.5*Lsperi))</code> 含有 <code>tan</code> 的象限/分支行为；复现时应保持源码表达式，不要随意替换成不同象限约定的 <code>atan2</code>，除非重新核对全年范围。</li>
+<li>负值结果只加一次 <code>year_day</code>；对超出常规范围的 <code>Lsperi</code> 输入，源码没有完整归一化。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>init_testphys1d_mod.F90</code> 中检查 <code>Lsperi</code> 范围时源码写成 <code>if (eccentric &lt; 0. .or. eccentric &gt; 360.)</code>，看起来应检查 <code>Lsperi</code> 而不是 <code>eccentric</code>；本页只记录 <code>call_dayperi</code> 行为，不把该上游疑点写成事实。</li>
+<li>本公式与 <code>planete_h:lsp2solp</code> 在所有 <code>Lsperi</code> 象限上是否完全一致，尚未逐值比对。</li>
+<li>对 <code>Lsperi</code> 超出 <code>[0,2*pi]</code> 的输入，当前例程没有归一化，调用方应保证范围。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../architecture/testphys1d-config.html">testphys1d-config</a>：1D 配置和初始化流程，包含轨道参数输入。</li>
+<li><a href="planete_h.html">planete_h.md</a>：保存 <code>year_day</code>、<code>peri_day</code>、<code>lsperi</code>、<code>e_elips</code> 等轨道状态。</li>
+<li><a href="solarlong.html">solarlong.md</a>：用 <code>peri_day</code> 把 sol 转换为太阳经度。</li>
+<li><a href="orbite.html">orbite</a>：用 <code>lsperi</code>、偏心率和太阳经度计算日火距离与太阳赤纬。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

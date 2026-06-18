@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>writediagmicrofi - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/writediagmicrofi.md</span>
+    </nav>
+    <article class="content">
+<h1 id="writediagmicrofif">writediagmicrofi.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\writediagmicrofi.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>writediagmicrofi.F</code> 定义传统微物理子步诊断文件 <code>diagmicrofi.nc</code> 的写入后端。它沿用 <code>writediagfi</code> 的按变量逐次调用模式，但额外定义有限长度 <code>microtime</code> 维度，用来在一个物理输出时刻内保存 coupled water microphysics / sedimentation 的每个微物理子步。源码历史注释明确说明 2020 年加入该文件，目标维度顺序为 <code>(time,microtime,alt,lat,lon)</code>。</p>
+<p>例程在第一次进入时读取可选 <code>diagmicrofi.def</code>，未列出的变量直接返回；第一次有效变量调用时创建 <code>diagmicrofi.nc</code>、定义 <code>Time</code> 和 <code>microtime</code>，并调用 <code>iniwrite</code> 写经纬度、垂直层、地表位势和网格面积等固定头信息。后续写入由 <code>firstnom</code>、<code>microstep</code> 和 <code>steps_per_sol/outputs_per_sol</code> 共同控制：只有每个物理时刻的首个微物理子步会推进主时间索引，所有同名首变量调用会推进 <code>microtime</code> 坐标。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>writediagmicrofi</code></td>
+<td>subroutine</td>
+<td>1</td>
+<td>向 <code>diagmicrofi.nc</code> 创建并追加微物理子步诊断变量。</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td>saved logical</td>
+<td>107</td>
+<td>第一次进入时读取 <code>diagmicrofi.def</code> 并计算采样间隔。</td>
+</tr>
+<tr>
+<td><code>firstnom</code> / <code>zitau</code></td>
+<td>saved state</td>
+<td>87-89</td>
+<td>识别每个物理时刻的首变量，并推进主输出步计数。</td>
+</tr>
+<tr>
+<td><code>ntime</code></td>
+<td>saved integer</td>
+<td>92</td>
+<td>NetCDF unlimited <code>Time</code> 维的当前写入索引。</td>
+</tr>
+<tr>
+<td><code>subdate</code></td>
+<td>saved real*4</td>
+<td>77</td>
+<td>当前主时间内的微物理子步累计时间，写入 <code>microtime</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>phisfi</code></td>
+<td>首次创建文件时写地表位势。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>cell_area</code></td>
+<td>首次创建文件时写网格面积。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>steps_per_sol</code>, <code>outputs_per_sol</code></td>
+<td>计算输出采样间隔 <code>isample</code>。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>day_ini</code></td>
+<td>传给 <code>iniwrite</code> 作为文件头时间起点。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_parallel</code>, <code>is_mpi_root</code>, <code>is_master</code>, <code>gather</code></td>
+<td>并行路径中收集字段，并限制 NetCDF 由 master/root 写。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>klon_glo</code>, <code>Grid1Dto2D_glo</code>, <code>nbp_lon</code>, <code>nbp_lat</code>, <code>nbp_lev</code></td>
+<td>提供全局网格维度，并把 1D 物理网格重排到经纬网格。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iniwrite</code></td>
+<td><code>iniwrite.F</code></td>
+<td>首次有效变量调用</td>
+<td>向 <code>diagmicrofi.nc</code> 写固定坐标、控制参数、面积和地表位势。</td>
+</tr>
+<tr>
+<td><code>def_var</code></td>
+<td><code>def_var.F90</code></td>
+<td>每个新诊断变量首次写入</td>
+<td>在 NetCDF define mode 中创建变量并写 <code>title/units</code> 属性。</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部错误处理</td>
+<td>多处错误分支</td>
+<td>变量名过长、变量重复、并行 <code>dim=1</code> 或写入失败时中止。</td>
+</tr>
+<tr>
+<td>NetCDF <code>NF_*</code></td>
+<td>NetCDF F77 接口</td>
+<td>多处</td>
+<td>创建、打开、关闭文件，定义维度/变量，追加坐标和诊断字段。</td>
+</tr>
+<tr>
+<td><code>gather</code>, <code>Grid1Dto2D_glo</code></td>
+<td>并行/网格模块</td>
+<td>并行 <code>dim=2/3</code> 路径</td>
+<td>收集物理网格字段并重排到全局经纬网格。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>当前物理网格点数。</td>
+</tr>
+<tr>
+<td><code>imicro</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>step count</td>
+<td>一个物理输出时刻内的微物理子步数量，也是 <code>microtime</code> 维长度。</td>
+</tr>
+<tr>
+<td><code>microstep</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>step index</td>
+<td>当前微物理子步索引，作为 <code>microtime</code> 写入位置。</td>
+</tr>
+<tr>
+<td><code>microtimestep</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>timestep</td>
+<td>微物理子步长度，每次首变量调用时累加到 <code>subdate</code>。</td>
+</tr>
+<tr>
+<td><code>nom</code>, <code>titre</code>, <code>unite</code></td>
+<td>调用方</td>
+<td>character</td>
+<td>-</td>
+<td>变量名、标题和单位属性。</td>
+</tr>
+<tr>
+<td><code>dim</code></td>
+<td>调用方</td>
+<td>integer 0/1/2/3</td>
+<td>-</td>
+<td>诊断变量维度码。</td>
+</tr>
+<tr>
+<td><code>px(ngrid,nbp_lev)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>variable-dependent</td>
+<td>待写诊断场；低维变量也通过该二维实参承载。</td>
+</tr>
+<tr>
+<td><code>diagmicrofi.def</code></td>
+<td>运行目录可选文件</td>
+<td>text file</td>
+<td>-</td>
+<td>若存在，仅输出列在其中的变量名。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>diagmicrofi.nc</code></td>
+<td>当前运行目录</td>
+<td>NetCDF file</td>
+<td>-</td>
+<td>微物理子步诊断文件。</td>
+</tr>
+<tr>
+<td><code>Time</code></td>
+<td><code>diagmicrofi.nc</code></td>
+<td>unlimited coordinate</td>
+<td>days</td>
+<td>由 <code>zitau</code> 和 <code>steps_per_sol</code> 推得的主物理输出时间。</td>
+</tr>
+<tr>
+<td><code>microtime</code></td>
+<td><code>diagmicrofi.nc</code></td>
+<td>finite coordinate, length <code>imicro</code></td>
+<td>steps</td>
+<td>主输出时间内的微物理子步累计时间。</td>
+</tr>
+<tr>
+<td><code>nom</code> 变量</td>
+<td><code>diagmicrofi.nc</code></td>
+<td>0D/1D/2D/3D + <code>microtime</code> + <code>Time</code></td>
+<td><code>unite</code></td>
+<td>调用方指定的微物理诊断字段。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>例程使用多组 <code>SAVE</code> / <code>THREADPRIVATE</code> 状态：<code>date/subdate</code>、<code>zitau/firstnom</code>、<code>ntime</code>、<code>firstcall</code>。这些状态决定何时写主时间、微时间和变量。</li>
+<li><code>diagmicrofi.def</code> 只在第一次进入时由 OpenMP master 读取；若文件存在且当前变量名未列入，例程直接返回，不创建文件、不推进时间。</li>
+<li>首次有效变量调用会以 <code>NF_CLOBBER</code> 创建 <code>diagmicrofi.nc</code>，因此同名文件会被覆盖。</li>
+<li>每次满足采样条件时 master 打开 <code>diagmicrofi.nc</code>，写完当前变量后关闭文件。</li>
+<li>并行路径只让 master/root 写 NetCDF；<code>dim=1</code> 在并行模式下未实现，会调用 <code>abort_physic</code>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>第一次进入时计算 <code>isample=steps_per_sol/outputs_per_sol</code>，尝试读取 <code>diagmicrofi.def</code>，保存允许输出的变量名列表。</li>
+<li>若启用了 <code>diagmicrofi.def</code> 且 <code>nom</code> 不在列表中，立即返回。</li>
+<li>第一次有效变量调用时设置 <code>firstnom=nom</code>，收集 <code>phisfi/cell_area</code>，创建 <code>diagmicrofi.nc</code>，定义 unlimited <code>Time</code>、有限 <code>microtime</code> 及对应坐标变量，并调用 <code>iniwrite</code> 写文件头。</li>
+<li>只有 <code>(nom == firstnom) .and. (microstep == 1)</code> 时推进 <code>zitau</code>。</li>
+<li>只有 <code>MOD(zitau+1,isample)==0</code> 时进入写文件分支。</li>
+<li>在每个输出物理时刻的 <code>firstnom</code> 且 <code>microstep==1</code> 调用上，递增 <code>ntime</code>、写 <code>Time</code>，并把 <code>subdate</code> 归零。</li>
+<li>在每个 <code>firstnom</code> 调用上，累加 <code>subdate=subdate+microtimestep</code>，并写 <code>microtime(microstep)</code>。</li>
+<li>按 <code>dim</code> 将 <code>px</code> 转成 3D、2D、1D 或 0D 缓冲，必要时用 <code>def_var</code> 创建变量，再在 <code>(microstep,ntime)</code> 位置写入。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>writediagmicrofi(ngrid, imicro, microstep, microtimestep, nom, titre, unite, dim, px):
+  on first call:
+    isample = steps_per_sol / outputs_per_sol
+    read optional diagmicrofi.def
+  if diagmicrofi.def exists and nom is not listed:
+    return
+  on first valid variable:
+    firstnom = nom
+    create diagmicrofi.nc
+    define Time and microtime(imicro)
+    gather/copy phisfi and cell_area
+    call iniwrite(...)
+    close file
+  if nom == firstnom and microstep == 1:
+    zitau += 1
+  if MOD(zitau + 1, isample) == 0:
+    open diagmicrofi.nc
+    if nom == firstnom and microstep == 1:
+      ntime += 1
+      write Time(ntime)
+      subdate = 0
+    if nom == firstnom:
+      subdate += microtimestep
+      write microtime(microstep)
+    recast/gather px according to dim
+    create variable with def_var if needed
+    write variable slice at microstep, ntime
+    close diagmicrofi.nc</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>微物理诊断输出</td>
+<td>为 coupled water microphysics / sedimentation 的每个子步提供传统 NetCDF 输出。</td>
+</tr>
+<tr>
+<td>传统 NetCDF 文件初始化</td>
+<td>首次有效变量调用时复用 <code>iniwrite</code> 和 <code>def_var</code> 写固定头信息与变量定义。</td>
+</tr>
+<tr>
+<td>并行诊断输出</td>
+<td>并行构建中先 <code>gather</code> 到全局物理网格，再由 root/master 重排并写文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>与 <code>writediagfi</code> 相比，本例程多了 <code>microtime</code> 维度和 <code>microstep/microtimestep</code> 控制，但主时间推进仍依赖 <code>firstnom</code>。</li>
+<li><code>microtime</code> 是固定长度维度，长度来自调用方传入的 <code>imicro</code>；源码内没有检查 <code>microstep &lt;= imicro</code>。</li>
+<li>3D 变量维度为 <code>longitude, latitude, altitude, microtime, Time</code>；2D 为 <code>longitude, latitude, microtime, Time</code>；1D 为 <code>altitude, microtime, Time</code>；0D 为 <code>microtime, Time</code>。</li>
+<li>所有实际数据写入使用 <code>NF_PUT_VARA_REAL</code>，会以 real*4 形式输出。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>diagmicrofi.def</code> 若存在，必须包含触发 <code>firstnom</code> 的变量名；否则文件可能不会创建或时间不会按预期推进。</li>
+<li>调用顺序必须保证每个物理时刻、每个微物理子步都以同一个 <code>firstnom</code> 变量作为首个诊断变量，否则 <code>zitau</code>、<code>ntime</code> 和 <code>microtime</code> 的推进会错位。</li>
+<li><code>microstep</code> 必须落在 <code>1:imicro</code> 内；源码未做边界检查，越界会直接影响 NetCDF 写入位置。</li>
+<li>并行模式不能写 <code>dim=1</code> column 诊断。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>diagmicrofi_def/n_nom_def/nom_def</code> 只在 <code>THREADPRIVATE(firstcall)</code> 行尾注释中出现，未像 <code>firstcall</code> 一样明确放入 OpenMP <code>THREADPRIVATE</code> 指令；OpenMP 下筛选列表是否所有线程一致，需结合预处理和运行测试确认。</li>
+<li>源码定义维度名为小写 <code>"microtime"</code>，但 <code>dim=2</code> 和 <code>dim=0</code> 创建变量时查询的是 <code>"Microtime"</code>。NetCDF 维度名区分大小写时这两个分支可能无法创建变量；需运行复现确认。</li>
+<li><code>isample=steps_per_sol/outputs_per_sol</code> 未在本例程内检查整除性。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="writediagfi.html">writediagfi</a></li>
+<li><a href="write_output_mod.html">write_output_mod</a></li>
+<li><a href="iniwrite.html">iniwrite</a></li>
+<li><a href="def_var.html">def_var</a></li>
+<li><a href="time_phylmdz_mod.html">time_phylmdz_mod</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

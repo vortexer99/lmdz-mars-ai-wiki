@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>comvert_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../../index.html">主页</a>
+        <a href="../../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../../libf-overview.html">模块</a>
+        <a href="../../../themes/index.html">主题</a>
+        <a href="../../../routines/index.html">例程</a>
+        <a href="../../../reference/file-index.html">文件索引</a>
+        <a href="../../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dyn1d/comvert_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dyn1dcomvert_modf90">dyn1d/comvert_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d\comvert_mod.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>dyn1d/comvert_mod.F90</code> 在当前源码树中不是独立实现，而是一行相对路径：</p>
+<pre class="text"><code>../../../../LMDZ.COMMON/libf/dyn3d_common/comvert_mod.F90</code></pre>
+<p>它把 1D <code>testphys1d</code> 编译路径中的 <code>comvert_mod</code> 模块解析到 <code>LMDZ.COMMON/libf/dyn3d_common/comvert_mod.F90</code>。目标模块保存动力核心混合垂直坐标系的界面系数、层中系数、参考压力和伪高度状态；dyn1d 初始化和主时间循环直接读取这些状态来构造 <code>plev/play</code> 并调用物理主程序。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comvert_mod.F90</code></td>
+<td>path stub</td>
+<td>dyn1d line 1</td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d_common/comvert_mod.F90</code>。</td>
+</tr>
+<tr>
+<td><code>comvert_mod</code></td>
+<td>module</td>
+<td>common target line 1</td>
+<td>声明垂直坐标共享状态。</td>
+</tr>
+<tr>
+<td><code>ap</code>, <code>bp</code></td>
+<td>module arrays</td>
+<td>common target lines 11-12</td>
+<td>界面层混合坐标系数；压力界面按 <code>p = ap + bp * ps</code> 构造。</td>
+</tr>
+<tr>
+<td><code>aps</code>, <code>bps</code></td>
+<td>module arrays</td>
+<td>common target lines 22-23</td>
+<td>层中混合坐标系数；层中压力按 <code>p = aps + bps * ps</code> 构造。</td>
+</tr>
+<tr>
+<td><code>presnivs</code>, <code>pseudoalt</code></td>
+<td>module arrays</td>
+<td>common target lines 13, 25</td>
+<td>参考层中压力和基于 <code>preff/scaleheight</code> 的伪高度。</td>
+</tr>
+<tr>
+<td><code>pa</code>, <code>preff</code>, <code>scaleheight</code></td>
+<td>module scalars</td>
+<td>common target lines 17, 19, 24</td>
+<td>hybrid 坐标转变压力、参考地表压力和参考尺度高度。</td>
+</tr>
+<tr>
+<td><code>disvert_type</code>, <code>pressure_exner</code></td>
+<td>module flags</td>
+<td>common target lines 28, 36</td>
+<td>垂直离散类型和层内压力计算方式开关。</td>
+</tr>
+</tbody>
+</table>
+<p>目标模块使用 <code>INCLUDE "dimensions.h"</code> 得到 <code>llm</code> 等维度；数组为固定维度声明，没有 <code>ALLOCATE</code>、例程或 I/O。</p>
+<h2 id="垂直坐标语义">垂直坐标语义</h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>维度</th>
+<th>语义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ap(llm+1)</code>, <code>bp(llm+1)</code></td>
+<td>界面层</td>
+<td>混合坐标的 pressure/sigma 贡献。给定地表压力 <code>ps</code>，界面压力为 <code>ap(l)+bp(l)*ps</code>。</td>
+</tr>
+<tr>
+<td><code>aps(llm)</code>, <code>bps(llm)</code></td>
+<td>层中</td>
+<td>层中 pressure/sigma 贡献。给定 <code>ps</code>，层中压力为 <code>aps(l)+bps(l)*ps</code>。</td>
+</tr>
+<tr>
+<td><code>presnivs(llm)</code></td>
+<td>层中</td>
+<td>基于 <code>preff</code> 的参考层中压力。</td>
+</tr>
+<tr>
+<td><code>pseudoalt(llm)</code></td>
+<td>层中</td>
+<td><code>-scaleheight*log(presnivs/preff)</code> 得到的参考伪高度，单位注释为 km。</td>
+</tr>
+<tr>
+<td><code>sig</code>, <code>ds</code>, <code>nivsig</code>, <code>nivsigs</code></td>
+<td>垂直网格</td>
+<td>sigma 层边界、厚度和输出层坐标辅助状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="dyn1d-初始化路径">dyn1d 初始化路径</h2>
+<p><code>init_testphys1d_mod.F90</code> 第 27 行 <code>use comvert_mod, only: ap, bp, aps, bps, pa, preff, presnivs, pseudoalt, scaleheight</code>。关键步骤：</p>
+<ol type="1">
+<li>第 314-316 行设置默认地表压力和参考压力：<code>psurf=610 Pa</code>、<code>pa=20</code>、<code>preff=610</code>。</li>
+<li>若不是 1D restart，第 319 行通过 <code>getin("psurf", psurf)</code> 覆盖地表压力；若是 restart，第 321-322 行从 <code>start1Dname</code> 的首行读取 <code>psurf, pa, preff</code>。</li>
+<li>第 332-334 行默认 <code>hybrid=.true.</code>，并通过 <code>getin("hybrid", hybrid)</code> 允许切换 hybrid/sigma 坐标。</li>
+<li>第 337 行调用 <code>disvert_noterre</code>，该公共例程写入 <code>ap/bp/aps/bps/presnivs/pseudoalt/scaleheight</code>。</li>
+<li>第 339 行把这些固定维度状态复制到物理侧 <code>vertical_layers_mod</code>：<code>init_vertical_layers(nlayer, preff, scaleheight, ap, bp, aps, bps, presnivs, pseudoalt)</code>。</li>
+<li>第 341-342 行构造 1D 物理调用使用的 <code>plev = ap + psurf*bp</code> 和 <code>play = aps + psurf*bps</code>。</li>
+</ol>
+<h2 id="disvert_noterre-写入逻辑"><code>disvert_noterre</code> 写入逻辑</h2>
+<p>公共目标 <code>LMDZ.COMMON/libf/dyn3d_common/disvert_noterre.F</code> 使用本模块：</p>
+<table>
+<thead>
+<tr>
+<th>分支</th>
+<th>写入</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hybrid=.true.</code></td>
+<td>对每个界面调用 <code>sig_hybrid(sig(l), pa, preff, newsig)</code>；随后 <code>bp(l)=exp(1-1/newsig**2)</code>，<code>ap(l)=pa*(newsig-bp(l))</code>，顶界 <code>ap/bp(llm+1)=0</code>。</td>
+</tr>
+<tr>
+<td><code>hybrid=.false.</code></td>
+<td>纯 sigma 坐标：<code>ap(l)=0</code>、<code>bp(l)=sig(l)</code>，顶界 <code>ap(llm+1)=0</code>、<code>bp(llm+1)=0</code>。</td>
+</tr>
+<tr>
+<td>层中系数</td>
+<td><code>aps/bps</code> 先取相邻界面平均；最顶层按 hybrid 或 sigma 分支分别用相邻层平方比外推。</td>
+</tr>
+<tr>
+<td>参考压力/高度</td>
+<td><code>presnivs(l)=aps(l)+bps(l)*preff</code>，<code>pseudoalt(l)=-scaleheight*log(presnivs(l)/preff)</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="dyn1d-主循环读取">dyn1d 主循环读取</h2>
+<p><code>testphys1d.F90</code> 第 13 行 <code>use comvert_mod, only: ap, bp, aps, bps, pa, preff</code>。主循环中的使用：</p>
+<table>
+<thead>
+<tr>
+<th>行号</th>
+<th>表达式</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>184</td>
+<td><code>s = (aps/psurf + bps)**rcp</code></td>
+<td>用层中 hybrid 坐标计算 Exner/位势高度相关因子。</td>
+</tr>
+<tr>
+<td>194</td>
+<td><code>call physiq(..., plev, play, ...)</code></td>
+<td>把界面压力和层中压力传入物理主程序。</td>
+</tr>
+<tr>
+<td>254-256</td>
+<td><code>psurf = psurf + dttestphys*dpsurf(1)</code> 后重算 <code>plev/play</code></td>
+<td>每步地表压力变化后刷新压力坐标。</td>
+</tr>
+<tr>
+<td>264</td>
+<td><code>writerestart1D(..., psurf, pa, preff, ...)</code></td>
+<td>写出 1D restart 首行压力控制量。</td>
+</tr>
+</tbody>
+</table>
+<p><code>writerestart1D_mod.F90</code> 第 25 行写出 <code>ps psurf pa preff</code>，与 <code>init_testphys1d_mod.F90</code> 第 322 行的 restart 读取格式配对。</p>
+<h2 id="副作用和-io">副作用和 I/O</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文件 I/O</td>
+<td><code>comvert_mod</code> 本身无 I/O；<code>disvert_noterre</code> 可能读取垂直坐标配置文件并打印系数；<code>writerestart1D</code> 写出 <code>restart1D.txt</code> 中的 <code>psurf/pa/preff</code>。</td>
+</tr>
+<tr>
+<td>全局状态</td>
+<td>本模块保存固定维度全局数组，供 dyn1d 初始化、主循环和公共动力例程共享。</td>
+</tr>
+<tr>
+<td>分配/释放</td>
+<td>本模块不分配；dyn1d 之后调用 <code>vertical_layers_mod::init_vertical_layers</code> 分配物理侧可分配数组并复制这些值。</td>
+</tr>
+<tr>
+<td>单位</td>
+<td><code>pa/preff/psurf/plev/play/presnivs</code> 为 Pa；<code>scaleheight/pseudoalt</code> 注释为 km。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>复现 dyn1d 压力坐标时，先确定 <code>psurf</code>、<code>pa</code>、<code>preff</code>、<code>hybrid</code> 和 <code>z2sig.def</code>/<code>esasig.def</code> 等垂直坐标输入。</li>
+<li>必须先执行 <code>disvert_noterre</code>，再用 <code>ap/bp/aps/bps</code> 构造 <code>plev/play</code>；否则 <code>physiq</code> 会收到未初始化压力层。</li>
+<li>地表压力每个时间步由 <code>dpsurf</code> 更新后，<code>plev/play</code> 必须同步重算。</li>
+<li>restart 链路只写 <code>psurf/pa/preff</code>，垂直坐标数组本身在下一次运行时重新由 <code>disvert_noterre</code> 生成。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 Windows 工作树把链接文件呈现为一行路径文本；在原始类 Unix 工作树中它可能是符号链接。</li>
+<li><code>disvert_noterre</code> 读取 <code>z2sig.def</code> 或 <code>esasig.def</code> 的具体选择规则见 <a href="disvert_noterre.html">disvert_noterre.F</a>。</li>
+<li><code>pressure_exner</code> 在 dyn1d 运行路径中是否被配置使用，需结合公共动力调用页继续确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn1d/index.md</a> - dyn1d 子目录索引。</li>
+<li><a href="comconst_mod.html">comconst_mod</a> - dyn1d 同目录公共动力常数 stub。</li>
+<li><a href="disvert_noterre.html">disvert_noterre.F</a> - 写入 <code>ap/bp/aps/bps/presnivs/pseudoalt</code>。</li>
+<li><a href="init_testphys1d_mod.html">init_testphys1d_mod.F90</a> - 初始化后使用垂直坐标构造压力层。</li>
+<li><a href="testphys1d.html">testphys1d.F90</a> - 主循环随表压更新 <code>plev/play</code>。</li>
+<li><a href="writerestart1D_mod.html">writerestart1D_mod</a> - 1D 文本 restart 写出。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

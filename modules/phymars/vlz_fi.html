@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vlz_fi - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/vlz_fi.md</span>
+    </nav>
+    <article class="content">
+<h1 id="vlz_fif">vlz_fi.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\vlz_fi.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>源码依据（第 12-14 行注释）：<code>vlz_fi</code> 是 LMDZ.MARS 中用于物理过程（沉降）的<strong>垂直方向 "pseudo upstream" 平流格式</strong>。</p>
+<p>它实现 Van Leer 坡度限制的半拉格朗日输运：给定一个示踪物混合比场 <code>q</code> 和每个层间界面在本时间步内被穿越的大气质量 <code>w</code>，本例程计算各界面的示踪物通量 <code>wq</code> 并原地更新 <code>q</code>。</p>
+<p>在系统中，<strong>下落速度公式由调用者（<code>newsedim_mod.F</code>）提供</strong>——本例程只负责"已知 <code>w</code> 后如何保守地输运 <code>q</code>"。它是尘埃沉降、水冰沉降和 HDO 同位素沉降共享的底层数值内核。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vlz_fi_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>容器模块，无模块级变量</td>
+</tr>
+<tr>
+<td><code>vlz_fi</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>Van Leer 坡度限制垂直平流：已知 <code>w</code>，计算通量 <code>wq</code> 并更新 <code>q</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>（无显式 <code>USE</code> 语句）</td>
+<td>—</td>
+<td>本文件不 <code>USE</code> 任何模块</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>外部调用：<code>abort_physic</code>（第 162 行），来自 <code>LMDZ.COMMON/libf/dyn3d/abort_gcm.F</code>（通过 <code>libf/phymars/dyn1d/abort_gcm.F</code> 的符号链接引入）。推断：编译时由链接器解析，属于无显式模块接口的外部过程调用。</p>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abort_physic</code></td>
+<td><code>abort_gcm.F</code>（LMDZ.COMMON）</td>
+<td>第 162 行</td>
+<td>向上平流分支中遇到不可能的气柱质量配置时中止</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用者</td>
+<td>integer（in）</td>
+<td>—</td>
+<td>大气柱数（水平格点数）</td>
+</tr>
+<tr>
+<td><code>nlay</code></td>
+<td>调用者</td>
+<td>integer（in）</td>
+<td>—</td>
+<td>大气层数</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td>调用者</td>
+<td>real(ngrid,nlay)（in）</td>
+<td>kg·m⁻²（推断）</td>
+<td>每层大气质量 δ(P)/g；注释写 "mass of atmospheric layer delta(P)/g"（第 25 行）</td>
+</tr>
+<tr>
+<td><code>pente_max</code></td>
+<td>调用者</td>
+<td>real（in）</td>
+<td>—</td>
+<td>坡度限制最大斜率，推荐值 2（第 26 行注释）；两个调用者均传 <code>2.</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q</code></td>
+<td>inout，调用者回收</td>
+<td>real(ngrid,nlay)（inout）</td>
+<td>kg/kg</td>
+<td>示踪物混合比，被原地更新为平流后的值</td>
+</tr>
+<tr>
+<td><code>w</code></td>
+<td>inout，可能被裁剪</td>
+<td>real(ngrid,nlay)（inout）</td>
+<td>kg·m⁻²</td>
+<td>本时间步穿过各界面的大气质量；扩展模式中若穿越质量超过可用气柱，<code>w</code> 会被截断为 <code>Mtot</code>（第 113 行）</td>
+</tr>
+<tr>
+<td><code>wq</code></td>
+<td>out，调用者使用</td>
+<td>real(ngrid,nlay+1)（out）</td>
+<td>kg·m⁻²（推断；源码注释写 kg，调用者注释写 kg.m-2）</td>
+<td>各界面示踪物通量增量；<code>wq(ij,nlay+1)=0</code>（模式顶无通量），<code>wq(ij,1)</code> 为落到地表的量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>无模块级变量（<code>vlz_fi_mod</code> 为空壳容器）。</li>
+<li>无 <code>SAVE</code>/<code>THREADPRIVATE</code> 变量。</li>
+<li>无文件读写。</li>
+<li>无诊断输出（仅第 161 行异常路径有 <code>write(*,*)</code> + <code>abort_physic</code>）。</li>
+<li><code>w</code> 为 <code>inout</code>：扩展模式中可能被截断（第 113 行 <code>w(ij,l) = Mtot</code>）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<p>按执行顺序（行号为源码行号）：</p>
+<h3 id="阶段-1梯度计算与坡度限制第-45-68-行">阶段 1：梯度计算与坡度限制（第 45-68 行）</h3>
+<ol type="1">
+<li><p><strong>原始梯度</strong>（第 45-50 行）：对 l=2..nlay 逐层逐列计算 <code>dzqw(ij,l) = q(ij,l-1) - q(ij,l)</code> 方向约定：沿气压增大方向（向下），与 <code>w</code> 正方向一致。</p></li>
+<li><p><strong>Van Leer 坡度限制</strong>（第 52-63 行）：对内部层 l=2..nlay-1：</p>
+<ul>
+<li>若 <code>dzqw(ij,l)</code> 与 <code>dzqw(ij,l+1)</code> 同号（单调区域）： <code>dzq = 0.5 * (dzqw(ij,l) + dzqw(ij,l+1))</code>（中心差分）</li>
+<li>否则（极值点附近）：<code>dzq = 0</code>（一阶迎风，消除振荡）</li>
+<li><strong>限幅</strong>：<code>|dzq| ≤ pente_max * min(|dzqw(ij,l)|, |dzqw(ij,l+1)|)</code> 使用 <code>sign(min(abs(dzq), dzqmax), dzq)</code> 实现（第 61 行）。</li>
+</ul></li>
+<li><p><strong>边界条件</strong>（第 65-68 行）： <code>dzq(ij,1) = 0</code> 且 <code>dzq(ij,nlay) = 0</code>——模式顶和底界面不施加二阶修正。</p></li>
+</ol>
+<h3 id="阶段-2向下通量计算w--0沉降方向第-76-120-行">阶段 2：向下通量计算（w &gt; 0，沉降方向）（第 76-120 行）</h3>
+<p>顶部边界：<code>wq(ij,nlay+1) = 0</code>（模式顶无通量，第 77 行）。</p>
+<p>对每层 l=1..nlay、每列 ij=1..ngrid，当 <code>w(ij,l) &gt; 0</code> 时：</p>
+<p><strong>常规格式</strong>（<code>w ≤ masse</code>，即穿越质量不超过本层质量，第 89-92 行）：</p>
+<pre class="text"><code>sigw = w(ij,l) / masse(ij,l)
+wq(ij,l) = w(ij,l) * (q(ij,l) + 0.5*(1-sigw)*dzq(ij,l))</code></pre>
+<p>这是标准的 Van Leer 格式：迎风值加二阶修正项，修正幅度随 <code>sigw</code> 增大而减小（穿越越多，越接近纯迎风）。</p>
+<p><strong>扩展格式</strong>（<code>w &gt; masse</code>，穿越质量超过一层，第 96-116 行）：</p>
+<ul>
+<li>从当前层 m=l 开始向下累积质量 <code>Mtot</code> 和示踪物量 <code>MQtot</code>（第 98-106 行 while 循环）。</li>
+<li>每步加入下一层质量，直到累积量 ≥ <code>w</code> 或到达底层（<code>m ≥ nlay</code> 则 <code>goto 88</code>）。</li>
+<li>到达底层时（第 112-114 行）：截断 <code>w(ij,l) = Mtot</code>，通量 <code>wq(ij,l) = MQtot</code>。</li>
+<li>未到达底层时（第 108-111 行）：最后穿越部分的分数 <code>sigw = (w-Mtot)/masse(ij,m+1)</code>，用部分层值加 Van Leer 修正： <code>wq = MQtot + (w-Mtot) * (q(ij,m+1) + 0.5*(1-sigw)*dzq(ij,m+1))</code></li>
+</ul>
+<h3 id="阶段-3向上通量计算w--0非沉降方向第-122-169-行">阶段 3：向上通量计算（w &lt; 0，非沉降方向）（第 122-169 行）</h3>
+<p><strong>对沉降场景被跳过</strong>：第 124 行 <code>goto 99</code> 直接跳到阶段 4。</p>
+<p>向上分支的数值格式是向下分支的镜像，但循环方向相反（l=nlay-1..1），且边界条件为：<code>wq(ij,1) = 0</code>（地表无向上通量，第 128 行）。</p>
+<p>异常处理（第 159-163 行）：若扩展循环到达底层仍无法覆盖穿越质量，打印错误信息并调用 <code>abort_physic</code> 中止。</p>
+<h3 id="阶段-4保守更新-q第-171-187-行">阶段 4：保守更新 q（第 171-187 行）</h3>
+<p>对每层 l=1..nlay、每列 ij=1..ngrid：</p>
+<ol type="1">
+<li><p><strong>非负保护</strong>（第 181-183 行）：若净通量会导致 <code>q</code> 变负，截断 <code>if (wq(l+1) - wq(l)) &lt; -(masse(l)*q(l))</code> 则将 <code>wq(l+1) = wq(l) - masse(l)*q(l)</code>。</p></li>
+<li><p><strong>更新混合比</strong>（第 185 行）： <code>q(ij,l) = q(ij,l) + (wq(ij,l+1) - wq(ij,l)) / masse(ij,l)</code></p></li>
+</ol>
+<p>注释掉的行（第 175-178 行）展示了同时更新 <code>masse</code> 的做法（用于非沉降的完整输运场景），沉降模式下不使用——大气质量不因沉降而改变。</p>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>subroutine vlz_fi(ngrid, nlay, q, pente_max, masse, w, wq):
+
+  #--- 阶段 1: 坡度限制梯度 ---
+  for l=2..nlay, ij=1..ngrid:
+    dzqw(ij,l) = q(ij,l-1) - q(ij,l)
+    adzqw(ij,l) = |dzqw(ij,l)|
+
+  for l=2..nlay-1, ij=1..ngrid:
+    if sign(dzqw(l)) == sign(dzqw(l+1)):    # 单调区域
+      dzq = 0.5*(dzqw(l) + dzqw(l+1))       # 中心差分
+    else:
+      dzq = 0                                 # 极值点：一阶迎风
+    dzq = sign(min(|dzq|, pente_max*min(|dzqw(l)|,|dzqw(l+1)|)), dzq)  # 限幅
+
+  dzq(:,1) = 0; dzq(:,nlay) = 0               # 边界条件
+
+  #--- 阶段 2: 向下通量 (w &gt; 0) ---
+  wq(:,nlay+1) = 0                            # 顶无通量
+
+  for l=1..nlay, ij=1..ngrid:
+    if w(ij,l) &gt; 0:
+      if w(ij,l) &lt;= masse(ij,l):              # 常规：穿越 ≤ 1 层
+        sigw = w / masse
+        wq(ij,l) = w * (q(ij,l) + 0.5*(1-sigw)*dzq(ij,l))
+      else:                                    # 扩展：穿越 &gt; 1 层
+        m = l; Mtot = masse(l); MQtot = masse(l)*q(l)
+        while w &gt; Mtot + masse(m+1):
+          m += 1; Mtot += masse(m); MQtot += masse(m)*q(m)
+        if m &lt; nlay:
+          sigw = (w - Mtot) / masse(m+1)
+          wq = MQtot + (w-Mtot)*(q(m+1) + 0.5*(1-sigw)*dzq(m+1))
+        else:
+          w(ij,l) = Mtot; wq(ij,l) = MQtot    # 截断：气柱不够
+
+  #--- 阶段 3: 向上通量 (w &lt; 0) --- 沉降时跳过 (goto 99) ---
+
+  #--- 阶段 4: 保守更新 ---
+  for l=1..nlay, ij=1..ngrid:
+    if wq(l+1) - wq(l) &lt; -(masse(l)*q(l)):    # 非负保护
+      wq(l+1) = wq(l) - masse(l)*q(l)
+    q(ij,l) = q(ij,l) + (wq(l+1) - wq(l)) / masse(l)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>尘埃循环</td>
+<td><code>newsedim_mod.F:216</code> — <code>call vlz_fi(ngrid,nlay,pqi,2.,masse,w,wq)</code>，每个尘埃示踪物的重力沉降通量计算与混合比更新</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td>同上，<code>callsedim_mod.F</code> 第 593/599 行通过 <code>newsedim</code> 间接调用</td>
+</tr>
+<tr>
+<td>HDO 同位素沉降</td>
+<td><code>callsedim_mod.F:631</code> — <code>call vlz_fi(ngrid,nlay,Ratio,2.,masseq,w,wq)</code>，直接调用，输运的是 HDO/H2O 比值 <code>Ratio</code> 而非混合比；<code>w</code> 来自母体 H2O 冰的沉降通量（第 627 行注释："hdo is transported by h2o"）</td>
+</tr>
+<tr>
+<td>CO2 云</td>
+<td><code>co2cloud_mod.F90</code> 通过 <code>newsedim</code> 间接调用（CO2 冰与 CCN 的微时间步沉降）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>固定格式 Fortran</strong>（<code>.F</code> 预处理源）：行首 6 列留空，注释用小写 <code>c</code>，行续符 <code>&amp;</code> 在第 6 列（第 110-111 行 <code>&amp;</code>）。文件使用 <code>MODULE</code>/<code>CONTAINS</code>/<code>INTENT</code>，不是 Fortran 77 子集。</li>
+<li><strong><code>goto</code> 控制流</strong>：
+<ul>
+<li><code>goto 88</code>（第 100、105 行）：扩展循环到达底层时跳出，避免越界。</li>
+<li><code>goto 99</code>（第 124 行）：跳过整个向上输运分支，硬编码为"沉降专用"。</li>
+<li><code>goto 77</code>（第 146、151 行）：向上扩展循环到达顶层时跳出。</li>
+</ul></li>
+<li><strong>坡度限制参数 <code>pente_max</code></strong>：推荐值 2（第 26 行注释），两个调用者均传 <code>2.</code>。Van Leer 格式的理论最优限幅值，在二阶精度与单调性之间取平衡。</li>
+<li><strong>无 <code>USE</code> 语句</strong>：<code>abort_physic</code> 通过外部过程调用约定链接，不经过模块接口。编译器不做参数检查。</li>
+<li><strong><code>w</code> 作为 <code>inout</code></strong>：仅在扩展格式到达底层时才修改（截断为 <code>Mtot</code>），常规路径不修改。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><strong><code>pente_max=2</code> 必须保留</strong>：Van Leer 格式的限幅上界，改为其他值会改变数值扩散特性。两个调用者固定传 <code>2.</code>，重新实现时须保持一致。</li>
+<li><strong>向下为 w 正方向</strong>：<code>w &gt; 0</code> 表示沉降（向下），<code>w &lt; 0</code> 表示上升。方向约定与气压坐标一致（气压向下增大）。</li>
+<li><strong><code>goto 99</code> 跳过向上分支</strong>：当前代码<strong>仅支持沉降</strong>（w &gt; 0）。若需通用垂直输运（含上升气流），必须移除该 <code>goto</code> 并确保向上分支的边界条件正确。</li>
+<li><strong>扩展格式的截断逻辑</strong>：当 <code>w</code> 超过从当前层到底层的总可用质量时，<code>w</code> 被截断（第 113 行）。这意味着在极端情况下沉降通量会被气柱可用性限制，而非自由下落。</li>
+<li><strong>非负保护</strong>（第 181-183 行）：截断 <code>wq(l+1)</code> 而非 <code>q</code>，保证混合比不为负。但该保护会修改通量，是否影响全局守恒需要数值验证。</li>
+<li><strong>HDO 调用的 <code>w</code> 复用</strong>：<code>callsedim_mod.F:627</code> 将 HDO 的 <code>w</code> 直接设为母体 H2O 冰的 <code>wq</code>（已除以 <code>ptimestep</code> 之前的通量质量），然后传给 <code>vlz_fi</code>。<code>masseq</code> 也被替换为 <code>masse * q_parent</code>。重新实现时必须保留这一"子体跟随母体"的输运策略。</li>
+<li><strong>复现风险</strong>：<code>abort_physic</code> 为外部调用（无模块接口），重新实现时需要提供等价的中止机制或将其改为模块化调用。</li>
+<li><strong>复现风险</strong>：固定格式源码的标签、<code>goto</code> 与行续符需要在翻译或重构时保持语义一致；若改为自由格式或结构化循环，必须重新核验扩展格式的跳出路径。</li>
+<li><strong>待确认</strong>：<code>wq</code> 的物理单位——若 <code>q</code> 单位为 kg/kg，<code>w</code> 为 kg·m⁻²，则 <code>wq</code> 应为 kg·m⁻²（通量质量），但变量声明注释写 "tracer increment due to advection (kg)"，推断为 kg·m⁻² 或注释不精确。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>待确认：<code>wq</code> 的单位为 kg·m⁻²（推断），源码注释写 "kg" 可能是省略写法。</li>
+<li>待确认：非负保护（第 181-183 行）对全局质量守恒的影响未做数值验证。</li>
+<li>待确认：<code>abort_physic</code> 是否在所有编译环境下正确链接（LMDZ.COMMON 通过符号链接引入，路径解析依赖文件系统）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="newsedim_mod.html">newsedim_mod.md</a>：单示踪物沉降核心，负责计算下落速度与 <code>w</code>，然后调用本例程完成输运（第 216 行）。</li>
+<li><a href="callsedim_mod.html">callsedim_mod.md</a>：沉降调度器，在 HDO 同位素分支直接调用本例程（第 631 行），在其他分支通过 <code>newsedim</code> 间接调用。</li>
+<li><a href="rocketduststorm_mod.html">rocketduststorm_mod.md</a>：火箭式尘暴模块有独立的 Van Leer 实现，注释（第 544 行）说明是"copied from vlz_fi.F"（TASK-0022 已完成）。</li>
+<li><a href="topmons_mod.html">topmons_mod.md</a>：山顶地形尘流模块同样有独立 Van Leer 实现（第 790 行注释引用 <code>vlz_fi.F</code>，TASK-0023 已完成）。</li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle.md</a>：尘埃循环主题页。</li>
+<li><a href="../../themes/radiation.html">radiation.md</a>：辐射主题页（沉降影响尘埃垂直分布从而影响辐射计算）。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

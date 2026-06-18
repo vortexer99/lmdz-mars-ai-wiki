@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lmdz_atke_exchange_coeff - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/lmdz_atke_exchange_coeff.md</span>
+    </nav>
+    <article class="content">
+<h1 id="lmdz_atke_exchange_coefff90">lmdz_atke_exchange_coeff.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\lmdz_atke_exchange_coeff.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>lmdz_atke_exchange_coeff.F90</code> 定义 <code>lmdz_atke_exchange_coeff</code> 模块，是 ATKE（Atelier TKE）1.5 阶湍流闭合方案的核心计算模块。它被 <code>vdifc_mod.F</code> 调用，用于计算湍流交换系数 <code>Km</code>（动量）和 <code>Kh</code>（热量），以及湍流动能（TKE）的演化。</p>
+<p>本模块实现了多种 TKE 数值格式（<code>iflag_atke</code> = 0-4）和混合长度参数化（<code>iflag_atke_lmix</code> = 1-3），支持稳定和不稳定条件下的湍流计算。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lmdz_atke_exchange_coeff</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装 ATKE 湍流交换系数计算</td>
+</tr>
+<tr>
+<td><code>atke_compute_km_kh</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>计算湍流 Km/Kh 系数和 TKE 演化</td>
+</tr>
+<tr>
+<td><code>atke_vdiff_tke</code></td>
+<td>subroutine</td>
+<td>351</td>
+<td>TKE 的垂直扩散（隐式求解）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lmdz_atke_turbulence_ini</code></td>
+<td><code>iflag_atke</code>, <code>kappa</code>, <code>l0</code>, <code>ric</code>, <code>cinf</code>, <code>rpi</code>, <code>rcpd</code>, <code>atke_ok_virtual</code>, <code>ri0</code>, <code>ri1</code></td>
+<td>TKE 方案配置参数</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>lmdz_atke_turbulence_ini</code></td>
+<td><code>cepsilon</code>, <code>pr_slope</code>, <code>pr_asym</code>, <code>pr_neut</code>, <code>ctkes</code>, <code>rg</code>, <code>rd</code>, <code>rv</code>, <code>atke_ok_vdiff</code></td>
+<td>TKE 耗散、Prandtl 数和物理常数</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>lmdz_atke_turbulence_ini</code></td>
+<td><code>viscom</code>, <code>viscoh</code>, <code>clmix</code>, <code>clmixshear</code>, <code>iflag_atke_lmix</code>, <code>lmin</code>, <code>smmin</code>, <code>cn</code></td>
+<td>分子粘性、混合长度和稳定性函数参数</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>lmdz_atke_turbulence_ini</code></td>
+<td><code>cke</code></td>
+<td>TKE 扩散系数</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>atke_vdiff_tke</code></td>
+<td>本模块</td>
+<td>行 329</td>
+<td>TKE 的垂直扩散（隐式三对角求解）</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td><code>abort</code></td>
+<td>行 148, 304</td>
+<td>错误中止</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>水平网格点数</td>
+</tr>
+<tr>
+<td><code>nlay</code></td>
+<td>调用方</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>dtime</code></td>
+<td>调用方</td>
+<td>real scalar</td>
+<td>s</td>
+<td>物理时间步长</td>
+</tr>
+<tr>
+<td><code>wind_u</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>m/s</td>
+<td>纬向风速</td>
+</tr>
+<tr>
+<td><code>wind_v</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>m/s</td>
+<td>经向风速</td>
+</tr>
+<tr>
+<td><code>temp</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>K</td>
+<td>温度</td>
+</tr>
+<tr>
+<td><code>qvap</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>kg/kg</td>
+<td>比湿</td>
+</tr>
+<tr>
+<td><code>play</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>Pa</td>
+<td>层压力</td>
+</tr>
+<tr>
+<td><code>pinterf</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlay+1)</code></td>
+<td>Pa</td>
+<td>界面压力</td>
+</tr>
+<tr>
+<td><code>z_lay</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>m</td>
+<td>层中点高度</td>
+</tr>
+<tr>
+<td><code>z_interf</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlay+1)</code></td>
+<td>m</td>
+<td>界面高度</td>
+</tr>
+<tr>
+<td><code>cdrag_uv</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid)</code></td>
+<td>-</td>
+<td>地表动量拖曳系数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tke</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlay+1)</code>, intent(inout)</td>
+<td>m²/s²</td>
+<td>湍流动能（界面值）</td>
+</tr>
+<tr>
+<td><code>Km_out</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>m²/s</td>
+<td>动量交换系数</td>
+</tr>
+<tr>
+<td><code>Kh_out</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>m²/s</td>
+<td>热量交换系数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本文件没有 <code>save</code> 变量、<code>COMMON</code>、<code>THREADPRIVATE</code>、文件 I/O 或配置读取。</li>
+<li>副作用是原地修改 <code>tke</code> 数组。</li>
+<li>所有配置参数来自 <code>lmdz_atke_turbulence_ini</code> 模块。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="atke_compute_km_kh">atke_compute_km_kh</h3>
+<ol type="1">
+<li><p><strong>位温计算</strong>：</p>
+<ul>
+<li>使用参考压力 <code>preff=610 Pa</code> 计算位温</li>
+<li>若 <code>atke_ok_virtual</code> 为真，考虑水汽对浮力的影响</li>
+</ul></li>
+<li><p><strong>层间距计算</strong>：</p>
+<ul>
+<li>计算层中点间距 <code>dz_lay</code> 和界面间距 <code>dz_interf</code></li>
+</ul></li>
+<li><p><strong>梯度 Richardson 数和稳定性函数</strong>：</p>
+<ul>
+<li>计算 Brunt-Väisälä 频率平方 <code>N²</code></li>
+<li>计算风切变平方 <code>shear2</code></li>
+<li>计算 Richardson 数 <code>Ri = N² / shear2</code></li>
+<li>不稳定条件（<code>Ri &lt; 0</code>）：<code>Sm</code> 使用 <code>atan</code> 函数，<code>Prandtl</code> 使用 <code>atan</code> 函数</li>
+<li>稳定条件（<code>Ri ≥ 0</code>）：<code>Sm</code> 线性递减，<code>Prandtl</code> 使用指数+线性公式</li>
+</ul></li>
+<li><p><strong>混合长度计算</strong>（4 种方案）：</p>
+<ul>
+<li><code>iflag_atke_lmix = 0</code>：Blackadar 公式，忽略稳定度影响</li>
+<li><code>iflag_atke_lmix = 1</code>：Blackadar + Deardoff 浮力长度尺度</li>
+<li><code>iflag_atke_lmix = 2</code>：添加风切变影响（Grisogono &amp; Belusic 2008）</li>
+<li><code>iflag_atke_lmix = 3</code>：添加风切变影响（Grisogono 2010）</li>
+</ul></li>
+<li><p><strong>TKE 计算</strong>（5 种数值格式）：</p>
+<ul>
+<li><code>iflag_atke = 0</code>：稳态解（<code>dtke/dt = 0</code>）</li>
+<li><code>iflag_atke = 1</code>：全隐式格式（二阶多项式求解）</li>
+<li><code>iflag_atke = 2</code>：半隐式格式（正定性保证）</li>
+<li><code>iflag_atke = 3</code>：MAR 格式（Deleersnijder 1992）</li>
+<li><code>iflag_atke = 4</code>：Arpege 格式（V. Masson 方法）</li>
+</ul></li>
+<li><p><strong>边界条件</strong>：</p>
+<ul>
+<li>顶层 <code>tke(:,nlay+1) = 0</code></li>
+<li>地表 <code>tke(:,1) = ctkes * ustar²</code></li>
+</ul></li>
+<li><p><strong>TKE 垂直扩散</strong>（可选）：</p>
+<ul>
+<li>若 <code>atke_ok_vdiff</code> 为真，调用 <code>atke_vdiff_tke</code></li>
+</ul></li>
+<li><p><strong>交换系数计算</strong>：</p>
+<ul>
+<li><code>Km = viscom + l_exchange * Sm * sqrt(tke)</code></li>
+<li><code>Kh = viscoh + l_exchange * Sh * sqrt(tke)</code></li>
+</ul></li>
+</ol>
+<h3 id="atke_vdiff_tke">atke_vdiff_tke</h3>
+<ol type="1">
+<li>计算 TKE 的涡扩散系数 <code>Ke</code></li>
+<li>构造三对角矩阵系数 <code>ak</code>, <code>bk</code>, <code>ck</code></li>
+<li>使用隐式格式求解 TKE 的垂直扩散</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>atke_compute_km_kh(ngrid, nlay, dtime, wind_u, wind_v, temp, qvap,
+                   play, pinterf, z_lay, z_interf, cdrag_uv, tke,
+                   Km_out, Kh_out):
+
+    ! 1. 位温计算
+    theta = temp * (preff/play)^(rd/rcpd)
+    if atke_ok_virtual:
+        theta = theta * (1 + rvap/(RD/RV)) / (1 + rvap)
+
+    ! 2. 层间距计算
+    dz_lay = z_lay(ilay) - z_lay(ilay-1)
+    dz_interf = z_interf(ilay) - z_interf(ilay-1)
+
+    ! 3. Richardson 数和稳定性函数
+    N2 = g * (theta(ilay) - theta(ilay-1)) / thetam / dz_lay
+    shear2 = (du/dz)² + (dv/dz)²
+    Ri = N2 / max(shear2, 1e-10)
+
+    if Ri &lt; 0:  ! 不稳定
+        Sm = (2/π) * (cinf-cn) * atan(-Ri/Ri0) + cn
+        Prandtl = -(2/π) * (pr_asym-pr_neut) * atan(Ri/Ri1) + pr_neut
+    else:  ! 稳定
+        Sm = max(smmin, cn * (1 - Ri/Ric))
+        Prandtl = pr_neut * exp(-pr_slope/pr_neut * Ri + Ri/pr_neut) + Ri * pr_slope
+
+    Sh = Sm / Prandtl
+
+    ! 4. 混合长度
+    l_exchange = kappa*l0*z_interf / (kappa*z_interf + l0)
+    if N2 &gt; 0:
+        lstrat = clmix * sqrt(tke) / sqrt(N2)
+        l_exchange = 1 / (1/l_exchange + 1/lstrat)
+
+    ! 5. TKE 计算
+    if iflag_atke == 0:  ! 稳态
+        tke = cepsilon * l² * Sm * shear2 * (1 - Ri/Prandtl)
+    elif iflag_atke == 1:  ! 全隐式
+        solve quadratic equation for qq
+        tke = 0.5 * qq²
+    elif iflag_atke == 2:  ! 半隐式
+        qq = (qq + source) / (1 + loss)
+        tke = 0.5 * qq²
+    elif iflag_atke == 3:  ! MAR
+        qq = (qq²/dtime + qq*netsource) / (qq/dtime + netloss)
+        tke = 0.5 * qq²
+    elif iflag_atke == 4:  ! Arpege
+        qq = (source + qq*(1+dtime*qq/...)) / (1 + 2*qq*dtime/...)
+        tke = 0.5 * qq²
+
+    ! 6. 边界条件
+    tke(:,nlay+1) = 0
+    tke(:,1) = ctkes * ustar²
+
+    ! 7. TKE 垂直扩散（可选）
+    if atke_ok_vdiff:
+        atke_vdiff_tke(...)
+
+    ! 8. 交换系数
+    Km = viscom + l_exchange * Sm * sqrt(tke)
+    Kh = viscoh + l_exchange * Sh * sqrt(tke)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>边界层湍流</td>
+<td><code>vdifc_mod.F</code> 调用本模块计算湍流交换系数</td>
+</tr>
+<tr>
+<td>TKE 演化</td>
+<td>本模块实现 TKE 的源汇项和垂直扩散</td>
+</tr>
+<tr>
+<td>稳定性函数</td>
+<td>本模块根据 Richardson 数计算稳定性函数 Sm/Sh</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>.F90</code> 自由格式模块，使用 Fortran 90 的数组语法。</li>
+<li>实现了 5 种 TKE 数值格式（<code>iflag_atke</code> = 0-4），通过配置参数选择。</li>
+<li>实现了 4 种混合长度参数化（<code>iflag_atke_lmix</code> = 0-3），支持不同稳定度条件。</li>
+<li>使用 <code>abort_physic</code> 进行错误处理。</li>
+<li><code>atke_vdiff_tke</code> 使用隐式三对角格式求解 TKE 垂直扩散。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须确保 <code>lmdz_atke_turbulence_ini</code> 模块中的配置参数已正确初始化。</li>
+<li><code>iflag_atke</code> 和 <code>iflag_atke_lmix</code> 的选择会影响 TKE 和交换系数的计算结果。</li>
+<li>分子粘性 <code>viscom</code> 和 <code>viscoh</code> 会被加到湍流交换系数上。</li>
+<li>地表 TKE 使用 <code>ctkes * ustar²</code> 参数化。</li>
+<li>顶层 TKE 强制为 0。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>preff=610 Pa</code> 的选择是否对所有火星条件都适用。</li>
+<li>稳定条件下 <code>Ri &gt;= Prandtl</code> 的检查（行 147-150）是否过于严格。</li>
+<li><code>atke_vdiff_tke</code> 中 TKE 扩散系数 <code>Ke</code> 的计算是否正确。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="lmdz_atke_turbulence_ini.html">lmdz_atke_turbulence_ini</a>：ATKE 配置参数模块。</li>
+<li><a href="vdifc_mod.html">vdifc_mod.md</a>：垂直扩散主模块，调用本模块。</li>
+<li><a href="pbl_parameters_mod.html">pbl_parameters_mod</a>：PBL 诊断参数计算。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

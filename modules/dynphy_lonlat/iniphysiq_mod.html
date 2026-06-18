@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>iniphysiq_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/iniphysiq_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="iniphysiq_modf90">iniphysiq_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\iniphysiq_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>iniphysiq_mod</code> 是 lon-lat GCM 物理初始化的主入口模块。它封装 <code>iniphysiq</code> 子程序，依次完成几何初始化、物理状态变量分配、几何三角函数缓存填充和物理配置读取，在动力核心启动后为物理包做好全部共享状态准备。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iniphysiq_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装 <code>iniphysiq</code> 子程序的容器模块</td>
+</tr>
+<tr>
+<td><code>iniphysiq</code></td>
+<td>subroutine</td>
+<td>5</td>
+<td>物理初始化主入口：几何→状态变量→三角缓存→配置读取</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>infotrac</code></td>
+<td><code>nqtot</code></td>
+<td>平流 tracer 总数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>temps_mod</code></td>
+<td><code>day_ini, day_end, hour_ini</code></td>
+<td>运行起止日和初始时刻</td>
+<td></td>
+</tr>
+<tr>
+<td><code>inigeomphy_mod</code></td>
+<td><code>inigeomphy</code></td>
+<td>COMMON 几何初始化（网格分发、面积计算），见 <a href="../../architecture/common-dependencies.html">common-dependencies</a>。</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comgeomfi_h</code></td>
+<td><code>ini_fillgeom</code></td>
+<td>填充 <code>sinlat/coslat/sinlon/coslon</code> 三角缓存</td>
+<td></td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>cell_area, longitude, latitude</code></td>
+<td>物理网格面积和经纬度</td>
+<td></td>
+</tr>
+<tr>
+<td><code>phys_state_var_init_mod</code></td>
+<td><code>phys_state_var_init</code></td>
+<td>分配并初始化 phymars 共享状态数组</td>
+<td></td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>klon_omp</code></td>
+<td>OpenMP 子网格列数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>conf_phys_mod</code></td>
+<td><code>conf_phys</code></td>
+<td>读取物理配置（callphys.def 等）</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inigeomphy</code></td>
+<td><code>inigeomphy_mod</code></td>
+<td>行 57</td>
+<td>初始化物理网格分发、面积、经纬度（跨 MPI 进程）</td>
+</tr>
+<tr>
+<td><code>phys_state_var_init</code></td>
+<td><code>phys_state_var_init_mod</code></td>
+<td>行 71</td>
+<td>分配 <code>phymars</code> 共享状态数组、写入物理常数和轨道参数</td>
+</tr>
+<tr>
+<td><code>ini_fillgeom</code></td>
+<td><code>comgeomfi_h</code></td>
+<td>行 75</td>
+<td>从 <code>latitude/longitude</code> 填充 <code>sinlat/coslat/sinlon/coslon</code> 缓存</td>
+</tr>
+<tr>
+<td><code>conf_phys</code></td>
+<td><code>conf_phys_mod</code></td>
+<td>行 78</td>
+<td>读取 <code>callphys.def</code>/<code>run.def</code> 物理配置键并写入共享状态</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ii</code></td>
+<td>动力核心</td>
+<td><code>INTEGER</code></td>
+<td>—</td>
+<td>经度方向格点数</td>
+</tr>
+<tr>
+<td><code>jj</code></td>
+<td>动力核心</td>
+<td><code>INTEGER</code></td>
+<td>—</td>
+<td>纬度方向格点数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>动力核心</td>
+<td><code>INTEGER</code></td>
+<td>—</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>nbp</code></td>
+<td>MPI 分发</td>
+<td><code>INTEGER</code></td>
+<td>—</td>
+<td>当前 MPI 进程物理列数</td>
+</tr>
+<tr>
+<td><code>communicator</code></td>
+<td>MPI</td>
+<td><code>INTEGER</code></td>
+<td>—</td>
+<td>MPI 通信器</td>
+</tr>
+<tr>
+<td><code>rlatudyn</code></td>
+<td>动力核心</td>
+<td><code>REAL(jj+1)</code></td>
+<td>rad</td>
+<td>U 点纬度</td>
+</tr>
+<tr>
+<td><code>rlatvdyn</code></td>
+<td>动力核心</td>
+<td><code>REAL(jj)</code></td>
+<td>rad</td>
+<td>V 点纬度</td>
+</tr>
+<tr>
+<td><code>rlonudyn</code></td>
+<td>动力核心</td>
+<td><code>REAL(ii+1)</code></td>
+<td>rad</td>
+<td>U 点经度</td>
+</tr>
+<tr>
+<td><code>rlonvdyn</code></td>
+<td>动力核心</td>
+<td><code>REAL(ii+1)</code></td>
+<td>rad</td>
+<td>V 点经度</td>
+</tr>
+<tr>
+<td><code>airedyn</code></td>
+<td>动力核心</td>
+<td><code>REAL(ii+1,jj+1)</code></td>
+<td>m²</td>
+<td>动力网格面积</td>
+</tr>
+<tr>
+<td><code>cudyn</code></td>
+<td>动力核心</td>
+<td><code>REAL((ii+1)*(jj+1))</code></td>
+<td>—</td>
+<td>U 协变/反变转换系数</td>
+</tr>
+<tr>
+<td><code>cvdyn</code></td>
+<td>动力核心</td>
+<td><code>REAL((ii+1)*jj)</code></td>
+<td>—</td>
+<td>V 协变/反变转换系数</td>
+</tr>
+<tr>
+<td><code>prad</code></td>
+<td>常量</td>
+<td><code>REAL</code></td>
+<td>m</td>
+<td>行星半径</td>
+</tr>
+<tr>
+<td><code>pg</code></td>
+<td>常量</td>
+<td><code>REAL</code></td>
+<td>m/s²</td>
+<td>重力加速度</td>
+</tr>
+<tr>
+<td><code>pr</code></td>
+<td>常量</td>
+<td><code>REAL</code></td>
+<td>J/(kg·K)</td>
+<td>折合气体常数 R/μ</td>
+</tr>
+<tr>
+<td><code>pcpp</code></td>
+<td>常量</td>
+<td><code>REAL</code></td>
+<td>J/(kg·K)</td>
+<td>定压比热</td>
+</tr>
+<tr>
+<td><code>punjours</code></td>
+<td>常量</td>
+<td><code>REAL</code></td>
+<td>s</td>
+<td>一个标准日长度</td>
+</tr>
+<tr>
+<td><code>pdayref</code></td>
+<td>运行配置</td>
+<td><code>INTEGER</code></td>
+<td>day</td>
+<td>参考日</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>运行配置</td>
+<td><code>REAL</code></td>
+<td>s</td>
+<td>物理时间步长</td>
+</tr>
+<tr>
+<td><code>iflag_phys</code></td>
+<td>运行配置</td>
+<td><code>INTEGER</code></td>
+<td>—</td>
+<td>物理调用类型标志</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>共享状态</td>
+<td><code>geometry_mod</code>/<code>comgeomfi_h</code>/<code>phymars</code> 各模块</td>
+<td>—</td>
+<td>—</td>
+<td>全部物理初始化状态写入各共享模块</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>写共享状态</strong>：<code>inigeomphy</code> 分配 <code>geometry_mod</code> 网格变量；<code>phys_state_var_init</code> 分配 <code>phymars</code> 多个共享模块数组；<code>ini_fillgeom</code> 填充 <code>comgeomfi_h</code> 三角缓存；<code>conf_phys</code> 写入 <code>callkeys_mod</code> 等多个配置模块。</li>
+<li><strong>INCLUDE</strong>：<code>iniprint.h</code>（输出单元号 <code>lunout</code>）。</li>
+<li><strong>OpenMP</strong>：行 69 <code>$OMP PARALLEL COPYIN(day_ini,day_end,hour_ini)</code> 进入并行区，<code>temps_mod</code> 的 THREADPRIVATE 变量通过 COPYIN 广播到所有线程。行 80 <code>$OMP END PARALLEL</code> 结束。</li>
+<li><strong>无文件 I/O</strong>：本身不读写文件，配置读取由 <code>conf_phys</code> 完成。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>通用几何初始化</strong>：调用 <code>inigeomphy</code> 把动力核心的网格维度、经纬度、面积和转换系数分发到物理包，建立 <code>geometry_mod</code> 中的 <code>cell_area/longitude/latitude</code>。</li>
+<li><strong>OpenMP 并行区进入</strong>：开启并行区，COPYIN <code>temps_mod</code> 的时间变量。</li>
+<li><strong>物理状态变量初始化</strong>：调用 <code>phys_state_var_init</code>，传入 <code>klon_omp/nlayer/nqtot</code> 和时间/物理常数，分配 <code>phymars</code> 所有共享状态数组（地表、土壤、tracer、云、辐射等）。</li>
+<li><strong>几何三角缓存填充</strong>：调用 <code>ini_fillgeom</code>，从 <code>latitude/longitude</code> 计算并缓存 <code>sinlat/coslat/sinlon/coslon</code>。</li>
+<li><strong>物理配置读取</strong>：调用 <code>conf_phys</code> 读取 <code>callphys.def</code> 等配置键，写入各物理开关模块。</li>
+<li><strong>OpenMP 并行区结束</strong>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>SUBROUTINE iniphysiq(网格维度, MPI, 经纬度, 面积, 转换系数, 物理常数, 时间步长, ...)
+  ! 第一阶段：通用几何初始化（跨 MPI）
+  CALL inigeomphy(ii, jj, nlayer, nbp, communicator, 经纬度, 面积, cu/cv)
+
+  ! 第二阶段：OpenMP 并行区
+  !$OMP PARALLEL COPYIN(day_ini, day_end, hour_ini)
+    CALL phys_state_var_init(klon_omp, nlayer, nqtot, 时间, 物理常数)
+    CALL ini_fillgeom(klon_omp, latitude, longitude, cell_area)
+    CALL conf_phys(klon_omp, nlayer, nqtot)
+  !$OMP END PARALLEL
+END SUBROUTINE</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>物理初始化</td>
+<td>GCM 启动后为物理包分配全部共享状态、填充几何缓存和读取配置</td>
+</tr>
+<tr>
+<td>独立物理模式 (nogcm)</td>
+<td><code>nogcm.F90</code> 直接调用 <code>iniphysiq</code> 初始化 1D 列模型物理状态</td>
+</tr>
+<tr>
+<td>归档输出</td>
+<td><code>start2archive.F</code> 调用 <code>iniphysiq</code> 确保物理网格已初始化后再转换归档</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>模块封装</strong>：使用 <code>MODULE iniphysiq_mod ... CONTAINS ... END MODULE</code> 现代 Fortran 90 模块结构，便于 <code>USE iniphysiq_mod, ONLY: iniphysiq</code> 精确导入。</li>
+<li><strong>OpenMP COPYIN</strong>：<code>temps_mod</code> 的 <code>day_ini/day_end/hour_ini</code> 是 THREADPRIVATE 变量，通过 COPYIN 在并行区入口广播主线程值到所有工作线程。</li>
+<li><strong>调用顺序强约束</strong>：<code>inigeomphy</code> → <code>phys_state_var_init</code> → <code>ini_fillgeom</code> → <code>conf_phys</code> 顺序不可调换，后续依赖前序分配/填充的共享状态。</li>
+<li><strong>注释标记</strong>：行 76 的 TODO 注释建议将 <code>comgeomfi_h</code> 内容迁移到 <code>geometry_mod</code>，当前尚未实现。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>需要动力核心已完成网格初始化并提供 <code>rlatudyn/rlatvdyn/rlonudyn/rlonvdyn/airedyn/cudyn/cvdyn</code>。</li>
+<li>需要 MPI 环境已初始化，<code>communicator</code> 有效。</li>
+<li><code>inigeomphy</code> 内部分配 <code>geometry_mod</code> 数组，<code>phys_state_var_init</code> 内部依赖 <code>klon_omp</code> 已被 <code>mod_phys_lmdz_para</code> 设定。</li>
+<li>1D <code>init_testphys1d_mod.F90</code> 行 422 注释说明它模拟 <code>iniphysiq</code> 的初始化链。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>iflag_phys</code> 参数在 <code>iniphysiq</code> 内部未被消费，仅作为输入声明——是否应由 <code>conf_phys</code> 或下游使用。</li>
+<li><code>pdayref</code> 和 <code>ptimestep</code> 在 <code>iniphysiq</code> 内部也未直接使用（通过 <code>temps_mod</code> 传递），是否存在冗余参数传递。</li>
+<li><code>punjours</code> 对应火星日长度（<code>daysec</code>），传入 <code>phys_state_var_init</code> 后写入 <code>time_phylmdz_mod</code>。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../architecture/common-dependencies.html">common-dependencies</a>：<code>inigeomphy_mod</code>、<code>geometry_mod</code> 与 <code>temps_mod</code> 的 COMMON 边界。</li>
+<li><a href="../phymars/phys_state_var_init_mod.html">phys_state_var_init_mod</a>：物理状态变量分配和初始化</li>
+<li><a href="../phymars/comgeomfi_h.html">comgeomfi_h</a>：几何三角函数缓存，<code>ini_fillgeom</code> 所在模块</li>
+<li><a href="../phymars/conf_phys.html">conf_phys</a>：物理配置读取</li>
+<li><a href="callphysiq_mod.html">callphysiq_mod</a>：物理调用适配器，在 <code>iniphysiq</code> 之后才能工作</li>
+<li><a href="newstart.html">newstart</a>：3D GCM 初始场生成路径的物理初始化调用方</li>
+<li><a href="nogcm.html">nogcm</a>：独立物理模式调用方</li>
+<li><a href="start2archive.html">start2archive</a>：归档转换调用方</li>
+<li><a href="index.html">dynphy_lonlat/index</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

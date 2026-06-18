@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>photolysis_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/photolysis_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="photolysis_modf90">photolysis_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\photolysis_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>photolysis_mod.F90</code> 定义 <code>photolysis_mod</code>，是在线光解路径的初始化和共享数据模块。<code>calchim_mod</code> 在 <code>photochem .and. jonline</code> 的 firstcall 中调用 <code>init_photolysis</code>；该例程建立 162 个低分辨率光谱区间，读取太阳通量、吸收截面、量子产额和固定地表反照率，并把这些 <code>SAVE/THREADPRIVATE</code> 数组留给 <a href="photolysis_online.html">photolysis_online</a> 在运行时逐层积分光解率。</p>
+<p>本文件本身不计算 <code>v_phot</code>，也不进入化学矩阵积分；它负责把 <code>datadir/solar_fluxes</code> 与 <code>datadir/cross_sections</code> 的外部表格重采样到统一波长网格。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>photolysis_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1-2460</td>
+<td>在线光解共享状态和读表工具模块</td>
+</tr>
+<tr>
+<td><code>nphot</code></td>
+<td>saved module variable</td>
+<td style="text-align: right;">7</td>
+<td>基础光解过程数，默认 13；<code>calchim_mod</code> 的氘化学路径会加 2</td>
+</tr>
+<tr>
+<td><code>nabs</code></td>
+<td>parameter</td>
+<td style="text-align: right;">12</td>
+<td>吸收气体数，源码中设为 10</td>
+</tr>
+<tr>
+<td><code>nw</code></td>
+<td>parameter</td>
+<td style="text-align: right;">16</td>
+<td>低分辨率工作光谱网格长度，源码设为 162</td>
+</tr>
+<tr>
+<td><code>mopt</code></td>
+<td>saved module variable</td>
+<td style="text-align: right;">17</td>
+<td>光谱网格模式；<code>init_photolysis</code> 固定设为 2</td>
+</tr>
+<tr>
+<td><code>wl,wc,wu</code></td>
+<td>saved module arrays</td>
+<td style="text-align: right;">21</td>
+<td>光谱区间下界、中心和上界</td>
+</tr>
+<tr>
+<td><code>f</code></td>
+<td>saved module array</td>
+<td style="text-align: right;">27</td>
+<td>1 AU 太阳通量，读表后转换为 photon s^-1 nm^-1 cm^-2</td>
+</tr>
+<tr>
+<td><code>xs*</code>,<code>yield*</code>,<code>albedo</code></td>
+<td>saved module arrays</td>
+<td style="text-align: right;">31-52</td>
+<td>各物种截面、量子产额和地表反照率</td>
+</tr>
+<tr>
+<td><code>init_photolysis</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">59-140</td>
+<td>在线光解初始化入口，依次建网格、读通量/截面/产额、设反照率</td>
+</tr>
+<tr>
+<td><code>gridw</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">144-385</td>
+<td>生成高/低分辨率波长区间；当前运行固定低分辨率</td>
+</tr>
+<tr>
+<td><code>rdsolarflux</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">389-483</td>
+<td>读取并重采样太阳通量表</td>
+</tr>
+<tr>
+<td><code>addpnt</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">487-582</td>
+<td>给单调数据列插入边界点，供重采样前补边界</td>
+</tr>
+<tr>
+<td><code>inter2</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">585-737</td>
+<td>把离散输入数据按目标波长 bin 做梯形面积平均</td>
+</tr>
+<tr>
+<td><code>rdxsco2</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">741-955</td>
+<td>读取 CO2 截面和 CO2 光解产额</td>
+</tr>
+<tr>
+<td><code>rdxso2</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">959-1177</td>
+<td>读取 O2 截面和 O2 光解产额</td>
+</tr>
+<tr>
+<td><code>rdxso3</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1181-1295</td>
+<td>读取 O3 两温度截面</td>
+</tr>
+<tr>
+<td><code>rdxsh2o</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1299-1374</td>
+<td>读取 H2O 截面</td>
+</tr>
+<tr>
+<td><code>rdxshdo</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1378-1453</td>
+<td>读取 HDO 截面</td>
+</tr>
+<tr>
+<td><code>rdxsh2o2</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1457-1535</td>
+<td>读取 H2O2 截面</td>
+</tr>
+<tr>
+<td><code>rdxsho2</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1539-1607</td>
+<td>读取 HO2 截面</td>
+</tr>
+<tr>
+<td><code>rdxsh2</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1611-1712</td>
+<td>读取 H2 截面和 H2 光解产额</td>
+</tr>
+<tr>
+<td><code>rdxsno2</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1716-1907</td>
+<td>读取 NO2 截面和量子产额</td>
+</tr>
+<tr>
+<td><code>rdxsno</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1911-2008</td>
+<td>读取 NO 截面和光解产额</td>
+</tr>
+<tr>
+<td><code>rdxsn2</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">2012-2113</td>
+<td>读取 N2 截面和光解产额</td>
+</tr>
+<tr>
+<td><code>rdxshcl</code>,<code>rdxscl2</code>,<code>rdxsclo</code>,<code>rdxshocl</code></td>
+<td>subroutines</td>
+<td style="text-align: right;">2117-2414</td>
+<td>氯化学截面读表工具；当前 <code>init_photolysis</code> 中调用被注释</td>
+</tr>
+<tr>
+<td><code>setalb</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">2418-2458</td>
+<td>设置波长无关 Lambertian 地表反照率</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datafile_mod</code></td>
+<td><code>datadir</code></td>
+<td>所有读表例程拼接运行时数据目录和文件名</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code></td>
+<td>只让 master 进程执行文件读取和插值</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td><code>bcast</code></td>
+<td>将 master 读取/插值后的数组广播到其它进程</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th style="text-align: right;">调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gridw</code></td>
+<td>本文件</td>
+<td style="text-align: right;">70</td>
+<td>建立目标波长网格</td>
+</tr>
+<tr>
+<td><code>rdsolarflux</code></td>
+<td>本文件</td>
+<td style="text-align: right;">74</td>
+<td>读取太阳通量并转换单位</td>
+</tr>
+<tr>
+<td><code>rdxso2</code>,<code>rdxsco2</code>,<code>rdxso3</code></td>
+<td>本文件</td>
+<td style="text-align: right;">78-86</td>
+<td>读取 O2/CO2/O3 截面和产额</td>
+</tr>
+<tr>
+<td><code>rdxsh2o</code>,<code>rdxsh2o2</code>,<code>rdxsho2</code>,<code>rdxsh2</code>,<code>rdxsno</code>,<code>rdxsno2</code>,<code>rdxsn2</code>,<code>rdxshdo</code></td>
+<td>本文件</td>
+<td style="text-align: right;">90-118</td>
+<td>读取 H/O/N 相关截面和产额</td>
+</tr>
+<tr>
+<td><code>setalb</code></td>
+<td>本文件</td>
+<td style="text-align: right;">138</td>
+<td>设置固定地表反照率</td>
+</tr>
+<tr>
+<td><code>addpnt</code></td>
+<td>本文件</td>
+<td style="text-align: right;">多处</td>
+<td>在原始数据首尾和零点处补点，避免 <code>inter2</code> 外推</td>
+</tr>
+<tr>
+<td><code>inter2</code></td>
+<td>本文件</td>
+<td style="text-align: right;">多处</td>
+<td>把原始谱表重采样到 <code>wl</code> 网格</td>
+</tr>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td style="text-align: right;">多处</td>
+<td>广播已读入的截面、通量和产额数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datadir</code></td>
+<td><code>datafile_mod</code> / 配置</td>
+<td>character</td>
+<td>path</td>
+<td>运行时数据目录；本文件从其下读取 <code>solar_fluxes</code> 和 <code>cross_sections</code></td>
+</tr>
+<tr>
+<td><code>mopt</code></td>
+<td><code>init_photolysis</code> 固定赋值</td>
+<td>integer</td>
+<td>-</td>
+<td>光谱网格模式；当前固定为低分辨率 <code>2</code></td>
+</tr>
+<tr>
+<td>外部太阳通量表</td>
+<td><code>datadir/solar_fluxes/atlas3_thuillier_tuv.txt</code></td>
+<td>text table</td>
+<td>mW m^-2 nm^-1</td>
+<td><code>rdsolarflux</code> 读取并转换到 photon 通量</td>
+</tr>
+<tr>
+<td>外部截面表</td>
+<td><code>datadir/cross_sections/*</code></td>
+<td>text tables</td>
+<td>cm2 等</td>
+<td>O2、CO2、O3、H2O、HDO、H2O2、HO2、H2、NO、NO2、N2 等截面与产额</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>wl,wc,wu</code></td>
+<td><a href="photolysis_online.html">photolysis_online</a></td>
+<td>real <code>(nw)</code></td>
+<td>nm</td>
+<td>在线光解辐射传输工作波长网格</td>
+</tr>
+<tr>
+<td><code>f</code></td>
+<td><a href="photolysis_online.html">photolysis_online</a></td>
+<td>real <code>(nw)</code></td>
+<td>photon s^-1 nm^-1 cm^-2</td>
+<td>1 AU 太阳光子通量</td>
+</tr>
+<tr>
+<td><code>xsco2_*</code>,<code>xso2_*</code>,<code>xso3_*</code>,<code>xsh2o</code>,<code>xshdo</code>,<code>xsh2o2</code>,<code>xsho2</code>,<code>xsh2</code>,<code>xsno*</code>,<code>xsn2</code></td>
+<td><a href="photolysis_online.html">photolysis_online</a></td>
+<td>real <code>(nw)</code></td>
+<td>cm2</td>
+<td>温度相关或物种相关吸收截面</td>
+</tr>
+<tr>
+<td><code>yieldco2</code>,<code>yieldo2</code>,<code>yieldh2</code>,<code>yieldno</code>,<code>yieldn2</code>,<code>yldno2_*</code></td>
+<td><a href="photolysis_online.html">photolysis_online</a></td>
+<td>real <code>(nw)</code></td>
+<td>-</td>
+<td>光解或电离分支量子产额</td>
+</tr>
+<tr>
+<td><code>albedo</code></td>
+<td><a href="photolysis_online.html">photolysis_online</a></td>
+<td>real <code>(nw)</code></td>
+<td>-</td>
+<td>固定 Lambertian 地表反照率</td>
+</tr>
+<tr>
+<td><code>nphot</code></td>
+<td><code>calchim_mod</code> / <code>photochemistry_mod</code> / <a href="photolysis_online.html">photolysis_online</a></td>
+<td>integer</td>
+<td>count</td>
+<td>基础光解槽位数，用于 <code>nb_phot_max</code> 和 <code>v_phot</code> 布局</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本模块的大部分数组都是 <code>SAVE</code> 且 <code>THREADPRIVATE</code>；每个 OpenMP 线程有自己的 <code>nphot/mopt/wl/f/xs*/yield*/albedo</code> 副本。</li>
+<li><code>init_photolysis</code> 会修改模块状态，且 <code>calchim_mod</code> 在氘化学开启时会在调用前执行 <code>nphot = nphot + 2</code>。</li>
+<li>读表例程在 master 进程上 <code>open/read/close</code> 外部文件，缺文件或插值错误时多处 <code>STOP</code>；不是 <code>abort_physic</code>。</li>
+<li>读表后通过 <code>bcast</code> 把结果广播给其它物理进程。</li>
+<li><code>gridw</code> 会打印 <code>number of spectral intervals</code>；各读表例程会打印正在读取的文件路径。</li>
+<li>HCl、Cl2、ClO、HOCl 截面读表例程存在，但 <code>init_photolysis</code> 对应调用被注释，因此当前初始化不会填充这些氯化学数组。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>固定在线光解模式</strong>：<code>init_photolysis</code> 将 <code>mopt=2</code>，即低分辨率 GCM 推荐模式；源码保留 <code>mopt=1</code> 的 3789 区间高分辨率网格逻辑，但当前入口不会使用。</li>
+<li><strong>构造波长网格</strong>：<code>gridw</code> 按分段步长建立 0-815 nm 的低分辨率网格，区间包括 EUV/UV 到可见光；<code>wl(kw+1)=wu(kw)</code> 作为最后边界。</li>
+<li><strong>太阳通量读表</strong>：<code>rdsolarflux</code> 固定 <code>msun=18</code>，读取 <code>atlas3_thuillier_tuv.txt</code> 的 19193 行数据，先从 mW 转 W，再按 <code>wc*5.039e11</code> 转为光子通量。</li>
+<li><strong>截面和产额读表</strong>：各 <code>rdxs*</code> 例程从 <code>cross_sections</code> 下读取对应物种和温度的截面表，调用 <code>addpnt</code> 补边界，再由 <code>inter2</code> 重采样到 <code>wl</code> 网格。</li>
+<li><strong>多温度截面保留为多数组</strong>：CO2 保存 195/295/370 K 三套截面，O2 保存 150/200/250/300 K 四套截面，O3 保存 218/298 K 两套截面，NO2 保存普通、220 K 和 294 K 截面，并保存 248/298 K 产额。</li>
+<li><strong>产额表处理</strong>：CO2/O2/H2/NO/N2 读取 Schunk &amp; Nagy 或专用产额表；部分产额读入后按源码做 <code>1 - y</code> 形式转换。</li>
+<li><strong>设置反照率</strong>：<code>setalb</code> 对所有工作波长给定常数 <code>0.015</code>，源码注释来自 Clancy et al. 1999。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>init_photolysis:
+  mopt = 2
+  call gridw(nw, wl, wc, wu, mopt)
+  call rdsolarflux(nw, wl, wc, f)
+  call rdxso2(..., xso2_* , yieldo2)
+  call rdxsco2(..., xsco2_* , yieldco2)
+  call rdxso3(..., xso3_*)
+  call rdxsh2o / rdxsh2o2 / rdxsho2 / rdxsh2
+  call rdxsno / rdxsno2 / rdxsn2 / rdxshdo
+  skip commented chlorine cross-section readers
+  call setalb(nw, wl, albedo)
+
+each rd* reader:
+  if is_master:
+    open datadir file
+    skip headers and read fixed number of rows
+    add extrapolation guard points with addpnt
+    map source data into wl bins with inter2
+    stop if file or interpolation fails
+  call bcast(result arrays)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>在线光解</td>
+<td><code>calchim_mod</code> firstcall 调 <code>init_photolysis</code>，本模块准备 <a href="photolysis_online.html">photolysis_online.F</a>（TASK-0206）所需全部光谱输入</td>
+</tr>
+<tr>
+<td>光化学反应网络</td>
+<td><code>nphot</code> 决定基础光解槽位数量，进入 <code>photochemistry_mod</code> 的反应数和矩阵布局</td>
+</tr>
+<tr>
+<td>氘化学</td>
+<td>若 <code>deutchem</code> 为真，<code>calchim_mod</code> 在初始化前把 <code>nphot</code> 从 13 增到 15；本模块读入 HDO 截面供在线路径使用</td>
+</tr>
+<tr>
+<td>并行读表</td>
+<td>master 读文件，其它进程通过 <code>bcast</code> 接收重采样后的数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>模块为自由格式 <code>.F90</code>，内部许多工具例程保留固定格式缩进和 TUV 风格注释。</li>
+<li><code>nw=162</code> 与 <code>mopt=2</code> 低分辨率模式配套；高分辨率分支需要更多网格点，当前参数设置下不应切到 <code>mopt=1</code>。</li>
+<li><code>inter2</code> 按目标 bin 内的分段线性曲线面积平均，不是简单点插值。</li>
+<li>多数读表例程使用固定行数读取；外部数据文件版本和行数变化会直接影响可复现性。</li>
+<li>氯化学截面数组存在且读表例程存在，但入口调用被注释，是未激活能力。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>运行在线光解前必须先调用 <code>init_photolysis</code>；否则 <a href="photolysis_online.html">photolysis_online</a> 消费的 <code>f/xs*/yield*/albedo</code> 未初始化。</li>
+<li><code>datadir</code> 必须包含 <code>solar_fluxes/atlas3_thuillier_tuv.txt</code> 和 <code>cross_sections</code> 下的 O2/CO2/O3/H2O/HDO/H2O2/HO2/H2/NO/NO2/N2 数据文件。</li>
+<li>并行运行时必须保证 <code>bcast</code> 可用；非 master 进程不直接读文件。</li>
+<li>若手工改变 <code>mopt</code>，还必须同步改变 <code>nw</code>，否则高分辨率网格会越界。</li>
+<li><code>nphot</code> 是可变共享状态；氘化学路径对它的 <code>+2</code> 会影响 <code>photochemistry_mod</code> 中所有光解槽位偏移。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>nabs=10</code> 在本文件中未见直接使用；是否仅为早期在线光解接口遗留待确认。</li>
+<li>氯化学截面读表工具保留但初始化调用被注释；对应化学网络是否已完全停用待确认。</li>
+<li>多个读表例程用 <code>STOP</code> 而非项目统一错误处理，生产运行是否期望直接终止待确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="calchim_mod.html">calchim_mod</a>：上游 firstcall 调用 <code>init_photolysis</code>，并在氘化学时修改 <code>nphot</code>。</li>
+<li><a href="photochemistry_mod.html">photochemistry_mod</a>：使用 <code>nphot</code> 组织基础光解、photoionization 和 quench 反应槽位。</li>
+<li><a href="photolysis_online.html">photolysis_online</a>：在线光解率计算方，消费本模块的光谱网格、截面、产额和反照率。</li>
+<li><a href="photolysis.html">photolysis</a>：离线光解查找表路径；与本文件在线读表路径互斥。</li>
+<li><a href="../phymars/datafile_mod.html">datafile_mod</a>：提供 <code>datadir</code> 运行时数据目录。</li>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

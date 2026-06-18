@@ -1,0 +1,1468 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>config-system - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a class="active" href="project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>architecture/config-system.md</span>
+    </nav>
+    <article class="content">
+<h1 id="gcm-def-配置体系">GCM def 配置体系</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\deftank\</code></pre>
+<h2 id="类型">类型</h2>
+<p>配置集合目录（含运行配置文件、垂直坐标定义、示踪物定义、化学反应速率、XIOS 输出配置、运行脚本和机器相关作业脚本）。</p>
+<h2 id="作用">作用</h2>
+<p>deftank 目录集中存放了 LMDZ.MARS GCM 运行所需的所有配置文件和示例运行脚本。这是<strong>复现模型运行的关键入口目录</strong>——缺少其中任何一个必要的 def 文件，模型将无法启动。</p>
+<p>根据 <code>README</code>，运行 GCM 至少需要四个 def 文件：</p>
+<ul>
+<li><code>run.def</code> —— 动力核心 + 总运行控制</li>
+<li><code>callphys.def</code> —— 物理参数化开关与参数</li>
+<li><code>traceur.def</code> —— 示踪物（tracer）列表</li>
+<li><code>z2sig.def</code> —— 垂直坐标定义</li>
+</ul>
+<p>目录中按不同 GCM 配置版本（GCM5、MCD5、GCM6、MCD6）提供了后缀变体（如 <code>callphys.def.GCM5</code>、<code>callphys.def.MCD6</code>），使用前需重命名为无后缀的基础名称。</p>
+<h2 id="目录结构总览">目录结构总览</h2>
+<pre class="text"><code>deftank/
+  README                          # 目录说明
+  run.def.*                       # 动力核心运行控制（6 个变体 + 1 个 1D 版本）
+  callphys.def.*                  # 物理参数化配置（6 个变体）
+  traceur.def.*                   # 示踪物列表（9 个变体）
+  z2sig.def.*                     # 垂直坐标定义（3 个变体）
+  chemthermos_reactionrates.def   # 热层化学反应速率常数
+  run0                            # 串联模拟主脚本
+  run_mcd                         # 按火星月分步运行的包装脚本
+  launch_1Dchained.sh             # 1D 链式模拟启动脚本
+  launch_orb_1Dchained.sh         # 1D 轨道链式模拟启动脚本
+  xios/                           # XIOS 输出系统配置
+    iodef.xml                     # XIOS 总配置
+    context_pcm_physics.xml       # XIOS 物理上下文
+    field_def_physics.xml         # 物理场定义
+    file_def_physics.xml          # 输出文件定义
+  adastra/                        # AdAstra 集群作业脚本
+  ciclad/                         # Ciclad 集群作业脚本
+  irene/                          # Irène 集群作业脚本
+  mesu/                           # Mesu 集群作业脚本
+  occigen/                        # Occigen 集群作业脚本
+  spirit/                         # Spirit 集群作业脚本</code></pre>
+<p><strong>源码依据</strong>：<code>deftank/README</code></p>
+<hr />
+<h2 id="1-rundef--动力核心运行控制">1. run.def —— 动力核心运行控制</h2>
+<h3 id="作用-1">作用</h3>
+<p>控制 GCM 动力核心的时间积分方案、水平耗散、垂直坐标类型、物理调用频率、zoom 网格和 sponge 层等。<code>run.def</code> 还通过 <code>INCLUDEDEF=callphys.def</code> 指令引入物理配置。</p>
+<h3 id="关键字段">关键字段</h3>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>示例值</th>
+<th>含义</th>
+<th>影响模块</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>planet_type</code></td>
+<td><code>mars</code></td>
+<td>行星类型</td>
+<td>全局</td>
+</tr>
+<tr>
+<td><code>nday</code></td>
+<td><code>9999</code></td>
+<td>模拟总天数（9999 = 无限运行）</td>
+<td>动力核心</td>
+</tr>
+<tr>
+<td><code>day_step</code></td>
+<td><code>480</code> (GCM5) / <code>960</code> (GCM6)</td>
+<td>每天动力步数（必须为 iperiod 倍数）</td>
+<td>动力核心</td>
+</tr>
+<tr>
+<td><code>iperiod</code></td>
+<td><code>5</code></td>
+<td>Matsuno 步间隔</td>
+<td>动力核心时间方案</td>
+</tr>
+<tr>
+<td><code>iconser</code></td>
+<td><code>120</code></td>
+<td>动力诊断输出间隔（步）</td>
+<td>动力核心输出</td>
+</tr>
+<tr>
+<td><code>idissip</code></td>
+<td><code>1</code></td>
+<td>耗散应用间隔</td>
+<td>动力核心耗散</td>
+</tr>
+<tr>
+<td><code>lstardis</code></td>
+<td><code>.true.</code></td>
+<td>耗散算子类型（star / non-star）</td>
+<td>动力核心耗散</td>
+</tr>
+<tr>
+<td><code>hybrid</code></td>
+<td><code>.true.</code></td>
+<td>使用混合垂直坐标（否则 sigma）</td>
+<td>动力核心</td>
+</tr>
+<tr>
+<td><code>nitergdiv</code></td>
+<td><code>1</code></td>
+<td>gradiv 侧向耗散迭代次数</td>
+<td>动力核心耗散</td>
+</tr>
+<tr>
+<td><code>nitergrot</code></td>
+<td><code>2</code></td>
+<td>nxgradrot 侧向耗散迭代次数</td>
+<td>动力核心耗散</td>
+</tr>
+<tr>
+<td><code>niterh</code></td>
+<td><code>2</code></td>
+<td>divgrad 侧向耗散迭代次数</td>
+<td>动力核心耗散</td>
+</tr>
+<tr>
+<td><code>tetagdiv</code></td>
+<td><code>3000.</code> (GCM5) / <code>2500.</code> (GCM6)</td>
+<td>u, v 最短波长耗散时间尺度 (s)</td>
+<td>动力核心耗散</td>
+</tr>
+<tr>
+<td><code>tetagrot</code></td>
+<td><code>9000.</code> (GCM5) / <code>5000.</code> (GCM6)</td>
+<td>u, v (nxgradrot) 耗散时间尺度 (s)</td>
+<td>动力核心耗散</td>
+</tr>
+<tr>
+<td><code>tetatemp</code></td>
+<td><code>9000.</code> (GCM5) / <code>5000.</code> (GCM6)</td>
+<td>h (divgrad) 耗散时间尺度 (s)</td>
+<td>动力核心耗散</td>
+</tr>
+<tr>
+<td><code>coefdis</code></td>
+<td><code>0.</code></td>
+<td>gamdissip 系数</td>
+<td>动力核心耗散</td>
+</tr>
+<tr>
+<td><code>purmats</code></td>
+<td><code>.false.</code></td>
+<td>时间推进方案（.true.=Matsuno, .false.=Matsuno-Leapfrog）</td>
+<td>动力核心</td>
+</tr>
+<tr>
+<td><code>physic</code></td>
+<td><code>.true.</code></td>
+<td>是否调用物理</td>
+<td>动力-物理耦合</td>
+</tr>
+<tr>
+<td><code>iphysiq</code></td>
+<td><code>10</code> (GCM5) / <code>5</code> (GCM6)</td>
+<td>每多少动力步调用一次物理</td>
+<td>动力-物理耦合</td>
+</tr>
+<tr>
+<td><code>grireg</code></td>
+<td><code>.true.</code></td>
+<td>使用规则经纬网格</td>
+<td>动力核心</td>
+</tr>
+<tr>
+<td><code>clon</code>, <code>clat</code></td>
+<td><code>63.</code>, <code>0.</code></td>
+<td>zoom 中心经纬度</td>
+<td>动力核心（zoom 网格）</td>
+</tr>
+<tr>
+<td><code>grossismx</code>, <code>grossismy</code></td>
+<td><code>1.</code>, <code>1.</code></td>
+<td>zoom 增强因子（1=无 zoom）</td>
+<td>动力核心（zoom 网格）</td>
+</tr>
+<tr>
+<td><code>fxyhypb</code></td>
+<td><code>.false.</code></td>
+<td>zoom 函数类型（.true.=双曲, .false.=正弦）</td>
+<td>动力核心（zoom 网格）</td>
+</tr>
+<tr>
+<td><code>callsponge</code></td>
+<td><code>.true.</code></td>
+<td>启用 sponge 层</td>
+<td>上边界</td>
+</tr>
+<tr>
+<td><code>nsponge</code></td>
+<td><code>3</code></td>
+<td>sponge 层覆盖顶层数</td>
+<td>上边界</td>
+</tr>
+<tr>
+<td><code>mode_sponge</code></td>
+<td><code>2</code></td>
+<td>sponge 模式（0/1/2，见注释）</td>
+<td>上边界</td>
+</tr>
+<tr>
+<td><code>tetasponge</code></td>
+<td><code>30000</code></td>
+<td>sponge 层时间尺度 (s)</td>
+<td>上边界</td>
+</tr>
+<tr>
+<td><code>INCLUDEDEF</code></td>
+<td><code>callphys.def</code></td>
+<td>引入物理配置文件</td>
+<td>物理模块</td>
+</tr>
+</tbody>
+</table>
+<h3 id="gcm6-vs-gcm5-差异">GCM6 vs GCM5 差异</h3>
+<p>GCM6 的 <code>run.def</code> 相比 GCM5 新增了高度相关耗散系数：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>GCM6 新增</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dissip_fac_mid</code></td>
+<td><code>2</code></td>
+<td>中层大气（~20-70km）耗散系数</td>
+</tr>
+<tr>
+<td><code>dissip_fac_up</code></td>
+<td><code>10</code></td>
+<td>高层大气（~100km+）耗散系数</td>
+</tr>
+</tbody>
+</table>
+<p><strong>源码依据</strong>：<code>deftank/run.def.32x24x25.GCM5</code>、<code>deftank/run.def.64x48x54.GCM6</code></p>
+<h3 id="1d-版本特殊字段">1D 版本特殊字段</h3>
+<p><code>run.def.1d</code> 包含 1D 模型 <code>testphys1d</code> 特有的字段（替代 GCM 3D 动力控制）：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>示例值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>day0</code></td>
+<td><code>0</code></td>
+<td>初始日期（火星 sol；Ls=0 时为 0）</td>
+</tr>
+<tr>
+<td><code>time</code></td>
+<td><code>0.</code></td>
+<td>初始本地时间（小时）</td>
+</tr>
+<tr>
+<td><code>day_step</code></td>
+<td><code>48</code></td>
+<td>每天物理步数</td>
+</tr>
+<tr>
+<td><code>ndt</code></td>
+<td><code>669</code></td>
+<td>运行 sol 数</td>
+</tr>
+<tr>
+<td><code>psurf</code></td>
+<td><code>610.</code></td>
+<td>表面气压 (Pa)</td>
+</tr>
+<tr>
+<td><code>tauvis</code></td>
+<td><code>0.2</code></td>
+<td>参考可见光尘埃 opacity（610 Pa 处）</td>
+</tr>
+<tr>
+<td><code>latitude</code></td>
+<td><code>0.</code></td>
+<td>纬度（度）</td>
+</tr>
+<tr>
+<td><code>albedo</code></td>
+<td><code>0.2</code></td>
+<td>裸地反照率</td>
+</tr>
+<tr>
+<td><code>inertia</code></td>
+<td><code>400</code></td>
+<td>土壤热惯量 (SI)</td>
+</tr>
+<tr>
+<td><code>u</code>, <code>v</code></td>
+<td><code>10.</code>, <code>0.</code></td>
+<td>地转风分量 (m/s)</td>
+</tr>
+<tr>
+<td><code>co2ice</code></td>
+<td><code>0.</code></td>
+<td>地表 CO2 冰初始量 (kg/m²)</td>
+</tr>
+<tr>
+<td><code>ichoice</code></td>
+<td><code>5</code></td>
+<td>初始温度廓线类型（1-8）</td>
+</tr>
+<tr>
+<td><code>tref</code></td>
+<td><code>200</code></td>
+<td>参考温度 (K)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>源码依据</strong>：<code>deftank/run.def.1d</code></p>
+<hr />
+<h2 id="2-callphysdef--物理参数化配置">2. callphys.def —— 物理参数化配置</h2>
+<h3 id="作用-2">作用</h3>
+<p>这是 GCM 中最重要的配置文件，控制所有物理参数化的开关（辐射、湍流、对流、凝结、重力波、尘埃、水循环、光化学、热层等）及相关参数。</p>
+<h3 id="关键字段-1">关键字段</h3>
+<h4 id="通用选项">通用选项</h4>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>GCM5 示例</th>
+<th>GCM6/MCD6 示例</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>outputs_per_sol</code></td>
+<td><code>4</code></td>
+<td><code>8</code></td>
+<td>每 sol 输出的 diagfi.nc 数量</td>
+</tr>
+<tr>
+<td><code>diurnal</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>日变化（否则日平均太阳加热）</td>
+</tr>
+<tr>
+<td><code>season</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>季节变化（否则 Ls 保持 start 中的值）</td>
+</tr>
+<tr>
+<td><code>callstats</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>保存统计到 stats.nc</td>
+</tr>
+<tr>
+<td><code>calleofdump</code></td>
+<td>无</td>
+<td><code>.false.</code></td>
+<td>保存 EOF 廓线到 profiles</td>
+</tr>
+<tr>
+<td><code>datadir</code></td>
+<td><code>/users/lmdz/WWW/planets/mars/datadir</code></td>
+<td><code>./datadir</code></td>
+<td>外部输入数据目录</td>
+</tr>
+<tr>
+<td><code>check_physics_inputs</code></td>
+<td><code>.false.</code></td>
+<td><code>.false.</code></td>
+<td>进入物理前检查输入场</td>
+</tr>
+<tr>
+<td><code>check_physics_outputs</code></td>
+<td><code>.false.</code></td>
+<td><code>.false.</code></td>
+<td>物理结束后检查输出场</td>
+</tr>
+</tbody>
+</table>
+<h4 id="尘埃方案">尘埃方案</h4>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>GCM5 示例</th>
+<th>GCM6 示例</th>
+<th>MCD5 示例</th>
+<th>MCD6 示例</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iaervar</code></td>
+<td><code>26</code></td>
+<td><code>8</code></td>
+<td><code>24</code></td>
+<td><code>8</code></td>
+<td>尘埃场景（1/2/3/4/6/7/8/24-35）</td>
+</tr>
+<tr>
+<td><code>tauvis</code></td>
+<td><code>0.2</code></td>
+<td><code>0.2</code></td>
+<td><code>0.1</code></td>
+<td><code>0.2</code></td>
+<td>恒定尘埃可见光 opacity（iaervar=1 时）</td>
+</tr>
+<tr>
+<td><code>iddist</code></td>
+<td><code>3</code></td>
+<td><code>3</code></td>
+<td><code>3</code></td>
+<td><code>3</code></td>
+<td>尘埃垂直分布（0-3）</td>
+</tr>
+<tr>
+<td><code>topdustref</code></td>
+<td><code>55.</code></td>
+<td><code>55.</code></td>
+<td><code>55.</code></td>
+<td><code>55.</code></td>
+<td>尘埃顶高度 (km)（iddist=1 时）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>GCM6/MCD6 新尘埃字段</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>示例值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dustiropacity</code></td>
+<td><code>tes</code></td>
+<td>尘埃 IR opacity 参考波长（tes: 9.3μm / mcs: 21.6μm）</td>
+</tr>
+<tr>
+<td><code>reff_driven_IRtoVIS_scenario</code></td>
+<td><code>.true.</code></td>
+<td>IR→VIS 转换系数依赖有效半径</td>
+</tr>
+<tr>
+<td><code>freedust</code></td>
+<td><code>.true.</code></td>
+<td>freedust 模式</td>
+</tr>
+<tr>
+<td><code>dustscaling_mode</code></td>
+<td><code>2</code></td>
+<td>dust scaling 模式（0/1/2）</td>
+</tr>
+<tr>
+<td><code>dustinjection</code></td>
+<td><code>1</code></td>
+<td>启用 dust injection 方案</td>
+</tr>
+<tr>
+<td><code>coeff_injection</code></td>
+<td><code>0.25</code></td>
+<td>dust injection 系数</td>
+</tr>
+<tr>
+<td><code>rdstorm</code></td>
+<td><code>.true.</code></td>
+<td>Rocket Dust Storm 方案</td>
+</tr>
+<tr>
+<td><code>coeff_detrainment</code></td>
+<td><code>0.02</code></td>
+<td>RDS detrainment 系数</td>
+</tr>
+<tr>
+<td><code>topflows</code></td>
+<td><code>.true.</code></td>
+<td>次网格坡风夹卷尘埃</td>
+</tr>
+</tbody>
+</table>
+<h4 id="物理参数化开关">物理参数化开关</h4>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>GCM5</th>
+<th>GCM6</th>
+<th>MCD5</th>
+<th>MCD6</th>
+<th>控制内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>callrad</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>辐射传输</td>
+</tr>
+<tr>
+<td><code>callnlte</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>NLTE 辐射方案</td>
+</tr>
+<tr>
+<td><code>nltemodel</code></td>
+<td><code>0</code></td>
+<td><code>0</code></td>
+<td><code>2</code></td>
+<td><code>2</code></td>
+<td>NLTE 15μm 方案（0/1/2）</td>
+</tr>
+<tr>
+<td><code>callnirco2</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>CO2 近红外吸收</td>
+</tr>
+<tr>
+<td><code>nircorr</code></td>
+<td><code>0</code></td>
+<td><code>0</code></td>
+<td><code>1</code></td>
+<td><code>1</code></td>
+<td>NIR NLTE 修正（0/1）</td>
+</tr>
+<tr>
+<td><code>calldifv</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>湍流垂直扩散</td>
+</tr>
+<tr>
+<td><code>calladj</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>对流调整</td>
+</tr>
+<tr>
+<td><code>calltherm</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>热力学</td>
+</tr>
+<tr>
+<td><code>callrichsl</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>Richardson 层</td>
+</tr>
+<tr>
+<td><code>callcond</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>CO2 凝结</td>
+</tr>
+<tr>
+<td><code>callsoil</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>土壤热传导</td>
+</tr>
+<tr>
+<td><code>calllott</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>Lott 重力波/次网格地形</td>
+</tr>
+<tr>
+<td><code>calllott_nonoro</code></td>
+<td>无</td>
+<td><code>.true.</code></td>
+<td>无</td>
+<td><code>.true.</code></td>
+<td>非地形重力波（<strong>GCM6/MCD6 新增</strong>）</td>
+</tr>
+</tbody>
+</table>
+<h4 id="极冠反照率">极冠反照率</h4>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>示例值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TESicealbedo</code></td>
+<td><code>.true.</code></td>
+<td>用 TES 观测极冠地表反照率</td>
+</tr>
+<tr>
+<td><code>TESice_Ncoef</code></td>
+<td><code>1.6</code></td>
+<td>北极冠反照率系数</td>
+</tr>
+<tr>
+<td><code>TESice_Scoef</code></td>
+<td><code>1.6</code></td>
+<td>南极冠反照率系数</td>
+</tr>
+<tr>
+<td><code>max_icecap_albedo</code></td>
+<td><code>0.83</code></td>
+<td>极冠最大允许反照率</td>
+</tr>
+</tbody>
+</table>
+<h4 id="辐射传输选项">辐射传输选项</h4>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>示例值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iradia</code></td>
+<td><code>1</code></td>
+<td>辐射传输计算间隔（物理步数）</td>
+</tr>
+<tr>
+<td><code>callg2d</code></td>
+<td><code>.false.</code></td>
+<td>输出交换系数矩阵（仅诊断）</td>
+</tr>
+<tr>
+<td><code>rayleigh</code></td>
+<td><code>.false.</code></td>
+<td>Rayleigh 散射（暂应为 .false.）</td>
+</tr>
+</tbody>
+</table>
+<h4 id="示踪物尘埃水选项">示踪物/尘埃/水选项</h4>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>GCM5</th>
+<th>GCM6</th>
+<th>MCD5</th>
+<th>MCD6</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dustbin</code></td>
+<td><code>2</code></td>
+<td><code>2</code></td>
+<td><code>2</code></td>
+<td><code>2</code></td>
+<td>输运尘埃 bin 数</td>
+</tr>
+<tr>
+<td><code>active</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>尘埃辐射活跃</td>
+</tr>
+<tr>
+<td><code>doubleq</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>用质量+数浓度预测尘埃尺寸</td>
+</tr>
+<tr>
+<td><code>submicron</code></td>
+<td><code>.false.</code></td>
+<td><code>.false.</code></td>
+<td>无</td>
+<td><code>.false.</code></td>
+<td>亚微米尘埃</td>
+</tr>
+<tr>
+<td><code>lifting</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>GCM 表面风抬升</td>
+</tr>
+<tr>
+<td><code>reff_lift_dust</code></td>
+<td><code>2.5e-6</code></td>
+<td><code>2.5e-6</code></td>
+<td><code>2.5e-6</code></td>
+<td><code>2.5e-6</code></td>
+<td>抬升尘埃有效半径 (m)</td>
+</tr>
+<tr>
+<td><code>callddevil</code></td>
+<td><code>.false.</code></td>
+<td><code>.false.</code></td>
+<td><code>.false.</code></td>
+<td><code>.false.</code></td>
+<td>尘卷风抬升</td>
+</tr>
+<tr>
+<td><code>scavenging</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>H2O 降雪清除</td>
+</tr>
+<tr>
+<td><code>scavco2cond</code></td>
+<td>无</td>
+<td><code>.true.</code></td>
+<td>无</td>
+<td><code>.true.</code></td>
+<td>CO2 凝结清除（<strong>GCM6/MCD6 新增</strong>）</td>
+</tr>
+<tr>
+<td><code>sedimentation</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>重力沉降</td>
+</tr>
+<tr>
+<td><code>activice</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>水冰辐射活跃</td>
+</tr>
+<tr>
+<td><code>water</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>水循环</td>
+</tr>
+<tr>
+<td><code>microphys</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>水冰云微物理</td>
+</tr>
+<tr>
+<td><code>nuice_sed</code></td>
+<td><code>0.15</code></td>
+<td><code>0.15</code></td>
+<td><code>0.15</code></td>
+<td><code>0.15</code></td>
+<td>冰粒沉降对数正态分布有效方差</td>
+</tr>
+<tr>
+<td><code>caps</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>两极永久极冠</td>
+</tr>
+<tr>
+<td><code>mteta</code></td>
+<td><code>0.95</code></td>
+<td>注释掉</td>
+<td><code>0.95</code></td>
+<td>注释掉</td>
+<td>水接触参数（GCM5 固定）</td>
+</tr>
+<tr>
+<td><code>temp_dependent_m</code></td>
+<td>注释掉</td>
+<td><code>.true.</code></td>
+<td>注释掉</td>
+<td><code>.true.</code></td>
+<td>温度依赖接触参数（<strong>GCM6/MCD6</strong>）</td>
+</tr>
+<tr>
+<td><code>cloud_adapt_ts</code></td>
+<td>注释掉</td>
+<td><code>.true.</code></td>
+<td>注释掉</td>
+<td><code>.true.</code></td>
+<td>自适应云时间步（<strong>GCM6/MCD6</strong>）</td>
+</tr>
+<tr>
+<td><code>CLFvarying</code></td>
+<td>无</td>
+<td><code>.false.</code></td>
+<td>无</td>
+<td><code>.false.</code></td>
+<td>次网格云（<strong>GCM6/MCD6</strong>）</td>
+</tr>
+<tr>
+<td><code>CLFfixval</code></td>
+<td>无</td>
+<td><code>1</code></td>
+<td>无</td>
+<td><code>1</code></td>
+<td>固定云量（<strong>GCM6/MCD6</strong>）</td>
+</tr>
+</tbody>
+</table>
+<h4 id="光化学和热层选项">光化学和热层选项</h4>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>GCM5</th>
+<th>GCM6</th>
+<th>MCD5</th>
+<th>MCD6</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>photochem</code></td>
+<td><code>.false.</code></td>
+<td><code>.false.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>光化学</td>
+</tr>
+<tr>
+<td><code>callthermos</code></td>
+<td><code>.false.</code></td>
+<td><code>.false.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>热层</td>
+</tr>
+<tr>
+<td><code>callconduct</code></td>
+<td><code>.false.</code></td>
+<td><code>.false.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>热传导</td>
+</tr>
+<tr>
+<td><code>callmolvis</code></td>
+<td><code>.false.</code></td>
+<td><code>.false.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>分子粘性</td>
+</tr>
+<tr>
+<td><code>callmoldiff</code></td>
+<td><code>.false.</code></td>
+<td><code>.false.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>分子扩散</td>
+</tr>
+<tr>
+<td><code>moldiff_scheme</code></td>
+<td>无</td>
+<td>无</td>
+<td>无</td>
+<td><code>1</code></td>
+<td>分子扩散方案（<strong>MCD6 新增</strong>）</td>
+</tr>
+<tr>
+<td><code>thermochem</code></td>
+<td><code>.false.</code></td>
+<td><code>.false.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>热层光化学</td>
+</tr>
+<tr>
+<td><code>calleuv</code></td>
+<td><code>.false.</code></td>
+<td><code>.false.</code></td>
+<td><code>.true.</code></td>
+<td><code>.true.</code></td>
+<td>EUV 加热</td>
+</tr>
+<tr>
+<td><code>solvarmod</code></td>
+<td><code>0</code></td>
+<td><code>0</code></td>
+<td><code>0</code></td>
+<td><code>0</code></td>
+<td>太阳变率方法（0=固定, 1=E10.7 观测）</td>
+</tr>
+<tr>
+<td><code>fixed_euv_value</code></td>
+<td><code>140</code></td>
+<td><code>140</code></td>
+<td><code>140</code></td>
+<td><code>140</code></td>
+<td>固定 E10.7 值（80-320）</td>
+</tr>
+<tr>
+<td><code>solvaryear</code></td>
+<td><code>24</code></td>
+<td><code>24</code></td>
+<td><code>24</code></td>
+<td><code>24</code></td>
+<td>太阳变率对应火星年（MY23-32）</td>
+</tr>
+<tr>
+<td><code>euveff</code></td>
+<td><code>0.21</code></td>
+<td><code>0.21</code></td>
+<td><code>0.21</code></td>
+<td><code>0.21</code></td>
+<td>UV 加热效率（实验值 0.19-0.23）</td>
+</tr>
+</tbody>
+</table>
+<h4 id="散射体数量">散射体数量</h4>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>GCM5</th>
+<th>GCM6</th>
+<th>MCD5</th>
+<th>MCD6</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>naerkind</code></td>
+<td><code>2</code></td>
+<td><code>4</code></td>
+<td><code>2</code></td>
+<td><code>4</code></td>
+<td>散射体种类数（须与前序选项一致）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>源码依据</strong>：<code>deftank/callphys.def.GCM5</code>、<code>deftank/callphys.def.GCM6</code>、<code>deftank/callphys.def.MCD5</code>、<code>deftank/callphys.def.MCD6</code></p>
+<h3 id="gcm5--mcd5--gcm6--mcd6-主要差异总结">GCM5 / MCD5 / GCM6 / MCD6 主要差异总结</h3>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>GCM5</th>
+<th>MCD5</th>
+<th>GCM6</th>
+<th>MCD6</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>垂直层数</td>
+<td>25-32</td>
+<td>49</td>
+<td>54</td>
+<td>73</td>
+</tr>
+<tr>
+<td>垂直坐标文件</td>
+<td><code>z2sig.def.MCD5</code></td>
+<td><code>z2sig.def.MCD5</code></td>
+<td><code>z2sig.def.MCD6</code></td>
+<td><code>z2sig.def.MCD6</code></td>
+</tr>
+<tr>
+<td>顶层高度</td>
+<td>~120 km</td>
+<td>~300 km</td>
+<td>~120 km</td>
+<td>~250 km</td>
+</tr>
+<tr>
+<td>光化学+热层</td>
+<td>关</td>
+<td>开</td>
+<td>关</td>
+<td>开</td>
+</tr>
+<tr>
+<td>NLTE 方案</td>
+<td>旧 (nltemodel=0)</td>
+<td>新 (nltemodel=2)</td>
+<td>旧 (nltemodel=0)</td>
+<td>新 (nltemodel=2)</td>
+</tr>
+<tr>
+<td>NIR 修正</td>
+<td>nircorr=0</td>
+<td>nircorr=1</td>
+<td>nircorr=0</td>
+<td>nircorr=1</td>
+</tr>
+<tr>
+<td>非地形重力波</td>
+<td>无</td>
+<td>无</td>
+<td>有</td>
+<td>有</td>
+</tr>
+<tr>
+<td>新尘埃方案</td>
+<td>无</td>
+<td>无</td>
+<td>有</td>
+<td>有</td>
+</tr>
+<tr>
+<td>水微物理改进</td>
+<td>无</td>
+<td>无</td>
+<td>有</td>
+<td>有</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-traceurdef--示踪物列表">3. traceur.def —— 示踪物列表</h2>
+<h3 id="作用-3">作用</h3>
+<p>定义 GCM 中输运的化学/气溶胶种类列表。文件格式简单：第一行为 tracer 总数，后续每行一个 tracer 名称。模型根据此列表分配 tracer 数组维度。</p>
+<h3 id="变体及其内容">变体及其内容</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>Tracer 数</th>
+<th>主要内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>traceur.def.co2</code></td>
+<td>1</td>
+<td><code>co2</code>（仅 CO2）</td>
+</tr>
+<tr>
+<td><code>traceur.def.GCM6</code></td>
+<td>11</td>
+<td><code>co2</code>, dust (4 bins), h2o_ice, h2o_vap, ccn (2 bins) —— GCM6 水+尘埃配置</td>
+</tr>
+<tr>
+<td><code>traceur.def.MCD5</code></td>
+<td>39</td>
+<td>完整化学 + 电离层 + 尘埃 + 水 + CCN</td>
+</tr>
+<tr>
+<td><code>traceur.def.MCD6</code></td>
+<td>43</td>
+<td>MCD5 全套 + stormdust (2 bins) + topdust (2 bins)</td>
+</tr>
+<tr>
+<td><code>traceur.def.watercycle.GCM5</code></td>
+<td>7</td>
+<td><code>co2</code>, dust (2 bins), h2o_ice, h2o_vap, ccn (2 bins)</td>
+</tr>
+<tr>
+<td><code>traceur.def.chemistry.GCM5</code></td>
+<td>28</td>
+<td>化学种类 + dust + 水（无电离层种类）</td>
+</tr>
+<tr>
+<td><code>traceur.def.ionosphere.GCM5</code></td>
+<td>18</td>
+<td>电离层种类（含带电粒子）</td>
+</tr>
+<tr>
+<td><code>traceur.def.co2clouds.GCM5</code></td>
+<td>11</td>
+<td>CO2 云相关 tracer</td>
+</tr>
+<tr>
+<td><code>traceur.def.isotopes.GCM5</code></td>
+<td>16</td>
+<td>同位素 tracer（HDO 等）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="典型-mcd6-tracer-列表43-种">典型 MCD6 tracer 列表（43 种）</h3>
+<pre class="text"><code>中性化学: co2, co, o, o1d, o2, o3, h, h2, oh, ho2, h2o2, n2, ar, n, no, no2, n2d, he
+水+气溶胶: h2o_ice, h2o_vap, dust_number, dust_mass, stormdust_number, stormdust_mass,
+           topdust_number, topdust_mass, ccn_number, ccn_mass
+电离层: co2plus, oplus, o2plus, coplus, cplus, nplus, noplus, n2plus, hplus,
+        hco2plus, hcoplus, h2oplus, h3oplus, ohplus, elec</code></pre>
+<p><strong>源码依据</strong>：<code>deftank/traceur.def.*</code></p>
+<h3 id="读取位置">读取位置</h3>
+<p>已核验两条主要读取路径：3D/物理侧由 <code>libf/phymars/tracer_mod.F90:176-181</code> 查找并解析旧式 <code>traceur.def</code>；1D 列模式由 <code>libf/phymars/dyn1d/init_testphys1d_mod.F90:177-209</code> 直接打开 <code>traceur.def</code>，读取首行 tracer 数和后续 tracer 名称。完整 tracer 索引链见 <a href="../modules/phymars/tracer_mod.html">tracer_mod</a>、<a href="../modules/phymars/initracer.html">initracer</a> 和 <a href="../modules/phymars/dyn1d/init_testphys1d_mod.html">init_testphys1d_mod</a>。</p>
+<hr />
+<h2 id="4-z2sigdef--垂直坐标定义">4. z2sig.def —— 垂直坐标定义</h2>
+<h3 id="作用-4">作用</h3>
+<p>定义模型的垂直分层（hybrid 坐标或 sigma 坐标）。文件格式为数值表，第一行为大气标高参考值 (km)，后续每行给出 sigma 层界面值。</p>
+<h3 id="变体">变体</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>层数</th>
+<th>对应配置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>z2sig.def.MCD5</code></td>
+<td>32 或 49 层</td>
+<td>GCM5、MCD5</td>
+</tr>
+<tr>
+<td><code>z2sig.def.MCD6</code></td>
+<td>54 或 73 层</td>
+<td>GCM6、MCD6</td>
+</tr>
+<tr>
+<td><code>z2sig.def.hr</code></td>
+<td>高分辨率</td>
+<td>高分辨率运行</td>
+</tr>
+</tbody>
+</table>
+<h3 id="选择指南">选择指南</h3>
+<ul>
+<li><strong>54 层</strong>（MCD6）：运行到 ~120 km（水+尘埃循环模拟）</li>
+<li><strong>73 层</strong>（MCD6）：运行到 ~250 km（包含化学和热层）</li>
+</ul>
+<p><strong>源码依据</strong>：<code>deftank/README</code>、<code>deftank/z2sig.def.MCD6</code></p>
+<hr />
+<h2 id="5-chemthermos_reactionratesdef--热层化学反应速率">5. chemthermos_reactionrates.def —— 热层化学反应速率</h2>
+<h3 id="作用-5">作用</h3>
+<p>定义热层/电离层光化学模块中 ~40 个化学反应的 Arrhenius 速率参数。文件格式为 Fortran 风格注释 + 每行三个数值（A, B, C），对应反应速率公式：</p>
+<pre><code>k = A × (T/300)^B × exp(C/T)</code></pre>
+<h3 id="覆盖的反应类型">覆盖的反应类型</h3>
+<ul>
+<li>中性氧/氢化学（HO_x, O_x）</li>
+<li>氮化学（NO_x, N(²D)）</li>
+<li>CO_x 化学</li>
+<li>电离层离子化学（CO₂⁺, O⁺, O₂⁺, N₂⁺, NO⁺, H⁺ 等）</li>
+<li>电子复合反应</li>
+</ul>
+<p><strong>源码依据</strong>：<code>deftank/chemthermos_reactionrates.def</code></p>
+<hr />
+<h2 id="6-xios-输出配置xios">6. XIOS 输出配置（xios/）</h2>
+<h3 id="作用-6">作用</h3>
+<p>XIOS (XML Input/Output Server) 库控制 GCM 的并行 I/O 输出。需要四个 XML 文件。</p>
+<h3 id="文件说明">文件说明</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iodef.xml</code></td>
+<td>XIOS 总配置：buffer 大小、server 模式、日志级别、引用物理上下文</td>
+</tr>
+<tr>
+<td><code>context_pcm_physics.xml</code></td>
+<td>物理上下文定义（由 iodef.xml 引用）</td>
+</tr>
+<tr>
+<td><code>field_def_physics.xml</code></td>
+<td>物理场定义：每个输出变量的网格、单位、维度</td>
+</tr>
+<tr>
+<td><code>file_def_physics.xml</code></td>
+<td>输出文件定义：文件名、频率、包含哪些场</td>
+</tr>
+</tbody>
+</table>
+<h3 id="关键配置项iodefxml">关键配置项（iodef.xml）</h3>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>默认值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>print_file</code></td>
+<td><code>true</code></td>
+<td>XIOS 写入独立文件</td>
+</tr>
+<tr>
+<td><code>buffer_size_factor</code></td>
+<td><code>4</code></td>
+<td>buffer 大小因子</td>
+</tr>
+<tr>
+<td><code>buffer_size</code></td>
+<td><code>85000000</code></td>
+<td>内部 buffer 大小</td>
+</tr>
+<tr>
+<td><code>using_server</code></td>
+<td><code>false</code></td>
+<td>是否分离 server/client 模式</td>
+</tr>
+<tr>
+<td><code>info_level</code></td>
+<td><code>100</code></td>
+<td>XIOS 日志详细度（0=无输出，100=详细）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>源码依据</strong>：<code>deftank/README</code>、<code>deftank/xios/iodef.xml</code></p>
+<hr />
+<h2 id="7-运行脚本">7. 运行脚本</h2>
+<h3 id="run0--串联模拟主脚本">run0 —— 串联模拟主脚本</h3>
+<p>Bash 脚本，实现链式 GCM 模拟：</p>
+<ol type="1">
+<li>检查 <code>gcm.e</code> 可执行文件</li>
+<li>读取 <code>num_run</code> 获取上次数值</li>
+<li>将 <code>start${numold}.nc</code> / <code>startfi${numold}.nc</code> 复制为 <code>start.nc</code> / <code>startfi.nc</code></li>
+<li>运行 <code>./gcm.e &gt; lrun${numnew}</code></li>
+<li>检查输出（<code>restart.nc</code> / <code>restartfi.nc</code>）</li>
+<li>重命名输出文件（<code>diagfi.nc</code> → <code>diagfi${numnew}.nc</code> 等）</li>
+<li>更新 <code>num_run</code></li>
+<li>若未达 <code>nummax</code>，递归调用自身继续下一个 run</li>
+</ol>
+<p><strong>关键参数</strong>：<code>nummax=1</code>（默认只跑 1 段；可修改以进行多段链式模拟）</p>
+<h3 id="run_mcd--按月运行包装脚本">run_mcd —— 按月运行包装脚本</h3>
+<p>每月-模拟循环的包装脚本。利用 <code>run0</code> 和 <code>run.def.ref</code> 将一年划分为 12 个火星月（约 30° Ls/月），每个月运行 <code>nday</code> 不等的天数（由于火星轨道偏心率导致各月长度不同，从 46 到 66 sol）。内置崩溃恢复逻辑。</p>
+<h3 id="机器专用子目录">机器专用子目录</h3>
+<p>每个子目录包含该集群的作业提交脚本：</p>
+<table>
+<thead>
+<tr>
+<th>子目录</th>
+<th>目标机器</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>adastra/</code></td>
+<td>AdAstra (CINES)</td>
+<td><code>run0</code>, <code>run_month1</code>, <code>run_year1</code>, <code>adastra_cpu_binding.sh</code></td>
+</tr>
+<tr>
+<td><code>ciclad/</code></td>
+<td>Ciclad (IPSL)</td>
+<td><code>run0</code>, <code>run_month1</code></td>
+</tr>
+<tr>
+<td><code>irene/</code></td>
+<td>Irène (TGCC)</td>
+<td><code>run0</code>, <code>run_month1</code></td>
+</tr>
+<tr>
+<td><code>mesu/</code></td>
+<td>Mesu (UPMC)</td>
+<td><code>run0</code>, <code>run_month1</code></td>
+</tr>
+<tr>
+<td><code>occigen/</code></td>
+<td>Occigen (CINES)</td>
+<td><code>run0</code>, <code>run_month1</code></td>
+</tr>
+<tr>
+<td><code>spirit/</code></td>
+<td>Spirit (CINES)</td>
+<td><code>run0</code>, <code>run_month1</code></td>
+</tr>
+</tbody>
+</table>
+<p>每个集群的 <code>run0</code> 会添加该集群特有的作业调度指令（PBS/SLURM）、并行执行命令（<code>mpirun</code>/<code>srun</code>）和模块加载。</p>
+<p><strong>源码依据</strong>：<code>deftank/run0</code>、<code>deftank/run_mcd</code>、各子目录 README 和脚本</p>
+<hr />
+<h2 id="8-特殊配置变体">8. 特殊配置变体</h2>
+<h3 id="hdo-同位素配置">HDO 同位素配置</h3>
+<p><code>callphys.def.hdo.GCM5</code> 和 <code>traceur.def.isotopes.GCM5</code> 用于 HDO 水同位素模拟。</p>
+<h3 id="co2-云配置">CO2 云配置</h3>
+<p><code>callphys.def.co2clouds.GCM5</code> 和 <code>traceur.def.co2clouds.GCM5</code> 用于 CO2 云形成模拟。</p>
+<hr />
+<h2 id="被读取的位置">被读取的位置</h2>
+<table>
+<thead>
+<tr>
+<th>读取例程</th>
+<th>文件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>defrun_new</code></td>
+<td><code>libf/dynphy_lonlat/phymars/defrun_new.F:91-240</code></td>
+<td>打开 <code>run.def</code>，用 <code>getin</code> 读取动力步数、耗散、hybrid、物理调用频率等 3D 动力控制量</td>
+</tr>
+<tr>
+<td><code>conf_phys</code></td>
+<td><code>libf/phymars/conf_phys.F:137-156</code> 及后续 <code>getin_p</code> 调用</td>
+<td>打开 <code>callphys.def</code>，读取物理开关、数据目录、输出频率、尘埃/水/CO2/热层等参数</td>
+</tr>
+<tr>
+<td><code>ini_tracer_mod</code> / <code>init_testphys1d</code></td>
+<td><code>libf/phymars/tracer_mod.F90:176-181</code>; <code>libf/phymars/dyn1d/init_testphys1d_mod.F90:177-209</code></td>
+<td>解析 <code>traceur.def</code> tracer 数量、名称和索引链</td>
+</tr>
+<tr>
+<td><code>disvert_noterre</code> / 编译维度链</td>
+<td><code>libf/phymars/dyn1d/disvert_noterre.F</code> 与 LMDZ.COMMON 垂直离散路径</td>
+<td>读取或生成与 <code>z2sig.def</code> 对应的 sigma/hybrid 垂直坐标；详见 <a href="z2sig-config.html">z2sig-config</a> 和 <a href="../modules/phymars/dyn1d/disvert_noterre.html">disvert_noterre</a></td>
+</tr>
+<tr>
+<td><code>chemthermos_readini</code></td>
+<td><code>libf/aeronomars/chemthermos_readini.F:19-35</code></td>
+<td>打开 <code>chemthermos_reactionrates.def</code> 并读取热层化学反应速率系数</td>
+</tr>
+</tbody>
+</table>
+<p><strong>复现风险</strong>：<code>run.def</code>/<code>callphys.def</code> 通过 <code>getin</code>/<code>getin_p</code> 和 <code>INCLUDEDEF</code> 机制合并读取，实际运行目录中的同名文件优先；复现实验必须保存运行目录版本，而不是只引用 <code>deftank/</code> 样例。</p>
+<hr />
+<h2 id="影响的计算流程">影响的计算流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>辐射计算</td>
+<td><code>callrad</code>, <code>callnlte</code>, <code>callnirco2</code>, <code>nltemodel</code>, <code>nircorr</code>, <code>iradia</code></td>
+</tr>
+<tr>
+<td>尘埃循环</td>
+<td><code>dustbin</code>, <code>active</code>, <code>doubleq</code>, <code>lifting</code>, <code>callddevil</code>, <code>scavenging</code>, <code>sedimentation</code>, <code>iaervar</code> 及 GCM6 新增尘埃字段</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td><code>water</code>, <code>microphys</code>, <code>caps</code>, <code>nuice_sed</code>, <code>activice</code> 及 GCM6 水字段</td>
+</tr>
+<tr>
+<td>CO2 循环</td>
+<td><code>callcond</code></td>
+</tr>
+<tr>
+<td>湍流/边界层</td>
+<td><code>calldifv</code>, <code>calladj</code>, <code>calltherm</code>, <code>callrichsl</code></td>
+</tr>
+<tr>
+<td>重力波拖曳</td>
+<td><code>calllott</code>, <code>calllott_nonoro</code></td>
+</tr>
+<tr>
+<td>光化学/热层/电离层</td>
+<td><code>photochem</code>, <code>callthermos</code>, 相关子开关, <code>thermochem</code>, <code>calleuv</code></td>
+</tr>
+<tr>
+<td>Tracer 输运</td>
+<td><code>traceur.def</code> 中定义的种类列表</td>
+</tr>
+<tr>
+<td>输出/诊断</td>
+<td><code>outputs_per_sol</code>, <code>callstats</code>, <code>calleofdump</code>, XIOS XML</td>
+</tr>
+<tr>
+<td>动力核心</td>
+<td><code>run.def</code> 中全部字段</td>
+</tr>
+<tr>
+<td>1D 测试</td>
+<td><code>run.def.1d</code> 特有字段</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="复现要求">复现要求</h2>
+<p>重新运行 LMDZ.MARS GCM 时，以下必须保持一致：</p>
+<ol type="1">
+<li><strong>四个 def 文件必须全部存在</strong>：<code>run.def</code>、<code>callphys.def</code>、<code>traceur.def</code>、<code>z2sig.def</code></li>
+<li><strong>垂直层数必须匹配</strong>：<code>z2sig.def</code> 的层数必须与 start 文件、可执行文件编译时指定的层数一致</li>
+<li><strong>tracer 种类必须匹配</strong>：<code>traceur.def</code> 中定义的 tracer 数和顺序必须与 <code>callphys.def</code> 中的开关（<code>dustbin</code>, <code>water</code>, <code>photochem</code> 等）一致，也与 startfi.nc 中的 tracer 变量匹配</li>
+<li><strong>NAERKIND 必须匹配</strong>：<code>callphys.def</code> 中的 <code>naerkind</code> 必须与前序气溶胶相关的选项（<code>active</code>, <code>activice</code> 等）一致</li>
+<li><strong>datadir 路径必须可访问</strong>：<code>callphys.def</code> 中的 <code>datadir</code> 必须指向包含外部数据文件的有效目录</li>
+<li><strong>物理步频率必须一致</strong>：<code>iphysiq</code> × <code>day_step</code> × 物理时间步长决定了物理-动力耦合的时间分辨率</li>
+<li><strong>XIOS XML 文件必须存在</strong>：如果编译时启用了 XIOS 输出，<code>xios/</code> 目录下的四个 XML 必须可用</li>
+</ol>
+<hr />
+<h2 id="已核验读取位置与剩余运行边界">已核验读取位置与剩余运行边界</h2>
+<ul>
+<li><code>run.def</code>、<code>callphys.def</code>、<code>traceur.def</code> 和 <code>chemthermos_reactionrates.def</code> 的源码读取入口已定位，见上表。</li>
+<li><code>z2sig.def</code> 的运行链在 1D 页面和 <code>disvert_noterre</code> 页面中已记录；3D 编译维度与 LMDZ.COMMON 垂直离散路径仍需结合完整构建系统确认。</li>
+<li>XIOS XML 文件由 XIOS 运行时按当前运行目录加载；本页只确认 <code>deftank/xios/</code> 样例内容和 <code>xios_output_mod</code>/<code>write_output_mod</code> 的输出调用，不替代一次带 XIOS 的运行验证。</li>
+<li><code>launch_1Dchained.sh</code>、<code>launch_orb_1Dchained.sh</code> 是 1D 链式启动脚本；不属于 3D <code>run0/run_mcd</code> 主链，复现 1D 链时应单独核验其当前运行目录假设。</li>
+</ul>
+<hr />
+<h2 id="后续维护口径">后续维护口径</h2>
+<p>本页早期列出的 z2sig、XIOS、运行脚本、1D testphys1d 和反应速率常数缺口均已拆成独立页面并完成。后续如发现新配置变体，应先登记维护任务，再更新对应专页和本汇总页。</p>
+<hr />
+
+    </article>
+  </main>
+</body>
+</html>

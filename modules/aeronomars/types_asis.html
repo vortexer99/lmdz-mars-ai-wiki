@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>types_asis - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/types_asis.md</span>
+    </nav>
+    <article class="content">
+<h1 id="types_asisf90">types_asis.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\types_asis.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>types_asis.F90</code> 定义 ASIS 光化学隐式求解器使用的反应索引类型和共享数组。它不执行化学计算，也不分配数组；真正的分配和填充发生在 <a href="photochemistry_mod.html">photochemistry_mod</a> 的内部子例程 <code>indice</code>，消费发生在 <code>fill_matrix</code>。</p>
+<p>该文件的核心作用是把反应化学计量写成紧凑的“系数-物种索引”对，供 <code>fill_matrix</code> 把光解样一阶反应、同物种二次反应和二体反应装配到 Jacobian、产生项和损失项。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>types_asis</code></td>
+<td>module</td>
+<td style="text-align: right;">1-35</td>
+<td>ASIS 反应索引类型和共享数组模块</td>
+</tr>
+<tr>
+<td><code>jpim</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">4</td>
+<td>索引整型 kind，源码固定为 <code>4</code></td>
+</tr>
+<tr>
+<td><code>jprb</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">5</td>
+<td>反应系数实型 kind，源码固定为 <code>8</code></td>
+</tr>
+<tr>
+<td><code>z3spec</code></td>
+<td>derived type</td>
+<td style="text-align: right;">8-15</td>
+<td>三对“系数-物种索引”槽位，用于 <code>A -&gt; B + C</code> 或 <code>A + A -&gt; B + C</code> 类反应</td>
+</tr>
+<tr>
+<td><code>z4spec</code></td>
+<td>derived type</td>
+<td style="text-align: right;">16-25</td>
+<td>四对“系数-物种索引”槽位，用于 <code>A + B -&gt; C + D</code> 类反应</td>
+</tr>
+<tr>
+<td><code>indice_phot</code></td>
+<td>allocatable saved module array</td>
+<td style="text-align: right;">29</td>
+<td><code>type(z3spec)</code> 数组；保存光解、quench 和异相反应索引</td>
+</tr>
+<tr>
+<td><code>indice_3</code></td>
+<td>allocatable saved module array</td>
+<td style="text-align: right;">30</td>
+<td><code>type(z3spec)</code> 数组；保存同物种二次反应索引</td>
+</tr>
+<tr>
+<td><code>indice_4</code></td>
+<td>allocatable saved module array</td>
+<td style="text-align: right;">31</td>
+<td><code>type(z4spec)</code> 数组；保存二体反应索引</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>本模块自包含，只定义 kind、派生类型和 module 数组</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>本文件无 procedure、无 <code>call</code>、无 I/O</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nb_phot_max</code></td>
+<td><code>photochemistry_mod::indice</code></td>
+<td>integer</td>
+<td>-</td>
+<td>分配 <code>indice_phot(:)</code> 的长度</td>
+</tr>
+<tr>
+<td><code>nb_reaction_3_max</code></td>
+<td><code>photochemistry_mod::indice</code></td>
+<td>integer</td>
+<td>-</td>
+<td>分配 <code>indice_3(:)</code> 的长度</td>
+</tr>
+<tr>
+<td><code>nb_reaction_4_max</code></td>
+<td><code>photochemistry_mod::indice</code></td>
+<td>integer</td>
+<td>-</td>
+<td>分配 <code>indice_4(:)</code> 的长度</td>
+</tr>
+<tr>
+<td>物种索引参数</td>
+<td><code>photochemistry_mod::indice</code></td>
+<td>integer</td>
+<td>-</td>
+<td>构造 <code>z3spec/z4spec</code> 时写入偶数字段 <code>z2/z4/z6/z8</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>indice_phot(:)</code></td>
+<td><code>photochemistry_mod::fill_matrix</code></td>
+<td><code>type(z3spec)</code></td>
+<td>-</td>
+<td>一阶反应表。<code>z1/z2</code> 是被消耗物种系数和索引，<code>z3/z4</code>、<code>z5/z6</code> 是最多两个产物的系数和索引</td>
+</tr>
+<tr>
+<td><code>indice_3(:)</code></td>
+<td><code>photochemistry_mod::fill_matrix</code></td>
+<td><code>type(z3spec)</code></td>
+<td>-</td>
+<td>同物种二次反应表。<code>fill_matrix</code> 按 <code>c(reactant)^2</code> 进入产生项，按 <code>v_3*c(reactant)</code> 进入损失和矩阵项</td>
+</tr>
+<tr>
+<td><code>indice_4(:)</code></td>
+<td><code>photochemistry_mod::fill_matrix</code></td>
+<td><code>type(z4spec)</code></td>
+<td>-</td>
+<td>二体反应表。<code>z1/z2</code>、<code>z3/z4</code> 是两个反应物，<code>z5/z6</code>、<code>z7/z8</code> 是最多两个产物</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>indice_phot</code>、<code>indice_3</code>、<code>indice_4</code> 是 <code>allocatable, save</code> module 数组，并通过 OpenMP 指令声明为 <code>THREADPRIVATE</code>。</li>
+<li>本文件只声明数组；<code>photochemistry_mod::indice</code> 在首次建立反应表时执行 <code>allocate(indice_phot(nb_phot_max))</code>、<code>allocate(indice_3(nb_reaction_3_max))</code>、<code>allocate(indice_4(nb_reaction_4_max))</code>。</li>
+<li>源码搜索未发现 <code>deallocate(indice_phot)</code>、<code>deallocate(indice_3)</code> 或 <code>deallocate(indice_4)</code>。推断：这些索引数组按进程或线程生命周期保留，供后续光化学列调用复用。</li>
+<li><code>i_dummy</code> 在 <code>photochemistry_mod::indice</code> 中设为 <code>1</code>，当某个产物系数为 <code>0.0</code> 时作为占位物种索引使用；这不是 <code>types_asis</code> 自身定义的变量。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>定义 <code>jpim=4</code>、<code>jprb=8</code>，固定反应索引的整数 kind 和系数的双精度实数 kind。</li>
+<li>定义 <code>z3spec</code>：字段顺序为 <code>z1 real</code>、<code>z2 integer</code>、<code>z3 real</code>、<code>z4 integer</code>、<code>z5 real</code>、<code>z6 integer</code>。</li>
+<li>定义 <code>z4spec</code>：在 <code>z3spec</code> 基础上追加 <code>z7 real</code>、<code>z8 integer</code>。</li>
+<li>声明三组保存型 allocatable 数组，分别服务三类反应：
+<ul>
+<li><code>indice_phot</code>：光解、quench、异相反应等按一阶过程进入 <code>fill_matrix</code>。</li>
+<li><code>indice_3</code>：<code>A + A -&gt; B + C</code>，反应速率项用 <code>c(A)^2</code>。</li>
+<li><code>indice_4</code>：<code>A + B -&gt; C + D</code>，反应速率项用 <code>c(A)*c(B)</code>。</li>
+</ul></li>
+<li>用 <code>!$OMP THREADPRIVATE</code> 保证 OpenMP 线程各自持有这些数组副本。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>module types_asis:
+  define integer kind jpim = 4
+  define real kind jprb = 8
+
+  type z3spec:
+    coefficient_1, species_index_1
+    coefficient_2, species_index_2
+    coefficient_3, species_index_3
+
+  type z4spec:
+    coefficient_1, species_index_1
+    coefficient_2, species_index_2
+    coefficient_3, species_index_3
+    coefficient_4, species_index_4
+
+  declare saved allocatable arrays:
+    indice_phot(:) as z3spec
+    indice_3(:)    as z3spec
+    indice_4(:)    as z4spec
+
+  mark arrays THREADPRIVATE
+end module</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>光化学隐式积分</td>
+<td>提供反应化学计量表的数据结构，<code>photochemistry_mod::fill_matrix</code> 用它装配 ASIS Jacobian</td>
+</tr>
+<tr>
+<td>离子化学和氘化学</td>
+<td>不直接判断开关；当 <code>ionchem</code> 或 <code>deutchem</code> 为真时，<code>photochemistry_mod::indice</code> 会向这些数组追加对应反应</td>
+</tr>
+<tr>
+<td>异相化学</td>
+<td><code>indice_phot</code> 也保存 <code>HO2/OH/H2O2 + ice/dust</code> 的一阶化异相反应索引</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>文件只有 35 行，没有 <code>contains</code> 区、没有例程、没有外部 I/O。</li>
+<li><code>z1/z3/z5/z7</code> 不是命名为 reactant/product 的语义字段，复现时必须结合 <code>photochemistry_mod::indice</code> 的构造顺序和 <code>fill_matrix</code> 的消费顺序解释。</li>
+<li>产物缺失时并不省略字段，而是写入 <code>0.0, i_dummy</code>；<code>fill_matrix</code> 仍会访问占位索引，但零系数使产生项为零。</li>
+<li><code>THREADPRIVATE</code> 让这些 <code>SAVE</code> 数组在线程间隔离；若新增释放或重新分配路径，必须考虑每线程数组状态。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>先由 <code>photochemistry_mod::indice</code> 按 <code>nb_phot_max/nb_reaction_3_max/nb_reaction_4_max</code> 分配并填满三组数组，再由 <code>fill_matrix</code> 使用；反过来调用会访问未分配数组。</li>
+<li><code>z3spec(a,i,b,j,c,k)</code> 对应一阶或同物种二次反应时，不同数组的数学含义由消费者决定：<code>indice_phot</code> 用 <code>v_phot</code>，<code>indice_3</code> 用 <code>v_3*c(A)</code> 或 <code>v_3*c(A)^2</code>。</li>
+<li><code>z4spec(a,i,b,j,c,k,d,l)</code> 在 <code>fill_matrix</code> 中前两对是反应物，后两对是产物；二体矩阵拆分使用 <code>eps_4=abs(c(A))/(abs(c(A))+abs(c(B))+1.d-10)</code>。</li>
+<li>数组长度必须与 <code>photochemistry_mod::indice</code> 实际计数一致；该子例程会打印计数并在不一致时调用 <code>abort_physic("indice","wrong array dimensions",1)</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>未找到这些 allocatable 数组的释放路径；是否有意按模型生命周期保留待确认。</li>
+<li><code>jpim=4</code>、<code>jprb=8</code> 是源码硬编码 kind 值，未见与全局 kind 模块统一；跨编译器 portability 需要构建体系确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="photochemistry_mod.html">photochemistry_mod</a>：分配、填充并消费 <code>types_asis</code> 的反应索引数组。</li>
+<li><a href="calchim_mod.html">calchim_mod</a>：上游化学调度方，向 <code>photochemistry</code> 传入反应数组容量。</li>
+<li><a href="photolysis.html">photolysis</a>：离线光解率生成方，产物最终通过 <code>indice_phot</code> 进入矩阵。</li>
+<li><a href="photolysis_online.html">photolysis_online</a>：在线光解率生成方，产物最终通过 <code>indice_phot</code> 进入矩阵。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

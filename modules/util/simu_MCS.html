@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>simu_MCS - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/simu_MCS.md</span>
+    </nav>
+    <article class="content">
+<h1 id="simu_mcsf90">simu_MCS.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util\simu_MCS.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>util</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>MRO/MCS 观测模拟器（observer simulator）离线后处理工具。把 GCM 输出（<code>diagfi.nc</code>/<code>concat.nc</code> 或 <code>stats.nc</code>）按 MRO/MCS 观测数据（Luca Montabone 分箱版）的时空采样和分箱方式重采样，生成一个与 MCS 文件同格式、同维度声明顺序的 netcdf 文件，用于 GCM 与 MCS 观测的逐 bin 对比。</p>
+<p>核心思路：MCS 数据按 Ls 区间分箱。程序把每个 Ls 区间换算为 GCM 的 sol 区间，在该区间内对每个 MCS 空间 bin（经/纬/高）的若干 sol×当地时（LT）采样点做 GCM 场的四维线性插值，再平均成一个输出 bin 值。昼/夜（dayside/nightside）分两遍处理。还能计算柱积分尘埃光学厚度比 <code>tau_ratio = tau_GCM/tau_MCS</code>，用于归一化对比。</p>
+<p>作者 Antoine Bierjon（2019-2020）。本文件是一个独立的 <code>program</code>（非 GCM 运行时模块），编译为命令行工具，通过 stdin 交互式读入文件名和变量列表。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>simu_MCS</code></td>
+<td>program</td>
+<td>1</td>
+<td>MCS 观测模拟器主程序</td>
+</tr>
+<tr>
+<td><code>extraction</code></td>
+<td>subroutine</td>
+<td>1778</td>
+<td>在 GCM 4D 场上对给定 (lon,lat,alt,sol) 做四维线性插值</td>
+</tr>
+<tr>
+<td><code>inidim</code></td>
+<td>subroutine</td>
+<td>2072</td>
+<td>按 MCS 文件维度顺序初始化输出 netcdf 文件的维度</td>
+</tr>
+<tr>
+<td><code>ls2sol</code></td>
+<td>subroutine</td>
+<td>2290</td>
+<td>太阳经度 Ls → sol 日期（开普勒方程反解）</td>
+</tr>
+<tr>
+<td><code>gen_sol_list</code></td>
+<td>subroutine</td>
+<td>2337</td>
+<td>生成 sol×LT 采样点列表（围绕 LTave 均匀分布）</td>
+</tr>
+<tr>
+<td><code>status_check</code></td>
+<td>subroutine</td>
+<td>2426</td>
+<td>netcdf 返回码检查，出错打印并 <code>stop</code></td>
+</tr>
+<tr>
+<td><code>LTmod</code></td>
+<td>function</td>
+<td>2446</td>
+<td>夜间 LT 从 [0,24) 映射到 [-12,12) 以保证午夜连续</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>netcdf</code></td>
+<td>（全部）</td>
+<td>netcdf 文件读写（主程序、<code>inidim</code>、<code>status_check</code> 各自 <code>use</code>）</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>无 LMDZ 物理模块依赖——本工具自包含，仅依赖 netcdf 库。</p>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>status_check</code></td>
+<td>本文件</td>
+<td>贯穿主程序</td>
+<td>每个 netcdf 调用后检查返回码</td>
+</tr>
+<tr>
+<td><code>ls2sol</code></td>
+<td>本文件</td>
+<td>行 460-461, 1393, 1400</td>
+<td>Ls 边界换算为 sol 区间</td>
+</tr>
+<tr>
+<td><code>inidim</code></td>
+<td>本文件</td>
+<td>section 1.3</td>
+<td>初始化输出文件维度</td>
+</tr>
+<tr>
+<td><code>gen_sol_list</code></td>
+<td>本文件</td>
+<td>行 1482</td>
+<td>为每个 bin 生成 sol×LT 采样列表</td>
+</tr>
+<tr>
+<td><code>extraction</code></td>
+<td>本文件</td>
+<td>行 1494</td>
+<td>对每个采样点插值 GCM 场</td>
+</tr>
+<tr>
+<td><code>LTmod</code></td>
+<td>本文件</td>
+<td>作为 <code>f_LT</code> 实参传入 <code>gen_sol_list</code></td>
+<td>夜间 LT 连续化</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>obsfile</code></td>
+<td>stdin</td>
+<td>netcdf 文件</td>
+<td>-</td>
+<td>MRO/MCS 观测数据（分箱），含 dtemp/ntemp、ddust/ndust、dwice/nwice、d/n numbin*、d/n timeave/max/min</td>
+</tr>
+<tr>
+<td><code>gcmfile</code></td>
+<td>stdin</td>
+<td>netcdf 文件</td>
+<td>-</td>
+<td>GCM 输出（diagfi/concat 或 stats），需含 temp、rho（算不透明度时）等 4D 场</td>
+</tr>
+<tr>
+<td>变量列表</td>
+<td>stdin</td>
+<td>字符串</td>
+<td>-</td>
+<td>要重采样的 GCM 变量名（逐行，空行结束；或 <code>all</code>）</td>
+</tr>
+<tr>
+<td><code>outfile</code></td>
+<td>stdin</td>
+<td>字符串</td>
+<td>-</td>
+<td>输出文件名</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>outfile</code></td>
+<td>磁盘</td>
+<td>netcdf 文件</td>
+<td>-</td>
+<td>GCM 数据按 MCS 分箱重采样的结果，昼/夜两套变量，格式同 MCS 文件</td>
+</tr>
+<tr>
+<td><code>outvar</code></td>
+<td>outfile</td>
+<td>REAL (lon,lat,alt,Ls)</td>
+<td>随变量</td>
+<td>每个变量的分箱结果（无值处填 <code>OBSmiss_val</code>）</td>
+</tr>
+<tr>
+<td><code>tau_ratio</code></td>
+<td>outfile</td>
+<td>REAL (lon,lat,Ls)</td>
+<td>-</td>
+<td>柱积分尘埃光学厚度比 tau_GCM/tau_MCS（仅压力坐标且有尘埃/温度时）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>stdin 交互</strong>：通过 <code>READ(*,*)</code> 读取 obsfile、gcmfile、变量列表、outfile——是交互式命令行工具，非批处理库。</li>
+<li><strong>大量 stdout 提示</strong>：欢迎语、变量清单、进度、跳过提示等。</li>
+<li><strong><code>stop</code> 硬终止</strong>：任何 netcdf 错误（经 <code>status_check</code>）、非预期坐标值、无变量可处理时直接 <code>stop</code>。</li>
+<li><strong><code>extraction</code> 的 SAVE 索引缓存</strong>：<code>prev_lon/lat/alt/sol</code> 与 <code>ilon_inf/sup</code> 等 SAVE 变量缓存上次的包围索引；坐标未变时跳过二分查找——性能优化，但使该子程序非纯函数、非线程安全。</li>
+<li><strong>netcdf 文件句柄</strong>：obsfid/gcmfid（只读 <code>nf90_nowrite</code>）、outfid（读写）全程保持打开，section 6 关闭。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><p><strong>打开文件 + 读维度</strong>（section 1.1-1.2）：交互读 obsfile/gcmfile；分别读 lon/lat/alt/time 维度。MCS 时间轴是 Ls，GCM 时间轴是 sol。由 altitude 的 <code>units</code> 属性判定坐标类型 <code>'p'</code>（Pa，压力）或 <code>'z'</code>（m，高度），两文件须一致。<code>OBSdeltaLs = OBSLs(2)-OBSLs(1)</code> 为 Ls bin 宽。</p></li>
+<li><p><strong>创建输出文件</strong>（section 1.3）：用 <code>inidim</code> 按 MCS 维度顺序建 outfile 坐标。</p></li>
+<li><p><strong>变量管理</strong>（section 2）：</p>
+<ul>
+<li>读 GCM 变量清单，跳过 15 个非处理变量（坐标/混合系数等）；用户选变量或 <code>all</code>。</li>
+<li>检测能否算不透明度：<code>dso</code>→dustok1、<code>dsodust</code>→dustok2、<code>dustq</code>→dustok3、<code>h2o_ice</code>→wiceok；若可，加载 <code>rho</code>（stats 文件只有部分 sol，循环填满所有 sol），并把 <code>dust</code>/<code>wice</code> 追加进待处理变量。</li>
+<li><strong>昼/夜大循环</strong>开始：dayside 用 d* 变量、nightside 用 n* 变量。从 obsfile 读 LT 的均值/max/min（<code>OBSLT</code>/<code>OBSLTmax</code>/<code>OBSLTmin</code>）和各 bin 样本数 <code>numbin</code>（temp/dust/wice）。</li>
+</ul></li>
+<li><p><strong>变量循环</strong>（section 2.4-2.6）：逐个待处理变量，通用读取 GCM 4D 场（stats 文件同样循环填充）；dust/wice 不透明度由 <code>dso</code>/<code>dsodust</code>/<code>dustq</code>(×rho) 和 <code>h2o_ice</code>×rho 算出；读对应 MCS 参考变量与 numbin；在 outfile 定义该变量。</p></li>
+<li><p><strong>提取与分箱</strong>（section 3，四重坐标循环 Ls→lat→lon→alt）：</p>
+<ul>
+<li><strong>3.1</strong>：把 Ls bin [Ls-δ/2, Ls+δ/2] 经 <code>ls2sol</code> 换算成 sol 区间，定位 GCM 时间索引 <code>m_minsol</code>/<code>m_maxsol</code>（±0.5 sol 余量覆盖全经度）；取区间内的整数 sol 列表 <code>int_sol_list</code>（共 <code>solcount</code> 个）。无 GCM 数据则该 Ls 填缺测。</li>
+<li>lon 规整到 [-180,180]；取该 bin 的观测 LT 均值 <code>LT_val</code>；缺测则跳过。</li>
+<li><strong>3.2</strong>：<code>LTcount = floor(numbin)</code> 为该 bin 的样本数；<code>gen_sol_list</code> 生成 <code>solcount*LTcount</code> 个 sol 采样点（每个整数 sol 配 LTcount 个围绕 <code>LT_val</code> 对称分布的 LT，换算到 lon=0° 的 sol：<code>sol = int_sol + (LT - lon/15)/24</code>）。</li>
+<li><strong>3.3</strong>：对每个采样点调 <code>extraction</code> 插值；非缺测值累加，最后除以有效样本数得 <code>solbinned_value</code> 写入 <code>outvar</code>。</li>
+<li><strong>3.4</strong>：整变量写入 outfile，释放数组。</li>
+</ul></li>
+<li><p><strong>CDOD ratio</strong>（section 4，仅 <code>OBSalttype='p'</code>）：在 outfile 找尘埃不透明度（<code>d/ndust</code>→<code>d/nopa_dust</code>→<code>d/nopadust</code> 依次回退）、obsfile 找温度；用 OBS 温度+压力算 OBS 密度，按层积分得 GCM 与 MCS 柱光学厚度，算比值 <code>tau_ratio</code> 写入 outfile。</p></li>
+<li><p><strong>昼夜循环结束 + 关闭文件</strong>（section 5-6）。</p></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>program simu_MCS:
+  读 obsfile, gcmfile (stdin); 读 lon/lat/alt/time 维度
+  由 altitude units 定 alttype (&#39;p&#39;/&#39;z&#39;); OBSdeltaLs = OBSLs(2)-OBSLs(1)
+  inidim(outfile)                          // 按 MCS 维度顺序建输出
+  读 GCM 变量清单 (跳过 15 个非处理变量); 用户选变量或 all
+  检测 dust/wice 不透明度可行性; 若可: 加载 rho (stats 循环填充)
+
+  for dayornight in [dayside, nightside]:   // 昼/夜大循环
+    从 obsfile 读 OBSLT(ave/max/min), numbin(temp/dust/wice)
+    for var in 待处理变量:                   // 变量循环
+      读 GCM 4D 场 (stats 循环填充); 算 dust/wice 不透明度 (×rho)
+      读对应 MCS 参考变量 + numbin; 在 outfile 定义该变量
+      for l in Ls:                          // 坐标循环
+        [Ls±δ/2] --ls2sol--&gt; sol 区间 -&gt; m_minsol/m_maxsol
+        int_sol_list = 区间内整数 sol (solcount 个)
+        for j in lat, i in lon:
+          lon 规整 [-180,180]; LT_val = OBSLT(i,j,l)
+          for k in alt:
+            LTcount = floor(numbin); 若 0 -&gt; 填缺测
+            sol_list = gen_sol_list(int_sol_list, LTcount, LT_val, ...)  // solcount*LTcount 点
+            for sol in sol_list:
+              extraction(lon,lat,alt,sol, GCM_var) -&gt; extr_value
+              累加非缺测值
+            outvar(i,j,k,l) = 累加 / 有效样本数
+        outfile &lt;- outvar
+      if alttype==&#39;p&#39; 且有尘埃+温度:          // CDOD ratio
+        tau_ratio = 柱积分(tau_GCM) / 柱积分(tau_MCS) -&gt; outfile
+  关闭文件
+
+subroutine extraction(lon,lat,alt,sol, ..., field, ..., value):
+  若坐标变化: 二分查找包围索引 (SAVE 缓存); 越界 -&gt; value=missing 返回
+  16 个角点任一为 missing -&gt; 返回
+  时间线性插值 -&gt; 垂直插值 (rho/pressure 在 z 坐标下取 log) -&gt; 纬度 -&gt; 经度</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GCM 验证/观测对比</td>
+<td>离线工具：把 GCM 输出重采样到 MCS 观测的时空分箱，供逐 bin 对比</td>
+</tr>
+<tr>
+<td><a href="../../themes/util-toolchain.html">util-toolchain</a></td>
+<td>观测比较链中的 MCS 分箱模拟器。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>独立 <code>program</code></strong>：本文件首行即 <code>program simu_MCS</code>，无内嵌 module，编译为独立命令行工具。</li>
+<li><strong>交互式 stdin</strong>：通过 <code>READ(*,*)</code>/<code>READ(*,'(a50)')</code> 读文件名和变量列表，适合人工或脚本管道驱动。</li>
+<li><strong>逐 netcdf 调用 + <code>status_check</code></strong>：每个 netcdf 操作后立即查错并 <code>stop</code>，无优雅恢复。</li>
+<li><strong><code>extraction</code> 的 SAVE 索引缓存</strong>：坐标连续时复用上次二分查找结果，是性能优化但非线程安全。</li>
+<li><strong>stats 文件特殊处理</strong>：<code>stats.nc</code> 只覆盖一个 sol 周期，按 <code>modulo</code> 循环填充到整个观测期（<code>l</code> 为 <code>GCMstatstimelen</code> 整数倍时特判）。</li>
+<li><strong>昼/夜双遍</strong>：同一套逻辑跑两次，变量名前缀 d/n 切换。</li>
+<li><strong>垂直 log 插值</strong>：<code>rho</code>/<code>pressure</code> 在高度坐标下按对数插值（更符合指数廓线）。</li>
+<li><strong>硬编码火星常数</strong>：<code>r_atm=191</code>、<code>g=3.72</code>（CDOD 积分）；<code>ls2sol</code> 内 <code>year_day=668.6</code>、<code>peri_day=485.35</code>、<code>e_elips=0.0934</code> 等轨道参数。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>工具交互输入顺序：obsfile → gcmfile → 变量列表（逐行，空行或 <code>all</code> 结束）→ outfile。</li>
+<li>obsfile 与 gcmfile 的 altitude 坐标类型（<code>'p'</code>/<code>'z'</code>）必须一致，否则插值无意义；类型由 altitude 的 <code>units</code> 属性前两字符判定（<code>Pa</code>/<code>m</code>）。</li>
+<li>GCM 文件必须完整覆盖观测期的 sol 区间，否则对应 Ls bin 填缺测。</li>
+<li>不透明度计算依赖 GCM 文件含 <code>rho</code> 及 <code>dso</code>/<code>dsodust</code>/<code>dustq</code>（尘埃）或 <code>h2o_ice</code>（水冰）之一；缺 <code>rho</code> 则关闭不透明度计算。</li>
+<li><code>ls2sol</code> 用开普勒方程反解（火星轨道：<code>year_day=668.6 sol</code>、<code>peri_day=485.35</code>、<code>timeperi=1.90258...</code>、<code>e_elips=0.0934</code>），与 LMDZ 主模式的 Ls↔︎sol 换算需一致。</li>
+<li>sol 采样点公式 <code>sol = int_sol + (LT - lon/15)/24</code>：把当地时 LT 在给定经度换算为 lon=0° 参考的 sol（经度每 15° 差 1 小时）。</li>
+<li>CDOD ratio 仅在压力坐标（<code>OBSalttype='p'</code>）且 outfile 有尘埃不透明度、obsfile 有温度时计算；尘埃变量名按 <code>d/ndust</code>→<code>d/nopa_dust</code>→<code>d/nopadust</code> 回退查找（兼容旧版命名）。</li>
+<li>夜间 LT 用 <code>LTmod</code> 映射到 [-12,12) 以保证跨午夜的均值/距离计算连续。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>extraction</code> 的越界/缺测分支大量 <code>write</code> 被注释掉（仅返回 missing）——调试输出默认关闭，排障时需手动开启。</li>
+<li><code>inidim</code> 的 <code>londimid</code>/<code>latdimid</code> 等为 <code>intent(inout)</code>，进入时携带"哪个维度是 altitude"的标记（<code>do d=1,4</code> 中 <code>altdimid.eq.d</code> 判断）——调用侧如何预置这些 ID 需结合 section 1.3 完整确认（本次未逐行读 1.3 定义段）。</li>
+<li><code>gen_sol_list</code> 中 <code>N=floor(LTcount/2)</code>，当 <code>LTcount=1</code> 时 N=0、循环不执行，仅靠末尾 <code>if mod(LTcount,2)==1</code> 补入 <code>LTave</code>——单样本 bin 退化为仅取均值 LT，符合预期但边界值得注意。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li>工具为交互式 stdin 驱动，自动化复现需用管道/重定向喂入固定顺序的输入行。</li>
+<li><code>stop</code> 式错误处理：输入文件缺变量或维度不匹配会直接终止，无部分结果保留。</li>
+<li><code>extraction</code> 的 SAVE 缓存使其在并行/多次独立调用场景下行为依赖调用历史——单线程顺序调用安全。</li>
+<li>stats 文件循环填充假设观测期为 sol 周期的整数延拓，长期外推的物理意义有限。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="zrecast.html">zrecast.md</a> - 同为 util 下的 GCM 输出后处理工具，负责垂直坐标重投影。</li>
+<li><a href="../../themes/util-toolchain.html">util-toolchain</a> - util 离线后处理和观测比较工具链。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

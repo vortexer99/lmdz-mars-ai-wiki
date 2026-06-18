@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>thermcell_main_mars - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/thermcell_main_mars.md</span>
+    </nav>
+    <article class="content">
+<h1 id="thermcell_main_marsf90">thermcell_main_mars.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\thermcell_main_mars.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>thermcell_main_mars.F90</code> 定义 Martian thermal plume model 的主体子步长求解器。它由 <a href="calltherm_interface_mod.html">calltherm_interface_mod</a> 在 <code>nsplit_thermals</code> 子步长循环内调用，负责从当前温度、风、压力、层几何和 CO2 tracer 状态出发，估计热羽流源层、保守羽流高度、卷入/退卷、上升质量通量、下沉气流、温度 tendency、CO2 tracer tendency、覆盖率和热通量诊断。</p>
+<p>本文件不处理非 CO2 tracer 或风的被动输送；那些变量在接口层用 <a href="thermcell_dqup.html">thermcell_dqup</a> 后处理。CO2 tracer 是例外：它会改变平均分子量和修正位温，因此在本主求解器内部用同一个输送算子更新。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>thermcell_main_mars_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装 Martian thermal plume 主求解器。</td>
+</tr>
+<tr>
+<td><code>thermcell_main_mars</code></td>
+<td>subroutine</td>
+<td>39</td>
+<td>在一个热羽流子步长内计算热羽流结构、温度/CO2 演化和诊断通量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comtherm_h</code></td>
+<td>未限制</td>
+<td>读取 <code>r_aspect_thermals</code>、<code>ad/bd/ae/be</code>、<code>fdfu/omega/a1/b1/a1inv/b1inv</code>、<code>thermverbose</code> 等热羽流参数。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>planetwide_mod</code></td>
+<td><code>planetwide_maxval</code></td>
+<td>非 <code>MESOSCALE</code> 构建中把局地 <code>lmax/lalim</code> 扩展为全行星最大 <code>limz/llmax</code>。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code>, <code>r</code></td>
+<td>用重力和气体常数计算质量、密度、浮力和温度 tendency 换算。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>thermcell_dqup_mod</code></td>
+<td><code>thermcell_dqup</code></td>
+<td>在本求解器内部输送 CO2 tracer。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>planetwide_maxval</code></td>
+<td><code>planetwide_mod.F90</code></td>
+<td>行 782、818</td>
+<td>取得全行星最大热羽流层索引；<code>limz=lmax_global+2</code> 控制后续积分范围，<code>llmax</code> 控制源层闭合循环范围。</td>
+</tr>
+<tr>
+<td><code>thermcell_dqup</code></td>
+<td><code>thermcell_dqup.F90</code></td>
+<td>行 1193-1195</td>
+<td>在质量通量修正后输送 CO2 tracer，并返回 <code>pdqadj(:,:,igcm_co2)</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="被调用位置">被调用位置</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>文件</th>
+<th>位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>calltherm_interface</code></td>
+<td><code>calltherm_interface_mod.F90</code></td>
+<td><code>use</code> 行 60；调用行 232-242</td>
+<td>每个热羽流子步长调用本例程，再把本例程返回的温度、CO2 和诊断量时间平均或累计回整物理步长。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code>, <code>nlayer</code>, <code>nq</code></td>
+<td>接口层</td>
+<td>integer</td>
+<td>-</td>
+<td>物理列数、垂直层数和 tracer 数。</td>
+</tr>
+<tr>
+<td><code>igcm_co2</code></td>
+<td>接口层 / tracer 初始化</td>
+<td>integer</td>
+<td>-</td>
+<td>CO2 tracer 在 <code>pq</code> 中的索引；0 表示没有 CO2 tracer。</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>接口层子步长</td>
+<td>real scalar</td>
+<td>s</td>
+<td>当前热羽流子步长长度。</td>
+</tr>
+<tr>
+<td><code>pt</code>, <code>pu</code>, <code>pv</code>, <code>pq</code>, <code>pq2</code></td>
+<td>接口层准备的状态</td>
+<td>real arrays</td>
+<td>K, m/s, kg/kg, TKE 单位</td>
+<td>温度、水平风、tracer 混合比和层中心 TKE。</td>
+</tr>
+<tr>
+<td><code>pplay</code>, <code>pplev</code>, <code>pphi</code></td>
+<td><code>physiq</code> 场</td>
+<td>real arrays</td>
+<td>Pa, Pa, m2/s2</td>
+<td>层中心压力、层界面压力和位势。</td>
+</tr>
+<tr>
+<td><code>zlay</code>, <code>zlev</code></td>
+<td>接口层几何</td>
+<td>real arrays</td>
+<td>m</td>
+<td>层中心和层界面高度。</td>
+</tr>
+<tr>
+<td><code>zpopsk</code></td>
+<td>接口层热力因子</td>
+<td>real array</td>
+<td>-</td>
+<td>温度与位温换算因子。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdtadj</code></td>
+<td>接口层累计为温度 tendency</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K/s</td>
+<td>热羽流上升流和下沉气流导致的温度变化率。</td>
+</tr>
+<tr>
+<td><code>pdqadj</code></td>
+<td>接口层只读取 CO2 分量</td>
+<td>real <code>(ngrid,nlayer,nq)</code></td>
+<td>kg/kg/s</td>
+<td>CO2 tracer 的热羽流输送 tendency；非 CO2 分量在接口层另行处理。</td>
+</tr>
+<tr>
+<td><code>fm</code>, <code>entr</code>, <code>detr</code></td>
+<td>接口层时间平均并供被动输送使用</td>
+<td>real arrays</td>
+<td>mass flux</td>
+<td>上升质量通量、夹卷通量、退卷通量。</td>
+</tr>
+<tr>
+<td><code>lmax</code>, <code>zmax</code>, <code>limz</code></td>
+<td>接口层诊断和后续输送范围</td>
+<td>integer / real</td>
+<td>layer index, m</td>
+<td>每列热羽流最高层、插值高度和全域积分上限。</td>
+</tr>
+<tr>
+<td><code>zw2</code>, <code>fraca</code></td>
+<td>接口层诊断</td>
+<td>real arrays</td>
+<td>m/s, fraction</td>
+<td>界面垂直速度和热羽流面积分数。</td>
+</tr>
+<tr>
+<td><code>heatFlux</code>, <code>heatFlux_down</code></td>
+<td>接口层诊断 / <code>hfmax</code> 计算</td>
+<td>real arrays</td>
+<td>K m/s 量级</td>
+<td>上升热羽流和下沉气流热通量诊断。</td>
+</tr>
+<tr>
+<td><code>buoyancyOut</code>, <code>buoyancyEst</code></td>
+<td>接口层诊断</td>
+<td>real arrays</td>
+<td>m/s2</td>
+<td>实际和估计的界面浮力项。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本例程读取 <code>comtherm_h</code> 中的编译期参数和少量模块变量；不写这些共享参数。</li>
+<li>非 <code>MESOSCALE</code> 构建会调用 <code>planetwide_maxval</code>，并在并行物理网格上触发 gather/bcast 式全行星规约。</li>
+<li>例程不读写文件、不分配模块级内存、不直接写 NetCDF。</li>
+<li>当 <code>limz &gt;= nlayer</code> 时会打印警告并把 <code>limz</code> 限制为 <code>nlayer</code>。随后若存在 CO2 tracer，第 1193-1195 行仍会用该 <code>limz</code> 调用 <code>thermcell_dqup</code>；而 <code>thermcell_dqup</code> 的环境更新会读取 <code>q(:,limz+1)</code>，所以触顶截断路径需要按顶层边界/数组维度风险处理。当质量通量修正次数过多且 <code>thermverbose</code> 为真时会打印修正统计。</li>
+<li><code>entr</code> 会在 CO2 tracer 输送前随 <code>detrmod&lt;0</code> 修正块被再次调整，因此下游使用的是清理后的质量通量。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>清零 <code>entr/detr/fm</code>，用 <code>zhc=pt/zpopsk</code> 得到位温，并令内部 CO2 输送子步数 <code>ndt=1</code>。</li>
+<li>若 <code>igcm_co2.ne.0</code>，用 CO2 与非凝结气体分子量计算 <code>A/B</code>，把位温改写为依赖 CO2 混合比的修正位温；否则直接用普通位温。</li>
+<li>识别源层、保守羽流速度和羽流高度，估计无量纲夹卷/退卷率，并迭代更新上升流温度、垂直速度和源层夹卷。</li>
+<li>根据 <code>zw2</code> 加权积分得到 <code>zmax</code>；非 <code>MESOSCALE</code> 下用 <code>planetwide_maxval(lmax,limz)</code> 后令 <code>limz=limz+2</code>，<code>MESOSCALE</code> 下直接设为 <code>nlayer-5</code>。</li>
+<li>用源层闭合得到质量通量尺度 <code>f</code>，再把无量纲 <code>entr_star/detr_star/alim_star</code> 转为真实 <code>entr/detr</code>。</li>
+<li>重建 <code>fm</code>，随后逐层执行负质量通量、过大退卷、过强夹卷和 <code>alphamax</code> 覆盖率限制等修正，保证 <code>fm(lmax+1)=0</code>。</li>
+<li>按上升流温度差计算 <code>zdthladj</code>，再按 <code>fdfu</code> 和高度比例构造下沉质量通量 <code>fm_down</code> 与下沉温度廓线 <code>ztvd</code>，计算 <code>zdthladj_down</code>。</li>
+<li>用清理后的 <code>fm/(rhobarz*zw2)</code> 得到界面覆盖率 <code>fraca</code>。</li>
+<li>若存在 CO2 tracer，先由质量守恒重算 <code>detrmod=fm(k)-fm(k+1)+entr(k)</code>，再调用 <code>thermcell_dqup</code> 输送 <code>pq(:,:,igcm_co2)</code>，并用输送后的 CO2 重新计算 <code>ratiom</code>。如果第 786-790 行已因热羽流触顶把 <code>limz</code> 截断为 <code>nlayer</code>，这里传入 <code>thermcell_dqup</code> 的仍是 <code>nlayer</code>；下游会读取 <code>q(:,limz+1)</code>，复现时必须检查 <code>pq(:,:,igcm_co2)</code> 的顶层边界是否安全。</li>
+<li>用 <code>(zdthladj+zdthladj_down)*zpopsk*ratiom</code> 得到 <code>pdtadj</code>，最后在界面插值环境、上升流和下沉流位温，输出 <code>heatFlux</code>、<code>heatFlux_down</code>、<code>buoyancyOut</code> 和 <code>buoyancyEst</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>thermcell_main_mars(...):
+    entr, detr, fm = 0
+    theta = pt / zpopsk
+
+    if igcm_co2 != 0:
+        theta_model = theta * (A * pq[:,:,igcm_co2] + B)
+    else:
+        theta_model = theta
+
+    find source layers and conservative plume velocity
+    estimate entrainment/detrainment and updraft profile
+    compute lmax and zmax
+
+    if MESOSCALE:
+        limz = nlayer - 5
+    else:
+        limz = planetwide_max(lmax) + 2
+    limz = min(limz, nlayer)
+
+    f = closure_mass_flux(...)
+    entr = f * (entr_star + alim_star)
+    detr = f * detr_star
+    reconstruct fm and apply correction blocks
+
+    zdthladj = upward_temperature_transport(fm, theta_model)
+    fm_down, ztvd = downdraft_parameterization(fm, zmax)
+    zdthladj_down = downdraft_temperature_transport(fm_down, ztvd)
+    fraca = fm / (rhobarz * zw2)
+
+    if igcm_co2 != 0:
+        detrmod = fm - fm_next + entr
+        thermcell_dqup(..., pq[:,:,igcm_co2], pdqadj[:,:,igcm_co2], ndt=1, limz)
+        ratiom = 1 / (A * transported_CO2 + B)
+
+    pdtadj = (zdthladj + zdthladj_down) * zpopsk * ratiom
+    heatFlux, heatFlux_down, buoyancyOut, buoyancyEst = diagnostics(...)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热羽流 / 边界层对流</td>
+<td>求解 thermal plume 主体结构，给出热羽流高度、质量通量、温度 tendency 和诊断量。</td>
+</tr>
+<tr>
+<td>CO2 tracer / 极区混合</td>
+<td>当 <code>igcm_co2</code> 非零时用 CO2 混合比修正位温，并在子步长内部输送 CO2。</td>
+</tr>
+<tr>
+<td>并行物理网格规约</td>
+<td>非 <code>MESOSCALE</code> 下用 <code>planetwide_maxval</code> 保证所有进程使用一致的 <code>limz/llmax</code>。</td>
+</tr>
+<tr>
+<td>诊断输出</td>
+<td>输出 <code>heatFlux</code>、<code>heatFlux_down</code>、<code>buoyancyOut</code>、<code>buoyancyEst</code>、<code>fraca</code>、<code>zw2</code> 等供接口层和后续输出使用。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>文件头明确说明本例程在 <code>calltherm_interface</code> 的子步长循环中运行，质量通量、温度和 CO2 MMR 都在这里处理。</li>
+<li><code>MESOSCALE</code> 与 GCM 路径的 <code>limz</code> 不同：mesoscale 固定用 <code>nlayer-5</code>，GCM 用全行星最大 <code>lmax+2</code>。</li>
+<li>CO2 只在本例程内部作为主动耦合 tracer 输送；非 CO2 tracer 和风在接口层按平均质量通量被动输送。</li>
+<li>质量通量重建后有多段数值保护和修正计数，结果复现时不能只看闭合公式，还要保留这些修正分支。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>igcm_co2</code> 会改变热力变量定义和温度 tendency 换算；没有 CO2 tracer 的运行不能与有 CO2 tracer 的 polar mixing 结果直接等价比较。</li>
+<li><code>limz</code> 是全域后续输送范围。并行 GCM 中若把 <code>planetwide_maxval</code> 替换成本地最大值，会造成不同进程覆盖层数不一致。</li>
+<li><code>comtherm_h</code> 中 <code>ad/bd/ae/be/fdfu/omega/a1/b1/a1inv/b1inv</code> 是主公式调参入口；修改这些常数会同时影响高度、质量通量、下沉气流和热通量。</li>
+<li><code>thermverbose=.false.</code> 时质量通量修正通常静默执行；调试复现实验若要查看修正频率，需要改编译期参数。</li>
+<li><code>limz&gt;=nlayer</code> 的警告表示热羽流触及模型顶层，源码会强制截断为 <code>nlayer</code>，这类案例不应视作普通边界层高度结果。</li>
+<li>触顶截断不是孤立诊断：<code>limz=nlayer</code> 会继续传入第 1193 行 <code>thermcell_dqup</code>，而该算子读取 <code>q(:,limz+1)</code>。移植、数组边界检查或重写 CO2 输送时必须显式处理 <code>q(:,nlayer+1)</code> 访问风险。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>源码中 <code>pdqadj</code> 注释写作局部变量，但它是子程序形参之一；当前页面按接口层实际使用解释为 CO2 输出 tendency。</li>
+<li>部分质量通量修正计数变量如 <code>ncorecfm4/5/7/8</code> 的触发语义需要结合完整修正分支和调试输出进一步命名化；本页只按源码行为描述。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="calltherm_interface_mod.html">calltherm_interface_mod</a>：热羽流与 <code>physiq</code> 的接口层，负责子步长调度和非 CO2 被动输送。</li>
+<li><a href="thermcell_dqup.html">thermcell_dqup</a>：质量通量已知后的被动变量输送算子，本例程用于 CO2 tracer。</li>
+<li><a href="comtherm_h.html">comtherm_h</a>：热羽流编译期参数和调参常数。</li>
+<li><a href="planetwide_mod.html">planetwide_mod</a>：非 <code>MESOSCALE</code> 下 <code>limz/llmax</code> 的全行星最大值规约工具。</li>
+<li><a href="comcstfi_h.html">comcstfi_h</a>：提供 <code>g</code> 和 <code>r</code> 等物理常数。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

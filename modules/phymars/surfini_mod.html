@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>surfini_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/surfini_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="surfini_modf90">surfini_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\surfini_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>surfini_mod.F90</code> 负责初始化永久水冰帽标记 <code>watercaptag</code> 和地表水冰蒸发 dryness 系数。主例程 <code>surfini</code> 根据 <code>callkeys_mod::water</code> 和模块变量 <code>icelocationmode</code> 选择水冰分布来源：<code>surface.nc</code> 热惯量、预定义分辨率、经纬度逻辑、可移植 64x48 手工边界、<code>startfi.nc</code> 已存标签，或 <code>inertiedat</code> 第一层。它在非 mesoscale 并行路径中先把纬度、经度、<code>watercaptag</code> 和 <code>inertiedat</code> gather 到全局网格，在 master 上判定后再 scatter 回本地物理列。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>surfini_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装水冰帽初始化逻辑和 <code>icelocationmode</code>。</td>
+</tr>
+<tr>
+<td><code>icelocationmode</code></td>
+<td>integer module variable</td>
+<td>14</td>
+<td>控制水冰帽定位方式，默认 <code>5</code>。</td>
+</tr>
+<tr>
+<td><code>surfini</code></td>
+<td>subroutine</td>
+<td>22</td>
+<td>初始化 <code>watercaptag</code>、<code>dryness</code>，并按模式更新水冰帽分布。</td>
+</tr>
+<tr>
+<td><code>locate_watercaptag</code></td>
+<td>subroutine</td>
+<td>517</td>
+<td>用 120 个手工经纬度网格边界为任意分辨率定位水冰帽。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td><code>getin_p</code></td>
+<td>读取 <code>icedryness</code>。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>netcdf</code></td>
+<td>全模块</td>
+<td>打开并读取 <code>surface.nc</code>。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>nqmx</code>, <code>noms</code></td>
+<td><code>qsurf</code> tracer 维度和名称上下文。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>longitude</code>, <code>latitude</code>, <code>cell_area</code></td>
+<td>经纬度判定和诊断。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>watercaptag</code>, <code>frost_albedo_threshold</code>, <code>albedo_h2o_cap</code>, <code>inert_h2o_ice</code>, <code>albedodat</code>, <code>albedice</code>, <code>dryness</code></td>
+<td>读取/写入水冰帽、反照率和 dryness 共享状态。</td>
+<td><code>frost_albedo_threshold</code>, <code>inert_h2o_ice</code>, <code>albedice</code> 在本文件读取路径需后续细查是否只为接口历史保留。</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>klon_glo</code>, <code>nbp_lon</code>, <code>nbp_lat</code></td>
+<td>全局物理列数和经纬网格维度。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code>, <code>gather</code>, <code>scatter</code></td>
+<td>并行全局判定和本地回填。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>inertiedat</code>, <code>nsoilmx</code></td>
+<td>模式 6 用热惯量首层判定水冰。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>经纬度弧度/角度换算。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>datafile_mod</code></td>
+<td><code>datadir</code></td>
+<td>定位 <code>surface.nc</code>。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>water</code></td>
+<td>控制是否初始化水循环水冰帽。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin_p</code></td>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td>行 167</td>
+<td>读取 <code>icedryness</code>，默认 1。</td>
+</tr>
+<tr>
+<td><code>gather</code> / <code>scatter</code></td>
+<td><code>mod_phys_lmdz_para</code></td>
+<td>行 177-180、506-507</td>
+<td>非 mesoscale 并行路径中全局收集和回填 <code>dryness/watercaptag</code>。</td>
+</tr>
+<tr>
+<td><code>nf90_open</code>, <code>nf90_inq_varid</code>, <code>nf90_get_var</code>, <code>nf90_close</code></td>
+<td>NetCDF</td>
+<td>行 212-235</td>
+<td>模式 1 从 <code>surface.nc</code> 读取 <code>thermal</code> 场。</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>物理错误处理</td>
+<td>行 214、223、231、379、480</td>
+<td>缺文件、缺变量、未知分辨率或错误模式时终止。</td>
+</tr>
+<tr>
+<td><code>locate_watercaptag</code></td>
+<td>本文件</td>
+<td>行 448</td>
+<td>模式 4 用手工边界定位水冰帽。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer scalar</td>
+<td>columns</td>
+<td>本地物理列数。</td>
+</tr>
+<tr>
+<td><code>nslope</code></td>
+<td>调用方</td>
+<td>integer scalar</td>
+<td>slopes</td>
+<td>坡面数；用于遍历 <code>qsurf</code>。</td>
+</tr>
+<tr>
+<td><code>qsurf</code></td>
+<td><code>surfdat_h</code> / 调用方</td>
+<td>real <code>(ngrid,nqmx,nslope)</code>, inout</td>
+<td>kg m-2</td>
+<td>地表 tracer 储量；mesoscale 分支会置零。</td>
+</tr>
+<tr>
+<td><code>icelocationmode</code></td>
+<td>模块变量 / <code>phyetat0_mod</code></td>
+<td>integer</td>
+<td>-</td>
+<td>水冰帽定位方式。</td>
+</tr>
+<tr>
+<td><code>water</code></td>
+<td><code>callkeys_mod</code></td>
+<td>logical</td>
+<td>-</td>
+<td>若为假，非 mesoscale 路径把 <code>watercaptag(:)=.false.</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>watercaptag</code></td>
+<td><code>surfdat_h</code></td>
+<td>logical <code>(ngrid)</code></td>
+<td>-</td>
+<td>永久水冰帽标记。</td>
+</tr>
+<tr>
+<td><code>dryness</code></td>
+<td><code>surfdat_h</code></td>
+<td>real <code>(ngrid)</code></td>
+<td>-</td>
+<td>地表水冰蒸发 dryness 系数。</td>
+</tr>
+<tr>
+<td><code>albedodat</code></td>
+<td><code>surfdat_h</code></td>
+<td>real <code>(ngrid)</code></td>
+<td>-</td>
+<td>mesoscale 水冰 outlier 分支会改为 <code>albedo_h2o_cap</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p><code>surfini</code> 写 <code>surfdat_h::watercaptag</code> 和 <code>dryness</code>，在 mesoscale 分支还会改写 <code>qsurf</code> 和部分 <code>albedodat</code>。非 mesoscale 模式 1 读取外部 NetCDF 文件 <code>datadir/surface.nc</code> 中的 <code>thermal</code> 变量；多个错误路径调用 <code>abort_physic</code>。例程还向标准输出打印模式、dryness、冰帽位置和错误提示。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>若是 mesoscale 编译分支，逐格按纬度和反照率 outlier 条件设置 <code>watercaptag/dryness/albedodat</code>，并把 <code>qsurf</code> 置零。</li>
+<li>非 mesoscale 且 <code>water=.true.</code> 时，读取 <code>icedryness</code>，初始化 <code>dryness(:)</code>。</li>
+<li>gather 纬度、经度、<code>watercaptag</code> 和 <code>inertiedat</code> 到全局数组。</li>
+<li>master 根据 <code>icelocationmode</code> 执行 1-6 的分支逻辑。</li>
+<li>master 打印水冰帽位置，随后 scatter <code>dryness_glo</code> 和 <code>watercaptag_glo</code> 回本地。</li>
+<li>若 <code>water=.false.</code>，设置 <code>watercaptag(:)=.false.</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if MESOSCALE:
+    build simple watercaptag from latitude and albedodat
+else:
+    if water:
+        icedryness = getin_p(&quot;icedryness&quot;, default=1)
+        gather latitude, longitude, watercaptag, inertiedat
+        if is_master:
+            select icelocationmode:
+                1: read surface.nc thermal and preserve area by latitude bins
+                2: use hard-coded 32x24 or 64x48 index lists
+                3: use latitude/longitude logical rules
+                4: call locate_watercaptag
+                5: keep startfi.nc watercaptag
+                6: use inertiedat first soil layer in northern hemisphere
+        scatter dryness and watercaptag
+    else:
+        watercaptag = false</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>水循环</td>
+<td>决定永久水冰帽位置，影响地表升华、霜/冰反照率和水 tracer 地表库。</td>
+</tr>
+<tr>
+<td>初始状态 / restart</td>
+<td><code>phyetat0_mod</code> 在缺少 <code>watercaptag</code> 时把 <code>icelocationmode</code> 切到 4；模式 5 直接使用 startfi 数据。</td>
+</tr>
+<tr>
+<td>1D / archive 工具</td>
+<td><code>start2archive</code> 和 <code>physiq</code> 都可调用 <code>surfini</code>；<code>lect_start_archive</code> 读取 <code>locate_watercaptag</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>longwatercaptag</code> 固定长度为 100000，依赖运行网格点数不超过该值。</li>
+<li>模式 1 的 <code>surface.nc</code> 数据维度硬编码为 <code>360x180</code>。</li>
+<li>模式 2 只接受 32x24、64x48 或 <code>klon_glo=1</code>；其他分辨率会 abort。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>datadir</code> 必须指向含 <code>surface.nc</code> 的目录，且其中存在 <code>thermal</code> 变量，模式 1 才能运行。</li>
+<li><code>icelocationmode=5</code> 依赖 <code>startfi.nc</code> 已经带有可信的 <code>watercaptag</code>。</li>
+<li>并行运行时只能在 master 上做全局判定，然后 scatter 回本地；绕开该流程会造成子域不一致。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>模式 3 中部分区域判断仍被注释掉；是否为历史实验开关需结合运行案例确认。</li>
+<li><code>surfdat_h</code> only 列表中部分变量在当前源码是否实际使用需后续精简审查。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="surfdat_h.html">surfdat_h</a>：提供 <code>watercaptag</code>, <code>dryness</code>, <code>qsurf</code>, <code>albedodat</code> 等共享状态。</li>
+<li><a href="phyetat0_mod.html">phyetat0_mod</a>：缺少 <code>watercaptag</code> 时切换 <code>icelocationmode</code>。</li>
+<li><a href="../../routines/physiq-water-cycle-callpoints.html">physiq water callpoints</a>：水循环调用上下文。</li>
+<li><a href="../../architecture/water-cycle-config.html">water-cycle-config</a>：水循环配置入口。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

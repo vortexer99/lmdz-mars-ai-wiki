@@ -1,0 +1,783 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>physiq_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/physiq_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="physiq_modf">physiq_mod.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\physiq_mod.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars
+MODULE physiq_mod</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>physiq_mod.F</code> 是 Mars physics package 的主时间步调度文件。它定义 <code>physiq_mod</code> 模块和唯一入口 <code>physiq</code>，由动力-物理接口 <code>call_physiq</code> 以及 1D 测试程序直接调用，接收动力核给出的压力、温度、风、tracer 和垂直质量通量，返回物理过程对风、温度、tracer 与表压的 tendency。源码注释在 <code>physiq_mod.F:163-170</code> 明确说明本文件组织 LMD Mars GCM 的物理参数化。</p>
+<p>本文件不是某个单一物理方案，而是把 firstcall 初始化、restart 读取/写出、太阳几何、辐射、尘埃输运、垂直扩散、热羽流、对流、重力波、水循环、CO2 云/凝结、化学、热层、地表/土壤更新和诊断输出串成一个物理时间步。下游单个过程的内部算法见相关文件页；本页重点记录 <code>physiq</code> 如何按源码顺序连接这些过程、累加 tendency、更新共享状态并产生副作用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>physiq_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1-4162</td>
+<td>包装 Mars physics 主入口。</td>
+</tr>
+<tr>
+<td><code>physiq</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7-4160</td>
+<td>主物理时间步；输入动力状态，输出物理 tendency，并更新大量 phymars 共享物理状态。</td>
+</tr>
+<tr>
+<td><code>day_ini</code></td>
+<td><code>INTEGER,SAVE</code> local state</td>
+<td style="text-align: right;">295, 299</td>
+<td>run 初始 sol；从 <code>startfi.nc</code> 或 MESOSCALE/academic 初始化路径设置，firstcall 后保持。</td>
+</tr>
+<tr>
+<td><code>icount</code></td>
+<td><code>INTEGER,SAVE</code> local state</td>
+<td style="text-align: right;">296, 299, 4158</td>
+<td><code>physiq</code> 调用计数器；控制辐射步、NLTE 每 sol 更新、restart 时间和诊断时序。</td>
+</tr>
+<tr>
+<td><code>time_phys</code></td>
+<td><code>REAL,SAVE</code> local state</td>
+<td style="text-align: right;">297, 299</td>
+<td>restart 中的物理起始时间记忆；写 restart 时间时使用。</td>
+</tr>
+<tr>
+<td><code>check_physics_inputs</code></td>
+<td><code>logical,save</code> local switch</td>
+<td style="text-align: right;">560-563, 604, 828-830</td>
+<td>可选步首输入场检查开关；由 <code>getin_p("check_physics_inputs",...)</code> 读取。</td>
+</tr>
+<tr>
+<td><code>check_physics_outputs</code></td>
+<td><code>logical,save</code> local switch</td>
+<td style="text-align: right;">560-563, 605, 4153-4155</td>
+<td>可选步尾输出场检查开关；由 <code>getin_p("check_physics_outputs",...)</code> 读取。</td>
+</tr>
+</tbody>
+</table>
+<p><code>day_ini/icount/time_phys</code> 与两个检查开关都声明为 OpenMP <code>THREADPRIVATE</code>，说明每个 OpenMP 线程保存自己的局部记忆状态。</p>
+<h2 id="依赖的模块">依赖的模块</h2>
+<p><code>physiq</code> 的 <code>use</code> 列表非常长，源码位于 <code>physiq_mod.F:16-158</code>。为了复现调度逻辑，按用途分组如下；每一组都在调用链或共享状态更新中被直接使用。</p>
+<table>
+<thead>
+<tr>
+<th>分组</th>
+<th>use 模块/对象</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>水循环与云</td>
+<td><code>watercloud_mod</code>, <code>watersat_mod</code>, <code>callsedim_mod</code>, <code>waterice_tifeedback_mod</code></td>
+<td>水云微物理、饱和诊断、水冰/尘埃沉降、地表/孔隙水冰热惯量反馈。</td>
+</tr>
+<tr>
+<td>CO2 循环</td>
+<td><code>co2cloud_mod</code>, <code>co2condens_mod</code>, <code>geticecover_mod</code></td>
+<td>CO2 云微物理、CO2 凝结/升华、Titus/TES 季节极冠覆盖掩膜。</td>
+</tr>
+<tr>
+<td>辐射/NLTE/NIR</td>
+<td><code>callradite_mod</code>, <code>nltecool_mod</code>, <code>nlte_tcool_mod</code>, <code>blendrad_mod</code>, <code>nlthermeq_mod</code>, <code>nirdata_mod</code>, <code>nirco2abs_mod</code>, <code>dimradmars_mod</code></td>
+<td>LTE 辐射、NLTE 15 微米冷却、LTE/NLTE 混合、近红外 CO2 加热、辐射气溶胶和通量共享数组。</td>
+</tr>
+<tr>
+<td>太阳几何/坡面</td>
+<td><code>solarlong_mod</code>, <code>orbite_mod</code>, <code>solang_mod</code>, <code>mucorr_mod</code>, <code>comsaison_h</code>, <code>slope_mod</code>, <code>comslope_mod</code>, <code>geometry_mod</code>, <code>comgeomfi_h</code></td>
+<td>计算 <code>zls/dist_sol/declin/mu0/fract/local_time</code>，并在 <code>callslope</code> 下计算坡面太阳通量。</td>
+</tr>
+<tr>
+<td>尘埃过程</td>
+<td><code>dust_param_mod</code>, <code>rocketduststorm_mod</code>, <code>calcstormfract_mod</code>, <code>topmons_mod</code>, <code>dust_coagulation_mod</code>, <code>dustdevil_mod</code>, <code>compute_dtau_mod</code></td>
+<td>尘暴、山顶尘流、凝并、尘卷风起尘、场景尘埃注入调度和诊断。</td>
+</tr>
+<tr>
+<td>PBL/对流/重力波</td>
+<td><code>vdifc_mod</code>, <code>calldrag_noro_mod</code>, <code>nonoro_gwd_ran_mod</code>, <code>nonoro_gwd_mix_mod</code>, <code>convadj_mod</code>, <code>calltherm_interface_mod</code>, <code>turb_mod</code>, <code>lmdz_atke_turbulence_ini</code>, <code>pbl_parameters_mod</code></td>
+<td>垂直扩散、地形/非地形重力波、干对流、热羽流、TKE/边界层诊断。</td>
+</tr>
+<tr>
+<td>tracer/热力属性</td>
+<td><code>tracer_mod</code>, <code>tracer_mass_fixer_dyn_mod</code>, <code>conc_mod</code></td>
+<td>tracer 索引/物性、动力 tracer 质量修正、平均分子量/气体常数/比热更新。</td>
+</tr>
+<tr>
+<td>地表/土壤/restart</td>
+<td><code>surfdat_h</code>, <code>comsoil_h</code>, <code>surfini_mod</code>, <code>soil_mod</code>, <code>phyetat0_mod</code>, <code>phyredem</code>, <code>vertical_layers_mod</code>, <code>time_phylmdz_mod</code></td>
+<td>地表和土壤共享状态、<code>startfi.nc</code> 读取、<code>restartfi.nc</code> 写出、sigma 层坐标和物理时间控制。</td>
+</tr>
+<tr>
+<td>化学/热层</td>
+<td><code>calchim_mod</code>, <code>surfacearea_mod</code>, <code>thermosphere_mod</code>, <a href="../aeronomars/param_v4_h.html"><code>param_v4_h</code></a>, <code>iono_h</code>, <a href="../aeronomars/param_read_e107.html"><code>param_read_e107_mod</code></a></td>
+<td>光化学输入、气溶胶表面积、热层/电离层分支初始化与调用。</td>
+</tr>
+<tr>
+<td>输出/检查/XIOS/MESOSCALE</td>
+<td><code>write_output_mod</code>, <code>wstats_mod</code>, <code>check_fields_mod</code>, <code>xios_output_mod</code>, <code>wxios</code>, <code>comm_wrf</code>, <code>planetwide_mod</code></td>
+<td>diagfi/stats/XIOS 输出、可选场检查、MESOSCALE 共享输出缓存、全行星规约诊断。</td>
+</tr>
+<tr>
+<td>配置开关</td>
+<td><code>callkeys_mod</code>, <code>ioipsl_getin_p_mod</code></td>
+<td>控制各物理分支是否执行，读取 <code>check_physics_*</code> 运行时开关。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="直接调用方">直接调用方</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>文件</th>
+<th style="text-align: right;">调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>call_physiq</code></td>
+<td><code>libf/dynphy_lonlat/phymars/callphysiq_mod.F90</code></td>
+<td style="text-align: right;">22, 69-89</td>
+<td>3D lon-lat 动力-物理接口；检查 <code>planet_type=="mars"</code> 后把动力核数组映射到 <code>physiq</code> 参数。</td>
+</tr>
+<tr>
+<td><code>testphys1d</code> 主循环</td>
+<td><code>libf/phymars/dyn1d/testphys1d.F90</code></td>
+<td style="text-align: right;">194</td>
+<td>1D 测试程序复用 3D 物理入口；调用后再施加 1D 特有风场/水汽强迫。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<p>下表按源码执行顺序列出主路径调用点。<code>write_output</code> 和 <code>wstats</code> 字段很多，本页只记录分段入口，具体字段见“诊断与输出”。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">行号</th>
+<th>条件/阶段</th>
+<th>被调用例程</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">604-605</td>
+<td>firstcall</td>
+<td><code>getin_p</code></td>
+<td>读取步首/步尾场检查开关。</td>
+</tr>
+<tr>
+<td style="text-align: right;">620, 823, 839, 4140-4149</td>
+<td><code>CPP_XIOS</code></td>
+<td><code>wxios_context_init</code>, <code>initialize_xios_output</code>, <code>update_xios_timestep</code>, <code>send_xios_field</code>, <code>xios_context_finalize</code></td>
+<td>XIOS 上下文、时间步和固定字段输出。</td>
+</tr>
+<tr>
+<td style="text-align: right;">628</td>
+<td>firstcall, 非 MESOSCALE</td>
+<td><code>phyetat0</code></td>
+<td>读取 <code>startfi.nc</code> 的物理状态、地表/土壤/tracer/restart 记忆。</td>
+</tr>
+<tr>
+<td style="text-align: right;">725, 729</td>
+<td>firstcall</td>
+<td><code>initracer</code>, <code>surfini</code></td>
+<td>初始化 tracer 索引/属性和水冰帽/地表相关状态。</td>
+</tr>
+<tr>
+<td style="text-align: right;">737, 741, 745</td>
+<td>firstcall + <code>callsoil</code></td>
+<td><code>waterice_tifeedback</code>, <code>soil</code></td>
+<td>初始化带或不带水冰热惯量反馈的土壤状态。</td>
+</tr>
+<tr>
+<td style="text-align: right;">772-775</td>
+<td>firstcall</td>
+<td><code>init_r_cp_mu</code>, <code>nlte_setup</code>, <code>NIR_leedat</code></td>
+<td>初始化平均热力属性、NLTE 表和 NIR 修正表。</td>
+</tr>
+<tr>
+<td style="text-align: right;">789/795, 2754</td>
+<td>非 MESOSCALE</td>
+<td><code>physdem0</code>, <code>physdem1</code></td>
+<td>写 <code>restartfi.nc</code> 初始控制/网格信息与运行中/末尾物理 restart。</td>
+</tr>
+<tr>
+<td style="text-align: right;">804, 808, 815</td>
+<td>firstcall</td>
+<td><code>topmons_setup</code>, <code>dust_coagulation_init</code>, <code>atke_ini</code></td>
+<td>山顶尘流、尘埃凝并和 ATKE 湍流初始化。</td>
+</tr>
+<tr>
+<td style="text-align: right;">857, 1617, 2567</td>
+<td>每步</td>
+<td><code>compute_meshgridavg</code></td>
+<td>坡面/子网格变量聚合到网格平均。</td>
+</tr>
+<tr>
+<td style="text-align: right;">879/881, 1010, 1017/1021</td>
+<td>每步/辐射</td>
+<td><code>solarlong</code>, <code>orbite</code>, <code>solang</code>/<code>mucorr</code></td>
+<td>太阳经度、日火距离、赤纬、太阳角和日照比例。</td>
+</tr>
+<tr>
+<td style="text-align: right;">897</td>
+<td><code>call_mass_fixer_dyn</code></td>
+<td><code>tracer_mass_fixer_dyn</code></td>
+<td>对动力输运后的 tracer 质量非守恒作修正 tendency。</td>
+</tr>
+<tr>
+<td style="text-align: right;">910</td>
+<td><code>photochem.or.callthermos</code></td>
+<td><code>update_r_cp_mu_ak</code></td>
+<td>用当前 tracer 组成更新 <code>rnew/cpnew/mmean</code>。</td>
+</tr>
+<tr>
+<td style="text-align: right;">1030/1045/1065</td>
+<td><code>callnlte</code></td>
+<td><code>nltecool</code> 或 <code>nlte_tcool</code>, <code>nlthermeq</code></td>
+<td>NLTE 冷却和 LTE/NLTE 分界层选择。</td>
+</tr>
+<tr>
+<td style="text-align: right;">1097, 1121</td>
+<td><code>callrad</code>, 可选 <code>CLFvarying</code></td>
+<td><code>callradite</code></td>
+<td>主辐射计算；<code>CLFvarying</code> 时再算 clear-sky 并按云分数混合。</td>
+</tr>
+<tr>
+<td style="text-align: right;">1229/1270, 1289, 1307</td>
+<td>辐射分支</td>
+<td><code>param_slope</code>, <code>nirco2abs</code>, <code>blendrad</code></td>
+<td>坡面通量、NIR CO2 加热、LTE/NLTE/NIR 倾向合成。</td>
+</tr>
+<tr>
+<td style="text-align: right;">1379, 1445, 1481, 1526</td>
+<td>尘埃分支</td>
+<td><code>rocketduststorm</code>, <code>topmons</code>, <code>dust_coagulation_main</code>, <code>compute_dtau</code></td>
+<td>风暴尘埃、山顶尘流、凝并和表面尘埃注入调度。</td>
+</tr>
+<tr>
+<td style="text-align: right;">1538</td>
+<td><code>calllott</code></td>
+<td><code>calldrag_noro</code></td>
+<td>地形/次网格重力波拖曳 tendency。</td>
+</tr>
+<tr>
+<td style="text-align: right;">1601</td>
+<td><code>calldifv</code></td>
+<td><code>vdifc</code></td>
+<td>垂直扩散、边界层混合、地表通量与部分地表 tracer tendency。</td>
+</tr>
+<tr>
+<td style="text-align: right;">1692</td>
+<td><code>calltherm</code> 且非 <code>turb_resolved</code></td>
+<td><code>calltherm_interface</code></td>
+<td>热羽流 tendency 和 <code>wstar/hfmax</code> 反馈。</td>
+</tr>
+<tr>
+<td style="text-align: right;">1744</td>
+<td><code>calladj</code></td>
+<td><code>convadj</code></td>
+<td>干对流调整 tendency。</td>
+</tr>
+<tr>
+<td style="text-align: right;">1776, 1785</td>
+<td><code>calllott_nonoro</code></td>
+<td><code>nonoro_gwd_ran</code>, <code>nonoro_gwd_mix</code></td>
+<td>非地形重力波动量拖曳与可选 GW-induced mixing。</td>
+</tr>
+<tr>
+<td style="text-align: right;">1831</td>
+<td><code>water</code></td>
+<td><code>watercloud</code></td>
+<td>水云微物理，返回水/CCN/尘埃与温度 tendency。</td>
+</tr>
+<tr>
+<td style="text-align: right;">1934</td>
+<td><code>co2clouds</code></td>
+<td><code>co2cloud</code></td>
+<td>CO2 云微物理，返回 CO2 云/CCN/尘埃 tendency、CO2 冰沉降通量。</td>
+</tr>
+<tr>
+<td style="text-align: right;">2110, 2143</td>
+<td><code>callddevil</code>, <code>sedimentation</code></td>
+<td><code>dustdevil</code>, <code>callsedim</code></td>
+<td>尘卷风起尘和尘埃/水冰沉降。</td>
+</tr>
+<tr>
+<td style="text-align: right;">2214, 2223</td>
+<td><code>photochem</code></td>
+<td><code>surfacearea</code>, <code>calchim</code></td>
+<td>为化学计算气溶胶表面积并调用化学模块。</td>
+</tr>
+<tr>
+<td style="text-align: right;">2281</td>
+<td><code>callthermos</code></td>
+<td><code>thermosphere</code></td>
+<td>热层/高层大气倾向。</td>
+</tr>
+<tr>
+<td style="text-align: right;">2301, 2315</td>
+<td><code>tituscap</code>, <code>callcond</code></td>
+<td><code>geticecover</code>, <code>co2condens</code></td>
+<td>CO2 极冠观测掩膜和 CO2 凝结/升华；后者是最后一个大气物理过程。</td>
+</tr>
+<tr>
+<td style="text-align: right;">2487, 2491/2494</td>
+<td>每步 <code>callsoil</code></td>
+<td><code>waterice_tifeedback</code>, <code>soil</code></td>
+<td>地表温度更新后推进土壤温度和地热通量。</td>
+</tr>
+<tr>
+<td style="text-align: right;">2593, 2665, 2894, 2973, 3248, 3324+</td>
+<td>诊断</td>
+<td><code>compute_tracer_mass_global</code>, <code>pbl_parameters</code>, <code>watersat</code>, <code>wstats</code>, <code>mkstats</code>, <code>write_output</code></td>
+<td>质量、近地层、水饱和、统计和 diagfi/XIOS 诊断。</td>
+</tr>
+<tr>
+<td style="text-align: right;">4155</td>
+<td><code>check_physics_outputs</code></td>
+<td><code>check_physics_fields</code></td>
+<td>步尾输出场检查。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<p><code>physiq</code> 的参数方向在 <code>physiq_mod.F:265-291</code> 声明。</p>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>caller</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>物理水平列数。</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>caller</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>大气垂直层数。</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>caller</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>tracer 数量。</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td>caller</td>
+<td>logical scalar</td>
+<td>-</td>
+<td>是否为物理包第一次调用；触发 restart/表/土壤/输出初始化。</td>
+</tr>
+<tr>
+<td><code>lastcall</code></td>
+<td>caller</td>
+<td>logical scalar</td>
+<td>-</td>
+<td>是否为最后一次调用；触发末次 restart、<code>mkstats</code>、XIOS finalize。</td>
+</tr>
+<tr>
+<td><code>pday</code>, <code>ptime</code></td>
+<td>caller</td>
+<td>real scalar</td>
+<td>sol / sol fraction</td>
+<td>从参考 <code>Ls=0</code> 起的 sol 和日内时刻。</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>caller</td>
+<td>real scalar</td>
+<td>s</td>
+<td>物理时间步。</td>
+</tr>
+<tr>
+<td><code>pplev(ngrid,nlayer+1)</code></td>
+<td>caller</td>
+<td>real array</td>
+<td>Pa</td>
+<td>层界面压力。</td>
+</tr>
+<tr>
+<td><code>pplay(ngrid,nlayer)</code></td>
+<td>caller</td>
+<td>real array</td>
+<td>Pa</td>
+<td>层中心压力。</td>
+</tr>
+<tr>
+<td><code>pphi(ngrid,nlayer)</code></td>
+<td>caller</td>
+<td>real array</td>
+<td>m2 s-2</td>
+<td>层中心位势。</td>
+</tr>
+<tr>
+<td><code>pu</code>, <code>pv</code></td>
+<td>caller</td>
+<td>real arrays</td>
+<td>m s-1</td>
+<td>纬向/经向风。</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td>caller</td>
+<td>real array</td>
+<td>K</td>
+<td>温度。</td>
+</tr>
+<tr>
+<td><code>pq(ngrid,nlayer,nq)</code></td>
+<td>caller</td>
+<td>real array</td>
+<td>kg kg_air-1 或对应 tracer 单位</td>
+<td>tracer 混合比。</td>
+</tr>
+<tr>
+<td><code>flxw(ngrid,nlayer)</code></td>
+<td>caller</td>
+<td>real array</td>
+<td>kg s-1</td>
+<td>每层下界垂直质量通量；在 <code>physiq</code> 中转为诊断垂直速度 <code>pw</code>。</td>
+</tr>
+</tbody>
+</table>
+<p><code>pplev</code> 和 <code>pplay</code> 是动力输入，源码在 <code>physiq_mod.F:445-447</code> 明确要求 physics 不得修改它们，因此 <code>physiq</code> 复制到工作数组 <code>zplev/zplay</code>，CO2 凝结后的压力坐标更新只改工作副本。</p>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdu(ngrid,nlayer)</code></td>
+<td>caller</td>
+<td>real array</td>
+<td>m s-2</td>
+<td>物理过程给纬向风的 tendency。</td>
+</tr>
+<tr>
+<td><code>pdv(ngrid,nlayer)</code></td>
+<td>caller</td>
+<td>real array</td>
+<td>m s-2</td>
+<td>物理过程给经向风的 tendency。</td>
+</tr>
+<tr>
+<td><code>pdt(ngrid,nlayer)</code></td>
+<td>caller</td>
+<td>real array</td>
+<td>K s-1</td>
+<td>物理过程给温度的 tendency。</td>
+</tr>
+<tr>
+<td><code>pdq(ngrid,nlayer,nq)</code></td>
+<td>caller</td>
+<td>real array</td>
+<td>tracer unit s-1</td>
+<td>物理过程给 tracer 的 tendency。</td>
+</tr>
+<tr>
+<td><code>pdpsrf(ngrid)</code></td>
+<td>caller</td>
+<td>real array</td>
+<td>Pa s-1</td>
+<td>表面压力 tendency，主要由 CO2 凝结/升华产生。</td>
+</tr>
+</tbody>
+</table>
+<p>这些输出在每步开始统一清零（<code>physiq_mod.F:844-848</code>），随后各物理过程按源码顺序做加法累积。地表 tracer、地表温度、土壤、XIOS/diagfi/stats/restart 等副作用不通过这五个输出返回，而是直接写共享模块或文件。</p>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>读写对象</th>
+<th>源码证据</th>
+<th>副作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间/太阳几何</td>
+<td><code>comsaison_h::zls, dist_sol, declin, mu0, fract, local_time</code></td>
+<td>870-882, 1010-1021</td>
+<td>每步写入季节、太阳角和本地时；辐射、NIR、坡面、尘埃注入等下游读取。</td>
+</tr>
+<tr>
+<td>地表/土壤</td>
+<td><code>surfdat_h::tsurf, emis, capcal, fluxgrd, qsurf, watercap, perennial_co2ice</code>, <code>comsoil_h::tsoil, inertiesoil, qsoil</code></td>
+<td>628-634, 729, 2411-2497, 2540-2562</td>
+<td>从 restart 初始化，随后每步更新地表储量、地表温度、土壤温度和地热通量。</td>
+</tr>
+<tr>
+<td>辐射共享数组</td>
+<td><code>dimradmars_mod::aerosol, dtrad, fluxrad_sky, fluxrad, albedo, totcloudfrac</code></td>
+<td>609-614, 1097, 1327-1349</td>
+<td>初始化/更新辐射加热率、通量、气溶胶和云分数。</td>
+</tr>
+<tr>
+<td>湍流状态</td>
+<td><code>turb_mod::q2, wstar, ustar, sensibFlux, zmax_th, hfmax_th</code></td>
+<td>632, 1601, 1692, 3260-3305</td>
+<td>垂直扩散和热羽流更新边界层/TKE 相关状态，并用于诊断。</td>
+</tr>
+<tr>
+<td>tracer 质量记忆</td>
+<td><code>tracer_mass_fixer_dyn_mod::mass_predyn</code></td>
+<td>893-899, 2593</td>
+<td>可选地修正动力 tracer 质量误差并输出质量诊断。</td>
+</tr>
+<tr>
+<td>restart</td>
+<td><code>startfi.nc</code>, <code>restartfi.nc</code></td>
+<td>628, 789/795, 2710-2758</td>
+<td>firstcall 读物理初始状态；运行中/末尾按 <code>ecritstart</code> 或 <code>lastcall</code> 写 restart。</td>
+</tr>
+<tr>
+<td>诊断文件</td>
+<td><code>write_output</code>, <code>wstats/mkstats</code>, <code>comm_wrf</code>, XIOS</td>
+<td>2973-3248, 3260-3297, 3324-4088, 4140-4149</td>
+<td>写 stats、diagfi/diagsoil/XIOS 字段；MESOSCALE 分支写 <code>comm_*</code> 缓存。</td>
+</tr>
+<tr>
+<td>运行日志/中止</td>
+<td><code>write(*,*)</code>, <code>abort_physic</code></td>
+<td>713-718, 1202, 1682</td>
+<td>输出初始化/警告信息；日期不同步、turbulence-resolved 未支持等路径会中止。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="初始化restart-与诊断行为">初始化、restart 与诊断行为</h2>
+<h3 id="firstcall-初始化">firstcall 初始化</h3>
+<p><code>IF (firstcall)</code> 从 <code>physiq_mod.F:602</code> 开始。非 MESOSCALE 路径调用 <code>phyetat0("startfi.nc",...)</code> 读取物理初始状态；MESOSCALE 路径假定模块变量已由外部设置，只打印检查信息、设置 <code>day_ini=pday</code> 并填充一些默认值。若非 MESOSCALE 且 <code>startphy_file</code> 为假，源码走 academic 初始化：给土壤层深度、<code>tsurf/tsoil</code> 和热惯量设置默认值，并把 <code>day_ini=pday</code>。</p>
+<p>firstcall 之后会检查 <code>pday</code> 与 <code>day_ini</code> 是否同步（713-718），初始化 tracer 和地表（725, 729），按 <code>callsoil</code> 初始化土壤（733-746），初始化热层/电离层、平均热力属性、NLTE/NIR 表（763-775），写 restart 初始控制信息（789/795），准备 <code>topmons</code>、尘埃凝并、ATKE 和 XIOS 输出（804-823）。</p>
+<h3 id="每步初始化">每步初始化</h3>
+<p>每个物理步都会更新 XIOS 时间（837-839），清零所有输出 tendency、地表 tendency、通量和若干诊断数组（842-856），计算坡面到网格平均状态（857-858），设置 <code>IRtoVIScoef=2.6</code> 初值（860-862），计算 <code>zday</code>、<code>local_time</code> 和 <code>zls</code>（870-882），并把动力压力输入复制到 <code>zplev/zplay</code>（884-888）。</p>
+<h3 id="restart-写出">restart 写出</h3>
+<p>非 MESOSCALE 路径在诊断前计算 <code>write_restart</code>：<code>ecritstart&gt;0</code> 且 <code>MODULO(icount*iphysiq,ecritstart)==0</code> 时写多时间 restart，<code>lastcall</code> 时一定写（2710-2721）。写出时间 <code>ztime_fin</code> 对 DYNAMICO/unstructured 与 LMDZ 规则不同（2723-2749），最后调用 <code>physdem1("restartfi.nc",...)</code> 写 <code>tsurf/tsoil/inertiesoil/albedo/emis/q2/qsurf/qsoil/tauscaling/totcloudfrac/wstar/watercap/perennial_co2ice</code> 等状态（2754-2758）。</p>
+<h3 id="诊断与输出">诊断与输出</h3>
+<p>诊断先构造更新后工作态 <code>zt/zu/zv/zq</code>（2565 之后；水/CO2 调用点页也记录了 <code>zq=pq+pdq*ptimestep</code> 的诊断用法），再计算密度、位温、辐射通量和各主题柱积分。<code>wstats</code> 在非 MESOSCALE 路径累计 <code>ps/tsurf/radiation/temp/u/v/w/rho/pressure/q2/water/co2/dust/chemistry</code> 等字段，并在 <code>lastcall.and.callstats</code> 时调用 <code>mkstats</code>（2973-3248）。MESOSCALE 路径只填 <code>comm_wrf</code> 缓存（3260-3297）。常规 diagfi/XIOS 输出通过大量 <code>write_output</code> 调用完成（3324-4088），末尾还输出 CO2 总量守恒诊断 <code>co2conservation</code>（4110-4134）并发送 XIOS 固定字段（4140-4145）。</p>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li><strong>步首清零与时间/网格准备</strong>：输出 tendency 和地表增量全部清零，写 <code>local_time/zls</code>，复制动力压力为 <code>zplev/zplay</code>，可选修正动力 tracer 质量非守恒，并计算 <code>zzlay/zzlev/zh/pw</code> 等工作变量。</li>
+<li><strong>辐射准备与辐射倾向</strong>：<code>callrad</code> 分支计算轨道几何与太阳角，按 <code>callnlte/nltemodel/callnirco2/callslope/CLFvarying</code> 调用 NLTE、LTE 辐射、坡面通量和近红外 CO2 加热，最终把 <code>dtrad</code> 累加到 <code>pdt</code>。</li>
+<li><strong>尘埃与地形相关过程</strong>：按 <code>rdstorm -&gt; topflows -&gt; dust_coagulation -&gt; dustinjection</code> 的顺序更新尘埃/风暴尘埃/topdust tendency 或 <code>dustliftday</code>；然后地形重力波 <code>calldrag_noro</code> 把 <code>zdugw/zdvgw/zdtgw</code> 累加到风温 tendency。</li>
+<li><strong>边界层、热羽流、对流与非地形 GW</strong>：<code>vdifc</code> 用辐射+地热通量、当前累计温度 tendency 和地表状态计算垂直扩散 tendency；热羽流、干对流和非地形 GW 随后继续往 <code>pdu/pdv/pdt/pdq</code> 累加。</li>
+<li><strong>tracer 物理：水、CO2 云、尘卷风、沉降、化学、热层</strong>：水云和 CO2 云分别在第 9a/9a bis 段处理，<code>callsedim</code> 处理尘埃和水冰沉降，<code>calchim</code> 可读取云过程输出，<code>thermosphere</code> 在高层分支追加 tendency。</li>
+<li><strong>CO2 凝结与坐标更新</strong>：<code>co2condens</code> 被源码标注为最后一个大气物理过程（2296-2298），输出 <code>pdpsrf</code>、风温/tracer/地表 tendency。非 MESOSCALE 路径随后用 <code>pdpsrf</code> 更新 <code>ps/zplay/zplev/zzlay/zzlev</code>（2357-2403）。</li>
+<li><strong>地表/土壤和非负保护</strong>：累加 <code>qsurf += ptimestep*dqsurf</code>，<code>tsurf += ptimestep*zdtsurf</code>，按水冰/CO2 霜条件调整反照率/发射率，再调用 <code>soil</code>；随后对风暴尘埃/背景尘埃做非负保护并更新 <code>watercap</code>。</li>
+<li><strong>输出、restart、场检查和计数</strong>：计算诊断工作态，按 stats/MESOSCALE/diagfi/XIOS 写出，末尾可检查输出场并 <code>icount=icount+1</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>physiq(args):
+  pdq = 0
+  if firstcall:
+    read check_physics_inputs/outputs
+    initialize radiation arrays and optional XIOS
+    if not MESOSCALE:
+      phyetat0(startfi.nc) -&gt; tsurf/tsoil/albedo/emis/qsurf/q2/...
+      if no startphy_file: build academic defaults
+    else:
+      check externally prepared state and set MESOSCALE defaults
+    require pday == day_ini
+    initracer; surfini
+    if callsoil: optionally waterice_tifeedback, then soil(firstcall)
+    initialize thermosphere/NLTE/NIR/mean gas properties/topmons/coagulation/ATKE/output
+
+  if check_physics_inputs: check pt/pu/pv/pplev/pq
+
+  zero pdu/pdv/pdt/pdq/pdpsrf, zdtsurf, dqsurf, diagnostic fluxes
+  compute mesh averages, zday, local_time, zls
+  copy pplev/pplay into zplev/zplay; ps = zplev(:,1)
+  if call_mass_fixer_dyn: pdq += tracer_mass_fixer_dyn(...)
+  if photochem or callthermos: update_r_cp_mu_ak(...)
+  compute zzlay/zzlev, potential temperature, vertical velocity
+  compute initial CO2 total for conservation diagnostic
+
+  if callrad:
+    orbite -&gt; dist_sol/declin
+    solang or mucorr -&gt; mu0/fract
+    optional NLTE cooling and daily nlthermeq
+    callradite -&gt; radiative tendencies and fluxes
+    optional clear-sky callradite for CLFvarying
+    optional slope radiation and NIR CO2 absorption
+    dtrad = blendrad(...) or sum SW/LW/NIR/NLTE
+    pdt += dtrad
+
+  if rdstorm: rocketduststorm; add pdqrds to dust/stormdust pdq
+  if topflows: topmons; add pdqtop to topdust and dust pdq
+  if dust_coagulation: dust_coagulation_main; add pdqcoag
+  if dustinjection &gt; 0: compute_dtau -&gt; dustliftday
+  if calllott: calldrag_noro; add wind/temp tendencies
+  if calldifv: vdifc; add vertical diffusion tendencies and surface fluxes
+  if calltherm: calltherm_interface; add thermals tendencies
+  if calladj: convadj; add dry-convection tendencies
+  if calllott_nonoro: nonoro_gwd_ran; optional nonoro_gwd_mix
+
+  if water: watercloud; inject water/HDO/CCN/dust tendencies with guards
+  if co2clouds: co2cloud; inject CO2-cloud tendencies with guards
+  if callddevil: dustdevil; add dustdevil tendencies
+  if sedimentation: callsedim; add atmospheric and surface sedimentation tendencies
+  if photochem: surfacearea; calchim; add chemical tendencies
+  if callthermos: thermosphere; add high-atmosphere tendencies
+
+  if tituscap: geticecover -&gt; qsurf_tmp(co2)
+  if callcond:
+    co2condens -&gt; zdtc/zdtsurfc/zduc/zdvc/zdqc/zdqsc/pdpsrf
+    if ngrid == 1: scale selected outputs by CO2cond_ps
+    add CO2 condensation tendencies
+    if not MESOSCALE: update ps, zplay, zplev, zzlay, zzlev
+
+  qsurf += ptimestep*dqsurf
+  tsurf += ptimestep*zdtsurf
+  if water: update frost albedo/emissivity, watercap/refill_watercap
+  if callsoil: waterice_tifeedback if enabled, then soil
+  protect dust/stormdust from negative updated values
+
+  build updated diagnostic state zt/zu/zv/zq
+  write optional restartfi, stats, MESOSCALE comm_wrf, diagfi/XIOS fields
+  compute and write CO2 conservation diagnostic
+  if check_physics_outputs: check zt/zu/zv/zplev/zq
+  icount += 1</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">radiation</a></td>
+<td>计算太阳几何、调用 <code>callradite</code>、处理 <code>CLFvarying</code> clear-sky、NIR CO2、NLTE/LTE 合成和坡面辐射。</td>
+</tr>
+<tr>
+<td><a href="../../themes/dust-cycle.html">dust-cycle</a></td>
+<td>串联尘暴、山顶尘流、凝并、<code>compute_dtau</code> 注入、<code>dustdevil</code>、<code>callsedim</code> 和 dust diagnostics。</td>
+</tr>
+<tr>
+<td><a href="../../themes/water-cycle.html">water-cycle</a></td>
+<td>在 <code>water</code> 分支调用 <code>watercloud</code>，之后沉降、化学、地表水冰、热惯量反馈、watercap 和诊断都在本文件衔接。</td>
+</tr>
+<tr>
+<td><a href="../../themes/co2-cycle.html">co2-cycle</a></td>
+<td>控制 <code>co2cloud -&gt; co2condens -&gt; 表压/坐标更新 -&gt; 地表 CO2/诊断</code> 的顺序；CO2 凝结是最后大气物理过程。</td>
+</tr>
+<tr>
+<td>dynamics coupling</td>
+<td><code>callphysiq_mod.F90</code> 把动力核数组传给 <code>physiq</code>，并把 <code>pdu/pdv/pdt/pdq/pdpsrf</code> tendency 传回动力侧。</td>
+</tr>
+<tr>
+<td>1D physics</td>
+<td><code>testphys1d.F90</code> 直接调用 <code>physiq</code>，并在 CO2 凝结后通过 <code>CO2cond_ps</code> 缩放 1D 表压相关输出。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>固定格式 Fortran + 大型调度例程</strong>：文件主体是一个 4000 行级别的固定格式 Fortran 子程序，局部数组承担跨物理段的工作态。</li>
+<li><strong>加法式 tendency 总线</strong>：每个物理过程返回局部 tendency，随后显式 <code>pdt += ...</code>、<code>pdq += ...</code>、<code>pdu/pdv += ...</code>。复现时要保留源码顺序。</li>
+<li><strong>动力输入不原地修改</strong>：<code>pplev/pplay</code> 被复制为 <code>zplev/zplay</code>，CO2 凝结后的压力坐标只更新工作副本。</li>
+<li><strong>firstcall 与每步初始化严格分离</strong>：表文件、restart、土壤/NLTE/NIR/ATKE/XIOS 初始化只在 firstcall；tendency、时间、太阳几何和工作压力每步重置。</li>
+<li><strong>大量 compile-time 分支</strong>：<code>MESOSCALE</code>、<code>CPP_XIOS</code>、<code>DUSTSTORM</code>、<code>MESOINI</code> 会改变 restart、输出、共享缓存和某些初始化行为。</li>
+<li><strong>成对非负保护</strong>：水云、CO2 云和尘埃相关质量/数浓度 tracer 多处使用 <code>where</code> 把 mass/number 成对钳到 <code>-pq/ptimestep + 1.e-30</code>。</li>
+<li><strong>诊断基于更新后工作态</strong>：水、CO2、尘埃、化学等柱积分和输出使用 <code>zq = pq + pdq*ptimestep</code> 这类更新后副本，而不是裸 <code>pq</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>按源码顺序累加 <code>pdu/pdv/pdt/pdq/pdpsrf/dqsurf/zdtsurf</code>；不要把辐射、水云、沉降、CO2 凝结或土壤更新重排。</li>
+<li><code>co2condens</code> 必须位于最后一个大气物理过程位置；它之后的 <code>ps/zplay/zplev/zzlay/zzlev</code> 更新依赖 <code>pdpsrf</code>。</li>
+<li><code>callradite -&gt; watercloud -&gt; callsedim</code> 的顺序决定水冰半径 <code>rice</code> 和沉降输入；相关细节见 <a href="../../routines/physiq-water-cycle-callpoints.html">physiq-water-cycle-callpoints</a>。</li>
+<li><code>co2cloud -&gt; co2condens</code> 之间通过 <code>zdqssed_co2</code> 与 <code>zcondicea_co2microp</code> 传递 CO2 云沉降/凝结信息；相关细节见 <a href="../../routines/physiq-co2-cycle-callpoints.html">physiq-co2-cycle-callpoints</a>。</li>
+<li>对 <code>pplev/pplay</code> 的任何后处理都应写到 <code>zplev/zplay</code>；源码注释明确禁止 physics 修改动力输入。</li>
+<li>在非 MESOSCALE 与 MESOSCALE 分支中 restart 和输出路径不同；普通 GCM 写 <code>restartfi.nc/stats/diagfi/XIOS</code>，MESOSCALE 写 <code>comm_wrf</code> 缓存。</li>
+<li>若开启 <code>check_physics_inputs</code> 或 <code>check_physics_outputs</code>，失败会经 <code>check_fields_mod</code> 打印诊断并中止；默认值在本文件为 <code>.false.</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>physiq_mod.F:2957</code> 的 <code>icetotco2(ig) = icetot(ig) + ...</code> 疑似把水冰柱积分 <code>icetot</code> 用作 CO2 冰累加基值；已有 <a href="../../routines/physiq-co2-cycle-callpoints.html">physiq-co2-cycle-callpoints</a> 和 <a href="../../themes/co2-cycle.html">co2-cycle</a> 标注为疑似 bug，仍需上游版本或开发者确认。</li>
+<li><code>callradite_mod.F</code> 已有 <a href="callradite_mod.html">callradite_mod</a> 文件页，<code>lwmain_mod.F</code> 已有 <a href="lwmain_mod.html">lwmain_mod</a> 文件页，<code>swmain_mod.F</code> 已有 <a href="swmain_mod.html">swmain_mod</a> 文件页，<code>vdifc_mod.F</code> 已有 <a href="vdifc_mod.html">vdifc_mod</a> 文件页。本页只记录它们在 <code>physiq</code> 的调用位置，不展开其完整内部算法。</li>
+<li><code>calchim</code> 对 <code>zdqcloud/zdqscloud</code> 的具体非均相化学使用需要在 aeronomars 化学文件页中继续确认。</li>
+<li>MESOSCALE 编译路径跳过部分普通 GCM restart/坐标更新逻辑；本页按源码分支记录，未复现外部 WRF/mesoscale 驱动如何消费所有 <code>comm_*</code> 字段。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a></li>
+<li><a href="../dynphy_lonlat/index.html">callphysiq_mod / dynphy_lonlat 目录</a></li>
+<li><a href="../../routines/physiq-water-cycle-callpoints.html">physiq water-cycle callpoints</a></li>
+<li><a href="../../routines/physiq-co2-cycle-callpoints.html">physiq CO2-cycle callpoints</a></li>
+<li><a href="../../themes/radiation.html">radiation</a></li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle</a></li>
+<li><a href="../../themes/water-cycle.html">water-cycle</a></li>
+<li><a href="../../themes/co2-cycle.html">co2-cycle</a></li>
+<li><a href="callkeys_mod.html">callkeys_mod</a></li>
+<li><a href="comsaison_h.html">comsaison_h</a></li>
+<li><a href="check_fields.html">check_fields</a></li>
+<li><a href="comm_wrf.html">comm_wrf</a></li>
+<li><a href="wstats_mod.html">wstats_mod</a></li>
+<li><a href="write_output_mod.html">write_output_mod</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

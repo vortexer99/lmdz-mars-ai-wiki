@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>project-structure - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a class="active" href="project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>architecture/project-structure.md</span>
+    </nav>
+    <article class="content">
+<h1 id="lmdzmars-项目结构总览">LMDZ.MARS 项目结构总览</h1>
+<h2 id="路径">路径</h2>
+<pre><code>LMDZ.MARS</code></pre>
+<h2 id="职责">职责</h2>
+<p>LMDZ.MARS 是火星行星气候模型（Planetary Climate Model, PCM）的物理包，包含火星大气环流模式的物理过程实现。该项目不包含完整的 GCM 源码（仅包含物理过程部分），而是提供 Fortran 源码供其他动力框架调用。</p>
+<p><strong>源码依据</strong>：<code>README</code> 文件说明这是 "Mars Planetary Climate (PCM) physics package"。</p>
+<h2 id="目录内容">目录内容</h2>
+<table>
+<thead>
+<tr>
+<th>子目录/文件</th>
+<th>类型</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>README</code></td>
+<td>文件</td>
+<td>项目说明文档</td>
+</tr>
+<tr>
+<td><code>changelog.txt</code></td>
+<td>文件</td>
+<td>代码变更记录</td>
+</tr>
+<tr>
+<td><code>Licence_CeCILL_V2-en.txt</code></td>
+<td>文件</td>
+<td>CeCILL 开源许可证（英文）</td>
+</tr>
+<tr>
+<td><code>Licence_CeCILL_V2-fr.txt</code></td>
+<td>文件</td>
+<td>CeCILL 开源许可证（法文）</td>
+</tr>
+<tr>
+<td><code>libf/</code></td>
+<td>目录</td>
+<td><strong>核心 Fortran 源码</strong>（物理过程实现）</td>
+</tr>
+<tr>
+<td><code>deftank/</code></td>
+<td>目录</td>
+<td>配置文件和运行脚本示例</td>
+</tr>
+<tr>
+<td><code>util/</code></td>
+<td>目录</td>
+<td>后处理工具集</td>
+</tr>
+<tr>
+<td><code>startfiles/</code></td>
+<td>目录</td>
+<td>初始状态文件</td>
+</tr>
+<tr>
+<td><code>datadir/</code></td>
+<td>目录</td>
+<td>运行时外部数据集</td>
+</tr>
+<tr>
+<td><code>doc/</code></td>
+<td>目录</td>
+<td>用户手册 LaTeX 源文件</td>
+</tr>
+</tbody>
+</table>
+<h2 id="目录详解">目录详解</h2>
+<h3 id="libf---核心源码目录">libf/ - 核心源码目录</h3>
+<p>这是最重要的目录，包含所有物理过程的 Fortran 实现：</p>
+<table>
+<thead>
+<tr>
+<th>子目录</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phymars/</code></td>
+<td>核心物理模块：辐射、尘埃、水循环、CO2、云、边界层、重力波等</td>
+</tr>
+<tr>
+<td><code>aeronomars/</code></td>
+<td>高层大气模块：光化学、热层、电离层、分子扩散</td>
+</tr>
+<tr>
+<td><code>dynphy_lonlat/</code></td>
+<td>动力-物理耦合与初始化（当前仅包含 phymars 子目录）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>源码依据</strong>：<code>README</code> 说明 <code>libf</code> 是 "Fortran source code of the Mars physics package"。</p>
+<h3 id="deftank---配置目录">deftank/ - 配置目录</h3>
+<p>包含 GCM 运行所需的配置文件示例和运行脚本：</p>
+<ul>
+<li><code>run.def</code> - 运行参数配置（网格、时间步长等）</li>
+<li><code>callphys.def</code> - 物理过程调用开关</li>
+<li><code>traceur.def</code> - 示踪剂配置</li>
+<li><code>z2sig.def</code> - 垂直坐标定义</li>
+<li><code>iodef.xml</code> / <code>context_lmdz_physics.xml</code> - XIOS 输出配置</li>
+<li><code>run0</code>、<code>run_mcd</code> - 运行脚本</li>
+<li>子目录 <code>ciclad</code>、<code>occigen</code>、<code>irene</code>、<code>mesu</code>、<code>spirit</code> - 不同机器的调度脚本</li>
+</ul>
+<p><strong>源码依据</strong>：<code>deftank/README</code> 说明需要 "run.def, callphys.def, traceur.def and z2sig.def" 输入文件。</p>
+<h3 id="util---后处理工具">util/ - 后处理工具</h3>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/util/concatnc.html"><code>concatnc.F90</code></a></td>
+<td>合并 NetCDF 输出文件</td>
+</tr>
+<tr>
+<td><a href="../modules/util/extract.html"><code>extract.F90</code></a></td>
+<td>提取变量和区域</td>
+</tr>
+<tr>
+<td><a href="../modules/util/zrecast.html"><code>zrecast.F90</code></a></td>
+<td>垂直坐标转换</td>
+</tr>
+<tr>
+<td><a href="../modules/util/localtime.html"><code>localtime.F90</code></a></td>
+<td>本地时间计算</td>
+</tr>
+<tr>
+<td><a href="../modules/util/lslin.html"><code>lslin.F90</code></a></td>
+<td>Ls 线性化重采样</td>
+</tr>
+<tr>
+<td><a href="../modules/util/gencol.html"><code>gencol.F90</code></a></td>
+<td>生成列数据</td>
+</tr>
+<tr>
+<td><a href="../modules/util/hrecast.html"><code>hrecast.F90</code></a></td>
+<td>水平重网格</td>
+</tr>
+<tr>
+<td><a href="../modules/util/startarchive2icosa.html"><code>startarchive2icosa</code></a></td>
+<td>初始场格式转换</td>
+</tr>
+<tr>
+<td><a href="../modules/util/simu_MCS.html"><code>simu_MCS.F90</code></a></td>
+<td>MCS 模拟配置</td>
+</tr>
+</tbody>
+</table>
+<h3 id="startfiles---初始状态">startfiles/ - 初始状态</h3>
+<p>包含 1D 模型初始状态文件 <code>start1D.txt</code>。</p>
+<p><strong>源码依据</strong>：<code>startfiles/README</code> 说明 1D 模型使用 8 层大气层和 5 个示踪剂 [co2, h2o_ice, h2o_vap, dust_number, dust_mass]。</p>
+<h3 id="datadir---运行时数据">datadir/ - 运行时数据</h3>
+<p>本目录当前只包含 <code>README</code>，其中指向在线 <code>datadir</code> 数据包下载位置；实际运行所需的外部数据文件不随此目录完整提供。</p>
+<p><strong>源码依据</strong>：<code>datadir/README</code> 指向在线数据集下载位置。</p>
+<h3 id="doc---文档">doc/ - 文档</h3>
+<p>用户手册 LaTeX 源文件。</p>
+<h2 id="与其他目录的关系">与其他目录的关系</h2>
+<table>
+<thead>
+<tr>
+<th>相关目录</th>
+<th>关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>libf/</td>
+<td>提供物理过程源码，被 deftank 中的配置驱动</td>
+</tr>
+<tr>
+<td>deftank/</td>
+<td>提供运行配置，调用 libf 中的物理过程</td>
+</tr>
+<tr>
+<td>util/</td>
+<td>处理 deftank 运行产生的输出数据</td>
+</tr>
+<tr>
+<td>startfiles/</td>
+<td>提供初始状态，由 deftank 中的脚本加载</td>
+</tr>
+<tr>
+<td>datadir/</td>
+<td>提供运行时查表数据，被 libf 中的模块使用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="关键文件">关键文件</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/phymars/physiq_mod.html"><code>libf/phymars/physiq_mod.F</code></a></td>
+<td>主物理入口，是 phymars 的核心调用入口</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/callradite_mod.html"><code>libf/phymars/callradite_mod.F</code></a></td>
+<td>辐射计算入口，调度长波和短波辐射主程序</td>
+</tr>
+<tr>
+<td><a href="../modules/aeronomars/index.html"><code>libf/aeronomars/</code></a></td>
+<td>光化学、热层、电离层实现</td>
+</tr>
+<tr>
+<td><code>deftank/run.def.*</code></td>
+<td>不同配置的运行参数</td>
+</tr>
+<tr>
+<td><code>deftank/callphys.def.*</code></td>
+<td>物理过程开关配置</td>
+</tr>
+</tbody>
+</table>
+<h2 id="典型运行流程">典型运行流程</h2>
+<ol type="1">
+<li><p><strong>初始化阶段</strong>：</p>
+<ul>
+<li>读取 <code>run.def</code> 获取网格、时间步长等参数</li>
+<li>读取 <code>z2sig.def</code> 定义垂直坐标</li>
+<li>读取 <code>traceur.def</code> 配置示踪剂</li>
+<li>读取 <code>callphys.def</code> 配置物理过程开关</li>
+<li>从 <code>startfiles/</code> 加载初始状态</li>
+<li>从 <code>datadir/</code> 加载运行时数据</li>
+</ul></li>
+<li><p><strong>物理计算阶段</strong>：</p>
+<ul>
+<li>主循环中调用 <a href="../modules/phymars/physiq_mod.html"><code>physiq_mod.F</code></a> 中的物理过程</li>
+<li>辐射计算（<a href="../modules/phymars/callradite_mod.html"><code>callradite_mod.F</code></a>）</li>
+<li>尘埃循环（<code>dust_*.F</code>）</li>
+<li>水循环（<code>water*.F</code>）</li>
+<li>CO2 循环（<code>co2*.F</code>）</li>
+<li>高层大气（<code>aeronomars/</code>）</li>
+</ul></li>
+<li><p><strong>输出阶段</strong>：</p>
+<ul>
+<li>通过 XIOS 写入 NetCDF 输出</li>
+<li>使用 <code>util/</code> 工具进行后处理</li>
+</ul></li>
+</ol>
+<h2 id="运行场景">运行场景</h2>
+<ol type="1">
+<li><strong>3D GCM 模式</strong>：与动力核心耦合，全火星模拟</li>
+<li><strong>1D 垂直列模式</strong>：使用 <code>testphys1d</code> 程序，固定水平位置的时间演化</li>
+<li><strong>离线诊断模式</strong>：使用已有输出进行诊断计算</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>需要从 LMDZ 主框架获取动力核心（<code>dyn_em</code> 或类似）</li>
+<li>需要配置合适的 <code>run.def</code>、<code>callphys.def</code>、<code>traceur.def</code>、<code>z2sig.def</code></li>
+<li>需要下载 <code>datadir</code> 数据集</li>
+<li>需要获取合适的初始状态文件</li>
+<li>不同配置（GCM5/GCM6/MCD5/MCD6）对应不同的物理过程组合</li>
+</ul>
+<h2 id="后续细节入口">后续细节入口</h2>
+<p>本页只保留项目结构层级和运行场景；早期概览中的细节问题已拆到专题页和模块页维护：</p>
+<ul>
+<li>物理过程主入口与水/CO2 循环调用点见 <a href="../routines/physiq-water-cycle-callpoints.html">physiq-water-cycle-callpoints.md</a> 和 <a href="../routines/physiq-co2-cycle-callpoints.html">physiq-co2-cycle-callpoints.md</a>。</li>
+<li>配置文件字段、读取例程和运行边界见 <a href="config-system.html">config-system.md</a>、<a href="co2-cycle-config.html">co2-cycle-config.md</a>、<a href="water-cycle-config.html">water-cycle-config.md</a>、<a href="testphys1d-config.html">testphys1d-config.md</a>。</li>
+<li>XIOS 输出变量、文件组合和垂直轴语义见 <a href="xios-config.html">xios-config.md</a>。</li>
+<li>物理模块依赖关系以模块页和索引维护，入口见 <a href="../modules/libf-overview.html">libf-overview.md</a>、<a href="../modules/phymars/index.html">phymars/index.md</a>、<a href="../modules/aeronomars/index.html">aeronomars/index.md</a>。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

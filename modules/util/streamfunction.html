@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>streamfunction - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/streamfunction.md</span>
+    </nav>
+    <article class="content">
+<h1 id="streamfunctionf90">streamfunction.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util\streamfunction.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>util</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>streamfunction.F90</code> 是一个离线 NetCDF 诊断程序，用于从 <code>diagfi.nc</code>、<code>concat.nc</code> 或 <code>stats.nc</code> 类文件计算纬向平均的经向质量流函数、总角动量、纬向平均风、温度、密度、地表压力和初始地形势。</p>
+<p>它不是逐时刻输出工具。源码先对输入的 <code>u/v/temp/rho/ps</code> 做全时段平均，再做纬向平均或垂直积分，输出文件固定为单经度、单时间维度的 <code>*_stream.nc</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>streamfunction</code></td>
+<td>program</td>
+<td>1</td>
+<td>主程序：读取输入 NetCDF、计算流函数/角动量/纬向平均诊断并写出 <code>*_stream.nc</code>。</td>
+</tr>
+<tr>
+<td><code>initiate</code></td>
+<td>internal subroutine</td>
+<td>860</td>
+<td>创建输出 NetCDF 文件，定义 <code>latitude</code>、单点 <code>longitude</code>、<code>altitude</code> 和单点 <code>Time</code>。</td>
+</tr>
+<tr>
+<td><code>init2</code></td>
+<td>internal subroutine</td>
+<td>978</td>
+<td>复制输入文件中的 <code>aps/bps</code> 到输出文件。</td>
+</tr>
+<tr>
+<td><code>def_var</code></td>
+<td>internal subroutine</td>
+<td>1105</td>
+<td>定义输出变量并写入 <code>title</code>、<code>units</code> 属性。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖">依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>include "netcdf.inc"</code></td>
+<td>使用旧式 NetCDF Fortran <code>NF_*</code> 接口。</td>
+</tr>
+<tr>
+<td>预处理宏 <code>MARS</code> / <code>JUPITER</code></td>
+<td>可覆盖 <code>g0/a0/daysec/Rgas</code> 行星常数；无宏时源码默认值已为 Mars。</td>
+</tr>
+<tr>
+<td>预处理宏 <code>NC_DOUBLE</code></td>
+<td>输出定义和坐标写入可切换为 <code>NF_DOUBLE</code>，否则为 <code>NF_FLOAT</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入文件名</td>
+<td>stdin</td>
+<td>NetCDF 文件名</td>
+<td>-</td>
+<td>程序提示为 <code>diagfi.nc</code>、<code>concatnc.nc</code> 或 <code>stats.nc</code>。</td>
+</tr>
+<tr>
+<td><code>latitude</code> / <code>longitude</code> / <code>altitude</code> / <code>Time</code></td>
+<td>输入 NetCDF</td>
+<td>1D</td>
+<td>输入属性或约定</td>
+<td>空间和时间坐标；四者均为必需。</td>
+</tr>
+<tr>
+<td><code>aps</code> / <code>bps</code></td>
+<td>输入 NetCDF</td>
+<td><code>altitude</code> 长度</td>
+<td>Pa / sigma</td>
+<td>hybrid 中层坐标；源码要求二者都存在。</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td>输入 NetCDF</td>
+<td><code>(lon,lat,Time)</code></td>
+<td>Pa</td>
+<td>地表压力，用于时间平均、hybrid 压力和密度回退。</td>
+</tr>
+<tr>
+<td><code>u</code> / <code>v</code></td>
+<td>输入 NetCDF</td>
+<td><code>(lon,lat,alt,Time)</code></td>
+<td>m/s</td>
+<td>纬向风和经向风。</td>
+</tr>
+<tr>
+<td><code>aire</code></td>
+<td>输入或回退文件</td>
+<td><code>(lon,lat)</code></td>
+<td>m2</td>
+<td>网格框面积；输入缺失时依次尝试 <code>diagfi.nc</code>、<code>diagfi1.nc</code>。</td>
+</tr>
+<tr>
+<td><code>phisinit</code></td>
+<td>输入或回退文件</td>
+<td><code>(lon,lat)</code></td>
+<td>m2/s2</td>
+<td>地形势；输入缺失时依次尝试 <code>diagfi.nc</code>、<code>diagfi1.nc</code>。</td>
+</tr>
+<tr>
+<td><code>cv</code></td>
+<td>输入或用户提供文件</td>
+<td><code>(lon,lat)</code></td>
+<td>-</td>
+<td>自然风到协变/逆变经向风的转换因子；输入缺失时要求用户输入另一文件名，再回退 <code>start.nc</code>。</td>
+</tr>
+<tr>
+<td><code>temp</code></td>
+<td>输入 NetCDF</td>
+<td><code>(lon,lat,alt,Time)</code></td>
+<td>K</td>
+<td>温度。</td>
+</tr>
+<tr>
+<td><code>rho</code></td>
+<td>输入 NetCDF，可选</td>
+<td><code>(lon,lat,alt,Time)</code></td>
+<td>kg/m3</td>
+<td>密度；缺失时用 <code>(aps+bps*ps)/(Rgas*temp)</code> 估算。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>*_stream.nc</code></td>
+<td>磁盘 NetCDF</td>
+<td>文件</td>
+<td>-</td>
+<td>输入文件名去掉 <code>.nc</code> 后追加 <code>_stream.nc</code>。</td>
+</tr>
+<tr>
+<td><code>latitude</code> / <code>altitude</code></td>
+<td>输出 NetCDF</td>
+<td>1D</td>
+<td>degrees_north / km</td>
+<td>原纬度和高度坐标。</td>
+</tr>
+<tr>
+<td><code>longitude</code></td>
+<td>输出 NetCDF</td>
+<td>长度 1</td>
+<td>degrees_east</td>
+<td>固定写 <code>0</code>，表示纬向平均结果。</td>
+</tr>
+<tr>
+<td><code>Time</code></td>
+<td>输出 NetCDF</td>
+<td>长度 1</td>
+<td>属性为 calendar-like 字符串</td>
+<td>固定写 <code>0</code>，表示全时段平均结果。</td>
+</tr>
+<tr>
+<td><code>aps</code> / <code>bps</code></td>
+<td>输出 NetCDF</td>
+<td>1D</td>
+<td>-</td>
+<td>从输入复制。</td>
+</tr>
+<tr>
+<td><code>psi</code></td>
+<td>输出 NetCDF</td>
+<td><code>(1,lat,alt,1)</code></td>
+<td>空字符串</td>
+<td>经向质量流函数。</td>
+</tr>
+<tr>
+<td><code>momave</code></td>
+<td>输出 NetCDF</td>
+<td><code>(1,lat,alt,1)</code></td>
+<td>空字符串</td>
+<td>纬向平均总角动量。</td>
+</tr>
+<tr>
+<td><code>u</code> / <code>v</code></td>
+<td>输出 NetCDF</td>
+<td><code>(1,lat,alt,1)</code></td>
+<td>m/s</td>
+<td>全时段、纬向平均的纬向风和经向风。</td>
+</tr>
+<tr>
+<td><code>rho</code></td>
+<td>输出 NetCDF</td>
+<td><code>(1,lat,alt,1)</code></td>
+<td>空字符串</td>
+<td>全时段、纬向平均密度。</td>
+</tr>
+<tr>
+<td><code>temp</code></td>
+<td>输出 NetCDF</td>
+<td><code>(1,lat,alt,1)</code></td>
+<td>K</td>
+<td>全时段、纬向平均温度。</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td>输出 NetCDF</td>
+<td><code>(1,lat,1)</code></td>
+<td>Pa</td>
+<td>全时段、纬向平均地表压力。</td>
+</tr>
+<tr>
+<td><code>phisinit</code></td>
+<td>输出 NetCDF</td>
+<td><code>(1,lat)</code></td>
+<td>空字符串</td>
+<td>纬向平均地形势。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="副作用和错误处理">副作用和错误处理</h2>
+<ul>
+<li>使用 <code>NF_CLOBBER</code> 创建输出，同名 <code>*_stream.nc</code> 会被覆盖。</li>
+<li>程序整块读取 <code>u/v/temp/rho/ps</code>，内存随 <code>lon*lat*alt*time</code> 增长。</li>
+<li>必需变量或维度缺失时直接 <code>stop</code>。</li>
+<li><code>aire</code> 和 <code>phisinit</code> 可从同目录 <code>diagfi.nc</code> 或 <code>diagfi1.nc</code> 回退读取；<code>cv</code> 缺失时会额外交互读取一个文件名，再回退 <code>start.nc</code>。</li>
+<li>源码行 852 使用 <code>ierr=nf_close(nid)</code> 关闭输入，但主路径打开的是 <code>infid</code>；<code>nid</code> 未在主路径赋值。待确认：运行时是否因此出现 NetCDF close 错误或仅被忽略。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>读坐标和必需字段</strong>：读取 <code>latitude/longitude/Time/altitude</code>、<code>aps/bps</code>、<code>ps</code>、<code>u/v</code>、<code>aire</code>、<code>phisinit</code>、<code>cv</code>、<code>temp</code> 和可选 <code>rho</code>。</li>
+<li><strong>密度回退</strong>：若无 <code>rho</code>，用 hybrid 压力和理想气体近似：</li>
+</ol>
+<pre class="text"><code>rho(lon,lat,alt,time) = (aps(alt) + bps(alt) * ps(lon,lat,time)) / (Rgas * temp(lon,lat,alt,time))</code></pre>
+<ol start="3" type="1">
+<li><strong>时间平均</strong>：对每个 <code>(lon,lat,alt)</code> 计算 <code>u/v/temp/rho</code> 的时间平均，对每个 <code>(lon,lat)</code> 计算 <code>ps</code> 的时间平均。</li>
+<li><strong>经向风转换</strong>：对 <code>ilat=1..latlength-1</code>，使用相邻纬度平均的经向风除以 <code>cv</code>：</li>
+</ol>
+<pre class="text"><code>vcont(lon,lat,alt) = 0.5 * (vcum(lon,lat,alt) + vcum(lon,lat+1,alt)) / cv(lon,lat)
+vcont(lon,latlength,alt) = 0</code></pre>
+<ol start="5" type="1">
+<li><strong>hybrid 压力和层质量</strong>：</li>
+</ol>
+<pre class="text"><code>Plev = aps + bps * pscum
+mass = aire * Plev / g0
+dmass(alt) = mass(alt) - mass(alt+1)
+dmass(top) = 0</code></pre>
+<ol start="6" type="1">
+<li><strong>流函数积分</strong>：从顶层向下积分，每层先继承上一层 <code>psi</code>，再减去所有经度上的 <code>vcont*(dmass(lat)+dmass(lat+1))</code>。源码还计算 <code>vcontcum</code>，但后续未写出。</li>
+<li><strong>角动量</strong>：先对每个经度计算：</li>
+</ol>
+<pre class="text"><code>mom = a0*cos(lat) * (omega*a0*cos(lat) + u_time_mean)</code></pre>
+<p>随后又用纬向平均风 <code>uzm</code> 重算 <code>momave</code>，因此最终输出的 <code>momave</code> 对应 zonal mean wind 路径。 8. <strong>纬向平均诊断</strong>：对 <code>u/v/temp/rho/ps/phisinit</code> 沿经度平均。 9. <strong>写输出</strong>：创建单经度、单时间输出文件，写 <code>psi/momave/u/v/rho/temp/ps/phisinit</code>。</p>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>read infile from stdin
+open infile
+read lon, lat, alt, Time, aps, bps, ps, u, v
+read aire and phisinit, falling back to diagfi.nc or diagfi1.nc
+read cv, asking for a start-like file if missing
+read temp
+if rho exists:
+  read rho
+else:
+  rho = hybrid_pressure / (Rgas * temp)
+average u, v, temp, rho, ps over all input times
+vcont = adjacent-lat average of v / cv
+Plev = aps + bps * mean_ps
+mass = aire * Plev / g0
+dmass = vertical difference of mass
+integrate psi downward from top using vcont and neighboring-lat dmass
+compute zonal means of u, v, temp, rho, ps, phisinit
+momave = a0*cos(lat) * (omega*a0*cos(lat) + zonal_mean_u)
+create *_stream.nc with lon=0 and Time=0
+write psi, momave, u, v, rho, temp, ps, phisinit</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>util 后处理链</td>
+<td>与 <a href="concatnc.html">concatnc</a> 产出的长时间文件配合，得到时间平均的纬向流函数和角动量诊断。</td>
+</tr>
+<tr>
+<td>环流诊断</td>
+<td>输出 <code>psi</code>、纬向平均风和角动量，用于纬度-高度剖面分析。</td>
+</tr>
+<tr>
+<td>坐标/网格辅助</td>
+<td>依赖 <code>aire</code> 和 <code>cv</code>，这些字段常来自 <code>diagfi.nc</code> 或 start 类文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>输入必须包含 <code>u/v/temp/ps/aps/bps</code>，否则程序停止；<code>rho</code> 可以缺失但会用常数 <code>Rgas</code> 估算。</li>
+<li><code>aire</code>、<code>phisinit</code> 和 <code>cv</code> 对结果不是可选物理量；若主文件没有，需要同目录有 <code>diagfi.nc</code>、<code>diagfi1.nc</code> 或用户提供的 start 类文件。</li>
+<li>输出纬度维和高度维保留输入坐标，但经度和时间均压缩为单点 <code>0</code>。</li>
+<li><code>psi</code> 的单位属性为空；复现时应从 <code>mass/g0</code> 与 <code>vcont</code> 的源码公式推导实际量纲。</li>
+<li><code>dmass(top)=0</code>、<code>vcont(latlength)=0</code> 和 <code>psi(latlength,:)=0</code> 是源码边界条件。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>cv</code> 的精确定义和单位需结合生成该字段的 start/archive 代码确认。</li>
+<li><code>psi</code> 是否缺少对经度宽度、纬向平均或传统流函数归一化因子的显式处理，需要和目标诊断定义比对。</li>
+<li><code>momave</code> 输出是否应乘层质量或层厚；源码当前输出的是每单位质量的绝对角动量形式。</li>
+<li>结尾 <code>nf_close(nid)</code> 是否是 <code>infid</code> 拼写错误。</li>
+<li>输出变量定义为 4D，但写入数组为 2D 或 1D 纬向平均数组；需用实际 NetCDF 库接口确认写入布局是否总是按预期。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li>同名 <code>_stream.nc</code> 会被覆盖。</li>
+<li>大文件全量读入内存。</li>
+<li>缺少 <code>cv</code> 时会阻塞等待交互输入。</li>
+<li>主路径没有复制输入文件的时间范围信息，输出 <code>Time=0</code> 只表示平均诊断。</li>
+<li>行星常数由编译宏控制；跨 Mars/Jupiter 编译时结果会不同。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">util/index.md</a> - util 后处理工具总览。</li>
+<li><a href="concatnc.html">concatnc.md</a> - 常见上游时间拼接工具。</li>
+<li><a href="localtime.html">localtime.md</a> - 另一个时间相关后处理工具。</li>
+<li><a href="lslin.html">lslin.md</a> - Ls 线性化工具。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

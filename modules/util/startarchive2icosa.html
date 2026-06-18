@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>startarchive2icosa - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/startarchive2icosa.md</span>
+    </nav>
+    <article class="content">
+<h1 id="startarchive2icosa--icosa-初始场转换链">startarchive2icosa — ICOSA 初始场转换链</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util\startarchive2icosa</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>util</code></pre>
+<h2 id="目录定位">目录定位</h2>
+<p><code>startarchive2icosa</code> 是把 LMDZ.MARS 的 <code>start_archive.nc</code>（lon-lat 网格初始场）转换为 Dynamico ICOSA 正二十面体网格初始场的离线工具链。它解决的问题是：LMDZ GCM 的 restart 文件使用规则经纬网格，而 Dynamico 使用非结构化的正二十面体网格，两者不能直接互用。</p>
+<p>整个工具链分三步：（1）<code>start_archive2icosa</code> 主程序通过 XIOS 把 lon-lat 场重映射到 ICOSA 网格并输出 <code>*_prefinalize.nc</code>；（2）<code>icosa_finalize.bash</code> 用 NCO 工具修补维度名、补充缺失变量；（3）<code>rearrange_startphy</code> 按经纬度匹配重新排列物理场的列顺序，使其与 ICOSA restart 文件一致。</p>
+<p>README 明确标注此工具仍在开发中，用户需自行调整硬编码变量。</p>
+<h2 id="目录文件总览">目录文件总览</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>类型</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>start_archive2icosa.f90</code></td>
+<td>Fortran 主程序</td>
+<td>核心重映射工具：读 lon-lat start_archive，通过 XIOS 插值写 ICOSA 网格的 <code>start_icosa_prefinalize.nc</code> 和 <code>startfi_prefinalize.nc</code></td>
+</tr>
+<tr>
+<td><code>rearrange_startphy.f90</code></td>
+<td>Fortran 主程序</td>
+<td>列重排工具：按经纬度匹配把 <code>startfi.nc</code> 的列顺序重排为与 <code>startphy_icosa_ref.nc</code> 一致</td>
+</tr>
+<tr>
+<td><code>iodef.xml</code></td>
+<td>XIOS 配置</td>
+<td>定义输入/输出字段名、网格和轴，供 <code>start_archive2icosa</code> 的 XIOS 调用使用</td>
+</tr>
+<tr>
+<td><code>compile</code></td>
+<td>bash 脚本</td>
+<td>编译两个 Fortran 主程序，链接 XIOS、NetCDF、HDF5</td>
+</tr>
+<tr>
+<td><code>icosa_finalize.bash</code></td>
+<td>bash 脚本</td>
+<td>后处理：维度重命名、补充 <code>controle</code>/<code>soildepth</code>/<code>Time</code> 等缺失变量、调用 <code>rearrange_startphy</code></td>
+</tr>
+<tr>
+<td><code>job_mpi</code></td>
+<td>SLURM 脚本</td>
+<td>Occigen HPC 提交脚本示例（2 节点 28 进程）</td>
+</tr>
+<tr>
+<td><code>run_icosa.def_no_start</code></td>
+<td>Dynamico 配置</td>
+<td>无 start 文件的 Dynamico 运行配置样例（用于生成 <code>*_ref.nc</code>）</td>
+</tr>
+<tr>
+<td><code>tracer.def_no_start</code></td>
+<td>Dynamico tracer 配置</td>
+<td>无 start 文件的 tracer 定义样例（11 个 tracer）</td>
+</tr>
+<tr>
+<td><code>README</code></td>
+<td>文本</td>
+<td>使用说明</td>
+</tr>
+</tbody>
+</table>
+<h2 id="定义的符号">定义的符号</h2>
+<h3 id="start_archive2icosaf90">start_archive2icosa.f90</h3>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>start_archive2icosa</code></td>
+<td>program</td>
+<td>1</td>
+<td>主程序：MPI+XIOS 并行读取 lon-lat 场，重映射到 ICOSA 非结构网格，输出 prefinalize 文件</td>
+</tr>
+</tbody>
+</table>
+<h3 id="rearrange_startphyf90">rearrange_startphy.f90</h3>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rearrange_startphy</code></td>
+<td>program</td>
+<td>1</td>
+<td>列重排：按 lon/lat 匹配把 <code>startfi.nc</code> 各列重排为 <code>startphy_icosa_ref.nc</code> 的列顺序</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>文件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xios</code></td>
+<td><code>start_archive2icosa.f90</code></td>
+<td>XIOS 场发送/接收、网格/轴定义、上下文管理</td>
+</tr>
+<tr>
+<td><code>mod_wait</code></td>
+<td><code>start_archive2icosa.f90</code></td>
+<td>XIOS 等待辅助</td>
+</tr>
+<tr>
+<td><code>netcdf</code></td>
+<td>两个 f90 文件</td>
+<td>NetCDF4 读写</td>
+</tr>
+<tr>
+<td><code>mpif.h</code></td>
+<td><code>start_archive2icosa.f90</code></td>
+<td>MPI 初始化与通信</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<h3 id="start_archive2icosa-主程序">start_archive2icosa 主程序</h3>
+<table>
+<thead>
+<tr>
+<th>输入文件</th>
+<th>来源</th>
+<th>格式</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>start_archive_nc4.nc</code></td>
+<td>用户从 <code>start_archive.nc</code> 转换</td>
+<td>NetCDF4</td>
+<td>LMDZ lon-lat 初始场（温度、风场、tracer、土壤、SSO 参数等）</td>
+</tr>
+<tr>
+<td><code>surface_nc4.nc</code></td>
+<td>用户准备</td>
+<td>NetCDF4</td>
+<td>Mars 地形文件（含 <code>zMOL</code> 等高程变量）</td>
+</tr>
+<tr>
+<td><code>start_icosa_ref.nc</code></td>
+<td>Dynamico 运行产出</td>
+<td>NetCDF</td>
+<td>目标 ICOSA 网格参考（<code>lon_mesh</code>/<code>lat_mesh</code>/<code>bounds_*_mesh</code>）</td>
+</tr>
+<tr>
+<td><code>startphy_icosa_ref.nc</code></td>
+<td>Dynamico 运行产出</td>
+<td>NetCDF</td>
+<td>物理列参考（<code>controle</code>、<code>latitude</code>/<code>longitude</code>）</td>
+</tr>
+<tr>
+<td><code>iodef.xml</code></td>
+<td>本目录</td>
+<td>XML</td>
+<td>XIOS 字段/网格/轴定义</td>
+</tr>
+</tbody>
+</table>
+<h3 id="rearrange_startphy-程序">rearrange_startphy 程序</h3>
+<table>
+<thead>
+<tr>
+<th>输入文件</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>startphy_icosa_ref.nc</code></td>
+<td>目标列顺序参考（<code>latitude</code>/<code>longitude</code>）</td>
+</tr>
+<tr>
+<td><code>startfi.nc</code></td>
+<td>待重排的物理场文件（由 <code>icosa_finalize.bash</code> 生成）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<h3 id="start_archive2icosa-主程序-1">start_archive2icosa 主程序</h3>
+<table>
+<thead>
+<tr>
+<th>输出文件</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>start_icosa_prefinalize.nc</code></td>
+<td>ICOSA 动力学初始场（<code>theta_rhodz</code>、<code>u</code>、<code>v</code>、<code>ps</code>、<code>co2</code>、各 tracer、SSO 参数等）</td>
+</tr>
+<tr>
+<td><code>startfi_prefinalize.nc</code></td>
+<td>ICOSA 物理初始场（<code>tsurf</code>、<code>emis</code>、<code>tsoil</code>、<code>inertiedat</code>、tracer 地表值等）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="icosa_finalizebash-后处理">icosa_finalize.bash 后处理</h3>
+<table>
+<thead>
+<tr>
+<th>输出文件</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>start_icosa.nc</code></td>
+<td>最终 Dynamico start 文件（补充 <code>u</code>/<code>W</code>/<code>geopot</code>/<code>q</code>/<code>nq</code> 等）</td>
+</tr>
+<tr>
+<td><code>startfi.nc</code></td>
+<td>最终 Dynamico startfi 文件（补充 <code>soildepth</code>/<code>Time</code>/<code>controle</code> 等）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="start_archive2icosaf90-1">start_archive2icosa.f90</h3>
+<ol type="1">
+<li><strong>MPI+XIOS 初始化</strong>：<code>MPI_INIT</code> → <code>xios_initialize</code> 获取通信子 → <code>xios_context_initialize("test")</code></li>
+<li><strong>读地形文件维度</strong>：打开 <code>surface_nc4.nc</code>，从 <code>zMOL</code> 变量获取 <code>src_topo_ni_glo</code>/<code>src_topo_nj_glo</code>，按 MPI rank 沿纬度分割</li>
+<li><strong>读 start_archive 维度</strong>：打开 <code>start_archive_nc4.nc</code>，从 <code>temp</code> 获取 <code>src_ni_glo</code>/<code>src_nj_glo</code>/<code>src_nlev</code>；从 <code>tsoil</code> 获取 <code>src_nsoil</code>/<code>src_nslope</code>；硬编码 <code>src_nq=11</code></li>
+<li><strong>读坐标和控制参数</strong>：从 start_archive 读 <code>rlonv</code>/<code>rlatu</code>（弧度→度）、<code>ap</code>/<code>bp</code>；从 <code>startphy_icosa_ref.nc</code> 读 <code>controle</code>（<code>gravity=controle(7)</code>、<code>kappa=controle(9)</code>）；<code>preff</code> 硬编码为 610 Pa</li>
+<li><strong>读目标网格</strong>：从 <code>start_icosa_ref.nc</code> 读 <code>lon_mesh</code>/<code>lat_mesh</code>/<code>bounds_*_mesh</code>，按 MPI rank 分配列</li>
+<li><strong>XIOS 网格/轴定义</strong>：设置 <code>src_domain_regular</code>（rectilinear）、<code>src_topo_domain_regular</code>、<code>src_domain_regular_clean</code>（去掉经度最后一列的冗余点）、<code>dst_domain_unstructured</code>（ICOSA）；定义 <code>lev</code>/<code>lev_p1</code>/<code>nq</code>/<code>soil_layers</code>/<code>subslope</code> 轴</li>
+<li><strong>时间循环</strong>（单步 <code>src_nt=1</code>）：
+<ul>
+<li>地形：<code>xios_recv_field("zMOL")</code> → <code>xios_send_field("topo", zMOL*gravity*1000)</code>（km→m²/s²）</li>
+<li>地表压力：<code>xios_recv_field("src_ps")</code> → 计算层界面压力 <code>src_ap(l)+src_bp(l)*ps</code> → <code>xios_send_field("ps_clean")</code></li>
+<li>地表温度/发射率：接收 subslope 维度 → 去掉最后一列 → 发送</li>
+<li>q2（湍流动能）：接收 <code>src_q2surf</code> 和 <code>src_q2atm</code>，拼成 <code>lev_p1</code> 维度</li>
+<li>温度→<code>theta_rhodz</code>：<code>T * (ΔP/g) / ((P_mean/preff)^κ)</code></li>
+<li>风场：<code>u</code>/<code>v</code> 直接去掉最后一列发送</li>
+<li>11 个 tracer（循环 <code>i=1,src_nq</code>）：按硬编码的 <code>if/elseif</code> 分支映射到 <code>co2_clean</code>、<code>dust_number_clean</code>、<code>dust_mass_clean</code>、<code>ccn_number_clean</code>、<code>ccn_mass_clean</code>、<code>h2o_ice_clean</code>、<code>h2o_vap_clean</code>、<code>stormdust_*</code>、<code>topdust_*</code>，同时处理地表 tracer 值</li>
+<li>土壤温度/热惯量：<code>tsoil</code>（含 subslope）和 <code>inertiedat</code></li>
+<li>SSO 参数：<code>ZMEA</code>/<code>ZSTD</code>/<code>ZSIG</code>/<code>ZGAM</code>/<code>ZTHE</code> → <code>*_clean</code></li>
+<li>反照率/粗糙度：<code>albedodat</code>/<code>z0</code> → <code>*_clean</code></li>
+</ul></li>
+<li><strong>收尾</strong>：rank 0 向 <code>startfi_prefinalize.nc</code> 写 <code>controle</code>，向 <code>start_icosa_prefinalize.nc</code> 写 <code>iteration=0</code> → <code>xios_finalize</code> → <code>MPI_FINALIZE</code></li>
+</ol>
+<h3 id="rearrange_startphyf90-1">rearrange_startphy.f90</h3>
+<ol type="1">
+<li>从 <code>startphy_icosa_ref.nc</code> 读所有列的 <code>latitude</code>/<code>longitude</code></li>
+<li>从 <code>startfi.nc</code> 读 <code>latitude</code>/<code>longitude</code></li>
+<li>逐列匹配：对 <code>startfi.nc</code> 的第 <code>i</code> 列，在 ref 中找 lon/lat 相对误差 ≤10⁻⁵ 的第 <code>j</code> 列，记录 <code>cell_index(i)=j</code></li>
+<li>按维度分类遍历所有变量：1D（physical_points）、2D（nvertex×physical_points、subslope×physical_points、lev_p1×physical_points、subsurface_layers×physical_points）、3D（subsurface_layers×subslope×physical_points），按 <code>cell_index</code> 重排并原地写回</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>program start_archive2icosa:
+  MPI_INIT + xios_initialize
+  read surface_nc4.nc: get topo grid (zMOL)
+  read start_archive_nc4.nc: get atm grid (temp, tsoil), ap/bp, lon/lat
+  read startphy_icosa_ref.nc: get controle (gravity, kappa)
+  read start_icosa_ref.nc: get ICOSA mesh (lon_mesh, lat_mesh, bounds)
+  set XIOS domains (rectilinear src + unstructured dst) and axes
+  time loop (1 step):
+    recv topo → send topo (convert km→m²/s²)
+    recv ps → compute layer pressures → send ps_clean
+    recv tsurf/emis → strip last lon → send *_clean
+    recv q2surf+q2atm → stack → send q2_clean
+    recv temp → compute theta_rhodz → send theta_rhodz_clean
+    recv u/v → strip last lon → send u_clean/v_clean
+    for i=1..11: recv tracer[i] → send to named field (co2/dust/ccn/h2o/stormdust/topdust)
+    recv tsoil/inertiedat → send tsoil_clean/inertiedat_clean
+    recv SSO (ZMEA/ZSTD/ZSIG/ZGAM/ZTHE) → send *_clean
+    recv albedodat/z0 → send *_clean
+  rank 0: write controle to startfi_prefinalize, iteration to start_icosa_prefinalize
+  finalize XIOS + MPI
+
+program rearrange_startphy:
+  read ref lon/lat from startphy_icosa_ref.nc
+  read current lon/lat from startfi.nc
+  for each cell i: find matching ref cell j by lon/lat (relative error ≤ 1e-5)
+  for each variable: rearrange by cell_index and write back in place</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dynamico 初始场制备</td>
+<td>从 LMDZ restart 生成 ICOSA 可用的 start/startfi 文件</td>
+</tr>
+<tr>
+<td>LMDZ→Dynamico 迁移</td>
+<td>工具链的关键中间步骤</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>硬编码文件名</strong>：5 个输入/输出文件名（<code>start_archive_nc4.nc</code>、<code>surface_nc4.nc</code> 等）在源码中以 <code>PARAMETER</code> 硬编码，改文件名需改源码</li>
+<li><strong>硬编码 tracer 映射</strong>：11 个 tracer 的 <code>if/elseif</code> 分支（行 432–498）将索引 1–11 硬映射到 <code>co2</code>/<code>dust_number</code>/<code>dust_mass</code>/<code>ccn_number</code>/<code>ccn_mass</code>/<code>h2o_ice</code>/<code>h2o_vap</code>/<code>stormdust_number</code>/<code>stormdust_mass</code>/<code>topdust_number</code>/<code>topdust_mass</code>，与 <code>tracer.def_no_start</code> 的顺序一致</li>
+<li><strong>硬编码常数</strong>：<code>src_nq=11</code>（行 26）、<code>preff=610</code>（行 216，注释说明 restart 文件中缺此值）</li>
+<li><strong>去掉最后一列经度</strong>：<code>src_domain_regular_clean</code> 维度为 <code>ni_glo-1</code>，所有 <code>*_clean</code> 字段取 <code>src_field(1:src_ni-1,...)</code> 以去除 lon-lat 网格的周期性冗余点</li>
+<li><strong>theta_rhodz 计算</strong>：行 406–410 将温度转为 <code>theta * rho * dz</code> 形式：<code>T * (ΔP/g) / ((P_mean/preff)^κ)</code></li>
+<li><strong>单步时间循环</strong>：<code>src_nt=1</code>，XIOS 只做一次场传输</li>
+<li><strong>MPI 沿纬度分割</strong>：源和目标网格都按 latitude 方向均分给 MPI 进程</li>
+<li><strong>列重排暴力匹配</strong>：<code>rearrange_startphy</code> 用 O(n²) 双重循环逐列匹配 lon/lat，相对误差阈值 10⁻⁵</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须先用 Dynamico 跑一次（<code>startphy_file=.false.</code>）生成 <code>start.nc</code>/<code>startfi.nc</code>，重命名为 <code>start_icosa_ref.nc</code>/<code>startphy_icosa_ref.nc</code></li>
+<li><code>start_archive.nc</code> 必须含 SSO 参数（需用修改版 <code>start2archive_SSO</code> 生成）</li>
+<li>输入 NetCDF 必须转为 NetCDF4 格式（<code>nccopy -k 4</code>）</li>
+<li><code>compile</code> 脚本假设 XIOS 位于 <code>../../../XIOS/</code>，需根据实际环境调整</li>
+<li><code>icosa_finalize.bash</code> 中有多处硬编码路径（<code>../trunk/XIOS/arch.env</code>、<code>restartfi.nc</code>），需自行适配</li>
+<li><code>rearrange_startphy</code> 的 lon/lat 匹配要求两者都以弧度存储（源码行 84 做了 deg→rad 转换）</li>
+<li><code>controle(3)</code>（day_ini）被强制设为 0（行 208），因为 ref 文件是 restart</li>
+<li>使用生成的 start 文件运行 Dynamico 时，<code>run_icosa.def</code> 需加 <code>etat0_start_file_colocated = true</code></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>src_nq=11</code> 硬编码是否与所有配置的 tracer 数一致。当前 <code>tracer.def_no_start</code> 正好 11 个，但其他 tracer 配置可能不同</li>
+<li><code>preff=610</code> 硬编码是否在所有 Dynamico 版本中一致（注释说 restart 文件中缺此值）</li>
+<li><code>rearrange_startphy</code> 的 O(n²) 匹配在大网格上是否可接受（README 提到高分辨率地形插值需要大量内存）</li>
+<li><code>icosa_finalize.bash</code> 中 <code>ncks -A -v soildepth restartfi.nc</code> 等操作假设 <code>restartfi.nc</code> 存在于当前目录，来源和时机未说明</li>
+<li><code>start_archive2icosa</code> 中 <code>src_topo_iend=src_topo_ibegin+src_ni-1</code>（行 101）使用了 <code>src_ni</code>（atm 维度）而非 <code>src_topo_ni</code>，两者在当前逻辑下相等（都等于 <code>src_ni_glo</code>），但若源和地形分辨率不同会出错</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li>文件名全部硬编码，任何重命名都会导致程序失败</li>
+<li>tracer 映射硬编码为 11 个且顺序固定，与 <code>initracer.F90</code> 的字符串匹配无关——如果 tracer 配置或顺序变化，程序不会报错但会把错误的物理量映射到错误的输出字段</li>
+<li><code>icosa_finalize.bash</code> 中 <code>ncks -A</code> 从 <code>restartfi.nc</code> 补充变量，如果该文件不存在或维度不匹配会静默失败</li>
+<li>高分辨率地形插值需要大量内存（README 建议 2 节点 56 核但只用 28 进程）</li>
+<li>README 标注"currently under development"，用户需自行检查和调整</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">util/index.md</a> — util 后处理工具总览</li>
+<li><a href="zrecast.html">zrecast.md</a> — 同属 util 的垂直坐标重投影工具</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

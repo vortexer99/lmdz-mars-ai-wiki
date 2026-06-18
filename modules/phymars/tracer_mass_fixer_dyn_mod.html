@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>tracer_mass_fixer_dyn_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/tracer_mass_fixer_dyn_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="tracer_mass_fixer_dyn_modf90">tracer_mass_fixer_dyn_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\tracer_mass_fixer_dyn_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>tracer_mass_fixer_dyn_mod.F90</code> 修正动力学过程中对大气成分占比显著的 tracer（CO、O₂、H₂、HO₂、H₂O₂、N₂、Ar、He）的质量非守恒问题。它在每个物理时步开始时，比较当前 tracer 全球总质量与上一时步结束时的值，按比例缩放所有层的混合比，确保动力传输不产生虚假的质量源/汇。</p>
+<p>作者：Y. Luo（2026 年 3 月）。通过 <code>callphys.def</code> 中 <code>call_mass_fixer_dyn</code> 开关控制。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mass_fixer_dyn_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>包裹所有子程序和共享状态的模块</td>
+</tr>
+<tr>
+<td><code>call_mass_fixer_dyn</code></td>
+<td>logical, save</td>
+<td>5</td>
+<td>配置开关，由 <code>conf_phys</code> 从 <code>callphys.def</code> 读取</td>
+</tr>
+<tr>
+<td><code>found_startfi_co/o2/h2/ho2/h2o2/n2/ar/he</code></td>
+<td>logical, save</td>
+<td>6–13</td>
+<td>标记 <code>startfi.nc</code> 中是否找到对应 <code>mass_predyn_&lt;tracer&gt;</code> 字段</td>
+</tr>
+<tr>
+<td><code>mass_predyn(nq)</code></td>
+<td>real, allocatable, save</td>
+<td>14</td>
+<td>上一时步结束时各 tracer 全球总质量（数组）</td>
+</tr>
+<tr>
+<td><code>mass_predyn_co/o2/h2/ho2/h2o2/n2/ar/he</code></td>
+<td>real, save</td>
+<td>16–17</td>
+<td>上一时步结束时各 tracer 全球总质量（标量，用于 startfi I/O）</td>
+</tr>
+<tr>
+<td><code>tracer_mass_fixer_dyn</code></td>
+<td>subroutine</td>
+<td>28</td>
+<td>主修正例程：计算修正因子并返回 tendency</td>
+</tr>
+<tr>
+<td><code>compute_tracer_mass_global</code></td>
+<td>subroutine</td>
+<td>102</td>
+<td>计算单个 tracer 的全球总质量</td>
+</tr>
+<tr>
+<td><code>set_mass_predyn_from_startfi</code></td>
+<td>subroutine</td>
+<td>154</td>
+<td>从 startfi 标量赋值到 <code>mass_predyn</code> 数组</td>
+</tr>
+<tr>
+<td><code>ini_tracer_mass_fixer_dyn</code></td>
+<td>subroutine</td>
+<td>195</td>
+<td>分配 <code>mass_predyn</code> 数组</td>
+</tr>
+<tr>
+<td><code>end_tracer_mass_fixer_dyn</code></td>
+<td>subroutine</td>
+<td>209</td>
+<td>释放 <code>mass_predyn</code> 数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>noms</code>, <code>igcm_co</code>, <code>igcm_o2</code>, <code>igcm_h2</code>, <code>igcm_ho2</code>, <code>igcm_h2o2</code>, <code>igcm_n2</code>, <code>igcm_ar</code>, <code>igcm_he</code>, <code>mmol</code></td>
+<td>tracer 名称、索引和分子量</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code></td>
+<td>重力加速度</td>
+<td></td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>cell_area</code></td>
+<td>网格面积（全球质量积分）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>planetwide_mod</code></td>
+<td><code>planetwide_sumval</code></td>
+<td>全球求和（MPI 归约）</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>compute_tracer_mass_global</code></td>
+<td>本模块</td>
+<td>行 54</td>
+<td>计算各 tracer 的全球总质量</td>
+</tr>
+<tr>
+<td><code>planetwide_sumval</code></td>
+<td><code>planetwide_mod</code></td>
+<td>行 145–147</td>
+<td>全球求和（MPI 归约）</td>
+</tr>
+<tr>
+<td><code>set_mass_predyn_from_startfi</code></td>
+<td>本模块</td>
+<td>由 <code>physiq_mod</code> 在 <code>firstcall</code> 时调用</td>
+<td>从 startfi 标量赋值到 <code>mass_predyn</code> 数组</td>
+</tr>
+<tr>
+<td><code>ini_tracer_mass_fixer_dyn</code></td>
+<td>本模块</td>
+<td>由 <code>phys_state_var_init_mod</code> 调用</td>
+<td>分配 <code>mass_predyn</code> 数组</td>
+</tr>
+<tr>
+<td><code>end_tracer_mass_fixer_dyn</code></td>
+<td>本模块</td>
+<td>由 <code>phys_state_var_init_mod</code> 调用</td>
+<td>释放 <code>mass_predyn</code> 数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<h3 id="tracer_mass_fixer_dyn">tracer_mass_fixer_dyn</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>physiq</code></td>
+<td>integer</td>
+<td>—</td>
+<td>水平网格点数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>physiq</code></td>
+<td>integer</td>
+<td>—</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td><code>physiq</code></td>
+<td>integer</td>
+<td>—</td>
+<td>tracer 数量</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>s</td>
+<td>物理时步</td>
+</tr>
+<tr>
+<td><code>pq(ngrid,nlayer,nq)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>kg/kg</td>
+<td>tracer 质量混合比</td>
+</tr>
+<tr>
+<td><code>zplev(ngrid,nlayer+1)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>Pa</td>
+<td>层界面气压</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td><code>physiq</code></td>
+<td>logical</td>
+<td>—</td>
+<td>首次调用标志</td>
+</tr>
+</tbody>
+</table>
+<h3 id="compute_tracer_mass_global">compute_tracer_mass_global</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pq(ngrid,nlayer,nq)</code></td>
+<td>同上</td>
+<td>real</td>
+<td>kg/kg</td>
+<td>tracer 质量混合比</td>
+</tr>
+<tr>
+<td><code>zplev(ngrid,nlayer+1)</code></td>
+<td>同上</td>
+<td>real</td>
+<td>Pa</td>
+<td>层界面气压</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<h3 id="tracer_mass_fixer_dyn-1">tracer_mass_fixer_dyn</h3>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdq_corrdyn(ngrid,nlayer,nq)</code></td>
+<td><code>physiq</code>（加到 <code>pdq</code>）</td>
+<td>real</td>
+<td>kg/kg/s</td>
+<td>tracer 质量修正 tendency</td>
+</tr>
+</tbody>
+</table>
+<h3 id="compute_tracer_mass_global-1">compute_tracer_mass_global</h3>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mass(nq)</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>kg</td>
+<td>各 tracer 的全球总质量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong><code>call_mass_fixer_dyn</code></strong>：<code>!$omp threadprivate</code>，由 <code>conf_phys</code> 从 <code>callphys.def</code> 读取。</li>
+<li><strong><code>found_startfi_*</code></strong>：<code>!$omp threadprivate</code>，在 <code>phyetat0_mod</code> 读取 <code>startfi.nc</code> 时设置。</li>
+<li><strong><code>mass_predyn(nq)</code></strong>：<code>!$omp threadprivate</code>，allocatable SAVE 数组，跨时步保存上一时步的全球总质量。</li>
+<li><strong><code>mass_predyn_*</code>（标量）</strong>：<code>!$omp threadprivate</code>，用于 <code>startfi.nc</code> 的 I/O（<code>phyetat0_mod</code> 读、<code>phyredem.F90</code> 写）。</li>
+<li><strong><code>pdq</code> 修改</strong>：修正 tendency 加入 <code>physiq</code> 的 <code>pdq</code> 数组（行 899）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="主修正流程tracer_mass_fixer_dyn行-28100">主修正流程（<code>tracer_mass_fixer_dyn</code>，行 28–100）</h3>
+<ol type="1">
+<li><strong>计算当前全球质量</strong>（行 54）：调用 <code>compute_tracer_mass_global</code> 得到 <code>mass_postdyn</code>。</li>
+<li><strong>逐 tracer 修正</strong>（行 58–96）：对 8 个指定 tracer（CO、O₂、H₂、HO₂、H₂O₂、N₂、Ar、He）：
+<ul>
+<li>条件：tracer 存在（<code>igcm_xx ≠ 0</code>）且有有效参考质量（<code>firstcall</code> 时需 <code>found_startfi_xx</code>，后续时步直接用 <code>mass_predyn</code>）</li>
+<li>修正因子：<code>masscorrfac = mass_predyn / mass_postdyn</code></li>
+<li>修正混合比：<code>pq_corrdyn = pq * masscorrfac</code></li>
+</ul></li>
+<li><strong>计算 tendency</strong>（行 98）：<code>pdq_corrdyn = (pq_corrdyn - pq) / ptimestep</code></li>
+</ol>
+<h3 id="全球质量计算compute_tracer_mass_global行-102152">全球质量计算（<code>compute_tracer_mass_global</code>，行 102–152）</h3>
+<ul>
+<li>仅对 8 个指定 tracer 计算（按名称匹配 <code>noms(iq)</code>）</li>
+<li>柱密度：<code>colden(ig,iq) = Σ_l pq(ig,l,iq) * Δp(ig,l) * 6.022e22 / (mmol(iq) * g)</code></li>
+<li>全球质量：<code>mass(iq) = planetwide_sumval(colden / 6.022e23 * mmol(iq) * 1e4 * cell_area)</code></li>
+</ul>
+<h3 id="初始化ini_tracer_mass_fixer_dyn行-195207">初始化（<code>ini_tracer_mass_fixer_dyn</code>，行 195–207）</h3>
+<ul>
+<li>分配 <code>mass_predyn(nq)</code>，初始化为 <code>-999.</code></li>
+<li><code>-999.</code> 确保从 <code>newstart</code> 输出启动时，<code>found_startfi_*</code> 保持 <code>.false.</code>，第一步不执行修正</li>
+</ul>
+<h3 id="startfi-读写">startfi 读写</h3>
+<ul>
+<li><strong>读取</strong>：<code>phyetat0_mod.F90</code> 读取 <code>mass_predyn_co</code> 等标量，若存在且 <code>&gt; 0</code> 则设 <code>found_startfi_xx = .true.</code></li>
+<li><strong>写入</strong>：<code>phyredem.F90</code> 在重启文件中写入 <code>mass_predyn(igcm_co)</code> 等标量</li>
+<li><strong>设置</strong>：<code>set_mass_predyn_from_startfi</code> 在 <code>physiq</code> 的 <code>firstcall</code> 时将标量值复制到 <code>mass_predyn</code> 数组</li>
+</ul>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>! tracer_mass_fixer_dyn
+mass_postdyn = compute_tracer_mass_global(pq, zplev)
+
+for each tracer in {co, o2, h2, ho2, h2o2, n2, ar, he}:
+  if tracer exists and (not firstcall or found_startfi):
+    masscorrfac = mass_predyn / mass_postdyn
+    pq_corrdyn = pq * masscorrfac
+
+pdq_corrdyn = (pq_corrdyn - pq) / dt
+
+! compute_tracer_mass_global
+for each target tracer:
+  for each column:
+    colden = Σ_layers pq * Δp * 6.022e22 / (mmol * g)
+  mass = planetwide_sumval(colden / 6.022e23 * mmol * 1e4 * cell_area)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>动力学-物理耦合</td>
+<td>修正动力学传输产生的 tracer 质量非守恒</td>
+</tr>
+<tr>
+<td>大气成分</td>
+<td>保护 CO、O₂、N₂ 等主要大气成分的质量守恒</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong><code>!$omp threadprivate</code></strong>：所有共享变量都标注线程私有（行 19–24）。</li>
+<li><strong>8 个 tracer 硬编码</strong>：修正逻辑对 8 个 tracer 各写一个 <code>if</code> 块，而非循环——代码冗长但每个 tracer 有独立的 <code>found_startfi_*</code> 标志。</li>
+<li><strong>startfi 标量 I/O</strong>：<code>mass_predyn_*</code> 以标量形式写入/读取 <code>startfi.nc</code>（非数组），每个 tracer 一个独立变量。</li>
+<li><strong><code>-999.</code> 初始化</strong>：<code>mass_predyn</code> 初始化为 <code>-999.</code>，确保从 <code>newstart</code> 启动时第一步不修正（<code>found_startfi_*</code> 保持 <code>.false.</code>）。</li>
+<li><strong>均匀缩放</strong>：修正方法是简单的全球质量比例缩放（<code>pq * masscorrfac</code>），不区分高度或区域。</li>
+<li><strong><code>compute_tracer_mass_global</code> 选择性计算</strong>：只对 8 个指定 tracer 计算质量，其他 tracer 跳过。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>call_mass_fixer_dyn = .true.</code>（<code>callphys.def</code>）时才启用。</li>
+<li>修正依赖 <code>startfi.nc</code> 中的 <code>mass_predyn_co</code> 等标量字段；若不存在或 <code>≤ 0</code>，该 tracer 在第一步不修正。</li>
+<li><code>phyredem.F90</code> 在重启时写入 <code>mass_predyn(igcm_co)</code> 等，确保跨重启连续性。</li>
+<li>修正因子是全局均匀缩放，不考虑空间分布差异。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>行 141 <code>6.022e22</code> 和行 146 <code>6.022e23</code> 的来源（待确认：推断为阿伏伽德罗常数相关的单位换算因子，<code>6.022e23</code> 是 NA/mol，<code>6.022e22</code> 可能是 NA/10*mol 或 cm² 相关换算）。</li>
+<li>修正因子 <code>mass_predyn / mass_postdyn</code> 若 <code>mass_postdyn</code> 接近 0 可能产生极大值（待确认：是否有除零保护）。</li>
+<li><code>compute_tracer_mass_global</code> 中只对 8 个 tracer 计算，但 <code>mass(nq)</code> 返回完整数组——未计算的 tracer 值未初始化（待确认：调用方是否只使用已计算的 tracer）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="tracer_mod.html">tracer_mod</a> — tracer 共享定义核心模块，提供 <code>noms</code>、<code>igcm_*</code>、<code>mmol</code></li>
+<li><a href="../../architecture/config-system.html">config-system</a> — 配置体系总览，含 <code>call_mass_fixer_dyn</code> 开关</li>
+<li><a href="../../themes/water-cycle.html">water-cycle</a> — 水循环主题页</li>
+<li><a href="../../themes/co2-cycle.html">co2-cycle</a> — CO2 循环主题页</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>callsedim_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/callsedim_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="callsedim">callsedim</h1>
+<p>气溶胶/冰晶重力沉降统一入口例程。</p>
+<h2 id="所在文件">所在文件</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\callsedim_mod.F</code></pre>
+<p><code>MODULE callsedim_mod</code> → <code>SUBROUTINE callsedim</code>（源码第 1-754 行）。</p>
+<h2 id="例程类型">例程类型</h2>
+<p><code>subroutine</code>（模块内唯一 <code>CONTAINS</code> 例程）。</p>
+<h2 id="职责">职责</h2>
+<p>源码依据（第 35-50 行注释 + 整体结构）：在每个物理时间步内，对所有“有半径”的气溶胶/冰晶示踪物施加<strong>重力沉降（gravitational sedimentation）</strong>，计算：</p>
+<ol type="1">
+<li>各层因沉降产生的混合比倾向 <code>pdqsed</code>；</li>
+<li>沉降到地表的通量 <code>pdqs_sed</code>；</li>
+<li>沉降后更新的粒子几何平均半径 <code>rdust / rstormdust / rtopdust / rice</code>。</li>
+</ol>
+<p>该例程是尘埃循环、水循环、（部分）CO2 云循环共享的底层沉降调度器：它本身不实现下落速度公式，而是按示踪物类别准备粒径分布与密度，然后调用 <code>newsedim</code> 完成单示踪物的垂直输运。</p>
+<p>源码依据（第 39-48 行 history 注释）：</p>
+<ul>
+<li>F. Forget 1999 原始版本；</li>
+<li>J.-B. Madeleine 2010 引入 doubleq（双矩）技术，使 <code>physiq</code> 只需一次调用 <code>callsedim</code>；</li>
+<li>J. Audouard 2016/09 加入 co2clouds 分支——CO2 冰与 CCN 的沉降<strong>不在本例程</strong>，而在 <code>co2cloud.F</code> 的微时间步内完成。</li>
+</ul>
+<h2 id="参数">参数</h2>
+<p>实参对齐来自 <code>physiq_mod.F:2143</code>（见下方“调用的其他例程/被调用关系”），方向取自源码第 60-85 行 <code>intent</code> 声明。</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>方向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>in</td>
+<td>integer</td>
+<td>-</td>
+<td>水平格点数</td>
+</tr>
+<tr>
+<td><code>nlay</code></td>
+<td>in</td>
+<td>integer</td>
+<td>-</td>
+<td>大气层数</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>in</td>
+<td>real</td>
+<td>s</td>
+<td>物理时间步</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td>in</td>
+<td>real(ngrid,nlay+1)</td>
+<td>Pa</td>
+<td>层间界面气压</td>
+</tr>
+<tr>
+<td><code>zlev</code></td>
+<td>in</td>
+<td>real(ngrid,nlay+1)</td>
+<td>m</td>
+<td>层边界高度</td>
+</tr>
+<tr>
+<td><code>zlay</code></td>
+<td>in</td>
+<td>real(ngrid,nlay)</td>
+<td>m</td>
+<td>层中点高度</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td>in</td>
+<td>real(ngrid,nlay)</td>
+<td>K</td>
+<td>层中点温度</td>
+</tr>
+<tr>
+<td><code>pdt</code></td>
+<td>in</td>
+<td>real(ngrid,nlay)</td>
+<td>K/s</td>
+<td>上游过程的温度倾向</td>
+</tr>
+<tr>
+<td><code>rdust</code></td>
+<td>out</td>
+<td>real(ngrid,nlay)</td>
+<td>m</td>
+<td>沉降后更新的尘埃几何平均半径</td>
+</tr>
+<tr>
+<td><code>rstormdust</code></td>
+<td>out</td>
+<td>real(ngrid,nlay)</td>
+<td>m</td>
+<td>沉降后更新的 stormdust 半径</td>
+</tr>
+<tr>
+<td><code>rtopdust</code></td>
+<td>out</td>
+<td>real(ngrid,nlay)</td>
+<td>m</td>
+<td>沉降后更新的 topdust 半径</td>
+</tr>
+<tr>
+<td><code>rice</code></td>
+<td>out</td>
+<td>real(ngrid,nlay)</td>
+<td>m</td>
+<td>沉降后更新的水冰几何平均半径</td>
+</tr>
+<tr>
+<td><code>rsedcloud</code></td>
+<td>in</td>
+<td>real(ngrid,nlay)</td>
+<td>m</td>
+<td>水冰的沉降半径（由微物理方案给出）</td>
+</tr>
+<tr>
+<td><code>rhocloud</code></td>
+<td>inout</td>
+<td>real(ngrid,nlay)</td>
+<td>kg/m³</td>
+<td>云（水冰+CCN）密度</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td>in</td>
+<td>real(ngrid,nlay,nq)</td>
+<td>kg/kg</td>
+<td>沉降前示踪物混合比</td>
+</tr>
+<tr>
+<td><code>pdqfi</code></td>
+<td>in</td>
+<td>real(ngrid,nlay,nq)</td>
+<td>kg/kg/s</td>
+<td>沉降前的上游倾向</td>
+</tr>
+<tr>
+<td><code>pdqsed</code></td>
+<td>out</td>
+<td>real(ngrid,nlay,nq)</td>
+<td>kg/kg/s</td>
+<td>沉降产生的混合比倾向</td>
+</tr>
+<tr>
+<td><code>pdqs_sed</code></td>
+<td>out</td>
+<td>real(ngrid,nq)</td>
+<td>kg/m²/s</td>
+<td>地表沉降通量</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>in</td>
+<td>integer</td>
+<td>-</td>
+<td>示踪物数</td>
+</tr>
+<tr>
+<td><code>tau</code></td>
+<td>in</td>
+<td>real(ngrid,naerkind)</td>
+<td>-</td>
+<td>尘埃光学厚度</td>
+</tr>
+<tr>
+<td><code>tauscaling</code></td>
+<td>in</td>
+<td>real(ngrid)</td>
+<td>-</td>
+<td>尘埃数浓度→质量的标定因子</td>
+</tr>
+</tbody>
+</table>
+<p>源码依据：第 7-12 行参数列表；第 60-85 行 <code>intent</code> 声明。</p>
+<blockquote>
+<p>复现风险：<code>rstormdust / rtopdust</code> 仅在 <code>rdstorm / topflows</code> 开关打开时被赋值（第 704-722 行）。关闭时其值未在本例程初始化，调用方需注意未定义内存（源码未对其做无条件初始化）。</p>
+</blockquote>
+<h2 id="使用的-module-变量">使用的 module 变量</h2>
+<p>来自 <code>USE</code> 列表（源码第 14-32 行）。</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>来源模块</th>
+<th>读/写</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin_p</code></td>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td>调用</td>
+<td>读取运行参数 <code>ice_shape</code></td>
+</tr>
+<tr>
+<td><code>updaterdust</code></td>
+<td><code>updaterad</code></td>
+<td>调用</td>
+<td>由质量+数浓度反算尘埃几何平均半径</td>
+</tr>
+<tr>
+<td><code>updaterice_micro</code></td>
+<td><code>updaterad</code></td>
+<td>调用</td>
+<td>微物理活跃时反算水冰半径+云密度</td>
+</tr>
+<tr>
+<td><code>updaterice_typ</code></td>
+<td><code>updaterad</code></td>
+<td>调用</td>
+<td>非微物理（典型廓线）时反算水冰半径</td>
+</tr>
+<tr>
+<td><code>noms</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>示踪物名称数组（用于按名定位索引）</td>
+</tr>
+<tr>
+<td><code>igcm_dust_mass/number</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>尘埃质量/数浓度示踪物索引</td>
+</tr>
+<tr>
+<td><code>igcm_stormdust_mass/number</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>stormdust 示踪物索引</td>
+</tr>
+<tr>
+<td><code>igcm_topdust_mass/number</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>topdust 示踪物索引</td>
+</tr>
+<tr>
+<td><code>igcm_ccn_mass/number</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>水冰 CCN 示踪物索引</td>
+</tr>
+<tr>
+<td><code>igcm_h2o_ice</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>水冰示踪物索引</td>
+</tr>
+<tr>
+<td><code>igcm_hdo_ice</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>HDO 冰（同位素）示踪物索引</td>
+</tr>
+<tr>
+<td><code>igcm_co2_ice</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>CO2 冰示踪物索引（用于跳过判断）</td>
+</tr>
+<tr>
+<td><code>rho_dust</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>尘埃密度（kg/m³），doubleq 沉降密度</td>
+</tr>
+<tr>
+<td><code>rho_q</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>各示踪物密度数组</td>
+</tr>
+<tr>
+<td><code>radius</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>各示踪物默认半径（&gt;1e-9 才参与沉降）</td>
+</tr>
+<tr>
+<td><code>varian</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>对数正态分布宽度参数 <code>sigma0</code></td>
+</tr>
+<tr>
+<td><code>nuice_sed/nuice_ref</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>水冰沉降/辐射有效方差（仅打印）</td>
+</tr>
+<tr>
+<td><code>nqchildren/qparentmin/masseqmin</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>同位素（子示踪物）输运参数</td>
+</tr>
+<tr>
+<td><code>g</code></td>
+<td><code>comcstfi_h</code></td>
+<td>读</td>
+<td>重力加速度，用于层质量 <code>masse=Δp/g</code></td>
+</tr>
+<tr>
+<td><code>naerkind</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>读</td>
+<td>气溶胶种类数（<code>tau</code> 维度）</td>
+</tr>
+<tr>
+<td><code>doubleq</code></td>
+<td><code>dust_param_mod</code></td>
+<td>读</td>
+<td>双矩尘埃方案开关</td>
+</tr>
+<tr>
+<td><code>water/activice/microphys/rdstorm/topflows/co2clouds/co2useh2o/meteo_flux</code></td>
+<td><code>callkeys_mod</code></td>
+<td>读</td>
+<td>各物理过程开关</td>
+</tr>
+</tbody>
+</table>
+<h3 id="本例程内的-save-状态">本例程内的 SAVE 状态</h3>
+<p>源码依据（第 105-186 行）：以下为 <code>SAVE</code>/<code>THREADPRIVATE</code> 变量，仅在 <code>firstcall</code> 时初始化：</p>
+<ul>
+<li><code>beta</code>：冰粒形状修正因子（默认 0.75，可由 <code>ice_shape</code> 覆盖）；</li>
+<li><code>rd(nr)</code>、<code>rdi(nr+1)</code>、<code>rr(ninter,nr)</code>：doubleq 离散粒径分箱（nr=12，ninter=4）；</li>
+<li>一系列示踪物索引 <code>idust_mass, idust_number, iccn_mass, iccn_number, istormdust_*, itopdust_*, iccnco2_*, ico2_ice</code>；</li>
+<li><code>firstcall</code>：首调标志。</li>
+</ul>
+<h2 id="调用的其他例程">调用的其他例程</h2>
+<table>
+<thead>
+<tr>
+<th>例程</th>
+<th>调用目的</th>
+<th>是否影响主流程</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>newsedim</code></td>
+<td>对单个示踪物（给定半径+密度）做重力沉降垂直输运，返回新混合比与通量</td>
+<td>是（核心）</td>
+</tr>
+<tr>
+<td><code>vlz_fi</code></td>
+<td>仅同位素（HDO）：用母体（H2O 冰）已算出的输运质量 <code>w</code> 输运同位素比</td>
+<td>是（仅 water+同位素）</td>
+</tr>
+<tr>
+<td><code>updaterdust</code></td>
+<td>由质量/数浓度反算尘埃类几何平均半径</td>
+<td>是（doubleq/rdstorm/topflows）</td>
+</tr>
+<tr>
+<td><code>updaterice_micro</code></td>
+<td>微物理活跃时反算水冰半径与云密度</td>
+<td>是（water+microphys）</td>
+</tr>
+<tr>
+<td><code>updaterice_typ</code></td>
+<td>非微物理时按典型廓线反算水冰半径</td>
+<td>是（water 非 microphys）</td>
+</tr>
+<tr>
+<td><code>getin_p</code></td>
+<td>读取 <code>ice_shape</code> 运行参数</td>
+<td>否（仅 firstcall）</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>缺失必需示踪物时中止</td>
+<td>是（错误保护）</td>
+</tr>
+</tbody>
+</table>
+<p>被调用关系（源码依据 <code>physiq_mod.F:2143</code>）：</p>
+<pre class="text"><code>physiq  →  callsedim  →  newsedim  →  vlz_fi
+                      →  updaterdust / updaterice_micro / updaterice_typ
+                      →  vlz_fi (HDO 同位素)</code></pre>
+<h2 id="控制流程">控制流程</h2>
+<p>源码依据（结构性阅读第 193-751 行）：</p>
+<ol type="1">
+<li><strong>firstcall 初始化块</strong>（第 193-402 行）：仅首次执行
+<ul>
+<li><code>doubleq</code>：构造 12 个对数等比分箱半径 <code>rd</code>、边界 <code>rdi</code>、子积分点 <code>rr</code>；按 <code>noms</code> 定位 <code>dust_mass/dust_number</code> 索引，缺失则 <code>abort_physic</code>。</li>
+<li><code>microphys</code>：定位 <code>ccn_mass/ccn_number</code>。</li>
+<li><code>co2clouds</code>：定位 CO2 相关 CCN/冰索引（含 <code>co2useh2o</code>、<code>meteo_flux</code> 子情形）。</li>
+<li><code>water</code>：读取 <code>ice_shape</code> → <code>beta</code>。</li>
+<li><code>rdstorm</code>：定位 <code>stormdust_*</code>。</li>
+<li><code>topflows</code>：定位 <code>topdust_*</code>。</li>
+</ul></li>
+<li><strong>初始化</strong>（第 404-428 行）：把上游倾向并入局部 <code>zqi/zq0/zt</code>；计算层质量 <code>masse</code> 和厚度 <code>epaisseur</code>。</li>
+<li><strong>预计算 doubleq 半径</strong>（第 433-467 行）：对 <code>doubleq/rdstorm/topflows</code> 各自调用 <code>updaterdust</code> 得到 <code>r0dust/r0stormdust/r0topdust</code>。</li>
+<li><strong>示踪物主循环 <code>do iq=1,nq</code></strong>（第 469-686 行），仅对 <code>radius(iq)&gt;1e-9</code> 且非 CO2 冰/CCN/HDO 的示踪物处理，按三类分支：
+<ul>
+<li><strong>DOUBLEQ 分支</strong>（第 482-584 行）：尘埃/stormdust/topdust 质量与数浓度；</li>
+<li><strong>WATER CYCLE 分支</strong>（第 588-649 行）：CCN 与 H2O 冰，含 HDO 同位素子情形；</li>
+<li><strong>GENERAL 分支</strong>（第 653-661 行）：其余单一示踪物。</li>
+<li>末尾统一计算 <code>pdqsed</code>（第 667-682 行）。</li>
+</ul></li>
+<li><strong>半径更新</strong>（第 690-751 行）：对 doubleq/rdstorm/topflows 调 <code>updaterdust</code>；对 water 按 microphys 与否调 <code>updaterice_micro/updaterice_typ</code>。</li>
+</ol>
+<p>提前跳过条件（第 470-478 行）：CO2 冰、各类 CO2 CCN、HDO 冰被显式排除——CO2 在微时间步内沉降，HDO 由 H2O 携带。</p>
+<h2 id="核心计算步骤">核心计算步骤</h2>
+<ol type="1">
+<li><strong>层质量</strong>（第 425 行，源码依据）：
+<pre class="text"><code>masse(ig,l) = (pplev(ig,l) - pplev(ig,l+1)) / g
+epaisseur(ig,l) = zlev(ig,l+1) - zlev(ig,l)</code></pre></li>
+<li><strong>doubleq 粒径分布积分</strong>（第 521-560 行）：对每个分箱 <code>ir</code>，在 <code>ninter=4</code> 个子点上用梯形法积分对数正态分布，得到该分箱权重 <code>qr</code>，再归一化到该示踪物总量 <code>zqi</code>：
+<ul>
+<li><code>radpower = 2</code>（质量）或 <code>-1</code>（数浓度）；</li>
+<li><code>qr(ig,l,ir) = zqi(ig,l,iq) * qr / Sq(ig,l)</code>。</li>
+</ul></li>
+<li><strong>逐分箱沉降</strong>（第 568-584 行）：对 doubleq 的每个固定半径 <code>rd(ir)</code> 调 <code>newsedim</code>，密度恒为 <code>rho_dust</code>，<code>beta=0.5</code>；累加地表通量与各层新混合比。</li>
+<li><strong>水冰沉降</strong>（第 593-602 行）：微物理时用 <code>rsedcloud</code>+<code>rhocloud</code>、<code>beta</code>；非微物理时用 <code>rsedcloud</code>+<code>rho_q(iq)</code>、<code>beta</code>。</li>
+<li><strong>同位素输运</strong>（第 611-649 行）：用母体输运质量 <code>w</code> 通过 <code>vlz_fi</code> 输运 HDO/H2O 比值，再换算 HDO 冰混合比与地表通量。</li>
+<li><strong>通用示踪物</strong>（第 654-656 行）：用 <code>radius(iq)</code>+<code>rho_q(iq)</code>、<code>beta=1.0</code> 调一次 <code>newsedim</code>。</li>
+<li><strong>最终倾向</strong>（第 669-670 行，源码依据）：
+<pre class="text"><code>pdqsed(ig,l,iq) = (zqi(ig,l,iq) - (pq + pdqfi*ptimestep)) / ptimestep</code></pre></li>
+</ol>
+<h2 id="关键公式或算法">关键公式或算法</h2>
+<p>源码依据（第 198-210 行）—— doubleq 分箱构造（对数等比）：</p>
+<pre class="text"><code>rd(ir)  = rdmin * (rdmax/rdmin)^((ir-1)/(nr-1))           ! nr=12, rdmin=1e-8, rdmax=30e-6
+rdi(1)  = rdimin                                          ! 1e-8
+rdi(ir) = sqrt(rd(ir-1)*rd(ir))   (ir=2..nr)
+rdi(nr+1) = rdimax                                        ! 1e-4
+rr(iint,ir) = rdi(ir) * (rdi(ir+1)/rdi(ir))^((iint-1)/(ninter-1))   ! ninter=4</code></pre>
+<p>对数正态分布积分核（第 528-542 行）：</p>
+<pre class="text"><code>weight(r) = r^radpower * exp( -(ln(r/r0))^2 / (2*sigma0^2) )</code></pre>
+<p>其中 <code>sigma0 = varian</code>（<code>tracer_mod</code>），<code>radpower=2</code>（质量矩）或 <code>-1</code>（数浓度矩）。</p>
+<blockquote>
+<p><code>newsedim</code> 内部的下落速度公式（Stokes 定律 + Cunningham 滑移修正等）见 <a href="newsedim_mod.html">newsedim_mod.md</a>。本页只确认 <code>callsedim</code> 把粒径 <code>rd</code>、密度 <code>rho</code>、形状因子 <code>beta</code> 传入 <code>newsedim</code>。</p>
+</blockquote>
+<blockquote>
+<p>待确认：<code>beta</code>（形状因子）在 doubleq 分支取 0.5、water 分支取 <code>beta</code>（默认 0.75）、general 分支取 1.0；其物理含义（对下落速度的修正方式）需在 <code>newsedim</code> 专页确认。</p>
+</blockquote>
+<h2 id="边界条件与保护逻辑">边界条件与保护逻辑</h2>
+<p>源码依据：</p>
+<ul>
+<li><strong>示踪物缺失保护</strong>：firstcall 时若开启某方案却找不到对应示踪物索引，调用 <code>abort_physic</code> 中止（第 236, 258, 315, 372, 397 行）。</li>
+<li><strong>半径阈值</strong>：仅 <code>radius(iq)&gt;1e-9</code> 的示踪物参与沉降（第 470 行），过滤气体示踪物。</li>
+<li><strong>CO2 显式跳过</strong>：CO2 冰与各类 CO2 CCN 在主循环条件中被排除（第 470-477 行）。</li>
+<li><strong>同位素母体阈值</strong>：<code>zq0(iq)&gt;qparentmin</code> 才计算同位素比，否则比值置 0（第 620-624 行）；<code>masseq</code> 下限为 <code>masseqmin</code>（第 626, 635 行）。</li>
+<li><strong>同位素非法保护</strong>：若有 child 的示踪物不是 <code>igcm_h2o_ice</code>，则 <code>abort_physic</code>（第 615, 676 行）。</li>
+</ul>
+<h2 id="输入数据来源">输入数据来源</h2>
+<ul>
+<li>配置开关：<code>callkeys_mod</code>（<code>water/microphys/doubleq/rdstorm/topflows/co2clouds/...</code>），由 <code>callphys.def</code> 经初始化填充（推断：根据 <code>callkeys_mod</code> 的常规填充路径；本文件未直接读取 def）。</li>
+<li>运行参数 <code>ice_shape</code>：<code>getin_p</code>（第 342 行），默认 0.75。</li>
+<li>示踪物属性：<code>tracer_mod</code>（<code>radius/rho_q/rho_dust/varian/noms/...</code>）。</li>
+<li>上游倾向：由 <code>physiq</code> 传入的 <code>pdqfi</code>（沉降前累计倾向）与 <code>pdt</code>。</li>
+</ul>
+<blockquote>
+<p>复现风险：<code>ice_shape</code> 的实际运行值由运行目录的 def 文件决定；若复现实验未提供该项，则采用默认 0.75。沉降通量对 <code>beta</code> 敏感。</p>
+</blockquote>
+<h2 id="输出与副作用">输出与副作用</h2>
+<ul>
+<li><strong>写出参数</strong>：<code>pdqsed</code>（各层沉降倾向）、<code>pdqs_sed</code>（地表通量）、<code>rdust/rstormdust/rtopdust/rice</code>、<code>rhocloud</code>（inout，微物理时更新）。</li>
+<li><strong>SAVE 状态</strong>：firstcall 时设置 <code>beta</code>、<code>rd/rdi/rr</code>、各示踪物索引、<code>firstcall=.false.</code>。</li>
+<li><strong>标准输出</strong>：firstcall 时打印各示踪物索引与水循环参数（第 223, 227, 246, 250, 340-348 行等）；可能产生 <code>abort_physic</code> 终止。</li>
+<li><strong>无文件 I/O</strong>：本例程不直接读写数据文件。</li>
+</ul>
+<blockquote>
+<p>复现风险：CO2 冰与 CO2 CCN 的沉降不在此处完成；复现 CO2 云循环时必须在 <code>co2cloud.F</code> 微时间步内单独处理，不能假设 <code>callsedim</code> 已覆盖它们。</p>
+</blockquote>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>procedure callsedim(ngrid, nlay, ptimestep, ...):
+  if firstcall:
+    if doubleq:   build rd[nr], rdi[nr+1], rr[ninter,nr]; locate dust_mass/number
+    if microphys: locate ccn_mass/number
+    if co2clouds: locate co2 ccn/ice indices (+ h2o/meteor sub-cases)
+    if water:     beta = getin(&quot;ice_shape&quot;, 0.75)
+    if rdstorm:   locate stormdust_mass/number
+    if topflows:  locate topdust_mass/number
+    firstcall = false
+
+  zqi = pq + pdqfi*ptimestep          # apply upstream tendencies
+  zt  = pt + pdt*ptimestep
+  masse = (pplev[l] - pplev[l+1]) / g
+  epaisseur = zlev[l+1] - zlev[l]
+
+  if doubleq:   r0dust     = updaterdust(dust_mass, dust_number, tauscaling)
+  if rdstorm:   r0stormdust = updaterdust(stormdust_*)
+  if topflows:  r0topdust   = updaterdust(topdust_*)
+
+  for iq in 1..nq:
+    if radius[iq] &lt;= 1e-9: continue
+    if iq is CO2 ice / CO2 ccn / HDO ice: continue
+
+    if doubleq and iq in {dust,storm,top}_{mass,number}:
+      r0 = matching r0*
+      radpower = 2 if mass else -1
+      for each bin ir:                # log-normal trapezoid integration
+        qr[ir] = integrate(rr[:,ir], r0, sigma0, radpower)
+      normalize qr to zqi[iq]
+      zqi[iq] = 0; pdqs_sed[iq] = 0
+      for each bin ir:
+        newsedim(radius=rd[ir], rho=rho_dust, beta=0.5) -&gt; wq
+        pdqs_sed[iq] += wq[1]/ptimestep
+        zqi[:,iq]    += qr[:,ir]
+
+    else if iq in {ccn_mass, ccn_number, h2o_ice}:
+      if microphys: newsedim(rsedcloud, rhocloud, beta)
+      else:         newsedim(rsedcloud, rho_q[iq], beta)
+      pdqs_sed[iq] = wq[1]/ptimestep
+      if iq == h2o_ice and has child (HDO):
+        Ratio = zq0[hdo]/zq0[h2o]   (guarded by qparentmin)
+        vlz_fi(Ratio, masseq, w=wq) -&gt; transport HDO with H2O mass
+        update zqi[hdo], pdqs_sed[hdo]
+
+    else:   # general tracer
+      newsedim(radius[iq], rho_q[iq], beta=1.0)
+      pdqs_sed[iq] = wq[1]/ptimestep
+
+    pdqsed[:,iq] = (zqi[:,iq] - (pq + pdqfi*ptimestep)) / ptimestep
+    if HDO child: pdqsed[:,hdo] likewise
+
+  if doubleq:  rdust      = updaterdust(zqi dust_*)
+  if rdstorm:  rstormdust = updaterdust(zqi storm_*)
+  if topflows: rtopdust   = updaterdust(zqi top_*)
+  if water:
+    if microphys: rice = updaterice_micro(zqi h2o_ice, ccn_*, -&gt; rhocloud)
+    else:         rice = updaterice_typ(zqi h2o_ice, tau, zlay)
+end procedure</code></pre>
+<h2 id="复现注意事项">复现注意事项</h2>
+<ul>
+<li>沉降是“先并入上游倾向 → 沉降 → 反算倾向”的算子分裂模式；复现时 <code>pdqsed</code> 必须按 <code>(zqi_final - (pq+pdqfi*dt))/dt</code> 计算，而非直接覆盖混合比。</li>
+<li>doubleq 用 12 个固定半径分箱近似对数正态谱的沉降，每箱单独调用 <code>newsedim</code>；不能简化为单一有效半径，否则下落速度的尺寸依赖丢失。</li>
+<li>三类分支的 <code>beta</code> 取值不同（doubleq=0.5，water=<code>beta</code>，general=1.0），是复现下落速度修正的关键。</li>
+<li>HDO 不独立沉降，而是用 H2O 冰的输运质量 <code>w</code> 经 <code>vlz_fi</code> 携带，保证同位素比守恒。</li>
+<li>半径更新（<code>rdust/rice</code> 等）发生在沉降之后，使用沉降后的 <code>zqi</code>；这些输出半径供下一物理过程/辐射使用。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>callkeys_mod</code> 各开关如何由 def 文件填充（本文件未直接读取，标推断）。</li>
+<li><code>beta</code> 在平均自由程系数中生效的物理文献依据仍以 <a href="newsedim_mod.html">newsedim_mod.md</a> 的待确认项为准。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li>复现风险：<code>rstormdust/rtopdust</code> 在对应开关关闭时不被赋值。</li>
+<li>复现风险：CO2 冰/CCN 沉降不在此例程，需在 <code>co2cloud.F</code> 微时间步内完成。</li>
+<li>复现风险：<code>ice_shape</code>（<code>beta</code>）默认 0.75，但实际由运行 def 决定，影响水冰沉降通量。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="./index.html">phymars 模块总览</a></li>
+<li><a href="../../themes/dust-cycle.html">尘埃循环主题</a></li>
+<li><a href="newsedim_mod.html">newsedim_mod.md</a>：核心沉降数值方案。</li>
+<li><a href="vlz_fi.html">vlz_fi.md</a>：限坡半拉格朗日垂直输运。</li>
+<li><a href="updaterad.html">updaterad.md</a>：尘埃/水冰有效半径反演模块（TASK-0028 已完成）</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lwxd - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/lwxd.md</span>
+    </nav>
+    <article class="content">
+<h1 id="lwxdf">lwxd.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\lwxd.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>lwxd.F</code> 定义 <code>lwxd_mod</code> 模块，提供长波 LTE 辐射中的远距离层间交换系数例程 <code>lwxd</code>。它位于 <a href="lwu.html">lwu</a> 生成 <code>co2_u/co2_up/aer_t</code> 之后、<a href="lwflux.html">lwflux</a> 和 <a href="lwi.html">lwi</a> 读取 <code>yomlw_h::xi</code> 之前，由 <code>lwmain_mod.F</code> 在 <code>lwxb</code> 和 <code>lwxn</code> 同一组长波交换系数阶段调用。</p>
+<p>源码注释把本例程定位为 distant layers 的 transmission function 与 exchange coefficients。这里的“远距离”不是所有非边界项，而是 <code>jk=1:nlaylte-2</code> 与 <code>jkk=jk+2:nlaylte</code> 的非相邻真实大气层对。相邻层 <code>jk,jk+1</code> 由 <code>lwxn.F</code> 细分子层处理，地面/空间边界由 <a href="lwxb.html">lwxb</a> 处理。</p>
+<p><code>lwxd</code> 的核心工作是先对每一对层边界构造 CO2 与气溶胶总透过率，再用四个相邻界面透过率作二阶差分，写出远距离层间净交换率 <code>xi</code>。当 <code>callkeys_mod::callemis</code> 为真时，它还构造经地面反射的路径，并把该反射项按 <code>(1-emis)</code> 加到远距离 <code>xi</code> 中。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lwxd_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>封装远距离长波层间交换系数构造例程。</td>
+</tr>
+<tr>
+<td><code>lwxd</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7</td>
+<td>计算远距离层对的 CO2/气溶胶透过率差分，并写入共享净交换率表 <code>xi</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>ndlon</code>, <code>nuco2</code>, <code>nflev</code>, <code>ndlo2</code></td>
+<td>提供水平、谱带和垂直维度上限，用于接口数组和局部工作数组形状。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>yomlw_h</code></td>
+<td><code>nlaylte</code>, <code>xi</code>, <code>xi_emis</code></td>
+<td>读取 LTE 长波有效层数，并写入远距离 <code>xi</code> 与供 <code>lwxn</code> 读取的邻近反射缓存 <code>xi_emis</code>。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>callemis</code></td>
+<td>控制是否计算经地面反射的透过率路径 <code>trans_emis</code>。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>lwtt_mod</code></td>
+<td><code>lwtt</code></td>
+<td>用 CO2 吸收路径 <code>zu/zup</code> 计算每个 CO2 谱带透过率。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lwtt</code></td>
+<td><code>lwtt_mod</code> / <code>lwtt.F</code></td>
+<td>102</td>
+<td>对直接层间路径的 CO2 吸收量差值 <code>zu/zup</code> 求透过率。</td>
+</tr>
+<tr>
+<td><code>lwtt</code></td>
+<td><code>lwtt_mod</code> / <code>lwtt.F</code></td>
+<td>155</td>
+<td>对经地面反射路径的 CO2 吸收量组合求透过率。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ig0</code></td>
+<td><code>lwmain</code></td>
+<td><code>integer</code></td>
+<td>grid offset</td>
+<td>当前向量块在全局 <code>xi</code> 第一维中的偏移，写入时使用 <code>ig0+jl</code>。</td>
+</tr>
+<tr>
+<td><code>kdlon</code></td>
+<td><code>lwmain</code></td>
+<td><code>integer</code></td>
+<td>column</td>
+<td>当前向量块内有效水平列数，循环范围为 <code>1:kdlon</code>。</td>
+</tr>
+<tr>
+<td><code>kflev</code></td>
+<td><code>lwmain</code></td>
+<td><code>integer</code></td>
+<td>layer</td>
+<td>接口数组的垂直层数参数；主要层间循环使用 <code>yomlw_h::nlaylte</code>。</td>
+</tr>
+<tr>
+<td><code>emis</code></td>
+<td><code>lwmain</code> 传入的 <code>emis_gaz</code></td>
+<td><code>real(ndlo2)</code></td>
+<td>-</td>
+<td>地表发射率。远距离层间的反射修正乘以 <code>(1-emis)</code>。</td>
+</tr>
+<tr>
+<td><code>aer_t</code></td>
+<td><a href="lwu.html">lwu</a></td>
+<td><code>real(ndlo2,nuco2,kflev+1)</code></td>
+<td>-</td>
+<td>CO2 谱带上的累计气溶胶吸收透过率。</td>
+</tr>
+<tr>
+<td><code>co2_u</code></td>
+<td><a href="lwu.html">lwu</a></td>
+<td><code>real(ndlo2,nuco2,kflev+1)</code></td>
+<td>吸收路径</td>
+<td>自模型顶向下累计的 CO2 吸收量。</td>
+</tr>
+<tr>
+<td><code>co2_up</code></td>
+<td><a href="lwu.html">lwu</a></td>
+<td><code>real(ndlo2,nuco2,kflev+1)</code></td>
+<td>压力缩放吸收路径</td>
+<td>带压力效应的累计 CO2 吸收量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xi(ig0+jl,ja,jk,jkk)</code> 与互易项</td>
+<td><code>yomlw_h</code>，后续由 <a href="lwflux.html">lwflux</a> / <a href="lwi.html">lwi</a> 读取</td>
+<td>shared array</td>
+<td>-</td>
+<td>第 <code>jk</code> 与第 <code>jkk</code> 个非相邻真实大气层之间的 CO2 带净交换系数。</td>
+</tr>
+<tr>
+<td><code>xi_emis(ig0+jl,ja,jk)</code></td>
+<td><code>yomlw_h</code>，后续由 <code>lwxn.F</code> 读取</td>
+<td>shared array</td>
+<td>-</td>
+<td>名义上保存邻近层反射交换项；按当前源码字面，邻近项公式被注释且 <code>ksi_emis</code> 初值为 0，因此这里写出的值为 0。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p><code>lwxd</code> 不读写文件，不分配内存，也没有启用的诊断打印。它的持久副作用限于写入 <code>yomlw_h::xi</code> 和 <code>yomlw_h::xi_emis</code>。远距离 <code>xi</code> 写入时显式补齐互易项：<code>xi(...,jk,jkk)</code> 与 <code>xi(...,jkk,jk)</code> 取同一数值。</p>
+<p>源码中保留了若干已注释的范围检查和打印语句，包括 <code>trans</code>、<code>trans_emis</code>、<code>ksi</code>、<code>ksi_emis</code> 的负值或大于 1 检查；当前可执行路径不会钳制这些值。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>将 <code>ksi_emis(:,:,:,:)</code> 初始化为 0，随后只在远距离层对循环中写入 <code>ksi_emis(jk,jkk)</code>。</li>
+<li>对所有边界对 <code>jk=1:nlaylte+1</code>、<code>jkk=jk:nlaylte+1</code> 构造直接路径：<code>zu=co2_u(:,:,jk)-co2_u(:,:,jkk)</code>，<code>zup=co2_up(:,:,jk)-co2_up(:,:,jkk)</code>，气溶胶透过率比值为 <code>aer_t(:,:,jk)/aer_t(:,:,jkk)</code>；调用 <code>lwtt</code> 后得到 <code>trans(jk,jkk)</code>，并补齐 <code>trans(jkk,jk)</code>。</li>
+<li>如果 <code>callemis</code> 为真，构造经地面反射的路径：CO2 路径为 <code>2*co2_u(:,:,1)-co2_u(:,:,jk)-co2_u(:,:,jkk)</code>，气溶胶路径为 <code>aer_t(:,:,1)^2/aer_t(:,:,jk)/aer_t(:,:,jkk)</code>；否则把 <code>trans_emis(jk,jkk)</code> 设为 1。两种分支都会补齐 <code>trans_emis(jkk,jk)</code>。</li>
+<li>对每个远距离真实层对 <code>jk=1:nlaylte-2</code>、<code>jkk=jk+2:nlaylte</code>，用四个界面透过率作二阶差分： <code>ksi = trans(jk+1,jkk) - trans(jk,jkk) - trans(jk+1,jkk+1) + trans(jk,jkk+1)</code>。</li>
+<li>对同一远距离层对计算反射差分： <code>ksi_emis = trans_emis(jk,jkk) - trans_emis(jk+1,jkk) - trans_emis(jk,jkk+1) + trans_emis(jk+1,jkk+1)</code>。</li>
+<li>写入 <code>xi = ksi + ksi_emis * (1-emis)</code>，再写入互易项。</li>
+<li>循环结束后，源码尝试为相邻层保存 <code>xi_emis(jk)</code>；但相邻层 <code>ksi_emis(jk,jk+1)</code> 的计算公式处于注释状态，且远距离循环不会覆盖该位置，因此当前实现写出的邻近反射缓存为 0。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>ksi_emis = 0
+
+for jk = 1 to nlaylte+1:
+  for jkk = jk to nlaylte+1:
+    zu = co2_u(:,:,jk) - co2_u(:,:,jkk)
+    zup = co2_up(:,:,jk) - co2_up(:,:,jkk)
+    zt_aer = aer_t(:,:,jk) / aer_t(:,:,jkk)
+    zt_co2 = lwtt(zu, zup)
+    trans(jk,jkk) = zt_co2 * zt_aer
+    trans(jkk,jk) = trans(jk,jkk)
+
+for jk = 1 to nlaylte+1:
+  for jkk = jk to nlaylte+1:
+    if callemis:
+      zu = 2*co2_u(:,:,1) - co2_u(:,:,jk) - co2_u(:,:,jkk)
+      zup = 2*co2_up(:,:,1) - co2_up(:,:,jk) - co2_up(:,:,jkk)
+      zt_aer = aer_t(:,:,1)^2 / aer_t(:,:,jk) / aer_t(:,:,jkk)
+      trans_emis(jk,jkk) = lwtt(zu, zup) * zt_aer
+    else:
+      trans_emis(jk,jkk) = 1
+    trans_emis(jkk,jk) = trans_emis(jk,jkk)
+
+for jk = 1 to nlaylte-2:
+  for jkk = jk+2 to nlaylte:
+    ksi = trans(jk+1,jkk) - trans(jk,jkk)
+        - trans(jk+1,jkk+1) + trans(jk,jkk+1)
+    ksi_emis = trans_emis(jk,jkk) - trans_emis(jk+1,jkk)
+             - trans_emis(jk,jkk+1) + trans_emis(jk+1,jkk+1)
+    xi(jk,jkk) = ksi + ksi_emis * (1 - emis)
+    xi(jkk,jk) = xi(jk,jkk)
+
+for jk = 1 to nlaylte-1:
+  xi_emis(jk) = ksi_emis(jk,jk+1) * (1 - emis)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">辐射计算</a></td>
+<td>在长波 LTE 主流程中补全非相邻真实层之间的净交换率 <code>xi</code>，与 <a href="lwxb.html">lwxb</a> 的边界项和 <a href="lwxn.html">lwxn</a> 的相邻层项共同供后续通量/冷却率例程读取。</td>
+</tr>
+<tr>
+<td><a href="index.html">phymars 核心物理模块目录</a></td>
+<td>属于 <code>libf\phymars</code> 长波辐射辅助文件组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 文件，模块内只有一个公开子例程。</li>
+<li><code>kflev</code> 用于接口数组形状，实际远距离交换循环由 <code>yomlw_h::nlaylte</code> 控制。</li>
+<li><code>trans</code> 和 <code>trans_emis</code> 使用 <code>0:nflev+1</code> 维度，但直接路径循环从 <code>1</code> 到 <code>nlaylte+1</code>；地面反射路径通过边界索引 <code>1</code> 的累计量表达，并不是写 <code>trans(...,0,...)</code>。</li>
+<li>远距离层对从 <code>jkk=jk+2</code> 开始，刻意跳过相邻层；相邻层细分和地面特殊处理留给 <a href="lwxn.html">lwxn</a>。</li>
+<li><code>callemis=.false.</code> 时 <code>trans_emis</code> 被设为 1，远距离反射差分自然抵消为 0。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><a href="lwu.html">lwu</a> 必须先生成单调一致的 <code>co2_u/co2_up</code> 和带下限保护的 <code>aer_t</code>；<code>lwxd</code> 直接对这些累计量做差和做比值。</li>
+<li><code>aer_t(:,:,jkk)</code>、<code>aer_t(:,:,jk)</code> 出现在除法分母中。当前上游 <code>lwu</code> 把 <code>aer_t</code> 钳制到 <code>1e-30</code>，复现时不能移除这一保护。</li>
+<li><code>lwtt</code> 对 <code>sqrt(up)</code> 和 <code>u ** cst_voigt</code> 没有本地保护；<code>lwxd</code> 构造的 <code>zu/zup</code> 依赖上游累计量物理一致，不能给出负路径增量。</li>
+<li><code>callemis</code> 会改变远距离层对的 <code>xi</code>：开启时加入地面反射差分，关闭时反射项抵消。</li>
+<li>复现风险：<code>xi_emis</code> 的邻近层公式在源码中被注释掉，当前写入 <code>lwxn</code> 的反射缓存为 0；如果下游结果预期包含邻近层表面反射修正，需要先确认这是否是有意行为。</li>
+<li><code>emis</code> 不在本例程中钳制。外部传入小于 0 或大于 1 的值时，反射修正会按源码字面通过 <code>(1-emis)</code> 缩放。</li>
+<li><code>ig0+jl</code> 必须落在全局 <code>xi</code> 与 <code>xi_emis</code> 第一维有效范围内，否则远距离交换率会写到错误网格列。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>xi_emis</code> 邻近层公式被注释后仍保留保存步骤，这一点可能是历史实现残留，也可能表示当前物理方案有意不把该反射项传给 <code>lwxn</code>；本页只记录源码字面行为。</li>
+<li>源码保留了 <code>trans</code> 和 <code>ksi</code> 的范围检查注释，当前页面未进一步确认这些检查被停用的数值稳定性原因。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../themes/radiation.html">radiation</a></li>
+<li><a href="index.html">phymars/index</a></li>
+<li><a href="lwu.html">lwu</a></li>
+<li><a href="lwtt.html">lwtt</a></li>
+<li><a href="lwxb.html">lwxb</a></li>
+<li><a href="lwflux.html">lwflux</a></li>
+<li><a href="lwi.html">lwi</a></li>
+<li><a href="lwmain_mod.html">lwmain_mod</a> - 长波 LTE 主调度入口，按 <code>ilwd</code> 调用本例程刷新远距离交换率。</li>
+<li><a href="lwxn.html">lwxn</a></li>
+<li><a href="yomlw_h.html">yomlw_h.md</a>：长波辐射共享参数。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

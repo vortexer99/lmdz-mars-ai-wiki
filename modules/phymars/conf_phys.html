@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>conf_phys - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/conf_phys.md</span>
+    </nav>
+    <article class="content">
+<h1 id="conf_physf">conf_phys.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\conf_phys.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>conf_phys.F</code> 定义 <code>conf_phys_mod</code> 模块（第 1 行）和 <code>conf_phys(ngrid,nlayer,nq)</code> 子程序（第 7 行），是 Mars PCM 物理参数化的运行时配置入口。它不计算物理 tendency；它的职责是在物理初始化阶段读取 <code>run.def</code>/<code>callphys.def</code> 风格的配置键，写入 <code>callkeys_mod</code>、<code>dust_param_mod</code>、<code>dimradmars_mod</code>、<code>datafile_mod</code>、<code>time_phylmdz_mod</code> 等共享状态，并在同一个入口内执行大量依赖/互斥校验。</p>
+<p>从源码结构看，配置流程分三段：非 MESOSCALE 分支先读取动力-物理共享调度键（第 101-129 行），随后检查并读取 <code>callphys.def</code>（第 133-1291 行），最后给长波辐射设置默认值并可选读取 <code>radia.def</code> 覆盖（第 1304-1381 行）。因此，复现实验时不能只保存 <code>callphys.def</code>；还要记录源码默认值、是否存在 <code>radia.def</code>、以及编译宏 <code>MESOSCALE</code> 对默认值和 <code>bcast</code> 路径的影响。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>conf_phys_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>物理配置读取模块，包含 <code>conf_phys</code>。</td>
+</tr>
+<tr>
+<td><code>conf_phys</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7</td>
+<td>读取运行时配置，设置物理开关和共享参数，并执行配置一致性检查。</td>
+</tr>
+<tr>
+<td><code>modname</code></td>
+<td>local character parameter</td>
+<td style="text-align: right;">85</td>
+<td>传给 <code>abort_physic</code> 的错误定位名。</td>
+</tr>
+<tr>
+<td><code>old_flag</code></td>
+<td>local real</td>
+<td style="text-align: right;">82</td>
+<td>检查废弃配置键，例如 <code>ecritphy</code> 和 <code>albedo_h2o_ice</code>。</td>
+</tr>
+<tr>
+<td><code>callg2d</code></td>
+<td>local logical</td>
+<td style="text-align: right;">94</td>
+<td><code>radia.def</code> 读取的废弃未用标志；源码注释说明可能从 <code>radia.def</code> 读到。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td><code>getin_p</code></td>
+<td>读取配置键并覆盖源码默认值。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>startphy_file</code>, <code>callrad</code>, <code>water</code>, <code>co2clouds</code>, <code>callthermos</code> 等大量开关</td>
+<td>本文件最主要的写入目标；保存全局物理开关和运行时参数。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>steps_per_sol</code>, <code>outputs_per_sol</code>, <code>iphysiq</code>, <code>ecritstart</code>, <code>daysec</code>, <code>dtphys</code>, <code>slow_diagfi</code></td>
+<td>物理步长、输出频率、restart 输出频率和诊断输出节奏。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>naerkind</code>, <code>name_iaer</code>, <code>ini_scatterers</code>, <code>tauvis</code></td>
+<td>设置辐射气溶胶种类数、名称表和可见光参考尘埃光学厚度。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td><code>dustbin</code>, <code>doubleq</code>, <code>active</code>, <code>lifting</code>, <code>freedust</code>, <code>dustscaling_mode</code>, <code>reff_driven_IRtoVIS_scenario</code> 等</td>
+<td>尘埃循环配置枢纽；本文件设置 bin 数、双矩尘埃、起尘、自由尘埃和辐射缩放模式。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>aeropacity_mod</code></td>
+<td><code>iddist</code>, <code>topdustref</code></td>
+<td>尘埃垂直分布类型和自定义顶高。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>datafile_mod</code></td>
+<td><code>datadir</code></td>
+<td>外部数据根目录，供下游读光学表、尘埃场景、化学和云表。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>wstats_mod</code>, <code>write_output_mod</code>, <code>writediagsoil_mod</code></td>
+<td><code>callstats</code>, <code>output_diagfi</code>, <code>diagsoil</code></td>
+<td>控制 <code>stats.nc</code>、<code>diagfi.nc</code>、<code>diagsoil.nc</code> 输出。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>nuice_sed</code>, <code>ccn_factor</code>, <code>nuiceco2_sed</code>, <code>nuice_ref</code>, <code>nuiceco2_ref</code></td>
+<td>读取水冰/CO2 冰沉降方差和 CCN 因子。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td>水冰/CO2 极冠反照率、霜阈值、热惯量等</td>
+<td>设置地表冰、霜和极冠相关参数。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>co2condens_mod</code>, <code>calchim_mod</code></td>
+<td><code>scavco2cond</code>, <code>ichemistry</code></td>
+<td>CO2 凝结清除和光化学调用频率。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>paleoclimate_mod</code>, <code>comsoil_h</code>, <code>microphys_h</code></td>
+<td>古气候、土壤吸附、水冰接触参数</td>
+<td>读取古气候、吸附和云微物理参数，并校验依赖。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dust_coagulation_mod</code>, <code>nonoro_gwd_mix_mod</code>, <code>lwxn_mod</code></td>
+<td>尘埃凝并、非地形 GW 混合、长波参数</td>
+<td>读取对应过程开关或默认参数。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>tracer_mass_fixer_dyn_mod</code>, <code>moldiff_MPF_mod</code></td>
+<td><code>call_mass_fixer_dyn</code>, <code>call_mass_fixer_moldiff_MPF</code></td>
+<td>读取 tracer 质量修正开关。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td><code>bcast</code></td>
+<td>非 MESOSCALE 并行路径下广播文件存在性、<code>radia.def</code> 读入值等。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin_p</code></td>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td>第 101 行起，多处</td>
+<td>读取配置键。调用前通常先写入源码默认值，再允许配置覆盖。</td>
+</tr>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td>第 143、1371-1381 行</td>
+<td>非 MESOSCALE 并行路径广播 <code>callphys.def</code>/<code>radia.def</code> 读取结果。</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部错误处理入口</td>
+<td>多处，例如第 104、311、342、893、1225-1280、1290 行</td>
+<td>配置冲突、废弃键或缺失配置文件时终止运行。</td>
+</tr>
+<tr>
+<td><code>ini_scatterers</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>第 1064 行</td>
+<td>在知道 <code>naerkind</code> 后分配辐射气溶胶数组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>conf_phys</code> 实参</td>
+<td>integer scalar</td>
+<td>网格列数</td>
+<td>传给 <code>ini_scatterers</code> 分配气溶胶数组。</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>conf_phys</code> 实参</td>
+<td>integer scalar</td>
+<td>垂直层数</td>
+<td>传给 <code>ini_scatterers</code>。</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td><code>conf_phys</code> 实参</td>
+<td>integer scalar</td>
+<td>tracer 数</td>
+<td>控制是否安全写入 <code>name_iaer(2:)</code>。</td>
+</tr>
+<tr>
+<td><code>run.def</code> 风格键</td>
+<td><code>getin_p</code></td>
+<td>scalar</td>
+<td>混合</td>
+<td>非 MESOSCALE 分支读取 <code>outputs_per_sol</code>, <code>slow_diagfi</code>, <code>iphysiq</code>, <code>ecritstart</code> 等。</td>
+</tr>
+<tr>
+<td><code>callphys.def</code></td>
+<td>当前运行目录</td>
+<td>formatted file</td>
+<td>-</td>
+<td>必须存在；不存在则第 1289-1291 行终止。</td>
+</tr>
+<tr>
+<td><code>radia.def</code></td>
+<td>当前运行目录</td>
+<td>formatted file</td>
+<td>-</td>
+<td>可选长波辐射调参文件；存在时覆盖 <code>callemis</code>, <code>iradia</code>, <code>ilw*</code>, <code>lwxn_*</code>, <code>semi</code> 等。</td>
+</tr>
+<tr>
+<td>编译宏 <code>MESOSCALE</code></td>
+<td>预处理</td>
+<td>compile-time</td>
+<td>-</td>
+<td>改变若干默认值并跳过非 MESOSCALE 的 <code>bcast</code> 路径。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>callkeys_mod</code> 开关</td>
+<td>下游物理过程</td>
+<td>saved scalars</td>
+<td>混合</td>
+<td>辐射、尘埃、水循环、CO2、PBL、高层大气等主开关。</td>
+</tr>
+<tr>
+<td><code>dust_param_mod</code> 状态</td>
+<td>尘埃循环</td>
+<td>scalar/module variables</td>
+<td>混合</td>
+<td>尘埃 bin、双矩尘埃、起尘、自由尘埃和缩放模式。</td>
+</tr>
+<tr>
+<td><code>dimradmars_mod::naerkind/name_iaer</code></td>
+<td>辐射和光学属性路径</td>
+<td>integer + character array</td>
+<td>-</td>
+<td>定义气溶胶种类数和名称顺序，供 <code>suaer/aeroptproperties/updatereffrad</code> 等使用。</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code> 调度量</td>
+<td>物理调度、输出和 restart</td>
+<td>scalar</td>
+<td>steps / seconds</td>
+<td>物理调用频率、输出频率、restart 间隔。</td>
+</tr>
+<tr>
+<td><code>datafile_mod::datadir</code></td>
+<td>数据读取模块</td>
+<td>character</td>
+<td>path</td>
+<td>外部数据根目录。</td>
+</tr>
+<tr>
+<td>诊断输出开关</td>
+<td><code>wstats_mod</code>, <code>write_output_mod</code>, <code>writediagsoil_mod</code></td>
+<td>logical</td>
+<td>-</td>
+<td>控制 <code>stats.nc</code>、<code>diagfi.nc</code>、<code>diagsoil.nc</code> 是否写出。</td>
+</tr>
+<tr>
+<td>终端日志</td>
+<td>stdout</td>
+<td>text</td>
+<td>-</td>
+<td>打印每个关键配置值和警告。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>conf_phys</code> 会写入大量 <code>SAVE</code>/<code>THREADPRIVATE</code> 模块变量，尤其是 <a href="callkeys_mod.html">callkeys_mod</a> 中的运行时开关。OpenMP 复现时要确认初始化流程在每个线程上的传播路径与源码一致。</li>
+<li><code>callphys.def</code> 缺失直接终止；<code>radia.def</code> 缺失不是错误，源码使用第 1308-1318 行的默认长波设置。</li>
+<li>它会打开、关闭 <code>callphys.def</code> 和 <code>radia.def</code>，并在非 MESOSCALE 路径广播文件状态和值。</li>
+<li>它在 <code>naerkind</code> 确定后调用 <code>ini_scatterers(ngrid,nlayer)</code>，这意味着辐射气溶胶数组大小取决于本入口读到的配置，而不是后续辐射模块自行决定。</li>
+<li>它含大量 <code>abort_physic</code> 配置守卫。复现失败时，很多错误不是数值发散，而是配置组合在初始化阶段被拒绝。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>进入 <code>conf_phys</code> 后，在非 MESOSCALE 分支读取物理输出和调用频率。废弃键 <code>ecritphy</code> 若存在会立即终止；<code>outputs_per_sol</code> 还必须整除 <code>steps_per_sol</code>。</li>
+<li>OpenMP master 检查 <code>callphys.def</code> 是否存在，非 MESOSCALE 时广播 <code>ierr</code>。不存在则在第 1289-1291 行终止。</li>
+<li>对每个配置项先写源码默认值，再调用 <code>getin_p</code>。例如 <code>iaervar=8</code>、<code>callrad=.true.</code>、<code>calldifv=.true.</code>、<code>callsoil=.true.</code>、<code>dustbin=0</code>、<code>water=.false.</code>、<code>co2clouds=.false.</code>、<code>callthermos=.false.</code>。</li>
+<li>读取并校验主物理开关：辐射/NLTE/NIR、垂直扩散、热羽流、干对流、Yamada4/ATKE、CO2 凝结、土壤、地形/非地形重力波、尘埃注入、古气候、水循环、CO2 云、吸附和热层。</li>
+<li>尘埃逻辑先设置 <code>dustbin/active/doubleq/submicron/lifting/freedust/dustscaling_mode</code>，再校验组合。例如 <code>active</code> 需要 <code>doubleq</code>，<code>submicron</code> 需要双矩尘埃，<code>freedust</code> 需要 <code>dustbin &gt; 0</code>，<code>dustinjection=1</code> 需要 <code>lifting</code> 和 <code>freedust</code>。</li>
+<li><code>dustiropacity</code> 只接受 <code>tes</code> 或 <code>mcs</code>。<code>tes</code> 写 <code>dustrefir=9.3E-6</code>，<code>mcs</code> 写 <code>21.6E-6</code>；若启用 <code>reff_driven_IRtoVIS_scenario</code>，源码要求使用 <code>tes</code> 参考波长。</li>
+<li>水/CO2 云逻辑读 <code>sedimentation/activice/water/hdo/activeco2ice/CLFvarying/co2clouds/...</code>，然后执行依赖检查：例如 <code>activice</code> 需要 <code>water</code>，<code>activeco2ice</code> 需要 <code>co2clouds</code>，<code>microphys</code> 需要 <code>water</code> 和 <code>doubleq</code>，<code>scavenging</code> 需要 <code>microphys</code> 且 <code>dustbin &gt;= 1</code>。</li>
+<li><code>naerkind</code> 读取后先检查 <code>activice</code> 至少需要两个 scatterer，再调用 <code>ini_scatterers</code>。随后按 <code>doubleq/active</code>、<code>rdstorm</code>、<code>topflows</code>、<code>water/activice</code>、<code>co2clouds/activeco2ice</code>、<code>submicron/active</code> 的组合填充 <code>name_iaer</code>。</li>
+<li>高层大气逻辑读取 <code>callthermos</code> 及其子开关。若 <code>callthermos=.false.</code>，则 <code>callconduct/calleuv/callmolvis/callmoldiff/thermochem</code> 任一为真都会终止；最后还要求 <code>photochem</code> 和 <code>callthermos</code> 均依赖 <code>water</code>。</li>
+<li>主配置完成后，设置长波默认值：<code>callemis=.true.</code>, <code>ilwd=1</code>, <code>ilwn=1</code>, <code>ilwb=1</code>, <code>lwxn_linear=.true.</code>, <code>lwxn_ncouche=3</code>, <code>lwxn_alphan=0.4</code>, <code>semi=0</code>。若 <code>radia.def</code> 存在，则按固定顺序读取并覆盖这些值。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>subroutine conf_phys(ngrid, nlayer, nq):
+    if not MESOSCALE:
+        reject obsolete ecritphy
+        read outputs_per_sol, slow_diagfi, iphysiq, ecritstart
+        require outputs_per_sol divides steps_per_sol
+
+    check callphys.def exists; broadcast result when parallel
+    if missing: abort
+
+    for each callphys key:
+        assign source default
+        getin_p(key, variable)
+        print selected value
+        enforce local dependency and incompatibility rules
+
+    read naerkind
+    require active water ice has enough scatterers
+    ini_scatterers(ngrid, nlayer)
+    fill name_iaer according to dust, water, CO2, storm, topflow flags
+
+    require thermosphere child switches depend on callthermos
+    require photochem and callthermos depend on water
+
+    assign longwave defaults
+    if radia.def exists:
+        read fixed-order longwave overrides
+        broadcast overrides when parallel
+end subroutine</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">辐射</a></td>
+<td>设置 <code>callrad</code>, <code>callslope</code>, <code>callnlte</code>, <code>nltemodel</code>, <code>callnirco2</code>, <code>nircorr</code>, <code>iradia</code>, <code>rayleigh</code>, <code>naerkind</code>, <code>name_iaer</code> 和长波 <code>radia.def</code> 覆盖。</td>
+</tr>
+<tr>
+<td><a href="../../themes/dust-cycle.html">尘埃循环</a></td>
+<td>设置 <code>iaervar</code>, <code>tauvis</code>, <code>iddist</code>, <code>topdustref</code>, <code>dustbin</code>, <code>doubleq</code>, <code>lifting</code>, <code>freedust</code>, <code>dustscaling_mode</code>, <code>dustinjection</code>, <code>rdstorm</code>, <code>topflows</code>, <code>dust_coagulation</code> 等。</td>
+</tr>
+<tr>
+<td><a href="../../themes/water-cycle.html">水循环</a></td>
+<td>设置 <code>water</code>, <code>activice</code>, <code>microphys</code>, <code>supersat</code>, <code>cloud_adapt_ts</code>, <code>scavenging</code>, <code>caps</code>, 水冰反照率/霜阈值、热惯量和吸附相关开关。</td>
+</tr>
+<tr>
+<td><a href="../../themes/co2-cycle.html">CO2 循环</a></td>
+<td>设置 <code>callcond</code>, <code>co2clouds</code>, <code>activeco2ice</code>, <code>co2useh2o</code>, <code>CLFvaryingCO2</code>, <code>satindexco2</code>, <code>scavco2cond</code> 和 CO2 冰沉降参数。</td>
+</tr>
+<tr>
+<td>边界层 / 湍流 / 重力波</td>
+<td>设置 <code>calldifv</code>, <code>calltherm</code>, <code>calladj</code>, <code>callyamada4</code>, <code>callatke</code>, <code>callrichsl</code>, <code>calllott</code>, <code>calllott_nonoro</code>, <code>calljliu_gwimix</code>。</td>
+</tr>
+<tr>
+<td>高层大气 / 化学</td>
+<td>设置 <code>photochem</code>, <code>ichemistry</code>, <code>callthermos</code>, <code>callconduct</code>, <code>calleuv</code>, <code>callmolvis</code>, <code>callmoldiff</code>, <code>thermochem</code>, <code>solvarmod</code>, <code>fixed_euv_value</code>, <code>solvaryear</code>, <code>euveff</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran，很多字符串和 <code>getin_p</code> 调用跨行续写；用行号审查时要同时看续行。</li>
+<li>大多数默认值直接写在 <code>getin_p</code> 前一两行，因此“默认值”是源码事实，不是 <code>callphys.def</code> 文件事实。</li>
+<li>该文件把配置读取、默认值、互斥检查和少量初始化动作放在一个长子程序中；新增开关时容易同时影响多个主题。</li>
+<li><code>radia.def</code> 读取是固定顺序文本读取，不按键名读取；文件格式不匹配会错位。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>保存 <code>callphys.def</code> 的同时记录源码版本，因为默认值和依赖检查写死在 <code>conf_phys.F</code>。</li>
+<li>检查运行目录是否存在 <code>radia.def</code>。存在时长波设置不再完全由源码默认值控制。</li>
+<li>记录 <code>MESOSCALE</code> 编译状态；例如 <code>callstats</code>、<code>callslope</code> 默认值和并行广播路径都受它影响。</li>
+<li>记录 <code>naerkind</code> 与 <code>name_iaer</code> 的派生结果。下游辐射路径依赖气溶胶名称顺序，不只是依赖开关真假。</li>
+<li>若启用微物理、清除、CO2 云、热层或尘埃注入，必须复核本文件中的依赖规则，否则运行会在初始化阶段终止。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>radia.def</code> 中 <code>callg2d</code> 被读取和广播，但源码注释称它是 obsolete unused flag；其历史用途需结合旧辐射路径确认。</li>
+<li><code>semi</code> 在 <code>callkeys_mod</code> 中的物理含义仍需结合长波半隐式路径进一步确认。</li>
+<li><code>abort_physic</code> 未在本文件显式 <code>use</code>，应来自上层接口或外部链接环境；本文只记录调用位置和错误语义。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="callkeys_mod.html">callkeys_mod</a> - <code>conf_phys</code> 写入的大量运行时开关共享模块。</li>
+<li><a href="dust_param_mod.html">dust_param_mod</a> - 尘埃循环配置和缩放状态。</li>
+<li><a href="dimradmars_mod.html">dimradmars_mod</a> - 辐射气溶胶维度、名称表和光学查找表的下游承载模块。</li>
+<li><a href="datafile_mod.html">datafile_mod</a> - <code>datadir</code> 的共享存储和下游读表路径。</li>
+<li><a href="wstats_mod.html">wstats_mod</a>, <a href="write_output_mod.html">write_output_mod</a>, <a href="writediagsoil.html">writediagsoil</a> - 诊断输出开关的下游消费者。</li>
+<li><a href="read_dust_scenario_mod.html">read_dust_scenario_mod</a>, <a href="aeropacity_mod.html">aeropacity_mod</a>, <a href="suaer.html">suaer</a>, <a href="updatereffrad_mod.html">updatereffrad_mod</a> - 尘埃和气溶胶辐射配置的下游路径。</li>
+<li><a href="../../architecture/water-cycle-config.html">water-cycle-config</a>, <a href="../../architecture/co2-cycle-config.html">co2-cycle-config</a>, <a href="../../architecture/config-system.html">config-system</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

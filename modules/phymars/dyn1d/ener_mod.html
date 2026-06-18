@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ener_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../../index.html">主页</a>
+        <a href="../../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../../libf-overview.html">模块</a>
+        <a href="../../../themes/index.html">主题</a>
+        <a href="../../../routines/index.html">例程</a>
+        <a href="../../../reference/file-index.html">文件索引</a>
+        <a href="../../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dyn1d/ener_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dyn1dener_modf90">dyn1d/ener_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d\ener_mod.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>dyn1d/ener_mod.F90</code> 在当前源码树中不是独立实现，而是一行相对路径：</p>
+<pre class="text"><code>../../../../LMDZ.COMMON/libf/dyn3d_common/ener_mod.F90</code></pre>
+<p>它把 1D 编译路径中的 <code>ener_mod</code> 模块解析到 <code>LMDZ.COMMON/libf/dyn3d_common/ener_mod.F90</code>。目标模块是公共动力核心的能量/质量/角动量诊断状态容器。当前 <code>libf/phymars/dyn1d</code> 目录内没有直接 <code>use ener_mod</code>；这些状态主要供 3D 动力诊断、restart 和控制变量输出路径使用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ener_mod.F90</code></td>
+<td>path stub</td>
+<td>dyn1d line 1</td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d_common/ener_mod.F90</code>。</td>
+</tr>
+<tr>
+<td><code>ener_mod</code></td>
+<td>module</td>
+<td>common target line 1</td>
+<td>声明公共动力能量和质量诊断状态。</td>
+</tr>
+</tbody>
+</table>
+<p>目标模块使用 <code>dimensions.h</code> 和 <code>paramet.h</code>，仅包含 <code>REAL</code> 声明，没有子例程、函数、分配或 I/O。</p>
+<h2 id="模块状态清单">模块状态清单</h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>类型</th>
+<th>语义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>etot0</code>, <code>ptot0</code>, <code>ztot0</code>, <code>stot0</code>, <code>ang0</code></td>
+<td>scalar</td>
+<td>初始/参考总能量、质量、涡度相关量、熵相关量和角动量诊断。</td>
+</tr>
+<tr>
+<td><code>etot</code>, <code>ptot</code>, <code>ztot</code>, <code>stot</code>, <code>ang</code></td>
+<td>scalar</td>
+<td>当前步或相对参考值的同类诊断。</td>
+</tr>
+<tr>
+<td><code>rmsdpdt</code>, <code>rmsv</code></td>
+<td>scalar</td>
+<td>表面压力倾向和风速相关 RMS 诊断。</td>
+</tr>
+<tr>
+<td><code>gtot(llmm1)</code></td>
+<td>array</td>
+<td>垂直层相关累计诊断数组；<code>advect.F</code> 读取该数组。</td>
+</tr>
+</tbody>
+</table>
+<p>具体物理单位没有在 <code>ener_mod.F90</code> 中声明；<code>sortvarc.F</code> 输出格式把这些量标为 <code>masse</code>、<code>rmsdpdt</code>、<code>energie</code>、<code>enstrophie</code>、<code>entropie</code>、<code>rmsv</code>、<code>mt.ang</code>。</p>
+<h2 id="赋值和读取路径">赋值和读取路径</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>读写符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dyn3d_common/dynetat0.F90</code></td>
+<td><code>etot0/ptot0/ztot0/stot0/ang0</code></td>
+<td>从 <code>tab_cntrl(idecal+8:12)</code> 读取 restart 中的参考诊断。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common/dynredem.F90</code></td>
+<td><code>etot0/ptot0/ztot0/stot0/ang0</code></td>
+<td>把参考诊断写回 restart 控制表。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common/iniacademic.F90</code></td>
+<td><code>etot0/ptot0/ztot0/stot0/ang0</code></td>
+<td>academic 初始化路径把参考值置零。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common/sortvarc0.F</code></td>
+<td><code>etot0/ptot0/ztot0/stot0/ang0/rmsv/rmsdpdt</code></td>
+<td>计算初始参考诊断和 RMS。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common/sortvarc.F</code></td>
+<td><code>etot/ptot/ztot/stot/ang</code>, <code>*0</code>, <code>rmsdpdt/rmsv</code></td>
+<td>计算当前诊断，必要时更新参考值，并输出相对变化。</td>
+</tr>
+<tr>
+<td><code>dyn3d/advect.F</code></td>
+<td><code>gtot</code></td>
+<td>平流路径读取垂直累计诊断数组。</td>
+</tr>
+<tr>
+<td><code>dyn3dpar/dynredem_p.F90</code></td>
+<td><code>etot0/ptot0/ztot0/stot0/ang0</code></td>
+<td>并行 restart 写出同类控制表字段。</td>
+</tr>
+</tbody>
+</table>
+<p>Venus/Titan 旧 <code>dynphy_lonlat</code> start/restart 路径也读写 <code>etot0/ptot0/ztot0/stot0/ang0</code>，说明该模块被公共非地球动力路径复用。</p>
+<h2 id="sortvarc-诊断逻辑摘要"><code>sortvarc</code> 诊断逻辑摘要</h2>
+<p><code>sortvarc.F</code> 使用本模块的当前值和参考值：</p>
+<ol type="1">
+<li>计算 <code>rmsdpdt</code>，并按 <code>daysec*1.e-2*sqrt(.../imjmp1)</code> 缩放。</li>
+<li>汇总 <code>ptot/etot/ztot/stot/rmsv/ang</code>。</li>
+<li>若需要重置参考值，把当前 <code>etot/ptot/ztot/stot/ang</code> 写入 <code>*0</code>。</li>
+<li>输出前把非零参考值对应的当前量归一化为 <code>current/reference</code>；参考值为 0 时将相对值置为 1。</li>
+<li><code>rmsv</code> 输出为 <code>sqrt(rmsv/ptot)</code>。</li>
+</ol>
+<p>这说明 <code>ener_mod</code> 保存的是诊断汇总和参考量，不参与 1D 物理趋势计算。</p>
+<h2 id="dyn1d-关系">dyn1d 关系</h2>
+<p>定向搜索只在 <code>dyn1d/ener_mod.F90</code> stub 本身匹配 <code>ener_mod</code>，没有发现 <code>init_testphys1d_mod.F90</code>、<code>testphys1d.F90</code> 或其他 dyn1d 文件直接 <code>use ener_mod</code>。因此：</p>
+<ul>
+<li>dyn1d 主程序的能量、温度、风和地表压力推进不通过本模块。</li>
+<li>若 dyn1d 构建包含公共动力诊断或 restart 例程，本 stub 负责提供模块符号。</li>
+<li>当前页面不把 3D <code>sortvarc</code> 诊断行为推断为 1D <code>testphys1d</code> 运行时行为。</li>
+</ul>
+<h2 id="副作用和-io">副作用和 I/O</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文件 I/O</td>
+<td>本模块无 I/O；restart 和诊断 I/O 发生在 <code>dynetat0/dynredem/sortvarc</code> 等调用方。</td>
+</tr>
+<tr>
+<td>分配/释放</td>
+<td>无；<code>gtot</code> 是固定维度数组。</td>
+</tr>
+<tr>
+<td>全局状态</td>
+<td>所有变量为模块全局 <code>REAL</code>，没有显式初始化。</td>
+</tr>
+<tr>
+<td>单位</td>
+<td>本模块未声明单位；需以调用方输出或控制表语义为准。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>复现 3D 动力诊断时，先用 <code>sortvarc0</code> 或 restart 读入建立 <code>*0</code> 参考值。</li>
+<li>后续 <code>sortvarc</code> 会输出当前值相对参考值的比值；不要把 <code>etot/ptot/...</code> 一律当成原始绝对量。</li>
+<li>复现 dyn1d <code>testphys1d</code> 主循环时，本模块不是直接依赖；应查看 <code>testphys1d.F90</code> 和物理输出诊断。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 Windows 工作树把链接文件呈现为一行路径文本；在原始类 Unix 工作树中它可能是符号链接。</li>
+<li><code>gtot(llmm1)</code> 在当前 Mars dyn1d 构建中的实际使用未确认；搜索只显示公共 <code>dyn3d/advect.F</code> 读取。</li>
+<li>各诊断量精确单位需结合 <code>sortvarc</code> 的公式和历史输出约定进一步确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn1d/index.md</a> - dyn1d 子目录索引。</li>
+<li><a href="control_mod.html">control_mod</a> - 公共动力控制状态 stub。</li>
+<li><a href="testphys1d.html">testphys1d.F90</a> - 1D 主程序。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>comtherm_h - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/comtherm_h.md</span>
+    </nav>
+    <article class="content">
+<h1 id="comtherm_hf90">comtherm_h.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\comtherm_h.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>comtherm_h.F90</code> 定义 <code>comtherm_h</code>，集中保存 Martian thermal plume model 的编译期控制量和调参常数。它本身不执行热羽流求解，也不读取运行时配置；<code>calltherm_interface_mod.F90</code> 读取这里的子步长数、tracer/TKE 输送开关，<code>thermcell_main_mars.F90</code> 读取这里的卷入、脱离、下沉气流、速度方程和混合层底部形状参数。</p>
+<p>复现上，这个文件是热羽流方案的“常数入口”：同一个 <code>calltherm=.true.</code> 运行，若是否定义 <code>MESOSCALE</code> 或这些参数值不同，热羽流子步长、质量通量结构、温度廓线形状、tracer 输送范围和诊断输出都会不同。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comtherm_h</code></td>
+<td>module</td>
+<td>17</td>
+<td>Martian thermal plume model 控制参数模块</td>
+</tr>
+<tr>
+<td><code>nsplit_thermals</code></td>
+<td>integer parameter</td>
+<td>31 / 37</td>
+<td>热羽流模型子步长数；<code>MESOSCALE</code> 编译时为 4，普通 GCM 路径为 10</td>
+</tr>
+<tr>
+<td><code>r_aspect_thermals</code></td>
+<td>real parameter</td>
+<td>48</td>
+<td>控制混合层底部温度廓线形状；值越小越接近 convective-adjustment 型廓线</td>
+</tr>
+<tr>
+<td><code>qtransport_thermals</code></td>
+<td>logical parameter</td>
+<td>54</td>
+<td>是否在热羽流路径中输送 tracer；当前源码默认 <code>.true.</code></td>
+</tr>
+<tr>
+<td><code>dtke_thermals</code></td>
+<td>logical parameter</td>
+<td>61</td>
+<td>是否在热羽流路径中输送 TKE；源码注释标明仍属实验用途，当前默认 <code>.false.</code></td>
+</tr>
+<tr>
+<td><code>thermverbose</code></td>
+<td>logical parameter</td>
+<td>66</td>
+<td>是否输出热羽流内部修正和诊断日志；当前默认 <code>.false.</code></td>
+</tr>
+<tr>
+<td><code>ad</code></td>
+<td>real parameter</td>
+<td>73</td>
+<td>脱离率调参常数，源码注释对应论文中的 <code>D_2</code></td>
+</tr>
+<tr>
+<td><code>bd</code></td>
+<td>real parameter</td>
+<td>74</td>
+<td>脱离率调参常数，源码注释对应论文中的 <code>D_1</code></td>
+</tr>
+<tr>
+<td><code>ae</code></td>
+<td>real parameter</td>
+<td>76</td>
+<td>卷入率调参常数，源码注释对应论文中的 <code>E_1</code></td>
+</tr>
+<tr>
+<td><code>be</code></td>
+<td>real parameter</td>
+<td>77</td>
+<td>卷入率调参常数，源码注释对应论文中的 <code>E_2</code></td>
+</tr>
+<tr>
+<td><code>fdfu</code></td>
+<td>real parameter</td>
+<td>79</td>
+<td>downdraft/updraft mass flux ratio 的下限参数</td>
+</tr>
+<tr>
+<td><code>omega</code></td>
+<td>real parameter</td>
+<td>81</td>
+<td>下沉气流和速度方程相关的调参常数</td>
+</tr>
+<tr>
+<td><code>a1</code></td>
+<td>real parameter</td>
+<td>83</td>
+<td>垂直速度方程系数，源码注释对应论文中的 <code>a</code></td>
+</tr>
+<tr>
+<td><code>b1</code></td>
+<td>real parameter</td>
+<td>84</td>
+<td>垂直速度方程系数，源码注释对应论文中的 <code>b</code></td>
+</tr>
+<tr>
+<td><code>a1inv</code></td>
+<td>real module variable</td>
+<td>86</td>
+<td>逆温层中使用的 <code>a1</code> 系数；源码给默认值 1</td>
+</tr>
+<tr>
+<td><code>b1inv</code></td>
+<td>real module variable</td>
+<td>87</td>
+<td>逆温层中使用的 <code>b1</code> 系数；源码给默认值 0.0001</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>本模块不 <code>use</code> 其他模块</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>本模块只声明参数和模块变量，不调用例程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MESOSCALE</code></td>
+<td>编译预处理宏</td>
+<td>compile-time macro</td>
+<td>-</td>
+<td>控制 <code>nsplit_thermals</code> 采用 mesoscale 默认值 4 还是 GCM 默认值 10</td>
+</tr>
+<tr>
+<td>96 physical timesteps/day 约定</td>
+<td>源码注释</td>
+<td>运行配置约束</td>
+<td>timestep/day</td>
+<td>GCM 默认 <code>nsplit_thermals=10</code> 的推荐背景；若少于 96 个物理步/日，源码注释给出未启用的 <code>nsplit_thermals=35</code> 建议</td>
+</tr>
+<tr>
+<td>Colaïtis et al. 2013 参数化</td>
+<td>源码注释和常数值</td>
+<td>文献参数</td>
+<td>-</td>
+<td><code>ad/bd/ae/be/fdfu/omega/a1/b1</code> 的物理含义和段落引用来源</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nsplit_thermals</code></td>
+<td><code>calltherm_interface_mod.F90</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>把物理时间步切成热羽流子步长；用于 <code>zdt=ptimestep/nsplit_thermals</code> 和时间平均因子</td>
+</tr>
+<tr>
+<td><code>qtransport_thermals</code></td>
+<td><code>calltherm_interface_mod.F90</code></td>
+<td>logical scalar</td>
+<td>-</td>
+<td>控制是否准备 <code>pq_therm</code>、调用非 CO2 tracer 输送、返回 tracer tendency</td>
+</tr>
+<tr>
+<td><code>dtke_thermals</code></td>
+<td><code>calltherm_interface_mod.F90</code></td>
+<td>logical scalar</td>
+<td>-</td>
+<td>控制是否把界面 TKE 转成层中心 TKE 并调用 <code>thermcell_dqup</code> 输送</td>
+</tr>
+<tr>
+<td><code>r_aspect_thermals</code></td>
+<td><code>thermcell_main_mars.F90</code></td>
+<td>real scalar</td>
+<td>-</td>
+<td>参与 mixed-layer bottom 温度廓线形状计算</td>
+</tr>
+<tr>
+<td><code>ad/bd</code></td>
+<td><code>thermcell_main_mars.F90</code></td>
+<td>real scalars</td>
+<td>-</td>
+<td>控制 detrainment 随归一化高度/状态变化的经验公式</td>
+</tr>
+<tr>
+<td><code>ae/be</code></td>
+<td><code>thermcell_main_mars.F90</code></td>
+<td>real scalars</td>
+<td>-</td>
+<td>控制 entrainment 随浮力和垂直速度变化的经验公式</td>
+</tr>
+<tr>
+<td><code>fdfu/omega/a1/b1/a1inv/b1inv</code></td>
+<td><code>thermcell_main_mars.F90</code></td>
+<td>real scalars</td>
+<td>-</td>
+<td>控制下沉气流比例、速度方程和逆温层速度方程</td>
+</tr>
+<tr>
+<td><code>thermverbose</code></td>
+<td><code>thermcell_main_mars.F90</code></td>
+<td>logical scalar</td>
+<td>-</td>
+<td>控制热羽流内部修正计数、mass flux 修正等日志输出</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>nsplit_thermals</code>、<code>r_aspect_thermals</code>、<code>qtransport_thermals</code>、<code>dtke_thermals</code>、<code>thermverbose</code>、<code>ad/bd/ae/be/fdfu/omega/a1/b1</code> 都是编译期 <code>PARAMETER</code>，运行时不会被 <code>getin_p</code> 或 namelist 改写。</li>
+<li><code>a1inv</code> 和 <code>b1inv</code> 是带默认初值的普通模块变量，不是 <code>PARAMETER</code>；源码检索中只确认 <code>thermcell_main_mars.F90</code> 读取它们，未在 <code>libf\phymars</code> 中发现除定义外的写入。</li>
+<li>本模块没有 <code>SAVE</code>/<code>THREADPRIVATE</code> 显式声明、没有文件 I/O、没有日志输出、没有内存分配。</li>
+<li>实际副作用来自下游读取：改变本文件常数或编译宏会改变热羽流子步长、温度/质量通量公式和 tracer/TKE 输送路径。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>载入模块时进入 <code>implicit none</code>，不依赖其他模块。</li>
+<li>通过 <code>#ifdef MESOSCALE</code> 选择 <code>nsplit_thermals</code>：
+<ul>
+<li><code>MESOSCALE</code> 路径：物理时间步小于约 200 s，默认只需 4 个热羽流子步长。</li>
+<li>非 <code>MESOSCALE</code> 路径：GCM 默认 10 个子步长，源码注释建议 96 physical timesteps/day 且每步调用辐射时使用。</li>
+</ul></li>
+<li>固定 <code>r_aspect_thermals=1.</code>，供 <code>thermcell_main_mars</code> 调整混合层底部温度廓线。</li>
+<li>固定 tracer 输送开启、TKE 输送关闭、verbose 关闭。</li>
+<li>固定 Colaïtis et al. 2013 热羽流参数：脱离率 <code>ad/bd</code>、卷入率 <code>ae/be</code>、下沉气流 <code>fdfu/omega</code>、速度方程 <code>a1/b1</code>。</li>
+<li>给逆温层速度方程变量 <code>a1inv/b1inv</code> 默认值；下游 <code>thermcell_main_mars</code> 在逆温层分支读取它们。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>module comtherm_h:
+    if compiled with MESOSCALE:
+        nsplit_thermals = 4
+    else:
+        nsplit_thermals = 10
+
+    r_aspect_thermals = 1
+    qtransport_thermals = true
+    dtke_thermals = false
+    thermverbose = false
+
+    set detrainment parameters:
+        ad = 0.0004
+        bd = -0.6697
+    set entrainment parameters:
+        ae = 0.03683
+        be = 0.631631
+    set downdraft parameters:
+        fdfu = -0.8
+        omega = -0.03
+    set vertical velocity coefficients:
+        a1 = 1
+        b1 = 0.0001
+        a1inv = 1
+        b1inv = 0.0001</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热羽流 / 边界层对流</td>
+<td><code>calltherm_interface</code> 用 <code>nsplit_thermals</code> 分割物理时间步，再调用 <code>thermcell_main_mars</code> 和 <code>thermcell_dqup</code></td>
+</tr>
+<tr>
+<td>tracer 输送</td>
+<td><code>qtransport_thermals=.true.</code> 时，热羽流接口准备 tracer 输入并对非 CO2 tracer 执行质量通量输送</td>
+</tr>
+<tr>
+<td>TKE 输送实验路径</td>
+<td><code>dtke_thermals=.false.</code> 默认关闭；若源码改为真，接口会对 <code>q2</code> 做层中心转换并输送</td>
+</tr>
+<tr>
+<td>热羽流主体公式</td>
+<td><code>thermcell_main_mars</code> 读取卷入/脱离、下沉气流、速度方程和 <code>r_aspect_thermals</code> 常数</td>
+</tr>
+<tr>
+<td>调试诊断</td>
+<td><code>thermverbose</code> 控制 <code>thermcell_main_mars</code> 中若干修正统计和调试输出分支</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>这是一个很小的自由格式 <code>.F90</code> 参数模块，但用 C 预处理宏 <code>MESOSCALE</code> 区分 mesoscale 和 GCM 默认值。</li>
+<li>多数控制量是 <code>PARAMETER</code>，不是运行时配置项；调整这些值需要改源码并重新编译。</li>
+<li><code>a1inv/b1inv</code> 没有写成 <code>PARAMETER</code>，但当前检索未发现下游赋值；如果未来代码写入它们，热羽流逆温层速度方程会变成运行时共享状态。</li>
+<li>文件头引用 Colaïtis et al. 2013，并在多个常数旁标注对应论文段落，这些注释是参数含义的主要证据。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现 thermal plume 方案时，先确认编译目标是否定义 <code>MESOSCALE</code>；这会直接把热羽流子步长从 GCM 默认 10 改为 4。</li>
+<li>GCM 默认 <code>nsplit_thermals=10</code> 的源码注释假设 96 physical timesteps/day 且每步调用辐射；低频物理步实验若沿用默认值，需要额外检查稳定性和结果敏感性。</li>
+<li><code>qtransport_thermals</code> 当前固定为 <code>.true.</code>，因此 <code>calltherm_interface</code> 会处理 tracer 输送；若改为 <code>.false.</code>，非 CO2 tracer 的热羽流 tendency 路径会被关闭。</li>
+<li><code>dtke_thermals</code> 当前固定为 <code>.false.</code>，源码注释标明 TKE thermal transport 仍是实验用途；打开它需要核对 <code>q2</code> 的层界面/层中心换算和输出单位。</li>
+<li><code>thermverbose=.false.</code> 时不会输出热羽流内部修正统计；需要调试质量通量修正时必须改源码参数。</li>
+<li><code>a1inv/b1inv</code> 虽有默认值但不是 <code>PARAMETER</code>，复现实验若发现它们被局部补丁改写，应记录补丁版本。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>a1inv/b1inv</code> 保持普通模块变量而非 <code>PARAMETER</code> 的历史原因未在本文件说明；当前只确认 <code>libf\phymars</code> 可见源码中没有除定义外的写入。</li>
+<li><code>nsplit_thermals=35</code> 的注释建议没有启用；低于 96 physical timesteps/day 时应以实际实验/版本说明确认推荐值。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars/index</a>：<code>phymars</code> 目录总览。</li>
+<li><a href="calltherm_interface_mod.html">calltherm_interface_mod</a>：读取 <code>nsplit_thermals/qtransport_thermals/dtke_thermals</code> 并调度热羽流子步长。</li>
+<li><a href="pbl_parameters_mod.html">pbl_parameters_mod</a>：边界层诊断和 <code>calltherm</code> 配置上下文。</li>
+<li><a href="../../architecture/config-system.html">config-system</a>：物理开关配置体系；<code>calltherm</code> 是运行时路径开关，但本页参数不是运行时配置。</li>
+<li><a href="thermcell_main_mars.html">thermcell_main_mars</a>：热羽流主体结构和调参常数的主要消费者。</li>
+<li><a href="thermcell_dqup.html">thermcell_dqup</a>：质量通量已知后的被动输送算子。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

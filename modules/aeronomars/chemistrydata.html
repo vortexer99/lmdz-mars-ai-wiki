@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>chemistrydata - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/chemistrydata.md</span>
+    </nav>
+    <article class="content">
+<h1 id="chemistrydataf90">chemistrydata.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\chemistrydata.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>chemistrydata.F90</code> 定义 <code>chemistrydata_mod</code>，是光化学离线光解的<strong>查找表数据模块</strong>。它用编译期参数声明光解查找表的六个维度（物种、高度、臭氧、太阳天顶角、温度、尘埃不透明度），保存三个 <code>SAVE/PROTECTED/THREADPRIVATE</code> 数据数组（光解速率表 <code>jphot</code>、空气柱剖面 <code>colairtab</code>、臭氧柱网格 <code>table_ozo</code>）以及两张参数表（<code>szatab</code>、<code>tautab</code>），并提供读取例程 <code>read_phototable</code>。</p>
+<p><code>read_phototable</code> 在 <code>calchim_mod</code> 的 firstcall 中、<code>photochem .and. .not. jonline</code>（离线光解）条件下被调用一次，从 <code>datadir</code> 读取默认名为 <code>jmars.20140930</code> 的查找表文件（可由 <code>phototable</code> 配置键覆盖），master 读取后广播到所有核。表数据随后由 <code>photolysis.F90</code> 的 <code>photolysis</code> 例程做多维插值，得到光解速率 <code>v_phot</code>，再由 <a href="photochemistry_mod.html">photochemistry_mod</a> 组装反应矩阵并积分化学物种。</p>
+<p>作者：Franck Lefevre，VERSION 8/10/2014（源码第 48、50 行）。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>chemistrydata_mod</code></td>
+<td>module</td>
+<td>1（<code>END MODULE</code> 138）</td>
+<td>光解查找表数据模块</td>
+</tr>
+<tr>
+<td><code>read_phototable</code></td>
+<td>subroutine</td>
+<td>39（<code>END SUBROUTINE</code> 136）</td>
+<td>从 <code>datadir</code> 读取光解查找表并广播到所有核</td>
+</tr>
+<tr>
+<td><code>jphot</code></td>
+<td>protected save THREADPRIVATE array</td>
+<td>30</td>
+<td>光解速率查找表，维度 <code>(ntemp,nsza,nz,nozo,ntau,nd)</code></td>
+</tr>
+<tr>
+<td><code>colairtab</code></td>
+<td>protected save THREADPRIVATE array</td>
+<td>32</td>
+<td>空气柱剖面 <code>(nz)</code>，作为高度/柱坐标</td>
+</tr>
+<tr>
+<td><code>table_ozo</code></td>
+<td>protected save THREADPRIVATE array</td>
+<td>34</td>
+<td>臭氧柱网格 <code>(nozo)</code></td>
+</tr>
+<tr>
+<td><code>szatab</code></td>
+<td>parameter array</td>
+<td>20</td>
+<td>表列太阳天顶角 <code>(nsza)</code>，0°–95°</td>
+</tr>
+<tr>
+<td><code>tautab</code></td>
+<td>parameter array</td>
+<td>27</td>
+<td>表列尘埃不透明度 <code>(ntau)</code>，0–4</td>
+</tr>
+<tr>
+<td><code>nd</code>/<code>nz</code>/<code>nozo</code>/<code>nsza</code>/<code>ntemp</code>/<code>ntau</code></td>
+<td>integer parameters</td>
+<td>10–15</td>
+<td>查找表维度：物种 13 / 高度 143 / 臭氧 7 / SZA 27 / 温度 4 / 尘埃 8</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<p><code>read_phototable</code> 内：</p>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td><code>getin_p</code></td>
+<td>读取 <code>phototable</code> 文件名配置键</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>datafile_mod</code></td>
+<td><code>datadir</code></td>
+<td>数据目录路径，拼接查找表文件全名</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code></td>
+<td>仅 master 打开/读取文件</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td><code>bcast</code></td>
+<td>把 <code>colairtab/table_ozo/jphot</code> 广播到所有核</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin_p</code></td>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td>81</td>
+<td>读取 <code>phototable</code> 配置键，覆盖默认文件名</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>LMDZ 物理工具（本例程 use 列表未显式声明其模块）</td>
+<td>99</td>
+<td>文件缺失时中止运行</td>
+</tr>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td>132–134</td>
+<td>广播 <code>colairtab</code>、<code>table_ozo</code>、<code>jphot</code></td>
+</tr>
+<tr>
+<td><code>open</code> / <code>read</code> / <code>close</code></td>
+<td>Fortran intrinsic</td>
+<td>87 / 113–114 / 127</td>
+<td>读取格式化查找表文件</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<p><code>read_phototable</code> 无哑元参数，输入来自配置与文件：</p>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phototable</code> 配置键</td>
+<td><code>callphys.def</code> 经 <code>getin_p</code></td>
+<td>character</td>
+<td>查找表文件名，默认 <code>jmars.20140930</code></td>
+</tr>
+<tr>
+<td><code>datadir</code></td>
+<td><code>datafile_mod</code></td>
+<td>character</td>
+<td>数据目录路径</td>
+</tr>
+<tr>
+<td>查找表文件</td>
+<td><code>datadir/phototable</code></td>
+<td>formatted ASCII</td>
+<td>光解速率表，按固定嵌套顺序排列</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>jphot</code></td>
+<td><code>photolysis.F90::photolysis</code></td>
+<td>real <code>(ntemp,nsza,nz,nozo,ntau,nd)</code></td>
+<td>光解速率查找表，供多维插值</td>
+</tr>
+<tr>
+<td><code>colairtab</code></td>
+<td><code>photolysis.F90::photolysis</code></td>
+<td>real <code>(nz)</code></td>
+<td>空气柱剖面，插值的高度坐标</td>
+</tr>
+<tr>
+<td><code>table_ozo</code></td>
+<td><code>photolysis.F90::photolysis</code></td>
+<td>real <code>(nozo)</code></td>
+<td>臭氧柱网格，插值的臭氧坐标</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>jphot</code>、<code>colairtab</code>、<code>table_ozo</code> 为 <code>SAVE, PROTECTED</code> 模块变量，并用 <code>!$OMP THREADPRIVATE</code> 声明（第 31、33、35 行）；模块外只读，仅由 <code>read_phototable</code>（master）写入并经 <code>bcast</code> 分发。</li>
+<li><code>szatab</code>、<code>tautab</code> 与六个维度参数为 <code>PARAMETER</code>，编译期固定。</li>
+<li>文件 I/O 仅在 master 进程执行；非 master 进程的数组值由 <code>bcast</code> 获得。</li>
+<li>文件单位 <code>fic=81</code> 硬编码（第 83 行）；若其他例程同时使用单位 81 可能冲突。</li>
+<li>读取前向标准输出打印文件名，读取后打印 <code>lookup table...ok</code>。</li>
+<li>文件缺失时打印诊断信息并调用 <code>abort_physic</code> 中止。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>文件名</strong>：<code>phototable="jmars.20140930"</code>（默认），<code>call getin_p("phototable",phototable)</code> 允许 def 文件覆盖（第 77–81 行）。</li>
+<li><strong>master 打开</strong>：<code>open(fic,...,file=trim(datadir)//"/"//trim(phototable),iostat=ierr)</code>；<code>ierr/=0</code> 时打印帮助信息（提示用 <code>datadir=</code>/<code>phototable=</code> 配置）并 <code>abort_physic</code>（第 85–100 行）。</li>
+<li><strong>嵌套读取</strong>（第 108–124 行）：<code>itau(1..ntau) × itemp(1..ntemp) × iozo(1..nozo) × isza(1..nsza) × iz(nz..1,-1)</code>，每次迭代：
+<ul>
+<li>自由格式读一行 <code>colairtab(iz), xsza, table_ozo(iozo)</code>（第 113 行）；</li>
+<li>按 <code>(7e11.4)</code> 格式读 <code>nd=13</code> 个 <code>jphot(itemp,isza,iz,iozo,itau,ij)</code>（第 114 行）；</li>
+<li>把等于 <code>1.e-30</code> 的哨兵值置 <code>0.</code>（第 115–119 行）。</li>
+</ul></li>
+<li><strong>关闭</strong>：<code>close(fic)</code>（第 127 行）。</li>
+<li><strong>广播</strong>：<code>bcast(colairtab)</code>、<code>bcast(table_ozo)</code>、<code>bcast(jphot)</code>（第 132–134 行）。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>read_phototable():
+  phototable = &quot;jmars.20140930&quot;
+  call getin_p(&quot;phototable&quot;, phototable)
+  fic = 81
+  if is_master:
+    open fic, file=datadir//&quot;/&quot;//phototable, iostat=ierr
+    if ierr /= 0:
+      print help; call abort_physic(...)
+    for itau=1..ntau:
+      for itemp=1..ntemp:
+        for iozo=1..nozo:
+          for isza=1..nsza:
+            for iz=nz..1 (step -1):
+              read fic: colairtab(iz), xsza, table_ozo(iozo)
+              read fic (7e11.4): jphot(itemp,isza,iz,iozo,itau, 1..nd)
+              for ij=1..nd:
+                if jphot(...)==1.e-30: jphot(...)=0.
+    close fic
+  call bcast(colairtab); call bcast(table_ozo); call bcast(jphot)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>光化学 / 光解</td>
+<td>离线光解路径下，<code>calchim_mod</code> firstcall 调 <code>read_phototable</code> 载入表；<code>photolysis</code> 用表插值得光解速率 <code>v_phot</code> 供化学反应</td>
+</tr>
+<tr>
+<td>高层大气初始化</td>
+<td>与 <code>init_photolysis</code>（在线光解，<code>jonline=true</code>）二选一，由 <code>calchim_mod</code> firstcall 分支决定</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 <code>.F90</code> 模块，<code>PROTECTED</code> 防止模块外写共享数组。</li>
+<li>查找表维度用 <code>PARAMETER</code> 固定，便于下游 <code>use</code> 同一维度做插值循环。</li>
+<li>每行文件含一个 <code>xsza</code>（该行对应的太阳天顶角），但代码读入后<strong>未使用</strong>——SZA 网格实际用参数 <code>szatab</code>，<code>xsza</code> 为丢弃式读取。</li>
+<li><code>1.e-30</code> 作为表内哨兵值，读入时归零。</li>
+<li>文件单位 <code>81</code> 与默认文件名 <code>jmars.20140930</code> 均硬编码。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>需要 <code>datadir</code> 中存在查找表文件（默认 <code>jmars.20140930</code>），否则 <code>abort_physic</code> 中止；可用 <code>callphys.def</code> 的 <code>datadir=</code> 和 <code>phototable=</code> 覆盖。</li>
+<li>表仅在 <code>photochem=true</code> 且 <code>jonline=false</code>（离线光解）时载入；<code>jonline=true</code> 走 <code>init_photolysis</code> 在线路径，不读本表。</li>
+<li>master-only 读取 + <code>bcast</code>：并行复现依赖广播正确分发；非 master 进程不得在 <code>read_phototable</code> 返回前读取 <code>jphot</code>。</li>
+<li>文件格式固定：每个 <code>(itau,itemp,iozo,isza,iz)</code> 块为一行自由格式（柱、sza、ozo）+ 一行 <code>(7e11.4)</code> 的 13 个速率；<code>iz</code> 自顶向下（<code>nz→1</code>）读取。</li>
+<li><code>jphot</code> 约 1124 万个实数（<code>4×27×143×7×8×13</code>），内存与文件规模较大。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>abort_physic</code> 的宿主模块未在本例程 <code>use</code> 列表显式声明，可能经 <code>mod_phys_lmdz_para</code> 间接可用；待确认。</li>
+<li><code>jphot(:,:,:,:,:,:,ij)</code> 中 <code>ij=1..nd=13</code> 各维度对应的具体光解反应/物种，由 <a href="photolysis.html">photolysis</a> 的下游映射和 <a href="photochemistry_mod.html">photochemistry_mod</a> 的 <code>v_phot</code> 消费路径决定；本文件不含该映射。</li>
+<li>文件每行的 <code>xsza</code> 被丢弃而改用 <code>szatab</code>，是否意味着文件内 SZA 必须与 <code>szatab</code> 严格一致，否则静默错位；待确认文件生成约定。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览，本文件在其“光化学”分类下。</li>
+<li><a href="../phymars/datafile_mod.html">datafile_mod</a>：提供 <code>datadir</code> 数据目录路径。</li>
+<li><a href="calchim_mod.html">calchim_mod</a>：调用方文件页，含 <code>read_phototable</code> 调用点与 <code>photochem/jonline</code> 分支。</li>
+<li><a href="photochemistry_mod.html">photochemistry_mod</a>：<code>photolysis</code> 得到的 <code>v_phot</code> 下游消费方，组装反应矩阵并积分化学物种。</li>
+<li><a href="photolysis.html">photolysis</a>：<code>jphot</code> 多维插值和 <code>v_phot</code> 槽位映射方。</li>
+<li><a href="photolysis_mod.html">photolysis_mod.F90</a> / <a href="photolysis_online.html">photolysis_online.F</a>：在线光解路径文件页（TASK-0205、TASK-0206）。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

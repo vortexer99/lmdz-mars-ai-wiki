@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>slope_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/slope_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="slope_modf90">slope_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\slope_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>slope_mod.F90</code> 提供火星地形坡面的两个核心功能：(1) 从地形势场计算坡面倾角和方位（<code>getslopes</code>），(2) 计算坡面上的太阳总辐照度（<code>param_slope</code>，Spiga &amp; Forget 2008 方法）。这两个子程序由 <code>physiq_mod</code> 在 <code>callslope=.true.</code> 时调用，用于修正地表短波/长波辐射通量。模块还管理 <code>theta_sl</code> 和 <code>psi_sl</code> 两个 module 级数组的分配/释放。</p>
+<p>与 <code>comslope_mod</code>（次网格坡面统计分布和共享状态）配合使用：<code>slope_mod</code> 提供几何计算，<code>comslope_mod</code> 提供多 bin 坡面框架。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>slope_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>坡面计算模块</td>
+</tr>
+<tr>
+<td><code>theta_sl</code></td>
+<td>real, save, allocatable</td>
+<td>5</td>
+<td>坡面倾角数组（度），0=水平，90=垂直</td>
+</tr>
+<tr>
+<td><code>psi_sl</code></td>
+<td>real, save, allocatable</td>
+<td>6</td>
+<td>坡面方位数组（度），0=北，90=东，180=南，270=西</td>
+</tr>
+<tr>
+<td><code>getslopes</code></td>
+<td>subroutine</td>
+<td>14</td>
+<td>从地形势场计算坡面倾角和方位</td>
+</tr>
+<tr>
+<td><code>param_slope</code></td>
+<td>subroutine</td>
+<td>118</td>
+<td>计算坡面上的太阳总辐照度</td>
+</tr>
+<tr>
+<td><code>ini_slope_mod</code></td>
+<td>subroutine</td>
+<td>270</td>
+<td>分配 <code>theta_sl</code> 和 <code>psi_sl</code> 数组</td>
+</tr>
+<tr>
+<td><code>end_slope_mod</code></td>
+<td>subroutine</td>
+<td>283</td>
+<td>释放 <code>theta_sl</code> 和 <code>psi_sl</code> 数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>longitude</code>, <code>latitude</code></td>
+<td>网格点经纬度（弧度），<code>getslopes</code> 使用</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code>, <code>rad</code>, <code>pi</code></td>
+<td>重力加速度、行星半径、圆周率</td>
+<td></td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_parallel</code></td>
+<td>判断是否并行模式（<code>getslopes</code> 仅支持串行）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>nbp_lon</code>, <code>nbp_lat</code></td>
+<td>经纬度网格点数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td><code>param_slope</code> 使用</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abort_physic</code></td>
+<td>物理基础设施</td>
+<td>行 46, 181</td>
+<td>并行模式或非法倾角时终止执行</td>
+</tr>
+</tbody>
+</table>
+<p>本模块不调用其他 LMDZ 子程序。</p>
+<h2 id="输入">输入</h2>
+<h3 id="getslopes">getslopes</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>physiq</code></td>
+<td>integer</td>
+<td>—</td>
+<td>水平网格点数</td>
+</tr>
+<tr>
+<td><code>geopot(ngrid)</code></td>
+<td><code>physiq</code>（<code>phisfi</code>）</td>
+<td>real</td>
+<td>m²/s²</td>
+<td>地表势场</td>
+</tr>
+</tbody>
+</table>
+<h3 id="param_slope">param_slope</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>csza</code></td>
+<td><code>physiq</code>（<code>mu0(ig)</code>）</td>
+<td>real</td>
+<td>—</td>
+<td>太阳天顶角余弦</td>
+</tr>
+<tr>
+<td><code>declin</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>rad</td>
+<td>太阳赤纬</td>
+</tr>
+<tr>
+<td><code>rho</code></td>
+<td><code>physiq</code>（<code>sl_ra</code>）</td>
+<td>rad</td>
+<td>rad</td>
+<td>太阳赤经</td>
+</tr>
+<tr>
+<td><code>latitude</code></td>
+<td><code>physiq</code>（<code>sl_lat</code>）</td>
+<td>real</td>
+<td>deg</td>
+<td>纬度</td>
+</tr>
+<tr>
+<td><code>taudust</code></td>
+<td><code>physiq</code>（<code>sl_tau</code>）</td>
+<td>real</td>
+<td>—</td>
+<td>0.67 μm 参考波长 dust 光学厚度</td>
+</tr>
+<tr>
+<td><code>albedo</code></td>
+<td><code>physiq</code>（<code>sl_alb</code>）</td>
+<td>real</td>
+<td>—</td>
+<td>地表反照率</td>
+</tr>
+<tr>
+<td><code>theta_s</code></td>
+<td><code>theta_sl(ig)</code></td>
+<td>real</td>
+<td>deg</td>
+<td>坡面倾角（0–90）</td>
+</tr>
+<tr>
+<td><code>psi_s</code></td>
+<td><code>psi_sl(ig)</code></td>
+<td>real</td>
+<td>deg</td>
+<td>坡面方位（0=北, 90=东, 180=南, 270=西）</td>
+</tr>
+<tr>
+<td><code>fdir_0</code></td>
+<td><code>physiq</code>（<code>sl_di0</code>）</td>
+<td>real</td>
+<td>W/m²</td>
+<td>水平面上直接辐照度</td>
+</tr>
+<tr>
+<td><code>ftot_0</code></td>
+<td><code>physiq</code>（<code>sl_fl0</code>）</td>
+<td>real</td>
+<td>W/m²</td>
+<td>水平面上总辐照度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<h3 id="getslopes-1">getslopes</h3>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>theta_sl(ngrid)</code></td>
+<td>module 变量</td>
+<td>real</td>
+<td>deg</td>
+<td>坡面倾角</td>
+</tr>
+<tr>
+<td><code>psi_sl(ngrid)</code></td>
+<td>module 变量</td>
+<td>real</td>
+<td>deg</td>
+<td>坡面方位</td>
+</tr>
+</tbody>
+</table>
+<h3 id="param_slope-1">param_slope</h3>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ftot</code></td>
+<td><code>physiq</code>（<code>sl_flu</code>）</td>
+<td>real</td>
+<td>W/m²</td>
+<td>坡面上的总辐照度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong><code>theta_sl</code> 和 <code>psi_sl</code></strong>：module 级 <code>SAVE</code> + <code>!$OMP THREADPRIVATE</code> 数组（行 5–8），由 <code>ini_slope_mod</code> 分配、<code>end_slope_mod</code> 释放、<code>getslopes</code> 写入、<code>physiq</code> 读取。</li>
+<li><strong><code>getslopes</code> 仅串行模式</strong>：并行时调用 <code>abort_physic</code> 终止（行 43–47）。</li>
+<li><strong><code>param_slope</code> 纯计算</strong>：无副作用，仅通过参数返回结果。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="getslopes行-14114">getslopes（行 14–114）</h3>
+<ol type="1">
+<li><strong>并行检查</strong>（行 43–47）：<code>is_parallel=.true.</code> 时终止。</li>
+<li><strong>重排地形到 2D 网格</strong>（行 53–68）：将 <code>geopot/g</code>（→高度）从 1D 物理网格重排到 <code>(nbp_lon, nbp_lat)</code> 数组 <code>topogrid</code>，极点用单点填充。</li>
+<li><strong>计算梯度</strong>（行 72–91）：
+<ul>
+<li><code>gradx</code>（纬度方向）：<code>(topogrid(i,j+1) - topogrid(i,j-1)) / (lat(j+1)-lat(j-1)) / rad</code></li>
+<li><code>grady</code>（经度方向）：类似，但经度边界用 <code>2*pi</code> 偏移处理环绕</li>
+<li>极点梯度设为 0</li>
+</ul></li>
+<li><strong>计算倾角和方位</strong>（行 96–112）：
+<ul>
+<li><code>theta_val = atan(sqrt(gradx² + grady²))</code></li>
+<li><code>psi_val</code>：从梯度分量通过 <code>atan2</code> 和象限修正推导方位角，转为度并取模 360</li>
+</ul></li>
+</ol>
+<h3 id="param_slope行-118266">param_slope（行 118–266）</h3>
+<p>参考：Spiga &amp; Forget, "Fast and accurate estimation of irradiance on Martian slopes"。</p>
+<ol type="1">
+<li><strong>前置检查</strong>（行 179–182）：<code>theta_s</code> 超出 [0,90] 时终止。</li>
+<li><strong>太阳低于地平线</strong>（行 185–191）：<code>csza &lt; 0.01</code> 时所有分量为 0。</li>
+<li><strong>坡-太阳方位角</strong>（行 197–202）：<code>a = psi_s + atan2(cos(declin)*sin(rho), ...)</code>，处理 <code>atan2(0,0)</code> 特例。</li>
+<li><strong>坡-太阳相位角余弦</strong>（行 205–206）：<code>mu_s = csza*cos(theta_s) - cos(a)*sin(theta_s)*sqrt(1-csza²)</code></li>
+<li><strong>天空可视因子</strong>（行 209）：<code>sigma_s = 0.5*(1+cos(theta_s))</code></li>
+<li><strong>直接辐射</strong>（行 212）：<code>fdir = fdir_0 * mu_s/csza</code></li>
+<li><strong>反射辐射</strong>（行 215）：<code>fref = albedo*(1-sigma_s)*ftot_0</code></li>
+<li><strong>散射辐射</strong>（行 218–253）：
+<ul>
+<li>散射分量 <code>fscat_0 = ftot_0 - fdir_0</code></li>
+<li>构建散射向量 <code>s_vector</code>、几何向量 <code>g_vector</code>、耦合矩阵 <code>mat_T = mat_M + csza*mat_N</code></li>
+<li>矩阵系数按 <code>csza &gt;= 0.5</code> 和 <code>&lt; 0.5</code> 分两组（经验拟合参数）</li>
+<li>低倾角（<code>theta_s ≤ 5°</code>）用线性过渡避免数值问题</li>
+<li><code>ratio = s_vector · mat_T · g_vector</code></li>
+<li><code>fscat = ratio * fscat_0</code></li>
+</ul></li>
+<li><strong>总辐射</strong>（行 257）：<code>ftot = fdir + fref + fscat</code></li>
+</ol>
+<h3 id="ini_slope_mod--end_slope_mod行-270290">ini_slope_mod / end_slope_mod（行 270–290）</h3>
+<p>分配/释放 <code>theta_sl</code> 和 <code>psi_sl</code>，由 <code>phys_state_var_init_mod</code> 调用。</p>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>! getslopes
+abort if parallel
+topogrid = reshape(geopot/g, [nbp_lon, nbp_lat])  ! 极点用单点填充
+for interior points:
+  gradx = (topo(j+1)-topo(j-1)) / (lat(j+1)-lat(j-1)) / rad
+  grady = (topo(i+1)-topo(i-1)) / (lon(i+1)-lon(i-1)) / rad  ! 经度环绕修正
+poles: gradx=grady=0
+theta_sl = atan(sqrt(gradx²+grady²))
+psi_sl = azimuth_from_gradient(gradx, grady) → [0,360)°
+
+! param_slope
+if csza &lt; 0.01: ftot=0; return
+a = psi_s + atan2(sun_geometry)                    ! 坡-太阳方位
+mu_s = csza*cos(θ) - cos(a)*sin(θ)*sin(SZA)       ! 坡-太阳相位角余弦
+sigma_s = 0.5*(1+cos(θ))                           ! 天空可视因子
+fdir = fdir_0 * mu_s/csza                          ! 直接
+fref = albedo*(1-sigma_s)*ftot_0                   ! 反射
+fscat_0 = ftot_0 - fdir_0                          ! 散射（水平面）
+mat_T = mat_M + csza*mat_N                         ! 耦合矩阵
+ratio = s_vector · mat_T · g_vector                ! 散射比
+fscat = ratio * fscat_0                            ! 散射（坡面）
+ftot = fdir + fref + fscat</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>辐射计算</td>
+<td><code>param_slope</code> 修正坡面上的短波辐射通量（直接+散射+反射）</td>
+</tr>
+<tr>
+<td>地表能量收支</td>
+<td><code>getslopes</code> 提供坡面几何，<code>physiq</code> 用 <code>theta_sl</code> 修正长波辐射（天空可视因子）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong><code>!$OMP THREADPRIVATE</code></strong>：<code>theta_sl</code> 和 <code>psi_sl</code> 为线程私有（行 8）。</li>
+<li><strong>仅串行</strong>：<code>getslopes</code> 明确要求串行模式（行 43–47），不支持并行。</li>
+<li><strong>经度环绕处理</strong>：<code>grady</code> 边界点用 <code>2*pi</code> 偏移处理 -180°/180° 环绕（行 77–80）。</li>
+<li><strong>经验拟合矩阵</strong>：<code>param_slope</code> 的 <code>mat_M</code>/<code>mat_N</code> 系数来自 Spiga &amp; Forget (2008) 的拟合结果，按 <code>csza</code> 阈值分两组。</li>
+<li><strong>低角度线性过渡</strong>：<code>theta_s ≤ 5°</code>（0.0872664626 rad）时用线性插值避免数值不稳定（行 241–245）。</li>
+<li><strong><code>id2</code>/<code>idm1</code> trick</strong>：行 41 注释说这是为了在 testphys1d 调试模式下编译通过。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>callslope=.true.</code>（<code>callphys.def</code>）时才调用 <code>getslopes</code> 和 <code>param_slope</code>。</li>
+<li><code>getslopes</code> 仅在 3D 串行模式下工作；1D 和并行模式不调用。</li>
+<li><code>param_slope</code> 的拟合矩阵系数是固定的（来自文献），不可调。</li>
+<li>长波辐射修正使用 <code>sky_slope</code>（<code>comslope_mod</code> 中的天空可视因子），而非本模块。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>行 199 <code>a = deg2rad*psi_s</code> 在 <code>atan2(0,0)</code> 时的处理（注释说"some compiler need specifying value"，待确认：哪些编译器有此问题）。</li>
+<li><code>param_slope</code> 中 <code>mu_s &lt;= 0</code> 时设为 0 但不终止（行 206），后续 <code>fdir = fdir_0*mu_s/csza</code> 会得到 0（待确认：是否为有意设计，允许背面坡面）。</li>
+<li><code>getslopes</code> 在极点处 <code>gradx=grady=0</code>（行 88–91），意味着极点倾角恒为 0（待确认：是否因极点地形数据不可靠）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="comslope_mod.html">comslope_mod</a> — 次网格坡面参数化共享状态模块，管理多 bin 坡面框架</li>
+<li><a href="../../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a> — 涉及坡面投影的地表通量</li>
+<li><a href="../../routines/co2condens.html">co2condens</a> — CO2 凝结中使用 <code>subslope_dist</code> 的坡面循环</li>
+<li><a href="../../themes/water-cycle.html">water-cycle</a> — 水循环主题页</li>
+<li><a href="../../themes/co2-cycle.html">co2-cycle</a> — CO2 循环主题页</li>
+<li><a href="../../themes/radiation.html">radiation</a> — 辐射计算主题页</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

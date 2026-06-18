@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nogcm - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/nogcm.md</span>
+    </nav>
+    <article class="content">
+<h1 id="nogcmf90">nogcm.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\nogcm.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>nogcm.F90</code> 定义 <code>PROGRAM nogcm</code>，是 lon-lat 动力目录中的“无 GCM 动力核心”独立物理模式入口。它仍然读取 <code>run.def/gcm.def</code>、tracer 配置和可选 <code>start.nc</code>，初始化动力几何、物理网格、IOIPSL/XIOS 输出环境，然后调用 <a href="leapfrog_nogcm.html"><code>leapfrog_nogcm</code></a> 执行时间积分。与完整 GCM 不同，它不调用标准动力核心，而把后续演化交给 <code>leapfrog_nogcm</code> 中的牛顿松弛、水平混合和物理倾向。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nogcm</code></td>
+<td>program</td>
+<td>6</td>
+<td>独立物理模式主程序；初始化运行状态并调用 <code>leapfrog_nogcm</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IOIPSL</code> 或 <code>ioipsl_getincom</code></td>
+<td>条件编译</td>
+<td>IOIPSL 可用时使用完整接口，否则至少使用本地 <code>getin</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>wxios</code></td>
+<td>条件编译</td>
+<td><code>CPP_XIOS</code> 下初始化 XIOS</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>filtreg_mod</code></td>
+<td>全模块</td>
+<td>初始化滤波器</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>infotrac</code></td>
+<td>全模块</td>
+<td><code>infotrac_init</code> 读取 tracer 数量和名称</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>control_mod</code></td>
+<td><code>planet_type</code>, <code>nday</code>, <code>day_step</code>, <code>iperiod</code>, <code>iphysiq</code>, <code>raz_date</code>, <code>anneeref</code>, <code>starttime</code>, <code>dayref</code>, <code>ok_dyn_ins</code>, <code>ok_dyn_ave</code>, <code>iecri</code>, <code>periodav</code>, <code>less1day</code>, <code>fractday</code>, <code>ndynstep</code>, <code>nsplit_phys</code></td>
+<td>运行控制、日历、输出频率和物理调用频率</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>mod_const_mpi</code></td>
+<td><code>COMM_LMDZ</code></td>
+<td><code>iniphysiq</code> 物理初始化通信器实参</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>cpdet_mod</code></td>
+<td><code>ini_cpdet</code></td>
+<td>Venus/通用 Cp(T) 初始化</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>temps_mod</code></td>
+<td><code>calend</code>, <code>start_time</code>, <code>annee_ref</code>, <code>day_ref</code>, <code>itau_dyn</code>, <code>itau_phy</code>, <code>day_ini</code>, <code>jD_ref</code>, <code>jH_ref</code>, <code>day_end</code></td>
+<td>日期、时间步和 Julian day 参考状态</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>iniphysiq_mod</code></td>
+<td><code>iniphysiq</code></td>
+<td><code>CPP_PHYS</code> 下初始化物理共享状态</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>daysec</code>, <code>dtvr</code>, <code>dtphys</code>, <code>rad</code>, <code>g</code>, <code>r</code>, <code>cpp</code></td>
+<td>常数和时间步</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td><code>read_start</code>, <code>iflag_phys</code>, <code>ok_guide</code>, <code>ecripar</code></td>
+<td>控制是否读 <code>start.nc</code>、是否启用物理和 relaxation</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>INCLUDE 头文件</strong>：<code>dimensions.h</code>、<code>paramet.h</code>、<code>comdissnew.h</code>、<code>comgeom.h</code>、<code>iniprint.h</code>、<code>tracstoke.h</code>。</p>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>conf_gcm</code></td>
+<td>外部配置例程</td>
+<td>155</td>
+<td>读取 GCM/nogcm 运行参数</td>
+</tr>
+<tr>
+<td><code>getin</code></td>
+<td>IOIPSL/getin</td>
+<td>160</td>
+<td>读取 <code>use_filtre_fft</code></td>
+</tr>
+<tr>
+<td><code>abort_gcm</code></td>
+<td>外部</td>
+<td>156, 161, 206, 211, 214, 284, 309</td>
+<td>配置不合法或未实现路径时中止</td>
+</tr>
+<tr>
+<td><code>wxios_init</code></td>
+<td><code>wxios</code></td>
+<td>169</td>
+<td><code>CPP_XIOS</code> 下初始化 XIOS</td>
+</tr>
+<tr>
+<td><code>ini_cpdet</code></td>
+<td><code>cpdet_mod</code></td>
+<td>184</td>
+<td>初始化 Cp(T) 支持</td>
+</tr>
+<tr>
+<td><code>ioconf_calendar</code></td>
+<td>IOIPSL</td>
+<td>194-200</td>
+<td>设置 Earth 日历；Titan/Venus 分支尚未实现</td>
+</tr>
+<tr>
+<td><code>infotrac_init</code></td>
+<td><code>infotrac</code></td>
+<td>231</td>
+<td>读取 tracer 数量/名称并设置 <code>nqtot</code></td>
+</tr>
+<tr>
+<td><code>iniacademic</code></td>
+<td>外部</td>
+<td>245, 272</td>
+<td>不读 start 或非物理模式时构造理想初始场</td>
+</tr>
+<tr>
+<td><code>dynetat0</code></td>
+<td>动力 restart 读取</td>
+<td>248</td>
+<td>从 <code>start.nc</code> 读取动力状态</td>
+</tr>
+<tr>
+<td><code>relaxetat0</code></td>
+<td>外部</td>
+<td>255</td>
+<td>generic planet + nudging 时读取 <code>relax.nc</code></td>
+</tr>
+<tr>
+<td><code>ymds2ju</code> / <code>ju2ymds</code></td>
+<td>IOIPSL</td>
+<td>362, 371, 440, 442</td>
+<td>Earth 日历日期转换</td>
+</tr>
+<tr>
+<td><code>iniconst</code> / <code>inigeom</code> / <code>inifilr</code></td>
+<td>动力初始化例程</td>
+<td>398, 403, 408</td>
+<td>物理模式路径下初始化常数、几何和滤波</td>
+</tr>
+<tr>
+<td><a href="iniphysiq_mod.html"><code>iniphysiq</code></a></td>
+<td><code>iniphysiq_mod.F90</code></td>
+<td>460</td>
+<td>初始化物理网格与共享状态</td>
+</tr>
+<tr>
+<td><code>dynredem0</code></td>
+<td>动力 restart 写出</td>
+<td>471, 473</td>
+<td>写 <code>restart.nc</code> 的头部/静态状态</td>
+</tr>
+<tr>
+<td><code>inithist</code> / <code>initdynav</code></td>
+<td>IOIPSL</td>
+<td>484, 492</td>
+<td>初始化瞬时和平均动力输出</td>
+</tr>
+<tr>
+<td><a href="leapfrog_nogcm.html"><code>leapfrog_nogcm</code></a></td>
+<td><code>leapfrog_nogcm.F</code></td>
+<td>518</td>
+<td>执行独立物理模式时间积分</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>run.def</code> / <code>gcm.def</code></td>
+<td><code>conf_gcm</code></td>
+<td>配置</td>
+<td>—</td>
+<td>时间步、输出、物理频率、日期和运行长度</td>
+</tr>
+<tr>
+<td><code>traceur.def</code> / <code>tracer.def</code></td>
+<td><code>infotrac_init</code></td>
+<td>配置</td>
+<td>—</td>
+<td>tracer 数量和名称</td>
+</tr>
+<tr>
+<td><code>start.nc</code></td>
+<td>当前目录</td>
+<td>NetCDF</td>
+<td>混合</td>
+<td><code>logic_mod::read_start</code> 为真时读取动力初始场</td>
+</tr>
+<tr>
+<td><code>relax.nc</code></td>
+<td>当前目录</td>
+<td>NetCDF</td>
+<td>混合</td>
+<td><code>planet_type=="generic"</code> 且 <code>ok_guide</code> 为真时读取 nudging/relaxation 场</td>
+</tr>
+<tr>
+<td><code>use_filtre_fft</code></td>
+<td>getin 配置键</td>
+<td>logical</td>
+<td>—</td>
+<td>若为真会中止，因为顺序动力版本不支持 FFT filter</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>restart.nc</code></td>
+<td>当前目录</td>
+<td>NetCDF</td>
+<td>混合</td>
+<td>程序启动时间先由 <code>dynredem0</code> 写头，后续由 <code>leapfrog_nogcm</code> 写最终动力状态</td>
+</tr>
+<tr>
+<td><code>dyn_hist.nc</code></td>
+<td>当前目录</td>
+<td>NetCDF</td>
+<td>混合</td>
+<td><code>CPP_IOIPSL</code> 且 <code>ok_dyn_ins</code> 时的瞬时动力输出</td>
+</tr>
+<tr>
+<td><code>dyn_hist_ave.nc</code></td>
+<td>当前目录</td>
+<td>NetCDF</td>
+<td>混合</td>
+<td><code>CPP_IOIPSL</code> 且 <code>ok_dyn_ave</code> 时的平均动力输出</td>
+</tr>
+<tr>
+<td><code>q(ip1jmp1,llm,nqtot)</code></td>
+<td>传给 <code>leapfrog_nogcm</code></td>
+<td>real allocatable</td>
+<td>tracer 单位</td>
+<td>平流 tracer 初始场</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>写 <code>temps_mod</code> 日期状态：<code>annee_ref/day_ref/day_ini/itau_dyn/itau_phy/start_time/day_end/jD_ref/jH_ref</code>。</li>
+<li>写 <code>comconst_mod::dtvr/dtphys</code> 等时间步状态，并在 <code>iflag_phys==1</code> 路径调用 <code>iniconst/inigeom/inifilr</code>。</li>
+<li>写 <code>logic_mod::ecripar=.TRUE.</code>，允许并行/参数输出路径。</li>
+<li>条件编译下初始化 IOIPSL calendar、历史文件、动力平均文件和 XIOS context。</li>
+<li>分配 <code>q(ip1jmp1,llm,nqtot)</code>，程序结束前未显式 <code>deallocate</code>，由进程退出释放。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>读取运行配置</strong>：<code>conf_gcm(99,.TRUE.)</code> 后校验 <code>iphysiq</code> 必须是 <code>iperiod</code> 的倍数；若 <code>use_filtre_fft=true</code>，顺序动力版本直接中止。</li>
+<li><strong>初始化输出和 Cp(T)</strong>：<code>CPP_XIOS</code> 下调用 <code>wxios_init("LMDZ")</code>；随后 <code>ini_cpdet</code> 初始化温度相关热容支持。</li>
+<li><strong>设置日历</strong>：<code>CPP_IOIPSL</code> 下仅完整支持 Earth 360/365/366 天日历；Titan/Venus 分支打印未实现并中止。非 IOIPSL 时把 <code>jD_ref/jH_ref</code> 置零。</li>
+<li><strong>读取 tracer 配置并分配数组</strong>：<code>infotrac_init</code> 得到 <code>nqtot</code>，分配 <code>q</code>。</li>
+<li><strong>构造初始动力状态</strong>：
+<ul>
+<li><code>read_start=.true.</code> 时，若 <code>iflag_phys.ne.1</code> 先跑 <code>iniacademic</code> 初始化常数/场，再调用 <code>dynetat0("start.nc",...)</code>。</li>
+<li>generic planet 且 <code>ok_guide</code> 时读取 <code>relax.nc</code>。</li>
+<li><code>read_start=.false.</code> 时直接调用 <code>iniacademic</code> 构造理想初始场。</li>
+</ul></li>
+<li><strong>校验和调整时间</strong>：检查 <code>day_step</code> 与 <code>iperiod</code>；按 <code>start_time</code>/<code>starttime</code>、<code>raz_date</code>、<code>anneeref/dayref</code> 决定是否重置日期或中止。</li>
+<li><strong>初始化动力/物理</strong>：<code>iflag_phys==1</code> 时设置 <code>dtvr</code>，调用 <code>iniconst/inigeom/inifilr</code>；<code>iflag_phys==1</code> 或 <code>&gt;=100</code> 时在 <code>CPP_PHYS</code> 下调用 <code>iniphysiq</code>。</li>
+<li><strong>确定运行终止日和输出</strong>：根据 <code>nday</code>、<code>less1day</code>、<code>ndynstep</code> 计算 <code>day_end</code>；IOIPSL 下初始化 <code>dyn_hist.nc</code> 和 <code>dyn_hist_ave.nc</code>。</li>
+<li><strong>写初始 restart 头并进入积分</strong>：Mars 使用 <code>day_ini</code> 写 <code>dynredem0("restart.nc",...)</code>，其他行星用 <code>day_end</code>；最后调用 <code>leapfrog_nogcm(ucov,vcov,teta,ps,masse,phis,q,time_0)</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>conf_gcm()
+assert iphysiq is multiple of iperiod
+read use_filtre_fft; abort if true
+optional wxios_init
+ini_cpdet
+configure IOIPSL calendar if compiled
+
+infotrac_init
+allocate q(ip1jmp1,llm,nqtot)
+
+if read_start:
+    if iflag_phys != 1:
+        iniacademic(...)
+    dynetat0(&quot;start.nc&quot;, ...)
+    if planet_type == &quot;generic&quot; and ok_guide:
+        relaxetat0(&quot;relax.nc&quot;)
+else:
+    iniacademic(...)
+
+check day_step and start date consistency
+if raz_date == 1:
+    reset day/time counters from run.def values
+
+if iflag_phys == 1:
+    dtvr = daysec/day_step
+    iniconst; inigeom; inifilr
+
+if iflag_phys == 1 or iflag_phys &gt;= 100:
+    iniphysiq(..., dtphys/nsplit_phys, ...)
+
+compute day_end
+dynredem0(&quot;restart.nc&quot;, Mars ? day_ini : day_end, phis)
+optional inithist/initdynav
+set offline storage frequencies
+leapfrog_nogcm(...)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>独立物理模式</td>
+<td>主程序入口；初始化后调用 <code>leapfrog_nogcm</code></td>
+</tr>
+<tr>
+<td>初始场/restart</td>
+<td>读取 <code>start.nc</code> 或构造 idealized 初始场，并写 <code>restart.nc</code> 头部</td>
+</tr>
+<tr>
+<td>输出初始化</td>
+<td>可初始化 IOIPSL 动力历史和平均文件，也可初始化 XIOS</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>.F90</code> 自由格式源码，但保留旧 <code>gcm.F</code> 注释和 LMDZ 动力变量命名。</li>
+<li>大量功能由条件编译控制：<code>CPP_IOIPSL</code>、<code>CPP_XIOS</code>、<code>CPP_PHYS</code>。</li>
+<li><code>iflag_phys</code> 决定初始化路径：<code>1</code> 是物理路径；<code>&gt;=100</code> 也初始化物理，但部分动力初始化只在 <code>==1</code> 执行。</li>
+<li>Mars 路径给 <code>dynredem0</code> 传 <code>day_ini</code>，其他行星传 <code>day_end</code>。</li>
+<li>仅写 <code>restart.nc</code> 头部；完整时间积分和最终 restart 写出在 <code>leapfrog_nogcm</code> 中。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>需要 <code>conf_gcm</code> 能找到运行配置，并保证 <code>iphysiq</code> 是 <code>iperiod</code> 的倍数。</li>
+<li>顺序动力版本不能启用 <code>use_filtre_fft</code>。</li>
+<li>若 <code>read_start=.true.</code>，当前目录必须有 <code>start.nc</code>；若 generic nudging 打开，还要有 <code>relax.nc</code>。</li>
+<li>若启用物理，必须以 <code>CPP_PHYS</code> 编译并能调用 <code>iniphysiq</code> 及后续物理链。</li>
+<li><code>leapfrog_nogcm</code> 才是时间积分核心；调试运行结果时应同时检查该页面。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>modname='gcm'</code> 仍沿用旧程序名，日志/中止信息是否应改为 <code>nogcm</code> 待确认。</li>
+<li><code>istdyn=day_step/4</code> 注释写有“6h=1jour/12”不一致；源码实际按 <code>day_step/4</code> 执行。</li>
+<li><code>iflag_phys&gt;=100</code> 时是否应同样执行 <code>iniconst/inigeom/inifilr</code>，本页只按源码字面记录。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="leapfrog_nogcm.html">leapfrog_nogcm</a> — 唯一被调用的时间积分主循环。</li>
+<li><a href="iniphysiq_mod.html">iniphysiq_mod</a> — 物理初始化入口。</li>
+<li><a href="index.html">dynphy_lonlat/index</a> — 所属目录概览。</li>
+<li><a href="start2archive.html">start2archive</a> — 同属初始场格式转换链。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>subslope_mola - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/subslope_mola.md</span>
+    </nav>
+    <article class="content">
+<h1 id="subslope_molaf90">subslope_mola.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\subslope_mola.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>subslope_mola.F90</code> 定义 <code>subslope_mola_mod</code>，用于在 <code>newstart</code> 修改坡面数量时，根据 MOLA 高程文件重新计算每个 GCM 网格单元内的次网格坡面分布 <code>subslope_dist(ngridmx,nslope)</code>。它读取 <code>datadir/mola64.nc</code> 的 <code>alt</code> 高程场，计算 MOLA 网格上的坡度倾角 <code>theta_mola</code> 和坡向 <code>psi_mola</code>，再按 GCM 网格边界统计每个坡面分箱的面积比例。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>subslope_mola_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>封装 MOLA 坡面统计入口和内部辅助例程。</td>
+</tr>
+<tr>
+<td><code>subslope_mola</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7</td>
+<td>对每个 GCM 网格单元调用 MOLA 坡面统计，输出 <code>subslope_dist</code>。</td>
+</tr>
+<tr>
+<td><code>mola</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">115</td>
+<td>读取 <code>mola64.nc</code> 的 <code>alt</code> 高程，调用 <code>getslopes_mola32</code> 生成坡度和坡向数组。</td>
+</tr>
+<tr>
+<td><code>getslopes_mola32</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">239</td>
+<td>在 MOLA 经纬网格上用中心差分估计地形梯度，并计算坡度倾角/坡向。</td>
+</tr>
+<tr>
+<td><code>slopes_stat</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">367</td>
+<td>将一个 GCM 网格框内的 MOLA 坡面点按 <code>crit(theta,psi)</code> 和 <code>def_slope</code> 分箱，得到坡面比例。</td>
+</tr>
+<tr>
+<td><code>crit</code></td>
+<td>internal function</td>
+<td style="text-align: right;">559</td>
+<td>分箱准则，当前为 <code>theta*cos(psi*pi/180)</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>boundslon,boundslat</code></td>
+<td>提供每个 GCM 网格单元角点边界，经 <code>north_west/south_east</code> 取统计区域。见 <a href="../../architecture/common-dependencies.html">common-dependencies</a>。</td>
+<td>边界单位由源码注释确认为弧度。</td>
+</tr>
+<tr>
+<td><code>regular_lonlat_mod</code></td>
+<td><code>init_regular_lonlat,east,west,north,south,north_east,north_west,south_west,south_east</code></td>
+<td>提供角点索引常量；本文件实际使用 <code>north_west</code>、<code>south_east</code>。</td>
+<td>多个导入符号未直接使用。</td>
+</tr>
+<tr>
+<td><code>datafile_mod</code></td>
+<td><code>datadir</code></td>
+<td>定位 MOLA 数据目录，拼接 <code>trim(datadir)//"/mola64.nc"</code>。</td>
+<td>无。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="include-依赖">include 依赖</h2>
+<table>
+<thead>
+<tr>
+<th>include</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimensions.h</code></td>
+<td><code>subslope_mola</code> 中包含；本文件主体未直接使用其中维度常量。</td>
+</tr>
+<tr>
+<td><code>netcdf.inc</code></td>
+<td><code>mola</code> 中包含；提供 NetCDF API 常量和例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mola</code></td>
+<td>本文件</td>
+<td><code>subslope_mola.F90:62</code></td>
+<td>读取 MOLA 高程并生成坡度/坡向数组。</td>
+</tr>
+<tr>
+<td><code>slopes_stat</code></td>
+<td>本文件</td>
+<td><code>subslope_mola.F90:82</code></td>
+<td>对单个 GCM 网格框统计坡面分箱比例。</td>
+</tr>
+<tr>
+<td><code>NF_OPEN/NF_INQ_VARID/NF_GET_VAR/NF_CLOSE</code></td>
+<td>NetCDF API</td>
+<td><code>mola</code></td>
+<td>打开 <code>mola64.nc</code>，读取 <code>alt</code> 短整型高程场并关闭文件。</td>
+</tr>
+<tr>
+<td><code>getslopes_mola32</code></td>
+<td>本文件</td>
+<td><code>subslope_mola.F90:230</code></td>
+<td>从高程网格计算坡度倾角和坡向。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用方">调用方</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="newstart.html"><code>newstart</code></a></td>
+<td><code>newstart.F:1818</code></td>
+<td>当用户在 <code>newstart</code> 中修改 <code>nslope</code> 且 <code>ngridmx /= 1</code> 时，调用 <code>subslope_mola(ngridmx,nslope_new,def_slope,subslope_dist)</code> 重算坡面面积分布。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngridmx</code></td>
+<td>调用方</td>
+<td><code>INTEGER</code></td>
+<td>grid count</td>
+<td>GCM 物理/动力网格点数。</td>
+</tr>
+<tr>
+<td><code>nslope</code></td>
+<td>调用方</td>
+<td><code>INTEGER</code></td>
+<td>count</td>
+<td>坡面分箱数。</td>
+</tr>
+<tr>
+<td><code>def_slope</code></td>
+<td>调用方</td>
+<td><code>REAL(nslope+1)</code></td>
+<td>度或准则单位</td>
+<td>坡面分箱边界；分箱准则是 <code>theta*cos(psi*pi/180)</code>。</td>
+</tr>
+<tr>
+<td><code>boundslon/boundslat</code></td>
+<td><code>geometry_mod</code></td>
+<td><code>REAL(ngridmx,corner)</code></td>
+<td>弧度</td>
+<td>GCM 网格角点，经转换为度后定位 MOLA 子区域。</td>
+</tr>
+<tr>
+<td><code>datadir/mola64.nc</code></td>
+<td>文件系统</td>
+<td>NetCDF <code>alt(iim_mola,jjm_mola)</code></td>
+<td>m（源码将 int16 转 real）</td>
+<td>64 像素/度 MOLA 高程场。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>subslope_dist</code></td>
+<td>调用方 / <code>comslope_mod</code></td>
+<td><code>REAL(ngridmx,nslope)</code></td>
+<td>fraction</td>
+<td>每个 GCM 网格单元中各坡面分箱的比例。</td>
+</tr>
+<tr>
+<td><code>max_crit,max_lon,max_lat</code></td>
+<td>标准输出诊断</td>
+<td><code>REAL</code></td>
+<td>混合</td>
+<td>统计到的最大准则绝对值及其 MOLA 经纬位置。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>读取 <code>datadir/mola64.nc</code>；打开或读取失败时打印错误并 <code>stop</code>。</li>
+<li>分配两个大数组 <code>theta_mola(iim_mola,jjm_mola)</code> 和 <code>psi_mola(iim_mola,jjm_mola)</code>，其中 <code>resol=64</code>，<code>jjm_mola=180*64</code>，<code>iim_mola=2*jjm_mola</code>。</li>
+<li><code>subslope_mola</code> 结束前释放 <code>theta_mola/psi_mola</code>。</li>
+<li>当 <code>rfz=.false.</code> 时走正常 MOLA 统计；源码保留 <code>rfz</code> 特殊测试分支但常量关闭。</li>
+<li>若 <code>nslope==7</code>，将第 4 个分箱重设为 <code>1-sum(other bins)</code>，用于修正截断后的总和。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>在 <code>subslope_mola</code> 中按 64 px/degree 设置 MOLA 网格大小，分配坡度倾角和坡向数组。</li>
+<li>调用 <code>mola(datadir//"/",...)</code> 读取 <code>mola64.nc</code> 的 <code>alt</code> 变量。</li>
+<li><code>mola</code> 将 int16 高程转换为 real <code>topogrid</code>，调用 <code>getslopes_mola32</code>。</li>
+<li><code>getslopes_mola32</code> 构造 MOLA 经纬网格，在经向和纬向用中心差分计算地形梯度；经度边界周期处理，极区边界用对跖/半周索引处理。</li>
+<li>用 <code>atan(sqrt(gradx^2+grady^2))*180/pi</code> 得到坡度倾角，用梯度方向推导坡向并规范到 0-360 度。</li>
+<li>对每个 GCM 网格 <code>ig</code>，从 <code>boundslon/boundslat</code> 取西北和东南角，将弧度转为度。</li>
+<li>正常情况下调用 <code>slopes_stat</code>；测试分支 <code>rfz</code> 关闭。</li>
+<li><code>slopes_stat</code> 根据 GCM 经度框是否跨越 0/360 分成普通和跨界两种循环，映射到 MOLA i/j 索引范围。</li>
+<li>对范围内每个 MOLA 点计算 <code>crit=theta*cos(psi*pi/180)</code>，落入 <code>def_slope(k) &lt;= crit &lt; def_slope(k+1)</code> 的分箱计数。</li>
+<li>将计数除以统计点数得到比例，并截断到 6 位小数。</li>
+<li><code>subslope_mola</code> 写入 <code>subslope_dist(ig,k)</code>；若 <code>nslope==7</code>，用第 4 箱补足总和。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>allocate theta_mola, psi_mola
+read datadir/mola64.nc:alt
+topogrid = real(alt)
+compute theta_mola, psi_mola from topography gradients
+
+for each GCM cell ig:
+    lon1, lat1 = north-west boundary in degrees
+    lon2, lat2 = south-east boundary in degrees
+    if RFZ test enabled:
+        force bin 3 to 1
+    else:
+        map lon/lat bounds to MOLA index ranges
+        for each MOLA point inside the cell:
+            val = theta*cos(psi*pi/180)
+            increment the bin matching def_slope
+        slopes_dist = truncated bin counts / total count
+    subslope_dist(ig,:) = slopes_dist
+
+if nslope == 7:
+    make bin 4 the residual so all bins sum to 1
+print diagnostic max criterion and location
+deallocate MOLA arrays</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>newstart</code> 坡面数量修改</td>
+<td>在 <a href="newstart.html"><code>newstart</code></a> 的 <code>nslope</code> 分支中重算坡面分布，供后续 restart/start_archive 写出。</td>
+</tr>
+<tr>
+<td>坡面物理</td>
+<td>生成的 <code>subslope_dist</code> 被 <a href="../phymars/comslope_mod.html"><code>comslope_mod</code></a>、CO2 凝结、湍流和水循环坡面加权使用。</td>
+</tr>
+<tr>
+<td>MOLA 地形数据依赖</td>
+<td>直接依赖 <a href="../phymars/datafile_mod.html"><code>datafile_mod</code></a> 给出的 <code>datadir</code> 和其中的 <code>mola64.nc</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>模块内私有辅助例程没有显式 <code>PRIVATE/PUBLIC</code> 限定，默认公开。</li>
+<li>MOLA 网格分辨率在 <code>subslope_mola</code> 和 <code>slopes_stat</code> 中都硬编码为 64。</li>
+<li><code>slopes_stat</code> 将比例截断到 6 位小数；<code>nslope==7</code> 时再用中间分箱补残差。</li>
+<li><code>crit</code> 当前使用有符号坡向投影 <code>theta*cos(psi*pi/180)</code>，不是单纯坡度倾角。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>运行前必须有 <code>datadir/mola64.nc</code>，且变量名必须为 <code>alt</code>。</li>
+<li><code>boundslon/boundslat</code> 必须已经由几何初始化填好，并以弧度存储。</li>
+<li><code>def_slope</code> 应覆盖 <code>crit</code> 的可能范围；否则会出现 “some slopes within the square are out of criteria” 警告。</li>
+<li><code>ngridmx==1</code> 的 1D 路径在 <code>newstart</code> 中不会调用本例程。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>regular_lonlat_mod</code> 中多个导入方向常量未使用，是否为旧版本残留。</li>
+<li>极区边界差分的对跖索引公式是否只针对全球规则 MOLA 网格。</li>
+<li><code>crit=theta*cos(psi*pi/180)</code> 的物理解释需结合坡面辐射/坡向约定确认。</li>
+<li>当 <code>nb_slopes==0</code> 时源码没有显式保护，理论上会除零；是否由网格边界和 MOLA 分辨率保证至少一个点。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dynphy_lonlat 目录</a></li>
+<li><a href="newstart.html">newstart</a></li>
+<li><a href="../phymars/comslope_mod.html">comslope_mod</a></li>
+<li><a href="../phymars/slope_mod.html">slope_mod</a></li>
+<li><a href="../phymars/datafile_mod.html">datafile_mod</a></li>
+<li><a href="ini_archive.html">ini_archive</a></li>
+<li><a href="../phymars/phyredem.html">phyredem</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

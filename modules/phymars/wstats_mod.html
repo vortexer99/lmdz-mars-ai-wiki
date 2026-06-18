@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>wstats_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/wstats_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="wstats_modf90">wstats_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\wstats_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>wstats_mod.F90</code> 实现传统统计诊断文件 <code>stats.nc</code> 的生成流程。它不是逐时间步保存瞬时场，而是在每个 sol 固定保存 <code>istime=12</code> 个本地时刻槽位，对调用方传入的 2D/3D 字段累加和、平方和，最后由 <code>mkstats</code> 原地改写为平均值和总标准差。<code>physiq_mod.F</code> 中的 WSTATS 段按固定顺序调用 <code>wstats</code> 输出地表、辐射、动力、尘埃、水循环、CO2 和 tracer 诊断，并在 <code>lastcall.and.callstats</code> 时调用 <code>mkstats</code> 完成归一化。</p>
+<p>模块级开关 <code>callstats</code> 由 <code>conf_phys.F</code> 读取 <code>callstats</code> 配置键初始化。若 <code>callstats=.false.</code>，<code>wstats</code> 立即返回；若运行目录存在 <code>stats.def</code>，则只有列在文件中的变量会进入 <code>stats.nc</code>。源码只处理结构化经纬网格，<code>grid_type==unstructured</code> 时直接返回。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>wstats_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>保存 <code>stats.nc</code> 统计输出开关、采样状态和相关例程。</td>
+</tr>
+<tr>
+<td><code>callstats</code></td>
+<td>saved logical</td>
+<td>9</td>
+<td>控制是否生成 <code>stats.nc</code>，由 <code>conf_phys</code> 读取配置。</td>
+</tr>
+<tr>
+<td><code>istats</code></td>
+<td>saved integer</td>
+<td>13</td>
+<td>每隔多少个物理时间步累加一次统计，由 <code>inistats</code> 计算。</td>
+</tr>
+<tr>
+<td><code>istime</code></td>
+<td>integer parameter</td>
+<td>17</td>
+<td>每个 sol 的统计时刻槽位数量，固定为 12。</td>
+</tr>
+<tr>
+<td><code>count(istime)</code></td>
+<td>saved integer array</td>
+<td>19</td>
+<td>每个时刻槽位累计了多少个样本。</td>
+</tr>
+<tr>
+<td><code>wstats</code></td>
+<td>subroutine</td>
+<td>24</td>
+<td>按变量逐次累加 <code>stats.nc</code> 中的和与平方和字段。</td>
+</tr>
+<tr>
+<td><code>inistats</code></td>
+<td>subroutine</td>
+<td>479</td>
+<td>创建 <code>stats.nc</code>，写经纬度、高度、hybrid sigma 坐标和采样间隔。</td>
+</tr>
+<tr>
+<td><code>inivar</code></td>
+<td>subroutine</td>
+<td>628</td>
+<td>新变量首次创建时写入初始样本。</td>
+</tr>
+<tr>
+<td><code>def_var_stats</code></td>
+<td>subroutine</td>
+<td>749</td>
+<td>在 <code>stats.nc</code> 中定义变量并写 <code>title/units</code> 属性。</td>
+</tr>
+<tr>
+<td><code>mkstats</code></td>
+<td>subroutine</td>
+<td>813</td>
+<td>结束时把累加量原地转换为平均值和标准差。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_mpi_root</code>, <code>is_master</code>, <code>klon_mpi_begin</code></td>
+<td>限制 NetCDF 写入到 master/root；<code>klon_mpi_begin</code> 在当前源码中未使用。</td>
+<td><code>klon_mpi_begin</code> 是否历史遗留待确认。</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td><code>gather</code>, <code>bcast</code></td>
+<td>并行收集字段，广播 <code>stats.def</code> 筛选信息。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>klon_glo</code>, <code>Grid1Dto2D_glo</code>, <code>nbp_lon</code>, <code>nbp_lat</code>, <code>nbp_lev</code>, <code>grid_type</code>, <code>unstructured</code></td>
+<td>网格尺寸、结构化网格检查和物理网格到经纬网格重排。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>vertical_layers_mod</code></td>
+<td><code>ap</code>, <code>bp</code>, <code>aps</code>, <code>bps</code>, <code>preff</code>, <code>pseudoalt</code>, <code>presnivs</code></td>
+<td><code>inistats</code> 写垂直坐标和 pseudo-altitude。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>nrtype</code></td>
+<td><code>pi</code></td>
+<td>经纬度弧度转度。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>daysec</code>, <code>dtphys</code></td>
+<td>计算每 sol 物理步数和 <code>istats</code>。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>regular_lonlat_mod</code></td>
+<td><code>lon_reg</code>, <code>lat_reg</code></td>
+<td>写 <code>stats.nc</code> 经纬度坐标。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inistats</code></td>
+<td>本文件</td>
+<td><code>wstats</code> 首次有效调用</td>
+<td>创建 <code>stats.nc</code> 并写固定坐标。</td>
+</tr>
+<tr>
+<td><code>inivar</code></td>
+<td>本文件</td>
+<td>新变量首次创建</td>
+<td>为平均量和平方和变量写第一帧样本。</td>
+</tr>
+<tr>
+<td><code>def_var_stats</code></td>
+<td>本文件</td>
+<td><code>inistats</code> 与 <code>wstats</code></td>
+<td>定义坐标或诊断变量并写属性。</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部错误处理</td>
+<td>多处错误分支</td>
+<td><code>stats.def</code> 过长、时间步不整除、NetCDF 读写失败时中止。</td>
+</tr>
+<tr>
+<td><code>gather</code>, <code>Grid1Dto2D_glo</code></td>
+<td>并行/网格模块</td>
+<td>并行 <code>dim=2/3</code> 路径</td>
+<td>把局地物理网格字段收集并重排为全局经纬网格。</td>
+</tr>
+<tr>
+<td>NetCDF <code>NF_*</code></td>
+<td>NetCDF F77 接口</td>
+<td>多处</td>
+<td>创建、打开、关闭、定义、读写 <code>stats.nc</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>callstats</code></td>
+<td><code>conf_phys.F</code> / <code>callphys.def</code></td>
+<td>logical</td>
+<td>-</td>
+<td>是否启用 <code>stats.nc</code>。</td>
+</tr>
+<tr>
+<td><code>stats.def</code></td>
+<td>运行目录可选文件</td>
+<td>text file</td>
+<td>-</td>
+<td>若存在，仅输出列出的变量。</td>
+</tr>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>wstats</code> 调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>当前物理网格点数。</td>
+</tr>
+<tr>
+<td><code>nom</code>, <code>titre</code>, <code>unite</code></td>
+<td><code>wstats</code> 调用方</td>
+<td>character</td>
+<td>-</td>
+<td>变量名、标题和单位。</td>
+</tr>
+<tr>
+<td><code>dim</code></td>
+<td><code>wstats</code> 调用方</td>
+<td>integer 2/3</td>
+<td>-</td>
+<td>诊断变量维度码；源码实际只处理 2D 和 3D。</td>
+</tr>
+<tr>
+<td><code>px(ngrid,nbp_lev)</code></td>
+<td><code>wstats</code> 调用方</td>
+<td>real array</td>
+<td>variable-dependent</td>
+<td>待累加诊断场。</td>
+</tr>
+<tr>
+<td><code>daysec</code>, <code>dtphys</code></td>
+<td>时间模块</td>
+<td>real</td>
+<td>seconds</td>
+<td>用于计算一个 sol 有多少物理步，以及每个统计槽位间隔。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>stats.nc</code></td>
+<td>当前运行目录</td>
+<td>NetCDF file</td>
+<td>-</td>
+<td>统计日诊断文件。</td>
+</tr>
+<tr>
+<td><code>Time</code></td>
+<td><code>stats.nc</code></td>
+<td><code>istime</code> 个写入点</td>
+<td>hours</td>
+<td><code>mkstats</code> 写入 <code>i*24/istime</code> 的日内时刻。</td>
+</tr>
+<tr>
+<td><code>&lt;nom&gt;</code></td>
+<td><code>stats.nc</code></td>
+<td>2D 或 3D + <code>Time</code></td>
+<td><code>unite</code></td>
+<td>运行结束后为样本平均值；结束前暂为样本和。</td>
+</tr>
+<tr>
+<td><code>&lt;nom&gt;_sd</code></td>
+<td><code>stats.nc</code></td>
+<td>2D 或 3D + <code>Time</code></td>
+<td><code>unite</code></td>
+<td>运行结束后为标准差；结束前暂为平方和。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>callstats</code>、<code>istats</code>、<code>count</code>、<code>firstvar</code>、<code>firstcall</code>、<code>indx</code>、<code>step</code> 和 <code>stats.def</code> 筛选状态均为 <code>SAVE</code> / <code>THREADPRIVATE</code>。</li>
+<li>第一次有效 <code>wstats</code> 调用以 <code>NF_CLOBBER,NF_64BIT_OFFSET</code> 创建 <code>stats.nc</code>，会覆盖同名文件。</li>
+<li><code>wstats</code> 对每个变量反复打开、读、写、关闭 <code>stats.nc</code>；新变量首次出现时先创建 <code>&lt;nom&gt;</code> 和 <code>&lt;nom&gt;_sd</code> 两个变量。</li>
+<li><code>mkstats</code> 会原地覆盖 <code>stats.nc</code> 中的累加量，把 <code>&lt;nom&gt;</code> 改成均值，把 <code>&lt;nom&gt;_sd</code> 改成标准差。</li>
+<li><code>grid_type==unstructured</code> 直接返回，不生成统计输出。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>wstats</code> 首先检查 <code>callstats</code> 和 <code>grid_type</code>，关闭统计或非结构网格时直接返回。</li>
+<li>首次检查 <code>stats.def</code>：master 读取变量名单，再广播 <code>stats_def/n_name_def/name_def</code>。</li>
+<li><code>firstcall</code> 阶段确定 <code>firstvar</code>。若存在 <code>stats.def</code>，第一个被列入的变量才会成为 <code>firstvar</code>；否则第一个调用变量就是 <code>firstvar</code>。</li>
+<li>首次有效调用执行 <code>inistats</code>：检查 <code>daysec/dtphys</code> 是整数物理步数，且能被 <code>istime=12</code> 整除，计算 <code>istats=nsteppd/istime</code>，创建 <code>stats.nc</code> 和固定坐标。</li>
+<li>每次回到 <code>firstvar</code> 时递增 <code>step</code>；只有 <code>mod(step,istats)==0</code> 时才继续累加。</li>
+<li>按 <code>stats.def</code> 二次筛选变量；未列入变量返回。</li>
+<li>对 2D/3D 字段进行并行 gather 或串行经纬重排，得到带冗余经度点的 <code>dx2/dx3</code>。</li>
+<li>若变量尚不存在，定义 <code>&lt;nom&gt;</code> 与 <code>&lt;nom&gt;_sd</code>，用 <code>inivar</code> 写第一帧并返回。</li>
+<li>若变量已存在，读取当前槽位累加量，更新 <code>count(indx)</code>，累加 <code>sum += dx</code> 和 <code>square += dx**2</code>。</li>
+<li>最后 <code>mkstats</code> 遍历所有变量和 <code>istime</code> 槽位，写 <code>Time</code>，并把 <code>sum/count</code> 与 <code>sqrt(max(0,square/count-mean**2))</code> 写回文件。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>wstats(ngrid, nom, titre, unite, dim, px):
+  if not callstats or unstructured grid:
+    return
+  on first stats.def check:
+    master reads optional stats.def
+    broadcast selected names
+  on first valid variable:
+    choose firstvar
+    call inistats()
+    allocate mean/sd/dx buffers
+  if nom == firstvar:
+    step += 1
+  if step is not on an istats boundary:
+    return
+  if stats.def exists and nom is not listed:
+    return
+  gather/recast px to lon-lat dx field
+  open stats.nc
+  if variable does not exist:
+    define nom and nom_sd
+    initialize first sample with inivar()
+    close and return
+  update count and current time-slot index
+  read previous sum and square sum
+  write sum + dx and square + dx**2
+  close stats.nc
+
+mkstats():
+  increment last count slot
+  for each variable pair in stats.nc:
+    for each of 12 time slots:
+      mean = sum / count
+      sd = sqrt(max(0, square / count - mean**2))
+      overwrite stats.nc values</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>传统统计诊断</td>
+<td>生成 <code>stats.nc</code>，供离线分析和后处理工具读取统计日字段。</td>
+</tr>
+<tr>
+<td>CO2 / 水循环 / 尘埃诊断</td>
+<td><code>physiq</code> 在相关分支调用 <code>wstats</code> 输出柱积分、混合比、光学厚度和微物理诊断。</td>
+</tr>
+<tr>
+<td>配置系统</td>
+<td><code>conf_phys</code> 读取 <code>callstats</code>，<code>stats.def</code> 在运行目录中进一步筛选输出变量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>stats.nc</code> 中变量在运行结束前不是最终均值，而是累加和/平方和；必须执行 <code>mkstats</code> 后才是页面语义上的统计量。</li>
+<li><code>Time</code> 不是模拟绝对时间，而是统计日内 12 个槽位的小时值。</li>
+<li>2D 变量写入使用 3 个维度，源码把 <code>start/sizes</code> 的第 4 个元素设为 0；这是为了复用固定长度数组，需依赖 NetCDF F77 调用只读取实际维数。</li>
+<li><code>firstvar</code> 绑定调用顺序；若 <code>stats.def</code> 排除了 <code>physiq</code> 中靠前变量，<code>firstvar</code> 会变成第一个被允许的变量。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>daysec/dtphys</code> 必须接近整数，且 <code>nsteppd</code> 必须能被 <code>istime=12</code> 整除，否则 <code>inistats</code> 直接中止。</li>
+<li><code>mkstats</code> 必须在最后一次物理调用后执行；源码在 <code>physiq_mod.F</code> 的 <code>lastcall.and.callstats</code> 分支调用。</li>
+<li>若使用 <code>stats.def</code>，必须保持每个物理步的首个允许变量一致，否则 <code>step/indx/count</code> 槽位推进会错位。</li>
+<li>当前源码实际只处理 <code>dim=2</code> 和 <code>dim=3</code>；不要把 0D/1D 字段直接交给 <code>wstats</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>klon_mpi_begin</code> 在 <code>wstats</code> 的 <code>use mod_phys_lmdz_para</code> 中导入但未见使用，可能是历史遗留。</li>
+<li><code>mkstats</code> 中 <code>count(istime)=count(istime)+1</code> 用来补最后一步计数；该补偿对所有调用序列是否都严格正确，需结合 <code>physiq</code> 最后一次调用顺序运行核验。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../architecture/config-system.html">config-system</a></li>
+<li><a href="../../routines/physiq-water-cycle-callpoints.html">physiq-water-cycle-callpoints</a></li>
+<li><a href="../../routines/physiq-co2-cycle-callpoints.html">physiq-co2-cycle-callpoints</a></li>
+<li><a href="../util/zrecast.html">zrecast</a></li>
+<li><a href="../util/simu_MCS.html">simu_MCS</a></li>
+<li><a href="time_phylmdz_mod.html">time_phylmdz_mod</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

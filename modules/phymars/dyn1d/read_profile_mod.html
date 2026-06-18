@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>read_profile_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../../index.html">主页</a>
+        <a href="../../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../../libf-overview.html">模块</a>
+        <a href="../../../themes/index.html">主题</a>
+        <a href="../../../routines/index.html">例程</a>
+        <a href="../../../reference/file-index.html">文件索引</a>
+        <a href="../../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dyn1d/read_profile_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dyn1dread_profile_modf90">dyn1d/read_profile_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d\read_profile_mod.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>read_profile_mod.F90</code> 是 1D <code>testphys1d</code> 初始化路径的 tracer 初始廓线读取模块。它根据 <a href="infotrac.html">infotrac</a> 中的 <code>tname</code> 逐个寻找运行目录下的 <code>profile_&lt;tracer&gt;</code> ASCII 文件，把地表储量和大气层混合比写入 <code>qsurf</code>、<code>q</code>。缺少文件时，它为 CO2、HDO 和尘埃提供特殊默认初始化，其余 tracer 保持 0。</p>
+<p>本文件只处理 tracer 廓线；温度廓线由 <a href="profile_temp_mod.html">profile_temp_mod</a> 单独生成。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read_profile_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>包装 1D tracer profile 读取例程。</td>
+</tr>
+<tr>
+<td><code>read_profile</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">39-207</td>
+<td>读取 <code>profile_&lt;tracer&gt;</code> 文件，填充 <code>qsurf(nb_tracer)</code> 和 <code>q(nb_layer,nb_tracer)</code>，并处理缺文件默认值。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="接口">接口</h2>
+<table>
+<thead>
+<tr>
+<th>实参</th>
+<th>方向</th>
+<th>维度/单位</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nb_tracer</code></td>
+<td>输入</td>
+<td>integer</td>
+<td><code>traceur.def</code> 读取出的 tracer 数量。</td>
+</tr>
+<tr>
+<td><code>nb_layer</code></td>
+<td>输入</td>
+<td>integer</td>
+<td>大气层数。</td>
+</tr>
+<tr>
+<td><code>qsurf(nb_tracer)</code></td>
+<td>输出</td>
+<td>kg m-2</td>
+<td>每个 tracer 的地表储量或地表值；先整体置 0。</td>
+</tr>
+<tr>
+<td><code>q(nb_layer,nb_tracer)</code></td>
+<td>输出</td>
+<td>kg kg-1 atmosphere</td>
+<td>每层 tracer 混合比；先整体置 0。</td>
+</tr>
+<tr>
+<td><code>play(nb_layer)</code></td>
+<td>输入</td>
+<td>Pa</td>
+<td>层中压力；尘埃 Conrath 默认廓线使用。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="使用的模块状态">使用的模块状态</h2>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>符号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="infotrac.html">infotrac</a></td>
+<td><code>tname</code></td>
+<td>当前 1D tracer 名称列表；用于构造文件名和识别特殊 tracer。</td>
+</tr>
+<tr>
+<td><a href="../tracer_mod.html">tracer_mod</a></td>
+<td><code>igcm_co2</code>, <code>igcm_h2o_vap</code>, <code>igcm_h2o_ice</code>, <code>igcm_dust_number</code>, <code>igcm_dust_mass</code>, <code>igcm_ccn_number</code>, <code>igcm_ccn_mass</code></td>
+<td>当对应 <code>profile_*</code> 文件存在时，写入这些物理 tracer 索引。</td>
+</tr>
+<tr>
+<td><code>aeropacity_mod</code></td>
+<td><code>topdustref</code></td>
+<td>Conrath dust 默认廓线的垂直尺度参数。</td>
+</tr>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td><code>odpref</code></td>
+<td>Conrath dust 默认廓线使用的参考压力。</td>
+</tr>
+<tr>
+<td><a href="../comcstfi_h.html">comcstfi_h</a></td>
+<td><code>pi</code></td>
+<td>lifted dust 质量到数浓度换算。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="文件格式">文件格式</h2>
+<p>对每个 tracer 名 <code>trim(tname(iq))</code>，例程尝试打开：</p>
+<pre class="text"><code>profile_&lt;tracer&gt;</code></pre>
+<p>文件存在时的读取顺序是：</p>
+<pre class="text"><code>line 1             qsurf(iq)
+line 2..nb_layer+1 q(1:nb_layer, iq)</code></pre>
+<p><code>util/extractcolumnfor1D.F90</code> 生成同名文件时也按这个顺序写：先写 surface 值，再逐层写变量值；如果找不到 surface 变量，则用第一层大气值代替 surface。</p>
+<h2 id="主流程">主流程</h2>
+<ol type="1">
+<li>把 <code>q(:,:)</code>、<code>qsurf(:)</code> 置 0，并清空本地 <code>name_tracer</code>。</li>
+<li>扫描 <code>tname</code>，记录 <code>h2o_vap/h2o_ice/hdo_vap/hdo_ice/dust_mass/dust_number</code> 在 <code>nb_tracer</code> 维中的位置。</li>
+<li>对每个 tracer：
+<ul>
+<li>打印 tracer 名。</li>
+<li>打开 <code>profile_&lt;name&gt;</code>。</li>
+<li>若打开成功，先读 <code>qsurf(iq)</code>，再读 <code>nb_layer</code> 行 <code>q(ilayer,iq)</code>。</li>
+<li>若 tracer 名是 <code>co2/h2o_vap/h2o_ice/dust_number/dust_mass/ccn_number/ccn_mass</code>，在文件存在分支中同步写入对应 <code>tracer_mod::igcm_*</code> 索引。</li>
+<li>若打开失败，打印 warning，再按 tracer 名进入缺文件默认分支。</li>
+</ul></li>
+<li>所有 tracer 扫描结束后，若 HDO 或 dust 标志被置位，再统一派生缺失的 HDO 或尘埃廓线。</li>
+</ol>
+<h2 id="缺文件默认值">缺文件默认值</h2>
+<table>
+<thead>
+<tr>
+<th>tracer</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>co2</code></td>
+<td><code>q(:,co2)=0.95</code>，<code>qsurf(co2)</code> 仍保持初始 0。</td>
+</tr>
+<tr>
+<td><code>hdo_vap</code></td>
+<td>设置 <code>hdo_vap=.true.</code>，循环结束后若存在 <code>h2o_vap</code>，令 <code>q(:,hdo_vap)=q(:,h2o_vap)*2*155.76e-6*5</code>。</td>
+</tr>
+<tr>
+<td><code>hdo_ice</code></td>
+<td>设置 <code>hdo_ice=.true.</code>，循环结束后若存在 <code>h2o_ice</code>，令 <code>qsurf(hdo_ice)</code> 和 <code>q(:,hdo_ice)</code> 等于对应 H2O ice 的 <code>2*155.76e-6*5</code> 倍。</td>
+</tr>
+<tr>
+<td><code>dust_mass</code> 或 <code>dust_number</code></td>
+<td>设置 <code>dust=.true.</code>，循环结束后用 Conrath dust 默认廓线同时写 <code>dust_mass</code> 和 <code>dust_number</code>。</td>
+</tr>
+<tr>
+<td>其他 tracer</td>
+<td>保持初始化的 <code>q=0</code>、<code>qsurf=0</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="conrath-dust-默认廓线">Conrath dust 默认廓线</h2>
+<p>当 <code>dust=.true.</code> 时，源码先固定 lifted dust 参数：</p>
+<pre class="text"><code>nueff_lift = 0.5
+reff_lift  = 3.e-6 m
+rho_dust   = 2500 kg m-3</code></pre>
+<p>再计算：</p>
+<pre class="text"><code>varian = sqrt(log(1 + nueff_lift))
+r3n_q = exp(-4.5*varian**2) * (3/4) / (pi*rho_dust)
+ref_r0 = exp(2.5*varian**2)
+r0_lift = reff_lift/ref_r0
+mass2number_lift = r3n_q/r0_lift**3
+zp = (odpref/play(ilayer))**(70/topdustref)
+q(dust_mass) = max(exp(0.007*(1 - max(zp,1))), 1.e-3)
+q(dust_number) = q(dust_mass) * mass2number_lift</code></pre>
+<p>这里 <code>play</code> 是层中压力；压力越低时 <code>zp</code> 增大，指数项降低，但质量混合比有 <code>1.e-3</code> 下限。</p>
+<h2 id="调用关系">调用关系</h2>
+<table>
+<thead>
+<tr>
+<th>方向</th>
+<th>符号/文件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>调用方</td>
+<td><a href="init_testphys1d_mod.html">init_testphys1d_mod</a></td>
+<td>无 <code>start1D.txt</code> 时调用 <code>read_profile(nq,nlayer,qsurf(1,:,1),q,play)</code>，再把 <code>qsurf</code> 复制到所有 slope。</td>
+</tr>
+<tr>
+<td>生成同格式文件</td>
+<td><a href="../../util/extractcolumnfor1D.html">extractcolumnfor1D</a></td>
+<td>从 GCM NetCDF 输出抽取单柱变量，写 <code>profile_&lt;var&gt;</code> 文件供 1D 初始化使用。</td>
+</tr>
+<tr>
+<td>相邻温度初始化</td>
+<td><a href="profile_temp_mod.html">profile_temp_mod</a></td>
+<td>温度 profile 独立生成；不经过本例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li><code>profile_&lt;tracer&gt;</code> 文件名直接来自 <code>tname</code>，包括大小写和下划线；文件名不做别名映射。</li>
+<li>文件第一行是 <code>qsurf</code>，不是第一层大气值；这与 <code>extractcolumnfor1D</code> 的写出格式一致。</li>
+<li>缺文件并不会停止，除了后续特殊初始化可能因缺少对应 tracer 索引而出错；普通 tracer 缺文件就是全 0。</li>
+<li><code>tracer_mod::igcm_*</code> 索引只在对应 profile 文件存在时写入；若 CO2 或 H2O 文件缺失，索引是否已由其他初始化路径设置需结合 <a href="../tracer_mod.html">tracer_mod</a> 和 <a href="init_testphys1d_mod.html">init_testphys1d_mod</a> 复核。</li>
+<li>若只配置了 <code>dust_mass</code> 或只配置了 <code>dust_number</code>，但缺文件触发 <code>dust=.true.</code>，源码仍会写两个 dust 索引；缺失另一 tracer 名时存在越界风险。</li>
+<li>HDO 派生依赖主同位素索引存在；若 <code>hdo_vap</code> 缺文件但没有 <code>h2o_vap</code> tracer，源码不会派生 HDO vap，保持 0。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前常用 1D 案例中哪些 tracer 依赖 <code>profile_&lt;tracer&gt;</code> 文件、哪些依赖默认值，需要结合具体运行目录确认。</li>
+<li><code>igcm_*</code> 索引只在文件存在分支写入是否有意设计；缺文件默认 CO2/HDO/dust 路径可能依赖别处已完成的索引初始化。</li>
+<li>单 dust tracer 缺另一 dust tracer 时的索引 0 风险需要代码维护者确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn1d/index.md</a> - dyn1d 子目录索引。</li>
+<li><a href="init_testphys1d_mod.html">init_testphys1d_mod</a> - 调用本例程的 1D 初始化入口。</li>
+<li><a href="profile_temp_mod.html">profile_temp_mod</a> - 温度廓线构造。</li>
+<li><a href="infotrac.html">infotrac</a> - <code>tname</code> 来源。</li>
+<li><a href="../tracer_mod.html">tracer_mod</a> - <code>igcm_*</code> tracer 索引。</li>
+<li><a href="../../util/extractcolumnfor1D.html">extractcolumnfor1D</a> - <code>profile_*</code> 文件生成工具。</li>
+<li><a href="testphys1d.html">testphys1d.F90</a> - 1D 主程序。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

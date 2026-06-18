@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>deposition - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/deposition.md</span>
+    </nav>
+    <article class="content">
+<h1 id="depositionf">deposition.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\deposition.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>deposition.F</code> 定义 <code>deposition_mod</code>，提供例程 <code>deposition</code>，名义上计算化学物种（甲烷）的<strong>干沉降</strong>。它按阻力相似法计算空气动力学阻力 <code>ra</code>、准层流阻力 <code>rb</code>、沉降速度 <code>vd</code> 与损失率 <code>loss</code>，并打印 Viking-1 网格点的诊断。</p>
+<p><strong>重要：当前源码中干沉降对成分的实际更新被注释掉（第 147 行），第 128-129 行的 6 小时测试 <code>loss/vd</code> 赋值也是注释行，不会覆盖第 124 行的 <code>loss=vd/deltaz</code>；冰覆盖守卫同样被注释（第 73 行）。</strong> 因此例程在当前状态下会计算 <code>ra/rb/vd/loss</code> 与诊断量，但不修改 <code>zycol</code>，仅在被 <code>depos</code> 开关启用、且 <code>ig==ig_vl1</code> 时打印诊断。该例程由 <code>calchim_mod</code> 在 <code>if (depos)</code> 下逐列调用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deposition_mod</code></td>
+<td>module</td>
+<td>1（<code>END MODULE</code> 183）</td>
+<td>包装干沉降例程的模块</td>
+</tr>
+<tr>
+<td><code>deposition</code></td>
+<td>subroutine</td>
+<td>7（<code>END SUBROUTINE</code> 181）</td>
+<td>计算（并当前仅诊断）化学物种干沉降</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>z0</code></td>
+<td>地表粗糙度，用于摩擦速度与阻力</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>conc_mod</code></td>
+<td><code>rnew</code></td>
+<td>比气体常数，用于密度 <code>rho=p/(rnew*T)</code></td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无外部例程</td>
+<td>-</td>
+<td>-</td>
+<td>仅用 Fortran intrinsics（<code>sqrt/log/exp</code>）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<p>参数均<strong>未声明 <code>intent</code></strong>（第 23–37 行），按变量名注释为输入：</p>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code>,<code>nlayer</code>,<code>nq</code></td>
+<td><code>calchim_mod</code></td>
+<td>integer</td>
+<td>-</td>
+<td>列数、层数、tracer 数</td>
+</tr>
+<tr>
+<td><code>ig</code></td>
+<td><code>calchim_mod</code> 循环</td>
+<td>integer</td>
+<td>-</td>
+<td>当前网格点索引</td>
+</tr>
+<tr>
+<td><code>ig_vl1</code></td>
+<td><code>calchim_mod</code></td>
+<td>integer</td>
+<td>-</td>
+<td>Viking-1 网格点，用于诊断打印</td>
+</tr>
+<tr>
+<td><code>pplay</code>,<code>pplev</code></td>
+<td><code>calchim_mod</code></td>
+<td>real <code>(ngrid,nlayer[,+1])</code></td>
+<td>Pa</td>
+<td>层中/界面气压</td>
+</tr>
+<tr>
+<td><code>zzlay</code>,<code>zzlev</code></td>
+<td><code>calchim_mod</code></td>
+<td>real <code>(ngrid,nlayer[,+1])</code></td>
+<td>m</td>
+<td>层中/界面高度</td>
+</tr>
+<tr>
+<td><code>zu</code>,<code>zv</code>,<code>zt</code></td>
+<td><code>calchim_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m/s, m/s, K</td>
+<td>风分量与温度</td>
+</tr>
+<tr>
+<td><code>zycol</code></td>
+<td><code>calchim_mod</code></td>
+<td>real <code>(nlayer,nq)</code></td>
+<td>vmr</td>
+<td>成分体积混合比（更新语句被注释，实际不改）</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td><code>calchim_mod</code></td>
+<td>real</td>
+<td>s</td>
+<td>物理时间步</td>
+</tr>
+<tr>
+<td><code>co2ice</code></td>
+<td><code>calchim_mod</code></td>
+<td>real <code>(ngrid)</code></td>
+<td>kg/m²</td>
+<td>CO2 冰地表量（仅在注释守卫中引用，活跃代码未用）</td>
+</tr>
+<tr>
+<td><code>z0</code></td>
+<td><code>surfdat_h</code></td>
+<td>real <code>(ngrid)</code></td>
+<td>m</td>
+<td>地表粗糙度</td>
+</tr>
+<tr>
+<td><code>rnew</code></td>
+<td><code>conc_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>J/kg/K</td>
+<td>比气体常数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>（名义）<code>zycol(1,iq)</code></td>
+<td><code>calchim_mod</code></td>
+<td>real</td>
+<td>第 1 层甲烷体积混合比衰减更新——<strong>当前被注释，不输出</strong></td>
+</tr>
+<tr>
+<td>诊断打印</td>
+<td>标准输出</td>
+<td>-</td>
+<td><code>ig==ig_vl1</code> 时打印 <code>z0/deltaz/vd/ra/rb/rho/...</code> 等</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>不读写模块级共享数组；不修改 <code>surfdat_h</code>/<code>conc_mod</code> 变量。</li>
+<li><code>zycol</code> 哑元无 <code>intent</code>，理论上可写，但唯一写语句（第 147 行）被注释，故实际不修改传入成分。</li>
+<li>标准输出副作用：当 <code>ig==ig_vl1</code> 时打印约 25 行诊断（第 149–177 行）。</li>
+<li>无文件 I/O、无 <code>abort</code>、无 <code>getin</code>。</li>
+<li>无 <code>SAVE/THREADPRIVATE</code> 变量（常量用 <code>DATA</code>：<code>karman=0.4</code>、<code>prandtl=0.72</code>、<code>mu0=14.8e-6</code>、<code>p0=1e5</code>）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>风与摩擦速度</strong>（第 77–81 行）：<code>ubar=sqrt(zu²+zv²)</code>；<code>ustar=ubar*karman/log(zzlay(ig,1)/z0(ig))</code>。</li>
+<li><strong>空气动力学阻力</strong>（第 85 行）：<code>ra=1/(karman*ustar)*log(zzlay(ig,1)/z0(ig))</code>。</li>
+<li><strong>CH4 分子扩散率</strong>（第 90 行，Massman 1998）：<code>d=0.1952*(p0/pplay(ig,1))*(zt(ig,1)/273.15)**1.81</code>。</li>
+<li><strong>Sutherland 动力粘度</strong>（第 95–96 行）：<code>mu=mu0*(293.15+240)/(zt+240)*(zt/293.15)**(3/2)</code>。</li>
+<li><strong>密度与运动粘度</strong>（第 100、104 行）：<code>rho=pplay/(rnew*zt)</code>；<code>nu=mu/rho*1e4</code>（cm²/s）。</li>
+<li><strong>Schmidt 数与准层流阻力</strong>（第 108、112 行）：<code>schmidt=nu/d</code>；源码字面为 <code>rb=(2/(karman*ustar))*(schmidt/prandtl)**2./3.</code>，即先平方再除以 3。</li>
+<li><strong>沉降速度与损失率</strong>（第 116、120、124 行）：<code>vd=1/(ra+rb)</code>；<code>deltaz=zzlev(ig,2)-zzlev(ig,1)</code>；<code>loss=vd/deltaz</code>。</li>
+<li><strong>【关键】测试行被注释</strong>（第 128–129 行）：<code>c        loss=1./(3600.*6.)</code> 与 <code>c        vd=loss*deltaz</code> 均为注释，不执行；活跃损失率仍是第 124 行 <code>loss=vd/deltaz</code>。</li>
+<li><strong>诊断量</strong>（第 131–139 行）：<code>nuch4=sqrt(8*8.31*zt/(pi*16e-3))</code>（CH4 热速度）；<code>tau=6*3600</code>；<code>gravity=3.7</code>；<code>dp=pplev(ig,1)-pplev(ig,2)</code>；<code>cd=(karman/log(zzlay/z0))²</code>；<code>gam=(4/nuch4)*dp/(tau*gravity*rho-1/(cd*ubar))</code>（仅打印，不应用）。</li>
+<li><strong>【关键】甲烷更新被注释</strong>（第 143、147 行）：<code>iq=12</code>；<code>c  zycol(1,iq)=zycol(1,iq)*exp(-loss*ptimestep)</code>——更新语句被注释。</li>
+<li><strong>诊断打印</strong>（第 149–177 行）：<code>ig==ig_vl1</code> 时打印各量。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>deposition(ngrid,nlayer,nq,ig,ig_vl1,pplay,pplev,zzlay,zzlev,zu,zv,zt,zycol,ptimestep,co2ice):
+  # NB: the ice-uncovered guard (watercaptag/co2ice) is commented out -&gt; runs always
+  ubar  = sqrt(zu(ig,1)**2 + zv(ig,1)**2)
+  ustar = ubar*karman/log(zzlay(ig,1)/z0(ig))
+  ra    = log(zzlay(ig,1)/z0(ig))/(karman*ustar)
+  d     = 0.1952*(p0/pplay(ig,1))*(zt(ig,1)/273.15)**1.81      # CH4 diffusivity
+  mu    = mu0*(293.15+240)/(zt(ig,1)+240)*(zt(ig,1)/293.15)**1.5
+  rho   = pplay(ig,1)/(rnew(ig,1)*zt(ig,1))
+  nu    = mu/rho*1e4
+  schmidt = nu/d
+  rb    = (2/(karman*ustar))*((schmidt/prandtl)**2)/3
+  vd    = 1/(ra+rb)
+  deltaz = zzlev(ig,2)-zzlev(ig,1)
+  loss  = vd/deltaz
+  # commented test lines in source, inactive:
+  # loss = 1/(3600*6)
+  # vd   = loss*deltaz
+  nuch4 = sqrt(8*8.31*zt(ig,1)/(pi*16e-3))
+  tau=6*3600; gravity=3.7; dp=pplev(ig,1)-pplev(ig,2)
+  cd=(karman/log(zzlay(ig,1)/z0(ig)))**2
+  gam=(4/nuch4)*dp/(tau*gravity*rho - 1/(cd*ubar))   # diagnostic only
+  iq=12   # methane
+  # zycol(1,iq) = zycol(1,iq)*exp(-loss*ptimestep)   # COMMENTED OUT -&gt; no update
+  if ig == ig_vl1: print diagnostics</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>光化学 / 干沉降</td>
+<td><code>calchim_mod</code> 在 <code>if (depos)</code> 下逐列调用；当前 <code>depos</code> 默认 <code>.false.</code>，且即使启用也不修改成分（更新被注释）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 <code>.F</code>（续行第 6 列 <code>&amp;</code>/<code>$</code>）。</li>
+<li><strong>冰覆盖守卫被注释</strong>（第 73、179 行）：原 <code>if ((.not.watercaptag(ig)).and.(co2ice(ig).eq.0.))</code> 被关闭，例程对所有格点执行。</li>
+<li><strong>6 小时测试赋值被注释</strong>（第 128–129 行）：<code>loss=1/(3600*6)</code> 与 <code>vd=loss*deltaz</code> 不执行；活跃代码保留 <code>ra/rb/schmidt/vd/loss</code> 计算结果。</li>
+<li><strong>成分更新被注释</strong>（第 147 行）：<code>zycol(1,iq)=...</code> 不执行，例程不改变成分。</li>
+<li>硬编码常数：<code>gravity=3.7</code>（未用 <code>comcstfi_h:g</code>）、<code>iq=12</code>（甲烷 tracer 索引硬编码）、<code>karman=0.4</code>、<code>prandtl=0.72</code>、<code>mu0=14.8e-6</code>、<code>p0=1e5</code>、<code>tau=6*3600</code>。</li>
+<li>哑元无 <code>intent</code> 声明；<code>co2ice</code> 仅在注释守卫中引用（活跃代码未用）；<code>gam</code> 计算后仅打印。</li>
+<li>诊断量 <code>nuch4/tau/gravity/dp/cd/gam</code> 不进入任何成分更新。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>depos</code> 开关默认 <code>.false.</code>（<code>calchim_mod</code> 第 250 行），干沉降默认不调用。</li>
+<li>即使 <code>depos=true</code>，当前源码也不修改 <code>zycol</code>（更新注释），但会按阻力相似法计算 <code>vd</code> 与 <code>loss=vd/deltaz</code>；第 128–129 行 6 h 测试赋值是注释，不参与复现。</li>
+<li>若要恢复实际成分干沉降，需取消第 147 行更新注释，并视需要恢复第 73 行冰覆盖守卫；这些改动属源码修改，不在本 wiki 任务范围。</li>
+<li><code>iq=12</code> 假定甲烷 tracer 在第 12 位；tracer 顺序变化会导致错索引。</li>
+<li><code>gravity=3.7</code> 为火星 g 硬编码，与 <code>comcstfi_h:g</code> 解耦。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>干沉降更新与冰覆盖守卫被注释，是临时调试状态还是有意停用——待开发者确认设计意图。</li>
+<li><code>iq=12</code> 甲烷 tracer 索引是否与当前 <code>tracer_mod</code> 顺序一致（待 <code>calchim_mod</code>/<code>tracer_mod</code> 文件页确认）。</li>
+<li><code>gam</code> 量的物理含义与是否曾用于更新成分（当前仅打印）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览，本文件在其“加热与传导”分类下（实为干沉降）。</li>
+<li><a href="../phymars/surfdat_h.html">surfdat_h</a>：提供地表粗糙度 <code>z0</code>。</li>
+<li><a href="../phymars/conc_mod.html">conc_mod</a>：提供比气体常数 <code>rnew</code>。</li>
+<li><a href="calchim_mod.html">calchim_mod</a>：调用方文件页，含 <code>depos</code> 开关与 <code>ig_vl1</code> 设置（第 797 行赋值被注释）。</li>
+<li><a href="../phymars/tracer_mod.html">tracer_mod.md</a>：确认甲烷 tracer 索引。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

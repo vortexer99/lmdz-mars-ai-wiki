@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>extractcolumnfor1D - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/extractcolumnfor1D.md</span>
+    </nav>
+    <article class="content">
+<h1 id="extractcolumnfor1df90">extractcolumnfor1D.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util\extractcolumnfor1D.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>extractcolumnfor1D.F90</code> 是一个命令行列抽取工具。它从 <code>diagfi.nc</code>、<code>stats.nc</code> 或类似的 GCM NetCDF 输出中，按用户给定的经度索引、纬度索引和时间索引抽取一个垂直廓线，并为变量列表中的每个变量写出一个 ASCII <code>profile_&lt;var&gt;</code> 文件，供 1D 物理测试配置或手工检查使用。</p>
+<p>源码按数组索引读取，不做经纬度值查找，也不做时间或垂直插值。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>extractcolumnfor1D</code></td>
+<td>program</td>
+<td>1</td>
+<td>主程序；解析命令行，读取 NetCDF 变量列，写出 <code>profile_*</code> 文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖">依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>use netcdf</code></td>
+<td>使用现代 NetCDF Fortran <code>nf90_*</code> API 读取输入文件。</td>
+</tr>
+<tr>
+<td><code>command_argument_count</code> / <code>get_command_argument</code></td>
+<td>解析 <code>-i/-j/-l/-v infile</code> 命令行参数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="命令行接口">命令行接口</h2>
+<pre class="text"><code>extractcolumnfor1D.e -i # -j # -l # -v list_of_variables infile</code></pre>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-i #</code></td>
+<td>经度索引，直接作为 NetCDF <code>longitude</code> 维的 1-based start index。</td>
+</tr>
+<tr>
+<td><code>-j #</code></td>
+<td>纬度索引，直接作为 NetCDF <code>latitude</code> 维的 1-based start index。</td>
+</tr>
+<tr>
+<td><code>-l #</code></td>
+<td>时间索引，直接作为 NetCDF <code>Time</code> 维的 1-based start index。</td>
+</tr>
+<tr>
+<td><code>-v list</code></td>
+<td>逗号分隔变量名列表，例如 <code>temp,u,v</code>。</td>
+</tr>
+<tr>
+<td><code>infile</code></td>
+<td>输入 NetCDF 文件。</td>
+</tr>
+</tbody>
+</table>
+<p>程序要求参数总数严格为 9；多或少都会停止。选项顺序由循环按 <code>-i/-j/-l/-v</code> 成对解析，最后一个参数固定为输入文件名。</p>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>类型/维度</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>longitude</code></td>
+<td>dimension</td>
+<td>必需；只读取长度以确认文件结构。</td>
+</tr>
+<tr>
+<td><code>latitude</code></td>
+<td>dimension</td>
+<td>必需；只读取长度以确认文件结构。</td>
+</tr>
+<tr>
+<td><code>altitude</code></td>
+<td>dimension</td>
+<td>必需；决定输出廓线层数 <code>altlen</code>。</td>
+</tr>
+<tr>
+<td><code>Time</code></td>
+<td>dimension</td>
+<td>必需；用于 <code>timeindex</code> 读取。</td>
+</tr>
+<tr>
+<td><code>var(lon,lat,alt,Time)</code></td>
+<td>NetCDF variable</td>
+<td><code>-v</code> 列表中每个变量应为 4D 场；源码用 <code>start=[i,j,1,l]</code>、<code>count=[1,1,altlen,1]</code> 读取。</td>
+</tr>
+<tr>
+<td><code>var_s(lon,lat,Time)</code></td>
+<td>NetCDF variable，可缺失</td>
+<td>对应地表变量；缺失时用第一层值代替。</td>
+</tr>
+<tr>
+<td><code>tsurf(lon,lat,Time)</code></td>
+<td>NetCDF variable，可缺失</td>
+<td>当变量名为 <code>temp</code> 时，地表值变量名特殊映射为 <code>tsurf</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>格式</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>profile_&lt;var&gt;</code></td>
+<td>ASCII</td>
+<td>第一行是地表值，之后每行一个垂直层值，共 <code>altlen+1</code> 行。</td>
+</tr>
+<tr>
+<td>stdout</td>
+<td>文本</td>
+<td>输入文件、变量列表、缺失变量或写出文件提示。</td>
+</tr>
+</tbody>
+</table>
+<p>输出文件使用固定文件名 <code>profile_&lt;var&gt;</code> 打开，已有同名文件会被覆盖。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>参数检查</strong>：要求 <code>command_argument_count()==9</code>，否则打印 usage 并停止。</li>
+<li><strong>解析选项</strong>：读取 <code>-i</code>、<code>-j</code>、<code>-l</code>、<code>-v</code> 的值；最后一个参数作为输入文件。</li>
+<li><strong>打开 NetCDF</strong>：用 <code>nf90_open(infile,NF90_NOWRITE,inid)</code>。</li>
+<li><strong>读取维度长度</strong>：要求存在 <code>longitude</code>、<code>latitude</code>、<code>altitude</code>、<code>Time</code> 四个维度。</li>
+<li><strong>解析变量列表</strong>：扫描逗号位置，把 <code>varlist</code> 拆成 <code>varnames(:)</code>。</li>
+<li><strong>逐变量读取垂直列</strong>：
+<ul>
+<li>查找变量 ID；</li>
+<li>用 <code>nf90_get_var</code> 读取 <code>(lonindex,latindex,1:altlen,timeindex)</code>；</li>
+<li><code>temp</code> 的地表变量名为 <code>tsurf</code>，其他变量为 <code>&lt;var&gt;_s</code>；</li>
+<li>地表变量缺失时，使用第一层值作为 surface。</li>
+</ul></li>
+<li><strong>写 ASCII 文件</strong>：写第一行 surface，再依次写各垂直层。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>require exactly 9 arguments
+parse -i lonindex, -j latindex, -l timeindex, -v varlist, infile
+open infile
+read longitude/latitude/altitude/Time dimensions
+split varlist by commas
+for each varname:
+  find varname in NetCDF
+  read variable(lonindex, latindex, 1:altlen, timeindex)
+  if varname == temp:
+    surfvar = tsurf
+  else:
+    surfvar = varname + &quot;_s&quot;
+  read surfvar(lonindex, latindex, timeindex), or use first layer
+  write profile_varname: surface then vertical profile</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="index.html">util/index.md</a></td>
+<td>属于 util 初始场与 1D 输入链，从 3D/4D 输出中抽取单柱廓线。</td>
+</tr>
+<tr>
+<td>1D 物理测试</td>
+<td>生成的 <code>profile_*</code> 文件可作为 <code>testphys1d</code> 或相关脚本的廓线输入材料；具体字段消费路径需结合 dyn1d 页面核验。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>索引是 Fortran/NetCDF Fortran 1-based 数组索引，不是经纬度数值。</li>
+<li><code>-v</code> 列表只按逗号拆分；源码没有处理空格、尾随逗号或超过 100 个逗号的情况。</li>
+<li>所选变量应为 <code>(longitude,latitude,altitude,Time)</code> 维度顺序；源码没有检查变量实际维度 ID。</li>
+<li>若地表变量不存在，输出第一行等于第一大气层值。</li>
+<li>输出不包含变量名、单位、层号或高度，只是数值序列。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>profile_*</code> 文件与当前 <code>libf/phymars/dyn1d</code> 读取模块之间的精确字段命名和单位契约需要后续 dyn1d 任务核验。</li>
+<li>参数选项顺序错误或重复时，源码只打印 <code>invalid option</code>，但不会立即停止；未赋值索引可能导致后续读取错误。</li>
+<li><code>nf90_get_var</code> 后没有检查读取状态；变量维度不匹配或索引越界时的错误可能不会被清晰报告。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li>输出文件会覆盖同名 <code>profile_*</code>。</li>
+<li>输入文件必须有 <code>longitude/latitude/altitude/Time</code> 维度名；不支持 <code>lon/lat/time_counter</code> 别名。</li>
+<li>索引越界、变量缺失或维度顺序不匹配会导致失败或输出不可信。</li>
+<li>ASCII 输出没有元数据，后续使用时必须另外记录变量、单位和抽取位置。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">util/index.md</a> - util 后处理工具总览。</li>
+<li><a href="../phymars/dyn1d/testphys1d.html">testphys1d.F90</a> - 1D 主程序。</li>
+<li><a href="../phymars/dyn1d/read_profile_mod.html">read_profile_mod.F90</a> - 1D tracer profile 读取。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

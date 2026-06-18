@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>disvert_noterre - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../../index.html">主页</a>
+        <a href="../../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../../libf-overview.html">模块</a>
+        <a href="../../../themes/index.html">主题</a>
+        <a href="../../../routines/index.html">例程</a>
+        <a href="../../../reference/file-index.html">文件索引</a>
+        <a href="../../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dyn1d/disvert_noterre.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dyn1ddisvert_noterref">dyn1d/disvert_noterre.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d\disvert_noterre.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>dyn1d/disvert_noterre.F</code> 在当前源码树中不是独立实现，而是一行相对路径：</p>
+<pre class="text"><code>../../../../LMDZ.COMMON/libf/dyn3d_common/disvert_noterre.F</code></pre>
+<p>它把 1D <code>testphys1d</code> 编译路径中的 <code>disvert_noterre</code> 和内部辅助 <code>sig_hybrid</code> 解析到公共非地球垂直离散例程。该例程读取 <code>esasig.def</code> 或 <code>z2sig.def</code>，根据 <code>hybrid</code> 开关生成 <code>comvert_mod</code> 中的 <code>ap/bp/aps/bps/presnivs/pseudoalt</code>，供 dyn1d 后续构造 <code>plev/play</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>disvert_noterre.F</code></td>
+<td>path stub</td>
+<td>dyn1d line 1</td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d_common/disvert_noterre.F</code>。</td>
+</tr>
+<tr>
+<td><code>disvert_noterre</code></td>
+<td>subroutine</td>
+<td>common target line 2</td>
+<td>读取非地球垂直坐标输入并写入 <code>comvert_mod</code> 的 hybrid/sigma 系数。</td>
+</tr>
+<tr>
+<td><code>sig_hybrid</code></td>
+<td>subroutine</td>
+<td>common target line 277</td>
+<td>从目标 sigma 层位置反解 hybrid 坐标中的 <code>newsig</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖模块和输入状态">依赖模块和输入状态</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>使用符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IOIPSL</code> 或 <code>ioipsl_getincom</code></td>
+<td><code>getin</code></td>
+<td>读取 <code>hybrid</code> 配置键。</td>
+</tr>
+<tr>
+<td><code>comvert_mod</code></td>
+<td><code>ap</code>, <code>bp</code>, <code>aps</code>, <code>bps</code>, <code>presnivs</code>, <code>pseudoalt</code>, <code>nivsig</code>, <code>nivsigs</code>, <code>pa</code>, <code>preff</code>, <code>scaleheight</code></td>
+<td>读写垂直坐标共享状态。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>kappa</code></td>
+<td><code>esasig.def</code> 分支中构造能量守恒相关的 <code>s</code> 权重。</td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td><code>hybrid</code></td>
+<td>控制使用 hybrid 坐标还是纯 sigma 坐标。</td>
+</tr>
+<tr>
+<td>include</td>
+<td><code>dimensions.h</code>, <code>paramet.h</code>, <code>iniprint.h</code></td>
+<td>提供 <code>llm/llmp1</code>、维度参数和 <code>lunout</code> 输出单元。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入文件选择">输入文件选择</h2>
+<p>例程按固定顺序打开输入文件：</p>
+<ol type="1">
+<li>先尝试 <code>esasig.def</code>。</li>
+<li>若失败，关闭单元 99 后尝试 <code>z2sig.def</code>。</li>
+<li>若两个文件都不存在，向 <code>lunout</code> 写出缺文件提示并 <code>stop</code>。</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>读取内容</th>
+<th>生成方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>esasig.def</code></td>
+<td><code>scaleheight</code>, <code>dz0</code>, <code>dz1</code>, <code>nhaut</code></td>
+<td>先把 <code>dz0/dz1</code> 除以 <code>scaleheight</code>，通过指数/tanh 组合生成 <code>sig(1:llm+1)</code>，并用 <code>kappa</code> 构造归一化权重 <code>s</code>。</td>
+</tr>
+<tr>
+<td><code>z2sig.def</code></td>
+<td><code>scaleheight</code> 后跟 <code>llm</code> 行 <code>zsig(l)</code></td>
+<td><code>sig(1)=1</code>，<code>sig(l)=0.5*(exp(-zsig(l)/scaleheight)+exp(-zsig(l-1)/scaleheight))</code>，<code>sig(llm+1)=0</code>。</td>
+</tr>
+</tbody>
+</table>
+<p><code>testphys1d.F90</code> 的文件头注释也提示 1D 运行需要一个描述 sigma layers 的文件，例如 <code>z2sig.def</code>。</p>
+<h2 id="主算法流程">主算法流程</h2>
+<ol type="1">
+<li>设置 <code>hybrid=.true.</code>，再通过 <code>getin('hybrid', hybrid)</code> 允许配置覆盖，并打印结果。</li>
+<li>读取 <code>esasig.def</code> 或 <code>z2sig.def</code>，生成界面 sigma 数组 <code>sig(1:llm+1)</code>。</li>
+<li>写入 <code>nivsigs(l)=real(l)</code> 和 <code>nivsig(l)=real(l)</code> 作为层号坐标。</li>
+<li>若 <code>hybrid=.true.</code>：
+<ul>
+<li>对每个 <code>l=1,llm</code> 调用 <code>sig_hybrid(sig(l), pa, preff, newsig)</code>。</li>
+<li>写入 <code>bp(l)=exp(1 - 1/newsig**2)</code>。</li>
+<li>写入 <code>ap(l)=pa*(newsig-bp(l))</code>。</li>
+<li>顶界 <code>ap(llmp1)=0</code>、<code>bp(llmp1)=0</code>。</li>
+</ul></li>
+<li>若 <code>hybrid=.false.</code>：
+<ul>
+<li>写入 <code>ap(l)=0</code>、<code>bp(l)=sig(l)</code>。</li>
+<li>顶界 <code>ap(llmp1)=0</code>、<code>bp(llmp1)=0</code>。</li>
+</ul></li>
+<li>对 <code>l=1,llm-1</code>，层中系数取相邻界面平均：
+<ul>
+<li><code>aps(l)=0.5*(ap(l)+ap(l+1))</code></li>
+<li><code>bps(l)=0.5*(bp(l)+bp(l+1))</code></li>
+</ul></li>
+<li>顶层层中值单独外推：
+<ul>
+<li>hybrid: <code>aps(llm)=aps(llm-1)**2/aps(llm-2)</code>，<code>bps(llm)=0.5*(bp(llm)+bp(llm+1))</code></li>
+<li>sigma: <code>bps(llm)=bps(llm-1)**2/bps(llm-2)</code>，<code>aps(llm)=0</code></li>
+</ul></li>
+<li>生成参考层压和伪高度：
+<ul>
+<li><code>presnivs(l)=aps(l)+bps(l)*preff</code></li>
+<li><code>pseudoalt(l)=-scaleheight*log(presnivs(l)/preff)</code></li>
+</ul></li>
+</ol>
+<h2 id="sig_hybrid-求解"><code>sig_hybrid</code> 求解</h2>
+<p><code>sig_hybrid(sig, pa, preff, newsig)</code> 要求解：</p>
+<pre class="text"><code>(1 - pa/preff) * exp(1 - 1/newsig**2) + (pa/preff) * newsig = sig</code></pre>
+<p>源码中的分支：</p>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sig &gt;= 1</code></td>
+<td>直接 <code>newsig=sig</code>。</td>
+</tr>
+<tr>
+<td><code>sig*preff/pa &gt;= 0.25</code></td>
+<td>在 <code>[0,1]</code> 上用最多 9999 次二分迭代，根据 <code>F</code> 相对 1 的大小移动上下界；当 <code>abs(10*log(F)) &lt; 1.E-5</code> 时退出。</td>
+</tr>
+<tr>
+<td>其他</td>
+<td>使用近似 <code>newsig=sig*preff/pa</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>这个辅助例程没有显式错误返回；若参数导致收敛慢，循环结束后使用最后一次 <code>newsig</code>。</p>
+<h2 id="dyn1d-调用关系">dyn1d 调用关系</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>行号</th>
+<th>调用</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>init_testphys1d_mod.F90</code></td>
+<td>337</td>
+<td><code>call disvert_noterre</code></td>
+<td>在读取 <code>psurf/pa/preff/hybrid</code> 后生成垂直坐标数组。</td>
+</tr>
+</tbody>
+</table>
+<p>调用之后，<code>init_testphys1d_mod.F90</code> 第 339 行把 <code>ap/bp/aps/bps/presnivs/pseudoalt</code> 复制到 <code>vertical_layers_mod</code>，第 341-342 行构造 <code>plev=ap+psurf*bp</code> 和 <code>play=aps+psurf*bps</code>。</p>
+<h2 id="输出和副作用">输出和副作用</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>写入模块状态</td>
+<td><code>comvert_mod::ap/bp/aps/bps/presnivs/pseudoalt/nivsig/nivsigs/scaleheight</code>。</td>
+</tr>
+<tr>
+<td>读取模块状态</td>
+<td><code>comvert_mod::pa/preff</code>、<code>comconst_mod::kappa</code>、<code>logic_mod::hybrid</code>。</td>
+</tr>
+<tr>
+<td>文件 I/O</td>
+<td>读取 <code>esasig.def</code> 或 <code>z2sig.def</code>；向 <code>lunout</code> 打印分支、系数和层压/伪高度。</td>
+</tr>
+<tr>
+<td>程序控制</td>
+<td>两个垂直坐标文件都缺失时执行 <code>stop</code>。</td>
+</tr>
+<tr>
+<td>诊断文件</td>
+<td><code>testhybrid.tab</code> 生成块全部被注释，不会实际写出。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="边界条件和风险">边界条件和风险</h2>
+<ul>
+<li><code>llm</code> 必须至少支持顶层外推里访问 <code>llm-2</code>；源码没有对小层数做保护。</li>
+<li><code>hybrid</code> 分支依赖 <code>pa/preff</code> 的物理合理性；<code>pa=0</code> 或异常参考压力会破坏 <code>sig_hybrid</code> 分支判定。</li>
+<li><code>z2sig.def</code> 分支期望恰好读取 <code>llm</code> 行高度；文件过短会触发 Fortran 读错误。</li>
+<li><code>esasig.def</code> 优先级高于 <code>z2sig.def</code>；两者同时存在时不会读取 <code>z2sig.def</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>准备 <code>esasig.def</code> 或 <code>z2sig.def</code>，并确认工作目录是 <code>disvert_noterre</code> 打开这些文件的目录。</li>
+<li>先设置 <code>pa/preff</code> 和 <code>hybrid</code>，再调用 <code>disvert_noterre</code>。</li>
+<li>用 <code>ap/bp/aps/bps</code> 构造压力层时，界面和层中公式分别为 <code>ap+ps*bp</code> 与 <code>aps+ps*bps</code>。</li>
+<li>若要完全复现 dyn1d，继续执行 <code>init_vertical_layers</code> 把这些状态同步到物理侧 <code>vertical_layers_mod</code>。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 Windows 工作树把链接文件呈现为一行路径文本；在原始类 Unix 工作树中它可能是符号链接。</li>
+<li><code>esasig.def</code> 分支中的 <code>s/dsig</code> 权重当前是否被后续代码使用；本例程生成 <code>s</code> 后未见继续写出到模块状态。</li>
+<li>dyn1d 运行目录中默认提供的是 <code>z2sig.def</code> 还是 <code>esasig.def</code>，需结合具体实验目录确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn1d/index.md</a> - dyn1d 子目录索引。</li>
+<li><a href="comvert_mod.html">comvert_mod</a> - 本例程写入的垂直坐标共享状态。</li>
+<li><a href="comconst_mod.html">comconst_mod</a> - 提供 <code>kappa</code> 的公共动力常数 stub。</li>
+<li><a href="logic_mod.html">logic_mod.F90</a> - <code>hybrid</code> 状态来源。</li>
+<li><a href="init_testphys1d_mod.html">init_testphys1d_mod.F90</a> - 调用 <code>disvert_noterre</code> 构造垂直坐标。</li>
+<li><a href="testphys1d.html">testphys1d.F90</a> - 使用 <code>plev/play</code> 的 1D 主程序。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

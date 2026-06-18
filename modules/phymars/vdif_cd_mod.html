@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vdif_cd_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/vdif_cd_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="vdif_cd_modf90">vdif_cd_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\vdif_cd_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>vdif_cd_mod.F90</code> 是 LMDZ.MARS 的<strong>地表层交换系数计算模块</strong>。它提供唯一子程序 <code>vdif_cd</code>，根据 Monin-Obukhov 相似理论计算地表动量拖曳系数 <code>Cd</code> 和热量拖曳系数 <code>Ch</code>。<code>callrichsl</code> 控制是否进入 Richardson/Colaïtis 地表层路径：<code>.false.</code> 时直接使用简单中性对数公式，<code>.true.</code> 时迭代热粗糙度长度 <code>z0t</code>（Colaïtis et al. 2013）；在迭代路径内部，<code>callatke</code> 再选择 ATKE 或 D.E. England/Dyer 稳定性函数。被 <code>vdifc_mod.F</code> 调用于地表通量计算。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<h3 id="模块与子程序">模块与子程序</h3>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vdif_cd_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>地表层交换系数计算模块</td>
+</tr>
+<tr>
+<td><code>vdif_cd</code></td>
+<td>subroutine</td>
+<td>18</td>
+<td>计算地表动量/热量拖曳系数 Cd/Ch</td>
+</tr>
+</tbody>
+</table>
+<h3 id="关键局部变量">关键局部变量</h3>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rib(ngrid,nslope)</code></td>
+<td>real</td>
+<td>103</td>
+<td>体 Richardson 数（含水汽浮力修正）</td>
+</tr>
+<tr>
+<td><code>rib_dry(ngrid,nslope)</code></td>
+<td>real</td>
+<td>104</td>
+<td>干体 Richardson 数</td>
+</tr>
+<tr>
+<td><code>fm(ngrid,nslope)</code></td>
+<td>real</td>
+<td>105</td>
+<td>动量稳定性函数</td>
+</tr>
+<tr>
+<td><code>fh(ngrid,nslope)</code></td>
+<td>real</td>
+<td>106</td>
+<td>热量稳定性函数</td>
+</tr>
+<tr>
+<td><code>cdn(ngrid)</code></td>
+<td>real</td>
+<td>128</td>
+<td>中性动量拖曳系数</td>
+</tr>
+<tr>
+<td><code>chn(ngrid)</code></td>
+<td>real</td>
+<td>129</td>
+<td>中性热量拖曳系数</td>
+</tr>
+<tr>
+<td><code>reynolds(ngrid,nslope)</code></td>
+<td>real</td>
+<td>117</td>
+<td>Reynolds 数（用于 z0t 迭代）</td>
+</tr>
+<tr>
+<td><code>prandtl(ngrid)</code></td>
+<td>real</td>
+<td>118</td>
+<td>Prandtl 数</td>
+</tr>
+<tr>
+<td><code>z0t(ngrid,nslope)</code></td>
+<td>real</td>
+<td>120</td>
+<td>迭代收敛后的热粗糙度长度</td>
+</tr>
+<tr>
+<td><code>zu2(ngrid)</code></td>
+<td>real</td>
+<td>126</td>
+<td>近地表风速平方（含浮力修正）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="模块级常量">模块级常量</h3>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>karman</code></td>
+<td>real, save</td>
+<td>97</td>
+<td>Von Kármán 常数 (0.41)</td>
+</tr>
+<tr>
+<td><code>nu</code></td>
+<td>real, save</td>
+<td>97</td>
+<td>流体运动粘度 (0.001 m²/s)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>调用位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>turb_mod</code></td>
+<td><code>turb_resolved</code></td>
+<td>判断是否湍流已解析（zu2 下限保护）</td>
+<td>行 216</td>
+</tr>
+<tr>
+<td><code>watersat_mod</code></td>
+<td><code>watersat</code></td>
+<td>计算饱和混合比（水汽浮力路径）</td>
+<td>行 176</td>
+</tr>
+<tr>
+<td><code>lmdz_atke_turbulence_ini</code></td>
+<td><code>smmin, ric, cinf, cepsilon, pr_slope, pr_asym, pr_neut, ri0, ri1, cn, rpi</code></td>
+<td>ATKE 稳定性函数参数</td>
+<td>行 232-242</td>
+</tr>
+<tr>
+<td><code>paleoclimate_mod</code></td>
+<td><code>include_waterbuoyancy</code></td>
+<td>是否启用水汽浮力修正</td>
+<td>行 171</td>
+</tr>
+<tr>
+<td><code>write_output_mod</code></td>
+<td><code>write_output</code></td>
+<td>XIOS 诊断输出</td>
+<td>行 283-296</td>
+</tr>
+<tr>
+<td><code>comslope_mod</code></td>
+<td><code>iflat</code></td>
+<td>平坦地形坡面索引（诊断输出用）</td>
+<td>行 283</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>callrichsl, callatke</code></td>
+<td><code>callrichsl</code> 选择简单对数公式或 Colaïtis 迭代；<code>callatke</code> 只在迭代路径内选择 ATKE 或 Dyer/England 稳定性函数</td>
+<td>行 188, 228</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>watersat</code></td>
+<td><code>watersat_mod</code></td>
+<td>行 176</td>
+<td>计算饱和水汽混合比（霜面虚拟温度）</td>
+</tr>
+<tr>
+<td><code>write_output</code></td>
+<td><code>write_output_mod</code></td>
+<td>行 283-296</td>
+<td>写 XIOS 诊断字段</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>水平网格点数</td>
+</tr>
+<tr>
+<td><code>nlay</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>nslope</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>坡面数</td>
+</tr>
+<tr>
+<td><code>pz0(ngrid)</code></td>
+<td>地表参数</td>
+<td>real</td>
+<td>m</td>
+<td>地表粗糙度长度</td>
+</tr>
+<tr>
+<td><code>pg</code></td>
+<td>物理常数</td>
+<td>real</td>
+<td>m/s²</td>
+<td>火星重力</td>
+</tr>
+<tr>
+<td><code>pz(ngrid,nlay)</code></td>
+<td>网格</td>
+<td>real</td>
+<td>m</td>
+<td>层高度</td>
+</tr>
+<tr>
+<td><code>pp(ngrid,nlay)</code></td>
+<td>网格</td>
+<td>real</td>
+<td>Pa</td>
+<td>层压力</td>
+</tr>
+<tr>
+<td><code>pu(ngrid,nlay)</code></td>
+<td>动力场</td>
+<td>real</td>
+<td>m/s</td>
+<td>纬向风速</td>
+</tr>
+<tr>
+<td><code>pv(ngrid,nlay)</code></td>
+<td>动力场</td>
+<td>real</td>
+<td>m/s</td>
+<td>经向风速</td>
+</tr>
+<tr>
+<td><code>wstar(ngrid)</code></td>
+<td>湍流模块</td>
+<td>real</td>
+<td>m/s</td>
+<td>对流特征速度</td>
+</tr>
+<tr>
+<td><code>pts(ngrid,nslope)</code></td>
+<td>地表</td>
+<td>real</td>
+<td>K</td>
+<td>地表温度</td>
+</tr>
+<tr>
+<td><code>ph(ngrid,nlay)</code></td>
+<td>热力场</td>
+<td>real</td>
+<td>K</td>
+<td>位温</td>
+</tr>
+<tr>
+<td><code>mumean(ngrid)</code></td>
+<td>大气成分</td>
+<td>real</td>
+<td>kg/mol</td>
+<td>大气平均分子量</td>
+</tr>
+<tr>
+<td><code>pqvap(ngrid,nlay)</code></td>
+<td>水循环</td>
+<td>real</td>
+<td>kg/kg</td>
+<td>水汽混合比</td>
+</tr>
+<tr>
+<td><code>pqsurf(ngrid,nslope)</code></td>
+<td>地表</td>
+<td>real</td>
+<td>kg/m²</td>
+<td>地表霜质量</td>
+</tr>
+<tr>
+<td><code>write_outputs</code></td>
+<td>配置</td>
+<td>logical</td>
+<td>—</td>
+<td>是否写 XIOS 诊断</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pcdv(ngrid,nslope)</code></td>
+<td>地表通量计算</td>
+<td>real</td>
+<td>1</td>
+<td>动量拖曳系数 Cd</td>
+</tr>
+<tr>
+<td><code>pcdh(ngrid,nslope)</code></td>
+<td>地表通量计算</td>
+<td>real</td>
+<td>1</td>
+<td>热量拖曳系数 Ch</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>模块常量</strong> <code>karman</code>, <code>nu</code>：<code>SAVE</code> + <code>!$OMP THREADPRIVATE</code>，仅初始化一次。</li>
+<li><strong>诊断输出</strong>：当 <code>write_outputs=.true.</code> 时，通过 <code>write_output</code> 写 7 个 XIOS 字段（<code>rib_dry_vdif_cd</code>, <code>rib_vdif_cd</code>, <code>fm_vdif_cd</code>, <code>fh_vdif_cd</code>, <code>z0t_vdif_cd</code>, <code>z0_vdif_cd</code>, <code>Reynolds_vdif_cd</code>），均取 <code>iflat</code>（平坦地形）切片。</li>
+<li>无文件 I/O，无全局状态修改。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>初始化</strong>（行 144-167）：设定迭代参数（<code>itemax=10</code>, <code>tol_iter=0.01</code>），Dyer 参数化常量（<code>bm=bh=16</code>, <code>betam=betah=5</code>, <code>alphah=1</code>），计算 <code>lambda</code> 和 <code>ric_colaitis</code>。</li>
+<li><strong>水汽浮力修正</strong>（行 171-186）：若 <code>include_waterbuoyancy</code>，计算虚拟温度 <code>tsurf_v</code>（霜面用 <code>qsat</code>，非霜面用实际 <code>pqvap</code>）和 <code>temp_v</code>；否则直接用物理温度。</li>
+<li><strong>简单路径</strong>（<code>callrichsl=.false.</code>，行 188-199）：经典对数风廓线公式 <code>Cd = (κ/ln(1+z₁/z₀))²</code>，Cd=Ch。</li>
+<li><strong>Colaïtis 迭代路径</strong>（<code>callrichsl=.true.</code>，行 200-279）：
+<ul>
+<li>计算中性拖曳系数 <code>cdn</code>, <code>chn</code>（行 207-213）。</li>
+<li>迭代循环（最多 10 次）： a. 计算 <code>zu2</code>（近地表风速 + 对流浮力修正，行 215）。 b. 计算体 Richardson 数 <code>rib</code>（England et al. 1995 公式，行 218-219）。 c. 计算稳定性函数 <code>fm</code>, <code>fh</code>：
+<ul>
+<li><code>callatke=.true.</code>：ATKE 方案，稳定用 <code>cn*(1-Ri/ric)</code>，不稳定用 <code>atan</code> 反正切（行 228-243）。</li>
+<li><code>callatke=.false.</code>：D.E. England/Dyer 路径；<code>0&lt;Ri&lt;ric_colaitis</code> 时稳定用 <code>(ric-Ri)²/ric²</code>，<code>Ri&gt;=ric_colaitis</code> 时源码设 <code>fm=fh=1</code>，不稳定时用 <code>sqrt(1-λ*bm*Ri)</code> 等 Dyer 形式（行 245-263）。 d. 重算 Reynolds 数和 <code>z0t</code>（Zilitinkevich 型公式，行 266-267），检查收敛。</li>
+</ul></li>
+<li>最终系数：<code>pcdv = cdn * fm</code>, <code>pcdh = chn * fh</code>（行 273-274）。</li>
+</ul></li>
+<li><strong>诊断输出</strong>（行 281-297）：写 <code>rib_dry</code>, <code>rib</code>, <code>fm</code>, <code>fh</code>, <code>z0t</code>, <code>z0</code>, <code>Reynolds</code> 到 XIOS。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>vdif_cd:
+  初始化 Dyer 常量, 迭代参数
+
+  if include_waterbuoyancy:
+    计算虚拟温度 tsurf_v（霜面用 qsat, 非霜面用 pqvap）
+    计算 temp_v（第一层虚拟位温）
+
+  if .not. callrichsl:
+    ! 简单对数风廓线
+    Cd = Ch = (κ / ln(1 + z1/z0))²
+  else:
+    ! Colaïtis et al. 2013 迭代
+    for each (ig, islope):
+      cdn = (κ / ln(z1/z0))²
+      迭代（最多 10 次）:
+        chn = cdn * ln(z1/z0) / ln(z1/z0t)
+        zu2 = u² + v² + (ln(1 + 0.7*wstar + 2.3*wstar²))²
+        rib = f(Ri, 温度差, zu2)
+        if callatke:
+          ATKE 稳定性函数（sm, prandtl → fm, fh）
+        else:
+          Dyer/England 稳定性函数（0&lt;Ri&lt;Ric 用二次式；Ri&gt;=Ric 时 fm=fh=1；Ri&lt;=0 用不稳定 Dyer 形式）
+        Re = κ * sqrt(fm) * sqrt(zu2) * z0 / (ln(z1/z0) * ν)
+        z0t_new = z0 * exp(-κ*7.3*Re^0.25*Pr^0.5 + 5*κ)
+        检查收敛
+      pcdv = cdn * fm
+      pcdh = chn * fh
+
+  if write_outputs:
+    写 7 个 XIOS 诊断字段（取 iflat 切片）</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>边界层湍流</td>
+<td>提供地表拖曳系数 Cd/Ch，是地表通量计算的核心环节</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td><code>pqvap</code>/<code>pqsurf</code> 输入影响虚拟温度和 Richardson 数</td>
+</tr>
+<tr>
+<td>坡面辐射</td>
+<td><code>nslope</code> 维度支持坡面分辨的地表交换</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>两级路径开关</strong>：<code>callrichsl</code> 首先控制是否进入 Colaïtis 迭代；只有进入迭代后，<code>callatke</code> 才控制使用 ATKE 还是 D.E. England/Dyer 稳定性函数。</li>
+<li><strong>迭代热粗糙度长度</strong>：<code>z0t</code> 通过 Zilitinkevich 型公式迭代至收敛（容差 <code>0.01*z0</code>），最多 10 步。</li>
+<li><strong>水汽浮力修正</strong>：<code>include_waterbuoyancy</code> 启用时，虚拟温度考虑水汽分子量差异和地表霜。</li>
+<li><strong>模块常量 SAVE/THREADPRIVATE</strong>：<code>karman</code>, <code>nu</code> 仅初始化一次，OpenMP 安全。</li>
+<li><strong>诊断输出取 <code>iflat</code> 切片</strong>：所有 <code>write_output</code> 调用只输出平坦地形的诊断。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>callrichsl=.true.</code> 时才进入迭代路径；<code>callrichsl=.false.</code> 时直接用简单对数公式。</li>
+<li><code>callatke</code> 仅在 <code>callrichsl=.true.</code> 时生效，控制稳定性函数类型。</li>
+<li><code>callatke=.false.</code> 且 <code>Ri&gt;=ric_colaitis</code> 时，源码设 <code>fm=fh=1</code>；复现时不能把稳定二次式外推到该区间。</li>
+<li><code>include_waterbuoyancy</code> 影响虚拟温度计算，进而影响 Richardson 数。</li>
+<li>迭代收敛容差为 <code>tol_iter * pz0(ig)</code>，即相对粗糙度的 1%。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>karman</code> 和 <code>nu</code> 的 <code>DATA</code> 初始化 + <code>SAVE</code> + <code>THREADPRIVATE</code> 组合在 OpenMP 并行时是否会有初始化竞争（首次进入时 DATA 赋值）。</li>
+<li><code>zu2(ig)</code> 在行 215-216 中只用了 <code>ig</code> 索引但 <code>pu</code>/<code>pv</code> 是二维数组——这里隐式取 <code>pu(ig,1)</code> 和 <code>pv(ig,1)</code>，即第一层风速，是否为设计意图。</li>
+<li><code>ite</code> 声明为 <code>REAL</code>（行 121）但用作迭代计数器（<code>ite = ite+1</code>），应为 <code>INTEGER</code>（不影响功能但不规范）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="turb_mod.html">turb_mod</a> — 提供 <code>turb_resolved</code> 与 <code>wstar</code> 等湍流/PBL 共享状态语义。</li>
+<li><a href="pbl_parameters_mod.html">pbl_parameters_mod</a> — 边界层参数诊断模块</li>
+<li><a href="comslope_mod.html">comslope_mod</a> — 坡面几何共享参数</li>
+<li><a href="../../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a> — <code>vdifc_mod.F</code> 中地表交换段，记录 <code>vdif_cd</code> 调用方和 Cd/Ch 后续用于通量计算的上下文</li>
+<li><a href="../../themes/water-cycle.html">water-cycle</a> — 水循环主题页</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

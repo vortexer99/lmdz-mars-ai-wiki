@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dustdevil - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dustdevil.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dustdevilf90">dustdevil.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dustdevil.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>该文件共 227 行，定义尘卷风（dust devil）起尘参数化模块 <code>dustdevil_mod</code>（行 1），导出例程 <code>dustdevil</code>，由 <code>physiq</code>（行 2110，<code>callddevil</code> 开启时）调用。它基于 Renno et al. 1998（JAS 55, 3244-3252）热力学理论估算尘卷风活动强度，把可用于驱动尘卷风的能量通量 <code>(1-b)*Fs</code> 转化为地表起尘通量 <code>pdqs_dev</code> 与大气内尘埃注入 tendency <code>pdqdev</code>（注入到边界层顶以下各层）。</p>
+<p>其中 <code>Fs</code> 是地表感热通量 <code>rho*cpp*Cd*wind*(Tsurf-T(1))</code>，<code>b</code> 是与边界层顶/地表气压相关的热力学效率因子。模块保存方案号 <code>dust_devil_scheme</code>（默认 0，旧 Renno 方案；当前仅支持 0）。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dustdevil_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>尘卷风起尘参数化模块</td>
+</tr>
+<tr>
+<td><code>dust_devil_scheme</code></td>
+<td>integer SAVE</td>
+<td>5</td>
+<td>尘卷风方案号，默认 0（Renno 1998），当前仅支持 0</td>
+</tr>
+<tr>
+<td><code>dustdevil</code></td>
+<td>subroutine</td>
+<td>12</td>
+<td>估算尘卷风活动强度并算地表起尘通量与大气注入 tendency</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>alpha_devil</code></td>
+<td>各 tracer 尘卷风起尘效率系数</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>z0_default</code></td>
+<td>默认地表粗糙度，用于估算拖曳系数 <code>Cd</code></td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g, cpp, r, rcp</code></td>
+<td>重力、定压比热、气体常数、R/cp（感热通量、密度、<code>b</code> 因子）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code>（非 MESOSCALE）</td>
+<td><code>is_master, bcast</code></td>
+<td>firstcall 仅 master 算 <code>Cd</code>/<code>z1</code> 后广播</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td><code>getin_p</code></td>
+<td>firstcall 读 <code>dust_devil_scheme</code></td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin_p</code></td>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td>行 90</td>
+<td>读 <code>dust_devil_scheme</code> 配置键</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>（phymars 公共中止例程）</td>
+<td>行 96</td>
+<td><code>dust_devil_scheme/=0</code> 时致命中止</td>
+</tr>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_para</code></td>
+<td>行 117-118（非 MESOSCALE）</td>
+<td>把 master 算的 <code>z1</code>/<code>Cd</code> 广播到所有进程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid, nlay, nq</code></td>
+<td><code>physiq</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>格点数、层数、tracer 数</td>
+</tr>
+<tr>
+<td><code>pplev(ngrid,nlay+1)</code></td>
+<td><code>physiq</code>（<code>zplev</code>）</td>
+<td>real</td>
+<td>Pa</td>
+<td>层界面气压</td>
+</tr>
+<tr>
+<td><code>pu/pv(ngrid,nlay)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>m/s</td>
+<td>风分量（方案 0 实际用固定 wind=15）</td>
+</tr>
+<tr>
+<td><code>pt(ngrid,nlay)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>K</td>
+<td>温度（密度、感热通量）</td>
+</tr>
+<tr>
+<td><code>ptsurf(ngrid)</code></td>
+<td><code>physiq</code>（<code>tsurf</code>）</td>
+<td>real</td>
+<td>K</td>
+<td>地表温度</td>
+</tr>
+<tr>
+<td><code>pq2(ngrid,nlay+1)</code></td>
+<td><code>physiq</code>（<code>q2</code>）</td>
+<td>real</td>
+<td>m²/s²</td>
+<td>TKE，用于定边界层顶 <code>ltop</code></td>
+</tr>
+<tr>
+<td><code>alpha_devil(nq)</code></td>
+<td><code>tracer_mod</code></td>
+<td>real</td>
+<td>-</td>
+<td>各 tracer 尘卷风起尘效率</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdqs_dev(ngrid,nq)</code></td>
+<td><code>physiq</code>→<code>dqsurf</code>（坡度投影）</td>
+<td>real (OUT)</td>
+<td>kg/m²/s</td>
+<td>地表起尘通量（起尘时&lt;0）</td>
+</tr>
+<tr>
+<td><code>pdqdev(ngrid,nlay,nq)</code></td>
+<td><code>physiq</code>→<code>pdq</code> tendency</td>
+<td>real (OUT)</td>
+<td>kg/kg/s</td>
+<td>大气内尘埃注入 tendency（边界层顶以下）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>module 级 <code>SAVE</code>+<code>THREADPRIVATE</code>：<code>dust_devil_scheme</code>（行 8）。</li>
+<li>例程内 <code>SAVE</code>+<code>THREADPRIVATE</code>：<code>Cd</code>、<code>firstcall</code>、<code>q2top</code>（=0.5）、<code>seuil</code>（=0.3）（行 62、66、77）。</li>
+<li>firstcall：<code>getin_p("dust_devil_scheme")</code>（默认 0），非 0 则 <code>abort_physic</code>；仅 master 估算拖曳系数 <code>Cd=(0.4/log(z1/z0_default))²</code>（<code>z1</code> 由 <code>pplev(1,2)/pplev(1,1)</code> 与 13 km 标高估），再 <code>bcast</code> 给所有进程；打印 <code>q2top</code>/<code>seuil</code>。</li>
+<li>标准输出副作用：firstcall 打印参数；非法 scheme 打印错误。</li>
+<li>输出 <code>pdqdev</code>/<code>pdqs_dev</code> 每次调用先清零。</li>
+<li>不写文件（注释掉的 <code>devil</code> 文件 I/O 已停用）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>firstcall（行 86-123）</strong>：读方案号（非 0 中止）；master 算 <code>Cd</code> 并广播；打印参数。</li>
+<li><strong>清零输出（行 128-135）</strong>。</li>
+<li><strong>方案 0（行 137-223）</strong>：
+<ul>
+<li><strong>定边界层顶（行 141-164）</strong>：逐格点从第 2 层向上找首个 <code>pq2&lt;q2top</code> 的层作为 <code>ltop</code>。</li>
+<li><strong>尘卷风强度（行 176-200）</strong>：取固定 <code>wind=15 m/s</code>（版本 2）；密度 <code>rho=pplev(ig,1)/(R*pt(ig,1))</code>；感热通量 <code>Fs=rho*cpp*Cd*wind*(ptsurf(ig)-pt(ig,1))</code>；效率因子 <code>b=[ps^(rcp+1)-ptop^(rcp+1)]/[(ps-ptop)(rcp+1)ps^rcp]</code>；活动强度 <code>devila=max(0,(1-b)*Fs-seuil)</code>。</li>
+<li><strong>地表起尘（行 204-208）</strong>：<code>pdqs_dev(:,iq)=-alpha_devil(iq)*devila</code>。</li>
+<li><strong>大气注入（行 212-221）</strong>：若 <code>devila/=0</code>，对 <code>l=1..ltop</code> 均匀注入 <code>pdqdev=-pdqs_dev*g/(ps-ptop)</code>。</li>
+</ul></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if firstcall:
+    getin dust_devil_scheme (default 0); if !=0 abort_physic
+    (master) z1 = -0.5*13e3*log(pplev(1,2)/pplev(1,1)); Cd=(0.4/log(z1/z0_default))^2
+    bcast(z1, Cd); print q2top, seuil
+
+pdqdev = 0 ; pdqs_dev = 0
+
+if dust_devil_scheme == 0:
+    for ig: ltop(ig) = 第一个 pq2&lt;q2top 的层 (从 l=2 向上)
+    for ig:
+        wind = 15.
+        rho = pplev(ig,1)/(R*pt(ig,1))
+        Fs  = rho*cpp*Cd*wind*(ptsurf-pt(ig,1))
+        b   = [ps^(rcp+1)-ptop^(rcp+1)] / [(ps-ptop)(rcp+1)ps^rcp]
+        devila(ig) = max(0, (1-b)*Fs - seuil)
+    for iq, ig: pdqs_dev(ig,iq) = -alpha_devil(iq)*devila(ig)
+    for iq, ig:
+        if devila(ig) != 0:
+            for l in 1..ltop(ig): pdqdev = -pdqs_dev*g/(ps-ptop)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>尘埃循环</td>
+<td>实现尘卷风起尘源项（Renno 1998 热力学理论）：把地表感热通量转为地表起尘通量与边界层内尘埃注入 tendency，与风应力起尘并列为尘埃源端</td>
+</tr>
+<tr>
+<td>边界层</td>
+<td>用 TKE <code>pq2</code> 定边界层顶 <code>ltop</code>，尘埃注入到该高度以下</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 Fortran 90（<code>.F90</code>）。</li>
+<li>module 级与例程内均用 <code>SAVE</code>+<code>THREADPRIVATE</code>；<code>Cd</code> firstcall 算一次后并行广播。</li>
+<li>硬编码常数：<code>q2top=0.5</code>、<code>seuil=0.3</code>、固定 <code>wind=15</code>、标高 <code>13 km</code>、<code>Cd</code> 中的 von Kármán 常数 <code>0.4</code>。</li>
+<li><code>goto 99</code> 找边界层顶（固定格式遗留风格）；大段诊断 <code>write</code>/文件 I/O 已注释停用。</li>
+<li>当前实际用“版本 2”固定风速 15 m/s（版本 1 实际风速已注释）。</li>
+<li><code>dust_devil_scheme</code> 仅 0 合法，非 0 <code>abort_physic</code>（预留扩展）。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>由 <code>physiq</code>（行 2110）在 <code>callddevil</code> 开启时调用；<code>dustbin&gt;=1</code> 时才把 tendency 累加到 <code>pdq</code> 并把地表通量经坡度投影 <code>cos(slope)</code> 累加到 <code>dqsurf</code>。</li>
+<li>感热通量用固定风速 <code>wind=15 m/s</code>（非实际风）。</li>
+<li>效率因子 <code>b</code> 与活动强度阈值 <code>seuil=0.3</code>、<code>q2top=0.5</code> 为硬编码。</li>
+<li><code>Cd</code> 由默认粗糙度 <code>z0_default</code> 与 13 km 标高估算，并行下 master 算后广播。</li>
+<li>起尘通量 <code>pdqs_dev=-alpha_devil*devila</code>，注入 tendency 在边界层顶以下均匀分布。</li>
+<li><code>alpha_devil</code> 来自 <code>tracer_mod</code>（initracer 设定）。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>方案 0 实际使用固定 <code>wind=15 m/s</code>（行 185），而输入 <code>pu</code>/<code>pv</code>（实际风）仅出现在被注释的“版本 1”中（行 181）；推断当前模式有意用固定风速估感热通量，<code>pu</code>/<code>pv</code> 形参在方案 0 实质未被使用。复现时须注意感热通量不随实际风变化。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="dust_param_mod.html">dust_param_mod</a> — <code>callddevil</code> 开关控制是否调用本例程</li>
+<li><a href="dust_windstress_lift.html">dust_windstress_lift</a> — 并列的另一尘埃起尘源（风应力起尘）</li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle 主题</a></li>
+<li><a href="turb_mod.html">turb_mod</a> — 提供 TKE <code>q2</code>（定边界层顶）</li>
+<li><a href="surfdat_h.html">surfdat_h</a> — 提供 <code>z0_default</code></li>
+<li><a href="initracer.html">initracer.md</a>：设定 <code>alpha_devil</code>。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

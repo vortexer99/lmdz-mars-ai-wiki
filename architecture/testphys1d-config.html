@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>testphys1d-config - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a class="active" href="project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>architecture/testphys1d-config.md</span>
+    </nav>
+    <article class="content">
+<h1 id="testphys1d-专用配置">testphys1d 专用配置</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\deftank\run.def.1d                  (91 行, 1D 专用)
+LMDZ.MARS\deftank\callphys.def.GCM6          (245 行, 物理参数开关, 1D/3D 共用)
+LMDZ.MARS\libf\phymars\dyn1d\testphys1d.F90  (289 行, 1D 主程序)
+LMDZ.MARS\libf\phymars\dyn1d\init_testphys1d_mod.F90 (850 行, 1D 初始化)</code></pre>
+<h2 id="类型">类型</h2>
+<p>配置——控制 testphys1d (1D 物理列模式) 的初始条件、时间积分和物理参数化。</p>
+<h2 id="作用">作用</h2>
+<p>testphys1d 是 LMDZ.MARS 的 <strong>1D 列模式</strong>，用于在单一大气柱中离线运行全部物理过程（辐射、湍流、凝结、微物理、尘埃、水循环等），不包含 3D 动力学。</p>
+<p>源码依据（<code>testphys1d.F90:28-46</code> 注释）：</p>
+<blockquote>
+<p>PROGRAM useful to run physical part of the martian GCM in a 1D column</p>
+<p>Can be compiled with a command like (e.g. for 25 layers) "makegcm -p mars -d 25 testphys1d" It requires the files "testphys1d.def" "callphys.def" and a 'run.def' file (containing a "INCLUDEDEF=callphys.def" line) and a file describing the sigma layers (e.g. "z2sig.def")</p>
+</blockquote>
+<p>用途：</p>
+<ul>
+<li>测试单个物理参数化（辐射、微物理、土壤等）在给定条件下的行为。</li>
+<li>在无需运行完整 3D 动力学的情况下快速验证物理改动。</li>
+<li>生成 1D 气候平衡解（如极冠、水循环的日-季平均剖面）。</li>
+</ul>
+<h2 id="文件加载链">文件加载链</h2>
+<p>源码依据（<code>testphys1d.F90:110-146</code>）：</p>
+<pre class="text"><code>testphys1d.e
+  ├── 读取 &quot;run.def&quot; (必须, 内含 INCLUDEDEF=callphys.def)  ← 报错停止如果缺
+  ├── 读取 &quot;traceur.def&quot; 获取示踪物名和数量              ← 报错停止如果缺
+  ├── 如果 startfiles_1D=true:
+  │     ├── start1D.txt (ASCII 初始廓线, 可选)
+  │     └── startfi.nc (NetCDF 物理初始场, 可选)
+  └── 如果不存在 startfi.nc → 写一个新的 (physdem0/physdem1)</code></pre>
+<h2 id="关键字段">关键字段</h2>
+<h3 id="rundef1d1d-专用通过-getin-读取">run.def.1d（1D 专用）——通过 <code>getin()</code> 读取</h3>
+<p>源码依据：<code>init_testphys1d_mod.F90</code> 中 <code>getin(...)</code> 调用汇总。</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>示例值</th>
+<th>含义</th>
+<th>影响模块</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>startfiles_1D</code></td>
+<td><code>.false.</code></td>
+<td>是否使用 1D 初始/重启文件</td>
+<td>初始化分支</td>
+</tr>
+<tr>
+<td><code>diagsoil</code></td>
+<td><code>.false.</code></td>
+<td>是否输出土壤诊断</td>
+<td><code>physdem1</code></td>
+</tr>
+<tr>
+<td><code>day0</code></td>
+<td><code>0</code></td>
+<td>起始 sol（Ls=0 对应 0）</td>
+<td>日历</td>
+</tr>
+<tr>
+<td><code>time</code></td>
+<td><code>0.</code></td>
+<td>起始地方时 (hours, 0-24)</td>
+<td>太阳位置</td>
+</tr>
+<tr>
+<td><code>day_step</code></td>
+<td><code>48</code></td>
+<td>每 sol 时间步数</td>
+<td><code>steps_per_sol</code></td>
+</tr>
+<tr>
+<td><code>ndt</code></td>
+<td><code>669</code></td>
+<td>运行 sol 数</td>
+<td>时间循环</td>
+</tr>
+<tr>
+<td><code>psurf</code></td>
+<td><code>610.</code></td>
+<td>地表气压 (Pa)</td>
+<td>垂直坐标比例</td>
+</tr>
+<tr>
+<td><code>tauvis</code></td>
+<td><code>0.2</code></td>
+<td>610 Pa 参考尘埃可见光光学厚度</td>
+<td><code>dimradmars_mod</code></td>
+</tr>
+<tr>
+<td><code>latitude</code></td>
+<td><code>0.</code></td>
+<td>纬度 (°)</td>
+<td>太阳天顶角</td>
+</tr>
+<tr>
+<td><code>albedo</code></td>
+<td><code>0.2</code></td>
+<td>裸地反照率</td>
+<td>辐射</td>
+</tr>
+<tr>
+<td><code>inertia</code></td>
+<td><code>400</code></td>
+<td>土壤热惯性 (SI)</td>
+<td>地表能量收支</td>
+</tr>
+<tr>
+<td><code>u</code>, <code>v</code></td>
+<td><code>10.</code>, <code>0.</code></td>
+<td>地转背景风 (m/s)</td>
+<td>风场松弛 (1D)</td>
+</tr>
+<tr>
+<td><code>co2ice</code></td>
+<td><code>0.</code></td>
+<td>初始地表 CO₂ 冰 (kg/m²)</td>
+<td>CO₂ 循环</td>
+</tr>
+<tr>
+<td><code>watercaptag</code></td>
+<td><code>.false.</code></td>
+<td>地表是否有永久水冰盖</td>
+<td>水循环</td>
+</tr>
+<tr>
+<td><code>slope_inclination</code></td>
+<td><code>0.</code></td>
+<td>坡度倾角 (°, 0=水平, 90=垂直)</td>
+<td>坡向辐射</td>
+</tr>
+<tr>
+<td><code>slope_orientation</code></td>
+<td><code>0.</code></td>
+<td>坡向 (°: 0=北, 90=东, 180=南, 270=西)</td>
+<td>坡向辐射</td>
+</tr>
+<tr>
+<td><code>ctrl_h2ovap</code></td>
+<td><code>.false.</code></td>
+<td>是否强制大气水汽廓线</td>
+<td>水循环 (1D 专用)</td>
+</tr>
+<tr>
+<td><code>relaxtime_h2ovap</code></td>
+<td><code>-1.</code></td>
+<td>水汽松弛时间 (s, &lt;0 为强制)</td>
+<td>水循环 (1D 专用)</td>
+</tr>
+<tr>
+<td><code>ctrl_h2oice</code></td>
+<td><code>.false.</code></td>
+<td>是否强制大气水冰廓线</td>
+<td>水循环 (1D 专用)</td>
+</tr>
+<tr>
+<td><code>relaxtime_h2oice</code></td>
+<td><code>-1.</code></td>
+<td>水冰松弛时间 (s, &lt;0 为强制)</td>
+<td>水循环 (1D 专用)</td>
+</tr>
+<tr>
+<td><code>hybrid</code></td>
+<td><code>.true.</code></td>
+<td>是否使用混合垂直坐标 (vs sigma)</td>
+<td><code>logic_mod</code></td>
+</tr>
+<tr>
+<td><code>ichoice</code></td>
+<td><code>5</code> (Seiff)</td>
+<td>初始温度廓线类型 (1-8)</td>
+<td><a href="../modules/phymars/dyn1d/profile_temp_mod.html">profile_temp_mod</a></td>
+</tr>
+<tr>
+<td><code>tref</code></td>
+<td><code>200</code></td>
+<td>参考温度 (K), 用于 ichoice=1/6/7</td>
+<td>温度初始化</td>
+</tr>
+<tr>
+<td><code>isin</code>, <code>pic</code>, <code>largeur</code>, <code>hauteur</code></td>
+<td>0, 26.522, 10, 30.</td>
+<td>高斯扰动参数 (ichoice=6/7)</td>
+<td>温度扰动</td>
+</tr>
+<tr>
+<td><code>INCLUDEDEF=callphys.def</code></td>
+<td>—</td>
+<td>链到 callphys.def</td>
+<td>所有物理开关</td>
+</tr>
+</tbody>
+</table>
+<h3 id="callphysdefgcm6物理参数化开关1d3d-共用">callphys.def.GCM6（物理参数化开关，1D/3D 共用）</h3>
+<p>完整说明见 <a href="config-system.html">config-system.md</a> 与 <a href="../architecture/xios-config.html">xios-config.md</a>。以下列出 <strong>1D 运行中实际生效</strong>的关键字段（源码依据：<code>callphys.def.GCM6:58-168</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>关键字段</th>
+<th>默认值</th>
+<th>1D 影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>辐射</td>
+<td><code>callrad</code></td>
+<td><code>.true.</code></td>
+<td>辐射传输</td>
+</tr>
+<tr>
+<td>辐射</td>
+<td><code>callnlte</code>, <code>nltemodel</code></td>
+<td><code>.true.</code>, <code>0</code></td>
+<td>NLTE 15μm 方案</td>
+</tr>
+<tr>
+<td>湍流</td>
+<td><code>calldifv</code>, <code>calladj</code>, <code>calltherm</code>, <code>callrichsl</code></td>
+<td><code>.true.</code>×4</td>
+<td>PBL、对流调整、热泡</td>
+</tr>
+<tr>
+<td>凝结</td>
+<td><code>callcond</code></td>
+<td><code>.true.</code></td>
+<td>CO₂ 凝结</td>
+</tr>
+<tr>
+<td>土壤</td>
+<td><code>callsoil</code></td>
+<td><code>.true.</code></td>
+<td>土壤热传导</td>
+</tr>
+<tr>
+<td>重力波</td>
+<td><code>calllott</code>, <code>calllott_nonoro</code></td>
+<td><code>.true.</code>, <code>.true.</code></td>
+<td>1D 仍可调用</td>
+</tr>
+<tr>
+<td>尘埃</td>
+<td><code>dustbin=2</code>, <code>active=.true.</code>, <code>doubleq=.true.</code>, <code>lifting=.true.</code>, <code>rdstorm=.true.</code>, <code>topflows=.true.</code></td>
+<td>—</td>
+<td>完整尘埃循环</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td><code>water=.true.</code>, <code>microphys=.true.</code>, <code>caps=.true.</code>, <code>activice=.true.</code></td>
+<td>—</td>
+<td>完整水循环</td>
+</tr>
+<tr>
+<td>化学</td>
+<td><code>photochem=.false.</code></td>
+<td>关闭</td>
+<td>可选开启</td>
+</tr>
+<tr>
+<td>热层</td>
+<td><code>callthermos</code>, <code>callconduct</code>, <code>callmoldiff</code>, <code>calleuv</code></td>
+<td><code>.false.</code>×4</td>
+<td>1D 极少开启</td>
+</tr>
+</tbody>
+</table>
+<h2 id="被读取的位置">被读取的位置</h2>
+<table>
+<thead>
+<tr>
+<th>读取例程</th>
+<th>文件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin</code></td>
+<td><code>libf</code> 通用 (ioipsl)</td>
+<td>读取 <code>run.def</code> 所有 <code>name=value</code> 字段</td>
+</tr>
+<tr>
+<td><code>init_testphys1d</code></td>
+<td><code>libf/phymars/dyn1d/init_testphys1d_mod.F90:7</code></td>
+<td>主入口，调用 <code>getin()</code> 读取 1D 专有字段，打开 <code>traceur.def</code></td>
+</tr>
+<tr>
+<td><code>conf_phys</code></td>
+<td>通过 <code>callkeys_mod</code></td>
+<td>读取物理开关</td>
+</tr>
+<tr>
+<td><code>physdem0</code> / <code>physdem1</code></td>
+<td><code>phyredem</code></td>
+<td>当无 startfi.nc 时生成初始 startfi</td>
+</tr>
+<tr>
+<td><code>physiq</code></td>
+<td><code>libf/phymars/physiq_mod.F</code></td>
+<td>每时间步调用 3D 物理主入口（1D 复用）</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>1D 与 3D 的差异</strong>（源码依据：<code>testphys1d.F90:199-232,234-260</code>）：</p>
+<ul>
+<li><strong>风场</strong>：不使用 Coriolis 力，而是向地转风 <code>(gru, grv)</code> 做松弛，时间尺度 <code>1e4</code> 秒（第 206-207 行）。</li>
+<li><strong>水示踪物</strong>：<code>ctrl_h2ovap</code> / <code>ctrl_h2oice</code> 为真时，物理计算的倾向被覆盖或松弛到 <code>qref_h2ovap</code> / <code>qref_h2oice</code> 廓线（第 214-232 行）。</li>
+<li><strong>地表气压</strong>：物理倾向 <code>dpsurf</code> 直接加到 <code>psurf</code>（3D 由动力学保证守恒）。</li>
+</ul>
+</blockquote>
+<h2 id="影响的计算流程">影响的计算流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>辐射</td>
+<td><code>callrad</code> + <code>callnlte</code> + <code>tauvis</code> 共同决定 1D 大气的日变化辐射加热</td>
+</tr>
+<tr>
+<td>尘埃循环</td>
+<td><code>dustbin</code>, <code>doubleq</code>, <code>lifting</code>, <code>rdstorm</code>, <code>topflows</code> 开启完整尘埃物理</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td><code>water</code> + <code>microphys</code> + <code>caps</code> + <code>ctrl_h2ovap</code>/<code>ctrl_h2oice</code> 决定水循环闭环方式</td>
+</tr>
+<tr>
+<td>CO₂ 循环</td>
+<td><code>callcond</code> + <code>co2ice</code> 初始值 + <code>psurf</code> 决定 CO₂ 凝结/升华</td>
+</tr>
+<tr>
+<td>土壤</td>
+<td><code>callsoil</code> + <code>inertia</code> + 土壤分层 (<code>comsoil_h</code>) 决定地表热惯量</td>
+</tr>
+<tr>
+<td>对流/边界层</td>
+<td><code>calldifv</code> + <code>calladj</code> + <code>calltherm</code> + <code>callrichsl</code> + <code>u</code>/<code>v</code> 决定垂直混合</td>
+</tr>
+<tr>
+<td>重力波</td>
+<td><code>calllott</code> + <code>calllott_nonoro</code> 影响高层大气耗散</td>
+</tr>
+</tbody>
+</table>
+<h2 id="ichoice-温度初始廓线选项1-8"><code>ichoice</code> 温度初始廓线选项（1-8）</h2>
+<p>源码依据（<code>run.def.1d:68-87</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>ichoice</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>常数</td>
+<td>T = <code>tref</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Savidjari</td>
+<td>类 Seiff 但 dT/dz = cte</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Lindner</td>
+<td>极区廓线</td>
+</tr>
+<tr>
+<td>4</td>
+<td>inversion</td>
+<td>逆温</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Seiff</strong></td>
+<td>标准廓线（基于 Viking 进入数据），<strong>默认推荐</strong></td>
+</tr>
+<tr>
+<td>6</td>
+<td>常数 + 高斯扰动 (levels)</td>
+<td>在 <code>pic</code> (层数) 处加扰动，宽度 <code>largeur</code>，幅度 <code>hauteur</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td>常数 + 高斯扰动 (km)</td>
+<td>在 <code>pic</code> (km) 处加扰动</td>
+</tr>
+<tr>
+<td>8</td>
+<td>ASCII 读取</td>
+<td>从文件 <code>profile_temp</code> 逐层读取一列温度值</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要求">复现要求</h2>
+<ul>
+<li><strong><code>run.def</code> 必须物理存在且含 <code>INCLUDEDEF=callphys.def</code> 行</strong>（源码依据：<code>testphys1d.F90:114-120</code>）：否则 <code>getin</code> 无法解析 <code>callphys.def</code> 字段，程序停止。</li>
+<li><strong><code>traceur.def</code> 必须存在</strong>（源码依据：<code>init_testphys1d_mod.F90:180-186</code>）：第一行为示踪物数量 nq，后续每行一个示踪物名。同位素可用 <code>tname tnom_transp</code> 格式声明父-子关系。</li>
+<li><strong><code>day_step</code> 必须整除 <code>output_per_sol</code></strong>（源码依据：<code>callphys.def.GCM6:7</code> 与 <code>time_phylmdz_mod</code>）：否则输出步与物理步不匹配。</li>
+<li><strong><code>ndt</code> 与 <code>day_step</code> 决定总时间步数</strong>（源码依据：<code>init_testphys1d_mod.F90</code>）：总步数 = <code>ndt * day_step</code>。</li>
+<li><strong><code>hybrid=.true.</code> 与 3D 一致</strong>（源码依据：<code>run.def.1d:63</code>）：1D 必须使用与 3D 相同的垂直坐标定义（来自 <code>z2sig.def</code>）。</li>
+<li><strong>水循环松弛设置</strong>（源码依据：<code>run.def.1d:54-61</code>）：
+<ul>
+<li><code>ctrl_h2ovap=.true.</code> + <code>relaxtime_h2ovap&lt;0</code> → 强制到 <code>profile_ref_h2o_vap</code> 文件廓线。</li>
+<li><code>ctrl_h2ovap=.true.</code> + <code>relaxtime_h2ovap≥0</code> → 指数松弛。</li>
+<li><code>ctrl_h2ovap=.false.</code> → 完全由物理决定。</li>
+</ul></li>
+<li><strong><code>ichoice=5</code> (Seiff) 是标准初始廓线</strong>（源码依据：<code>run.def.1d:77</code> 注释：<code>standard profile, based on Viking entry</code>）。</li>
+<li><strong>复现风险</strong>：1D 风场采用向地转风 <code>(gru, grv)</code> 的 1e4 秒松弛而非 3D Coriolis 力（源码依据：<code>testphys1d.F90:199-208</code> 注释："For some tests: No coriolis force at equator"）。此简化使得 1D 高层风场可能与 3D 不同。</li>
+<li><strong>复现风险</strong>：<code>psurf</code> 在 1D 中每时间步由物理倾向 <code>dpsurf</code> 直接累加（<code>testphys1d.F90:254</code>），没有 3D 动力学的守恒修正；长 run 可能出现质量漂移。</li>
+<li><strong>复现风险</strong>：<code>callphys.def.GCM6</code> 中 <code>nonoro_gwd_*</code> 参数在 1D 仍可被调用（<code>testphys1d.F90:194</code> 调 <code>physiq</code>），但其参数化假设水平不均匀，1D 结果物理解释需谨慎。</li>
+<li><strong>复现风险</strong>：当 <code>startfiles_1D=.false.</code> 且无 <code>startfi.nc</code> 时，程序调用 <code>physdem0</code>/<code>physdem1</code> 自动生成一个 startfi（源码依据：<code>testphys1d.F90:152-159</code>），其内部字段值由 1D 参数决定，复现时若修改 <code>albedo</code>/<code>inertia</code>/<code>tauvis</code> 必须重新生成 startfi。</li>
+</ul>
+<h2 id="已核验输入格式与运行边界">已核验输入格式与运行边界</h2>
+<ul>
+<li><code>profile_ref_h2o_vap</code> / <code>profile_ref_h2o_ice</code> 不从 <code>datadir</code> 搜索，而是在当前运行目录按字面文件名打开；<code>init_testphys1d_mod.F90:794-801</code> 和 <code>823-830</code> 逐层读取 <code>nlayer</code> 行，文件缺失或行数不足都会停止。</li>
+<li><code>start1D.txt</code> 的 ASCII 格式可由 <a href="../modules/phymars/dyn1d/writerestart1D_mod.html">writerestart1D_mod</a> 写出的 <code>restart1D.txt</code> 反推；复用时仍需保证 tracer 顺序、<code>nslope</code> 和 <code>nlayer</code> 一致。</li>
+<li><code>profile_temp</code> 文件只在 <code>ichoice&gt;=8</code> 时需要，<code>profile_temp_mod.F90:184-190</code> 按运行目录下的字面文件名逐行读取 <code>nlev=nlayer+1</code> 个温度值；样例文件未随 <code>deftank</code> 提供时，应由用户运行目录自行放置。</li>
+<li><code>ndt</code> 在 <code>init_testphys1d_mod.F90:74</code> 声明为 <code>integer</code>，<code>getin("ndt",ndt)</code> 读取后先表示 sol 数，再在 <code>init_testphys1d_mod.F90:309</code> 乘以 <code>day_step</code> 转为总物理步数；配置中应写整数 sol 数。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="config-system.html">config-system.md</a>：GCM def 配置体系总览（含 run.def / callphys.def / traceur.def 格式说明）。</li>
+<li><a href="../architecture/xios-config.html">xios-config.md</a>：XIOS 输出配置（1D 可选启用）。</li>
+<li><a href="z2sig-config.html">z2sig-config.md</a>：垂直坐标定义（1D 通过 <code>z2sig.def</code> 决定 nlayer）。</li>
+<li><a href="../themes/radiation.html">radiation.md</a> / <a href="../themes/dust-cycle.html">dust-cycle.md</a>：物理主题（1D 可独立测试）。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

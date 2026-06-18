@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>suaer - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/suaer.md</span>
+    </nav>
+    <article class="content">
+<h1 id="suaerf90">suaer.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\suaer.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>suaer.F90</code> 定义 <code>suaer_mod</code> 模块（第 1 行）和唯一导出的初始化例程 <code>suaer</code>（第 7 行）。它是辐射链路的气溶胶光学查找表加载器：在 <code>callradite</code> 的首次调用阶段被 <code>CALL SUAER</code> 触发（<code>callradite_mod.F</code> 第 408 行），按 <code>dimradmars_mod::name_iaer</code> 中的气溶胶类型选择外部 ASCII 光学属性文件，读取波长轴、粒径轴、消光效率、单次散射反照率和不对称因子，然后调用 <a href="aerave.html">aerave</a> 把高分辨率光谱平均到 GCM 的可见光 <code>nsun=2</code> 波段和红外 <code>nir=4</code> 波段。</p>
+<p>本文件不直接计算三维网格内的光学厚度。它填充 <code>dimradmars_mod</code> 中的离散查找表：<code>file_id</code>、<code>longrefvis/longrefir</code>、<code>radiustab</code>、<code>nsize</code>、<code>QVISsQREF</code>、<code>omegavis</code>、<code>gvis</code>、<code>QIRsQREF</code>、<code>omegaIR</code>、<code>gIR</code>、<code>QREFvis/QREFir</code> 和 <code>omegaREFvis/omegaREFir</code>。这些表随后由 <a href="aeroptproperties.html">aeroptproperties</a> 按实际粒径分布插值/卷积，再由 <a href="aeropacity_mod.html">aeropacity_mod</a> 用于计算各气溶胶光学厚度。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>suaer_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>封装气溶胶光学查找表初始化例程</td>
+</tr>
+<tr>
+<td><code>suaer</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7</td>
+<td>选择并读取每类气溶胶的 VIS/IR ASCII 光学属性表，平均到 GCM 辐射波段，并写入 <code>dimradmars_mod</code> 共享表</td>
+</tr>
+<tr>
+<td><code>wvl</code></td>
+<td>saved allocatable local array</td>
+<td style="text-align: right;">61</td>
+<td>当前光学属性文件的波长轴</td>
+</tr>
+<tr>
+<td><code>radiusdyn</code></td>
+<td>saved allocatable local array</td>
+<td style="text-align: right;">63</td>
+<td>当前光学属性文件的粒径轴</td>
+</tr>
+<tr>
+<td><code>ep</code></td>
+<td>saved allocatable local array</td>
+<td style="text-align: right;">66</td>
+<td>当前文件中每个波长和粒径的消光系数/效率 <code>Qext</code></td>
+</tr>
+<tr>
+<td><code>omeg</code></td>
+<td>saved allocatable local array</td>
+<td style="text-align: right;">67</td>
+<td>当前文件中每个波长和粒径的单次散射反照率</td>
+</tr>
+<tr>
+<td><code>gfactor</code></td>
+<td>saved allocatable local array</td>
+<td style="text-align: right;">68</td>
+<td>当前文件中每个波长和粒径的不对称因子</td>
+</tr>
+<tr>
+<td><code>wvl/radiusdyn/ep/omeg/gfactor</code> threadprivate</td>
+<td>OpenMP directive</td>
+<td style="text-align: right;">70</td>
+<td>让临时读表数组在 OpenMP 线程中各自私有</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>longrefvis, longrefir, nsizemax, long1vis, long2vis, long3vis, long1ir, long2ir, long1co2, long2co2, nsun, nir, naerkind, name_iaer, iaer_*</code>, <code>file_id, radiustab, gvis, omegavis, QVISsQREF, gIR, omegaIR, QIRsQREF, QREFvis, QREFir, omegaREFvis, omegaREFir, nsize</code></td>
+<td>读取辐射维度、气溶胶名称和输出表；本例程主要写入这些共享表</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>datafile_mod</code></td>
+<td><code>datadir</code></td>
+<td>拼接 <code>trim(datadir)//"/"//trim(file_id(...))</code> 外部光学属性文件路径</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td><code>bcast</code></td>
+<td>非 <code>MESOSCALE</code> 编译路径下把 master 读好的查找表广播给其他并行进程</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>dustrefir</code></td>
+<td>作为尘埃、stormdust、topdust 红外参考波长 <code>longrefir</code></td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>aerave_mod</code></td>
+<td><code>aerave</code></td>
+<td>把高分辨率光学属性按普朗克权重平均到可见/红外 GCM 通道</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>aerave</code></td>
+<td><code>aerave_mod</code> / <code>aerave.F</code></td>
+<td>第 422 行、第 480 行</td>
+<td>分别对可见光和红外谱段做带平均，返回 <code>epav/omegav/gav</code> 以及参考波长处的 <code>QREF/omegaREF</code></td>
+</tr>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td>第 564-577 行</td>
+<td>广播 <code>longref*</code>、<code>radiustab</code>、<code>Q*</code>、<code>omega*</code>、<code>g*</code>、<code>nsize</code> 等查找表</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>物理包公共错误终止例程</td>
+<td>第 258、275、290、302、309、376、409 行</td>
+<td>光学文件缺失、读表失败、表格式异常或 <code>nsizemax</code> 不足时终止运行</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name_iaer(1:naerkind)</code></td>
+<td><code>dimradmars_mod</code>，由上游配置/初始化填充</td>
+<td>character array</td>
+<td>-</td>
+<td>当前运行启用的气溶胶类型名称，驱动 <code>SELECT CASE</code> 选择文件和参考波长</td>
+</tr>
+<tr>
+<td><code>naerkind</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>气溶胶种类数，决定主循环长度</td>
+</tr>
+<tr>
+<td><code>datadir</code></td>
+<td><code>datafile_mod</code></td>
+<td>character</td>
+<td>-</td>
+<td>外部光学属性表所在目录</td>
+</tr>
+<tr>
+<td><code>dustrefir</code></td>
+<td><code>callkeys_mod</code></td>
+<td>real scalar</td>
+<td>m</td>
+<td>尘埃类气溶胶的红外参考波长</td>
+</tr>
+<tr>
+<td><code>nsun/nir</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>integer parameters</td>
+<td>-</td>
+<td>可见光和红外辐射通道数；当前分别为 2 和 4</td>
+</tr>
+<tr>
+<td><code>long1vis/long2vis/long3vis</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>real parameters</td>
+<td>m</td>
+<td>两个太阳短波通道的边界</td>
+</tr>
+<tr>
+<td><code>long1ir/long1co2/long2co2/long2ir</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>real parameters</td>
+<td>m</td>
+<td>三个红外积分区间边界，之后映射到四个 <code>nir</code> 通道</td>
+</tr>
+<tr>
+<td><code>optprop_*.dat</code></td>
+<td><code>datadir</code> 运行时目录</td>
+<td>ASCII tables</td>
+<td>混合</td>
+<td>每个文件依次提供 <code>nwvl</code>、<code>nsize</code>、<code>wvl</code>、<code>radiusdyn</code>、<code>ep</code>、<code>omeg</code>、<code>gfactor</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>file_id(naerkind,2)</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>character array</td>
+<td>-</td>
+<td>每类气溶胶的 VIS/IR 光学属性文件名</td>
+</tr>
+<tr>
+<td><code>longrefvis(naerkind)</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>real array</td>
+<td>m</td>
+<td>可见光参考波长；尘埃、水冰和 CO2 冰当前均写入 <code>0.67e-6</code></td>
+</tr>
+<tr>
+<td><code>longrefir(naerkind)</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>real array</td>
+<td>m</td>
+<td>红外参考波长；尘埃类取 <code>dustrefir</code>，水冰取 <code>12.1e-6</code>，CO2 冰取 <code>4.26e-6</code></td>
+</tr>
+<tr>
+<td><code>nsize(naerkind,2)</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>integer array</td>
+<td>-</td>
+<td>每类气溶胶、每个谱段的离散粒径数</td>
+</tr>
+<tr>
+<td><code>radiustab(naerkind,2,nsizemax)</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>real array</td>
+<td>m</td>
+<td>离散粒径表，供后续粒径插值/卷积使用</td>
+</tr>
+<tr>
+<td><code>QVISsQREF(nsun,naerkind,nsizemax)</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>real array</td>
+<td>-</td>
+<td>可见光各波段 <code>&lt;Qext&gt;/Qext(longrefvis)</code></td>
+</tr>
+<tr>
+<td><code>omegavis/gvis</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>real arrays</td>
+<td>-</td>
+<td>可见光各波段单次散射反照率和不对称因子</td>
+</tr>
+<tr>
+<td><code>QIRsQREF(nir,naerkind,nsizemax)</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>real array</td>
+<td>-</td>
+<td>红外各通道 <code>Qext/Qext(longrefvis)</code>；第 1、2 通道共用 CO2 15 um 带结果</td>
+</tr>
+<tr>
+<td><code>omegaIR/gIR</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>real arrays</td>
+<td>-</td>
+<td>红外各通道单次散射反照率和不对称因子</td>
+</tr>
+<tr>
+<td><code>QREFvis/QREFir</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>real arrays</td>
+<td>-</td>
+<td>可见/红外参考波长处的消光效率</td>
+</tr>
+<tr>
+<td><code>omegaREFvis/omegaREFir</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>real arrays</td>
+<td>-</td>
+<td>可见/红外参考波长处的单次散射反照率</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本例程在 <code>OMP MASTER</code> 区段内读文件、分配临时数组、调用 <code>aerave</code> 并填充全局查找表；非 <code>MESOSCALE</code> 路径随后用 <code>bcast</code> 分发结果。</li>
+<li>它会清零并重写 <code>dimradmars_mod</code> 中的查找表：第 215-228 行先把 <code>radiustab</code>、<code>QVISsQREF</code>、<code>QIRsQREF</code>、<code>QREF*</code>、<code>omega*</code>、<code>g*</code> 初始化为 0。</li>
+<li>每个 <code>iaer,idomain</code> 文件会临时分配 <code>wvl/radiusdyn/ep/omeg/gfactor</code>，处理完成后在第 550-554 行释放。</li>
+<li>找不到文件时会打印 <code>datadir</code>、建议的 <code>callfis.def</code>/<code>datadir</code> 修改方法和在线数据包位置，然后调用 <code>abort_physic</code>。</li>
+<li>源码树当前 <code>LMDZ.MARS\datadir</code> 未包含 <code>optprop_*</code> 文件；复现运行需要外部 Mars datadir 数据包或用户配置的 <code>datadir</code>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>按气溶胶类型选择文件和参考波长</strong>：对 <code>iaer=1..naerkind</code> 循环，按 <code>name_iaer(iaer)</code> 匹配 <code>dust_conrath</code>、<code>dust_doubleq</code>、<code>dust_submicron</code>、<code>h2o_ice</code>、<code>co2_ice</code>、<code>stormdust_doubleq</code>、<code>topdust_doubleq</code>，写入对应 <code>file_id(iaer,1:2)</code> 和 <code>longrefvis/longrefir</code>。</li>
+<li><strong>清零共享查找表</strong>：在读表前把 VIS/IR 的 <code>Q</code>、<code>omega</code>、<code>g</code>、<code>QREF</code> 和 <code>radiustab</code> 表归零，避免残留值污染未覆盖条目。</li>
+<li><strong>逐气溶胶、逐谱段打开 ASCII 文件</strong>：检查 <code>datadir/file_id</code> 是否存在，不存在即终止；存在则打开格式化文本文件。</li>
+<li><strong>扫描头部并分配临时数组</strong>：跳过以 <code>#</code> 或空格开头的行，先读 <code>nwvl</code> 和 <code>nsize(iaer,idomain)</code>，再分配 <code>wvl(nwvl)</code>、<code>radiusdyn(nsize)</code>、<code>ep(nwvl,nsize)</code>、<code>omeg(nwvl,nsize)</code>、<code>gfactor(nwvl,nsize)</code>。</li>
+<li><strong>读取表主体</strong>：继续跳过注释/空白行，依次读入波长轴、粒径轴、每个粒径的 <code>ep</code>、<code>omeg</code> 和 <code>gfactor</code>。</li>
+<li><strong>可见光带平均</strong>：对每个粒径，设置太阳温度 <code>tsun=6000</code>，用 <code>long1vis/long2vis/long3vis</code> 构造两个短波通道，调用 <code>aerave</code>，再把 <code>epav/omegav/gav</code> 写入 <code>QVISsQREF/omegavis/gvis</code>。</li>
+<li><strong>红外带平均并换参考波长</strong>：对每个粒径，设置 <code>tsol=215</code> 和三个红外积分区间，调用 <code>aerave</code> 得到相对 <code>longrefir</code> 的 <code>epav</code>；随后乘 <code>QREFir/QREFvis</code>，把红外消光效率统一转为相对 <code>longrefvis</code> 的 <code>QIRsQREF</code>。</li>
+<li><strong>映射红外通道</strong>：<code>QIRsQREF(1)</code> 和 <code>(2)</code> 使用 CO2 中心带结果 <code>epav(2)</code>，<code>(3)</code> 使用 9 um 区间 <code>epav(1)</code>，<code>(4)</code> 使用远红外区间 <code>epav(3)</code>；<code>omegaIR/gIR</code> 同样映射。</li>
+<li><strong>释放临时表并广播</strong>：当前 <code>iaer,idomain</code> 处理完成后释放临时数组；所有循环结束后在非 <code>MESOSCALE</code> 路径广播共享表。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>for iaer in 1..naerkind:
+    select name_iaer(iaer):
+        set file_id(iaer,VIS), file_id(iaer,IR)
+        set longrefvis(iaer), longrefir(iaer)
+
+zero radiustab, QVISsQREF, omegavis, gvis, QIRsQREF, omegaIR, gIR, QREF*, omegaREF*
+
+for iaer in 1..naerkind:
+    for idomain in [VIS, IR]:
+        path = datadir + &quot;/&quot; + file_id(iaer,idomain)
+        require path exists
+        read nwvl and nsize, skipping comments/blank-leading lines
+        allocate wvl, radiusdyn, ep, omeg, gfactor
+        read wvl, radiusdyn, ep(:,isize), omeg(:,isize), gfactor(:,isize)
+
+        if VIS:
+            longsun = [long1vis, long2vis, long3vis]
+            for isize:
+                require isize &lt;= nsizemax
+                radiustab(iaer,VIS,isize) = radiusdyn(isize)
+                aerave(..., longrefvis(iaer), tsun=6000, nsun, longsun, ...)
+                QVISsQREF(:,iaer,isize) = epav(:)
+                omegavis(:,iaer,isize) = omegav(:)
+                gvis(:,iaer,isize) = gav(:)
+        else:
+            longir = [long1ir, long1co2, long2co2, long2ir]
+            for isize:
+                radiustab(iaer,IR,isize) = radiusdyn(isize)
+                aerave(..., longrefir(iaer), tsol=215, nir-1, longir, ...)
+                epav = epav * QREFir(iaer,isize) / QREFvis(iaer,isize)
+                map epav(2), epav(2), epav(1), epav(3) into QIRsQREF(1:4)
+
+        deallocate temporary file arrays
+
+if not MESOSCALE:
+    bcast all shared optical property tables</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">辐射</a></td>
+<td>在 <code>callradite</code> 首次调用时加载气溶胶光学查找表，是 <code>aeroptproperties</code>、<code>aeropacity</code>、<code>lwmain</code> 和 <code>swmain</code> 的上游数据准备步骤</td>
+</tr>
+<tr>
+<td><a href="../../themes/dust-cycle.html">尘埃循环</a></td>
+<td>为 <code>dust_conrath</code>、<code>dust_doubleq</code>、<code>dust_submicron</code>、<code>stormdust_doubleq</code> 和 <code>topdust_doubleq</code> 提供尘埃光学属性表及参考波长</td>
+</tr>
+<tr>
+<td>水冰/CO2 云辐射</td>
+<td>为 <code>h2o_ice</code> 和 <code>co2_ice</code> 气溶胶提供 VIS/IR 光学属性表，供云粒径光学参数化使用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 Fortran 90 模块，但大量延续了历史注释和固定格式风格的分段结构。</li>
+<li>外部表格式由手写扫描器解析：只跳过首字符为 <code>#</code> 或空格的行；其他非空数据行按固定顺序读取。</li>
+<li><code>file_unit=60</code> 为局部固定文件单元号，文件在每个 <code>iaer,idomain</code> 处理后关闭。</li>
+<li>红外 <code>QIRsQREF</code> 的命名要按 <code>dimradmars_mod</code> 注释理解：最终相对的是可见光参考波长 <code>longrefvis</code>，不是红外参考波长。</li>
+<li><code>nsizemax=60</code> 是 <code>dimradmars_mod</code> 的编译期上限；若外部表粒径数超过此上限，源码只在 VIS 分支显式 abort。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>datadir</code> 必须指向包含 <code>optprop_dustvis_TM.dat</code>、<code>optprop_dustir_TM.dat</code>、<code>optprop_dustvis_TM_n50.dat</code>、<code>optprop_dustir_n50.dat</code>、<code>optprop_dustvis_01um_TM.dat</code>、<code>optprop_dustir_01um_TM.dat</code>、<code>optprop_icevis_n30.dat</code>、<code>optprop_iceir_n30.dat</code>、<code>optprop_co2ice_vis_n50.dat</code>、<code>optprop_co2ice_ir_n50.dat</code> 等文件的目录；当前源码树内 <code>datadir</code> 不保证提供这些表。</li>
+<li><code>name_iaer</code> 必须只包含本文件 <code>SELECT CASE</code> 已支持的名称，否则该 <code>iaer</code> 的 <code>file_id</code>/参考波长不会被设置，后续读表会失败或读取未定义路径。</li>
+<li>外部 ASCII 表必须按源码期望顺序组织：<code>nwvl</code>、<code>nsize</code>、<code>wvl</code>、<code>radiusdyn</code>、逐粒径 <code>ep</code>、逐粒径 <code>omeg</code>、逐粒径 <code>gfactor</code>。</li>
+<li>如果外部表粒径数大于 <code>nsizemax</code>，VIS 分支会报错要求提高 <code>dimradmars_mod</code> 中的 <code>nsizemax</code>；IR 分支没有独立的同类显式检查，但共享表第三维仍由 <code>nsizemax</code> 限定。</li>
+<li>并行复现时要保留 <code>OMP MASTER</code> 加载和非 <code>MESOSCALE</code> <code>bcast</code> 路径，否则非 master 进程可能看不到一致的查找表。</li>
+<li><code>callradite</code> 必须先完成气溶胶名称和索引识别，再调用 <code>suaer</code>；<code>aeroptproperties</code> 依赖 <code>suaer</code> 写入的 <code>radiustab/QVISsQREF/...</code> 表。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>abort_physic</code> 在本文件中被直接调用但没有显式 <code>use</code>；推断依赖工程构建环境中的全局接口或包含路径，复现编译时应保留原工程上下文。</li>
+<li>IR 分支没有像 VIS 分支一样在写 <code>radiustab(iaer,2,isize)</code> 前检查 <code>isize.gt.nsizemax</code>；若某个 IR 光学表粒径数超过上限，实际运行行为需结合 Fortran 边界检查设置确认。</li>
+<li>外部光学属性表的 <code>ep</code> 是绝对消光效率还是已按某参考值归一化，需要以数据文件说明为准；本例程按 <code>aerave</code> 的 <code>epref=1</code> 路径处理。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="aerave.html">aerave</a> - 对 <code>suaer</code> 读入的高分辨率光学属性做谱带平均。</li>
+<li><a href="aeroptproperties.html">aeroptproperties</a> - 消费 <code>suaer</code> 写入的离散光学表，按实际粒径分布生成三维散射参数。</li>
+<li><a href="aeropacity_mod.html">aeropacity_mod</a> - 使用参考波长处的 <code>QREFvis3d/QREFir3d</code> 等计算光学厚度。</li>
+<li><a href="datafile_mod.html">datafile_mod</a> - 提供运行时外部数据目录 <code>datadir</code>。</li>
+<li><a href="../../themes/radiation.html">radiation 主题</a></li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle 主题</a></li>
+<li><a href="callradite_mod.html">callradite_mod</a> - 唯一调用 <code>suaer</code> 的上游辐射入口。</li>
+<li><a href="updatereffrad_mod.html">updatereffrad_mod.F</a> - 更新辐射粒径分布。</li>
+<li><a href="dimradmars_mod.html">dimradmars_mod</a> - 保存本例程填充的辐射维度和查找表。</li>
+<li><a href="callkeys_mod.html">callkeys_mod.F90</a> - 提供 <code>dustrefir</code> 等辐射/物理开关。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

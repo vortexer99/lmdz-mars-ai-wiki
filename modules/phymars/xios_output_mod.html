@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>xios_output_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/xios_output_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="xios_output_modf90">xios_output_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\xios_output_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>xios_output_mod.F90</code> 是 LMDZ.MARS 物理包到 XIOS 输出库的 Fortran 封装层。它在 <code>CPP_XIOS</code> 编译期开关下提供 XIOS 上下文初始化、时间步推进、0D/1D/2D/3D 字段发送、字段活跃性查询和上下文 finalize；无 <code>CPP_XIOS</code> 时，源码中实际可见的模块内容只剩 <code>time_it</code> 与 <code>context_id</code> 等静态定义，XIOS 例程不会进入编译。</p>
+<p>运行时该模块与 <code>deftank/xios/*.xml</code> 配置配合：<code>context_id="LMDZ"</code> 对应 <code>context_pcm_physics.xml</code>，<code>initialize_xios_output</code> 设置垂直轴、土壤轴、坡面轴、水平 domain、用户自定义日历和起始时间，然后调用 <code>wxios_closedef</code> 关闭定义阶段；后续 <code>update_xios_timestep</code> 每个物理时间步推进 XIOS calendar，<code>send_xios_field</code> 泛型接口把具体字段发送给 XIOS。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xios_output_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>XIOS 输出封装模块。</td>
+</tr>
+<tr>
+<td><code>time_it</code></td>
+<td>private saved integer</td>
+<td>5</td>
+<td>记录自启动以来已调用 XIOS 时间推进的次数。</td>
+</tr>
+<tr>
+<td><code>context_id</code></td>
+<td>parameter character</td>
+<td>8</td>
+<td>XIOS context 名称，固定为 <code>"LMDZ"</code>。</td>
+</tr>
+<tr>
+<td><code>send_xios_field</code></td>
+<td>generic interface</td>
+<td>12</td>
+<td>分派到 0D/1D/2D/3D 的 <code>histwrite*_xios</code>。</td>
+</tr>
+<tr>
+<td><code>initialize_xios_output</code></td>
+<td>subroutine</td>
+<td>19</td>
+<td>初始化 XIOS 轴、domain、日历、起始时间并关闭定义阶段。</td>
+</tr>
+<tr>
+<td><code>finalize_xios_output</code></td>
+<td>subroutine</td>
+<td>155</td>
+<td>调用 <code>xios_context_finalize</code> 关闭上下文。</td>
+</tr>
+<tr>
+<td><code>update_xios_timestep</code></td>
+<td>subroutine</td>
+<td>168</td>
+<td>设置当前上下文，递增 <code>time_it</code> 并更新 XIOS calendar。</td>
+</tr>
+<tr>
+<td><code>set_xios_context</code></td>
+<td>subroutine</td>
+<td>180</td>
+<td>获取 <code>context_id</code> 对应句柄并设置为当前上下文。</td>
+</tr>
+<tr>
+<td><code>histwrite0d_xios</code></td>
+<td>subroutine</td>
+<td>193</td>
+<td>向 XIOS 发送标量 real 字段。</td>
+</tr>
+<tr>
+<td><code>histwrite1d_xios</code></td>
+<td>subroutine</td>
+<td>212</td>
+<td>向 XIOS 发送一维 real 字段；<code>dimens</code> 参数未在源码中使用。</td>
+</tr>
+<tr>
+<td><code>histwrite2d_xios</code></td>
+<td>subroutine</td>
+<td>231</td>
+<td>校验物理网格长度，gather 到 MPI 子域二维数组并发送。</td>
+</tr>
+<tr>
+<td><code>histwrite3d_xios</code></td>
+<td>subroutine</td>
+<td>266</td>
+<td>校验第一维等于 <code>klon</code>，gather 到三维经纬-层数组并发送。</td>
+</tr>
+<tr>
+<td><code>xios_is_active_field</code></td>
+<td>function</td>
+<td>309</td>
+<td>查询 XIOS 中某 field 是否激活，并通过 OpenMP 广播结果。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xios</code> / <code>XIOS</code></td>
+<td>多个 XIOS API</td>
+<td>设置轴、日历、上下文，发送字段和查询 field 活跃性。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>wxios</code></td>
+<td><code>wxios_domain_param</code>, <code>wxios_domain_param_unstructured</code>, <code>wxios_closedef</code></td>
+<td>初始化结构化或非结构 domain，并关闭 XIOS 定义阶段。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>jj_nb</code>, <code>jj_begin</code>, <code>jj_end</code>, <code>ii_begin</code>, <code>ii_end</code>, <code>mpi_size</code>, <code>mpi_rank</code>, <code>klon_mpi</code>, <code>is_sequential</code>, <code>is_south_pole_dyn</code>, <code>gather_omp</code>, <code>grid1Dto2D_mpi</code></td>
+<td>MPI/OMP 子域信息、字段收集和 1D 到 2D/3D 子域重排。</td>
+<td>初始化中部分变量只出现在注释代码和调试输出中。</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>nbp_lon</code>, <code>nbp_lat</code>, <code>klon_glo</code>, <code>grid_type</code>, <code>unstructured</code></td>
+<td>全局维度和结构/非结构网格分支。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>regular_lonlat_mod</code></td>
+<td><code>lon_reg</code>, <code>lat_reg</code></td>
+<td>旧版显式 domain 初始化代码保留在注释中；当前实际调用封装的 <code>wxios_domain_param</code>。</td>
+<td>是否仍需保留导入待确认。</td>
+</tr>
+<tr>
+<td><code>comslope_mod</code></td>
+<td><code>nslope</code>, <code>def_slope_mean</code></td>
+<td>设置 <code>subslope</code> 轴。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>dimphy</code></td>
+<td><code>klon</code>, <code>klev</code></td>
+<td>2D/3D 发送前校验物理网格维度。</td>
+<td><code>klev</code> 在当前 3D 例程中未直接使用。</td>
+</tr>
+<tr>
+<td><code>print_control_mod</code></td>
+<td><code>lunout</code>, <code>prt_level</code></td>
+<td>输出 XIOS 调试日志。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_omp_transfert</code></td>
+<td><code>bcast_omp</code></td>
+<td>广播 <code>xios_is_active_field</code> 查询结果。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xios_set_axis_attr</code></td>
+<td>XIOS</td>
+<td><code>initialize_xios_output</code></td>
+<td>设置 <code>presnivs</code>、<code>altitude</code>、<code>interlayer</code>、<code>soil_layers</code>、<code>subslope</code> 轴属性。</td>
+</tr>
+<tr>
+<td><code>wxios_domain_param</code> / <code>wxios_domain_param_unstructured</code></td>
+<td><code>wxios</code></td>
+<td><code>initialize_xios_output</code></td>
+<td>根据网格类型初始化 <code>dom_glo</code> domain。</td>
+</tr>
+<tr>
+<td><code>xios_define_calendar</code></td>
+<td>XIOS</td>
+<td><code>initialize_xios_output</code></td>
+<td>定义 user_defined calendar、时间步、sol 长和 12 个月长度。</td>
+</tr>
+<tr>
+<td><code>xios_set_time_origin</code>, <code>xios_set_start_date</code></td>
+<td>XIOS</td>
+<td><code>initialize_xios_output</code></td>
+<td>设置时间原点和本次模拟起始时间。</td>
+</tr>
+<tr>
+<td><code>wxios_closedef</code></td>
+<td><code>wxios</code></td>
+<td><code>initialize_xios_output</code></td>
+<td>关闭 XIOS 定义阶段，之后可发送字段。</td>
+</tr>
+<tr>
+<td><code>xios_update_calendar</code></td>
+<td>XIOS</td>
+<td><code>update_xios_timestep</code></td>
+<td>按 <code>time_it</code> 推进 XIOS 时间。</td>
+</tr>
+<tr>
+<td><code>xios_send_field</code></td>
+<td>XIOS</td>
+<td><code>histwrite*_xios</code></td>
+<td>发送 0D/1D/2D/3D 字段。</td>
+</tr>
+<tr>
+<td><code>xios_field_is_active</code></td>
+<td>XIOS</td>
+<td><code>xios_is_active_field</code></td>
+<td>查询 field 是否被输出配置激活。</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部错误处理</td>
+<td>2D/3D 尺寸校验失败</td>
+<td>输入字段第一维不等于 <code>klon</code> 时中止。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>day</code></td>
+<td><code>initialize_xios_output</code> 调用方</td>
+<td>real</td>
+<td>sol</td>
+<td>从参考 <code>Ls=0</code> 起的已过 sol 数；当前源码未用于 start_date 计算。</td>
+</tr>
+<tr>
+<td><code>timeofday</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>sol fraction</td>
+<td>UT 日内比例；当前源码未用于 start_date 计算。</td>
+</tr>
+<tr>
+<td><code>dtphys</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>seconds</td>
+<td>物理时间步；用于 XIOS calendar 的 <code>day_length=nint(daysec/dtphys)</code>。</td>
+</tr>
+<tr>
+<td><code>daysec</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>seconds</td>
+<td>标准 sol 长度。</td>
+</tr>
+<tr>
+<td><code>presnivs(:)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>Pa</td>
+<td>近似层压，写入 <code>presnivs</code> 轴。</td>
+</tr>
+<tr>
+<td><code>pseudoalt(:)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>km</td>
+<td>近似高度，写入 <code>altitude</code> 和 <code>interlayer</code> 轴长度。</td>
+</tr>
+<tr>
+<td><code>mlayer(:)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>m</td>
+<td>土壤层深度，写入 <code>soil_layers</code> 轴。</td>
+</tr>
+<tr>
+<td><code>field_name</code></td>
+<td><code>histwrite*_xios</code> 调用方</td>
+<td>character</td>
+<td>-</td>
+<td>XIOS field id。</td>
+</tr>
+<tr>
+<td><code>field</code></td>
+<td><code>histwrite*_xios</code> 调用方</td>
+<td>real scalar/vector/array</td>
+<td>variable-dependent</td>
+<td>待发送到 XIOS 的诊断值。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>XIOS context <code>LMDZ</code></td>
+<td>XIOS runtime</td>
+<td>context</td>
+<td>-</td>
+<td>物理输出上下文。</td>
+</tr>
+<tr>
+<td><code>dom_glo</code></td>
+<td>XIOS domain</td>
+<td>structured/unstructured domain</td>
+<td>degrees</td>
+<td>物理水平网格 domain。</td>
+</tr>
+<tr>
+<td><code>presnivs</code>, <code>altitude</code>, <code>interlayer</code>, <code>soil_layers</code>, <code>subslope</code></td>
+<td>XIOS axes</td>
+<td>axis metadata</td>
+<td>mixed</td>
+<td>XIOS XML 中 field/grid 使用的轴。</td>
+</tr>
+<tr>
+<td><code>field_name</code> 字段</td>
+<td>XIOS runtime / NetCDF files</td>
+<td>0D/1D/2D/3D</td>
+<td>variable-dependent</td>
+<td>由 XML file_def 决定是否写入具体 NetCDF 文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>time_it</code> 是模块私有 <code>SAVE</code> 状态，由 OpenMP master 在 <code>update_xios_timestep</code> 中递增。</li>
+<li>多数 XIOS API 调用包在 <code>!$OMP MASTER</code> 中，调用前后常用 <code>!$OMP BARRIER</code> 同步。</li>
+<li><code>initialize_xios_output</code> 会关闭 XIOS 定义阶段；之后再改 XML 定义或动态添加轴/field 不属于该例程覆盖范围。</li>
+<li><code>histwrite2d_xios</code> 和 <code>histwrite3d_xios</code> 会把物理网格字段通过 <code>Gather_omp</code> 与 <code>grid1Dto2D_mpi</code> 转为当前 MPI 子域的二维/三维数组再发送。</li>
+<li><code>xios_is_active_field</code> 的结果由 master 查询后用 <code>bcast_omp</code> 广播；但当前 <a href="write_output_mod.html">write_output_mod</a> 中活跃性检查被注释，实际发送路径将 <code>is_active</code> 强制为 <code>.true.</code>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>CPP_XIOS</code> 编译时定义 <code>send_xios_field</code> 泛型接口，按实参秩分派到 0D/1D/2D/3D 发送例程。</li>
+<li><code>initialize_xios_output</code> 在 master 线程设置所有垂直/土壤/坡面轴属性。</li>
+<li>根据 <code>grid_type</code> 调用 <code>wxios_domain_param_unstructured("dom_glo")</code> 或 <code>wxios_domain_param("dom_glo")</code> 初始化水平 domain。</li>
+<li>master 定义 user-defined calendar：XIOS 时间步为 1 秒，<code>day_length=nint(daysec/dtphys)</code>，月份长度硬编码为 12 个 Mars 月长度。</li>
+<li>设置 <code>time_origin=xios_date(1,1,1,0,0,0)</code> 和同样的 <code>start_date</code>，然后 <code>wxios_closedef</code>。</li>
+<li>每个 XIOS 时间步调用 <code>update_xios_timestep</code>：先 <code>set_xios_context</code>，再递增 <code>time_it</code> 并 <code>xios_update_calendar(time_it)</code>。</li>
+<li>写字段时，0D/1D 直接 <code>xios_send_field</code>；2D/3D 先校验第一维等于 <code>klon</code>，再 gather/recast 后发送。</li>
+<li>结束时调用 <code>finalize_xios_output</code> 执行 <code>xios_context_finalize</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>initialize_xios_output(day, timeofday, dtphys, daysec, presnivs, pseudoalt, mlayer):
+  master:
+    set XIOS axes presnivs, altitude, interlayer, soil_layers, subslope
+  barrier
+  if grid_type == unstructured:
+    wxios_domain_param_unstructured(&quot;dom_glo&quot;)
+  else:
+    wxios_domain_param(&quot;dom_glo&quot;)
+  master:
+    define user calendar using day_length = nint(daysec / dtphys)
+    set time_origin and start_date
+    wxios_closedef()
+  barrier
+
+update_xios_timestep():
+  set_xios_context()
+  master:
+    time_it += 1
+    xios_update_calendar(time_it)
+
+send_xios_field(field_name, field):
+  if field is 0D or 1D:
+    master sends directly
+  if field is 2D or 3D:
+    require first dimension == klon
+    Gather_omp(field)
+    master grid1Dto2D_mpi(...)
+    master xios_send_field(...)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>XIOS 输出</td>
+<td>提供 Fortran 到 XIOS runtime 的初始化、时间推进、字段发送和关闭接口。</td>
+</tr>
+<tr>
+<td>通用输出封装</td>
+<td><a href="write_output_mod.html">write_output_mod</a> 在 <code>CPP_XIOS</code> 下调用 <code>send_xios_field</code>。</td>
+</tr>
+<tr>
+<td>物理主循环</td>
+<td><code>physiq</code> 首次调用时初始化 XIOS，每步更新 calendar，末尾发送控制表和轴相关字段。</td>
+</tr>
+<tr>
+<td>配置系统</td>
+<td>与 <a href="../../architecture/xios-config.html">xios-config</a> 中的 XML context、field_def 和 file_def 配套。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>所有实际 XIOS 例程都在 <code>#ifdef CPP_XIOS</code> 内；编译配置决定该模块是否提供可调用输出接口。</li>
+<li><code>context_id</code> 硬编码为 <code>"LMDZ"</code>，必须与 XML context id 保持一致。</li>
+<li><code>day</code> 和 <code>timeofday</code> 当前没有参与 <code>start_date</code> 计算；源码注释保留了“减去 dtphys”的说明，但实际 <code>start_date=time_origin</code>。</li>
+<li><code>histwrite1d_xios</code> 的 <code>dimens</code> 参数未使用，1D 实参直接发送给 XIOS。</li>
+<li>2D/3D 字段发送前只检查第一维 <code>klon</code>，不在本例程内验证 XML field 的 grid_ref 是否匹配。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须使用 <code>CPP_XIOS</code> 编译，并保证 XIOS XML 中存在 context id <code>LMDZ</code>。</li>
+<li><code>initialize_xios_output</code> 必须在任何 <code>send_xios_field</code> 之前执行，且必须完成 <code>wxios_closedef</code>。</li>
+<li>每个实际物理输出步需要先调用 <code>update_xios_timestep</code>，否则 XIOS calendar 与字段时间轴会错位。</li>
+<li><code>dtphys</code> 和 <code>daysec</code> 若不是整数，源码只打印 warning；<code>day_length</code> 仍取 <code>nint(daysec/dtphys)</code>。</li>
+<li>2D/3D 发送字段第一维必须等于 <code>dimphy:klon</code>，否则 <code>abort_physic</code> 中止。</li>
+<li>非结构网格走 <code>wxios_domain_param_unstructured</code>，与结构化经纬 domain 的 XML/后处理假设不同。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>day</code>、<code>timeofday</code> 在接口中传入但当前未用于 <code>start_date</code>；是否为历史遗留或待恢复逻辑需结合 XIOS 时间轴测试确认。</li>
+<li><code>regular_lonlat_mod</code>、若干 MPI 子域变量在当前实代码中主要出现在注释或调试路径，是否仍需导入待确认。</li>
+<li><code>write_output_mod</code> 当前注释掉 <code>xios_is_active_field</code> 检查并强制发送；若恢复活跃性过滤，XIOS 输出量和性能都会改变。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../architecture/xios-config.html">xios-config</a></li>
+<li><a href="write_output_mod.html">write_output_mod</a></li>
+<li><a href="dimphy.html">dimphy</a></li>
+<li><a href="time_phylmdz_mod.html">time_phylmdz_mod</a></li>
+<li><a href="../../architecture/config-system.html">config-system</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

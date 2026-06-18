@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lwi - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/lwi.md</span>
+    </nav>
+    <article class="content">
+<h1 id="lwif">lwi.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\lwi.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>lwi.F</code> 定义 <code>lwi_mod</code> 模块，提供长波 LTE 辐射流程末端的半隐式冷却率修正例程 <code>lwi</code>。它在 <code>lwmain_mod.F</code> 中由 <code>lwflux</code> 输出 <code>netrad</code> 之后调用：<code>lwflux</code> 先给出显式净辐射收支和冷却率，<code>lwi</code> 再利用 <code>lwb</code> 预处理得到的谱带 Planck 温度导数 <code>dblay</code>、层压强厚度 <code>dp</code>、净交换率表 <code>xi</code> 和时间步设置，把净辐射收支转换为半隐式格式下的新冷却率 <code>newcoolrate</code>。</p>
+<p>本文件不重新计算长波通量，也不调用其他例程；它只组装垂直方向三对角线性化系数，并用一次自顶向下消元和自底向上回代得到每层冷却率。<code>lwmain</code> 随后把 <code>newcoolrate(:,1:nlaylte)</code> 覆盖回 <code>coolrate</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lwi_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>封装长波半隐式冷却率修正例程。</td>
+</tr>
+<tr>
+<td><code>lwi</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7</td>
+<td>用 <code>netrad</code>、Planck 温度导数、层压强厚度和 <code>xi</code> 交换率表求解半隐式长波冷却率。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>ndlo2</code>, <code>ndlon</code>, <code>nflev</code>, <code>nir</code></td>
+<td>提供辐射列数、垂直层数和红外谱带数，用于形参和局部工作数组维度。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>yomlw_h</code></td>
+<td><code>gcp</code>, <code>nlaylte</code>, <code>xi</code></td>
+<td>提供 <code>g/cp</code> 换算因子、LTE 长波层数和 CO2 净交换率表。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code>, <code>cpp</code></td>
+<td>提供重力加速度和定压比热，构造半隐式线性化系数。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>dtphys</code></td>
+<td>提供物理时间步长。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>semi</code>, <code>iradia</code></td>
+<td>提供半隐式权重和辐射调用间隔；<code>deltat = dtphys * iradia</code>，<code>semit = semi * deltat</code>。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td><code>lwi</code> 只做本地数组计算，不调用其他用户例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ig0</code></td>
+<td><code>lwmain</code></td>
+<td><code>integer</code></td>
+<td>grid index offset</td>
+<td>当前向量块在全局物理网格中的起始偏移，用于访问 <code>xi(ig0+jl,...)</code>。</td>
+</tr>
+<tr>
+<td><code>kdlon</code></td>
+<td><code>lwmain</code></td>
+<td><code>integer</code></td>
+<td>column</td>
+<td>当前向量化处理的水平列数，循环范围为 <code>1:kdlon</code>。</td>
+</tr>
+<tr>
+<td><code>kflev</code></td>
+<td><code>lwmain</code></td>
+<td><code>integer</code></td>
+<td>layer</td>
+<td>调用方传入的垂直层数；形参数组按它声明，核心循环使用共享的 <code>nlaylte</code>。</td>
+</tr>
+<tr>
+<td><code>psi</code></td>
+<td><code>lwmain</code> 从 <code>netrad</code> 传入</td>
+<td><code>real(ndlo2,kflev)</code></td>
+<td>W/m2</td>
+<td>每层净辐射收支，来自 <code>lwflux</code> 的 <code>netrad</code>。</td>
+</tr>
+<tr>
+<td><code>zdblay</code></td>
+<td><code>lwmain</code> 从 <code>dblay</code> 传入</td>
+<td><code>real(ndlo2,nir,kflev)</code></td>
+<td>Planck 函数值 / K</td>
+<td><code>lwb</code> 计算的层中心谱带 Planck 函数温度导数；<code>lwi</code> 只读取谱带 1 和 2。</td>
+</tr>
+<tr>
+<td><code>pdp</code></td>
+<td><code>lwmain</code> 从 <code>dp</code> 传入</td>
+<td><code>real(ndlo2,kflev)</code></td>
+<td>Pa</td>
+<td>层压强厚度，用于把辐射收支和温度导数转换为冷却率线性化系数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>newpcolc</code></td>
+<td><code>lwmain</code> 的 <code>newcoolrate</code></td>
+<td><code>real(ndlo2,kflev)</code></td>
+<td>K/s</td>
+<td>半隐式格式修正后的长波冷却率；<code>lwmain</code> 第 200 行把它覆盖回 <code>coolrate</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p><code>lwi.F</code> 不定义保存型模块变量，不读写文件，也没有启用的诊断输出。源码中有若干 <code>print*</code> 调试语句，但全部被注释。它读取 <code>yomlw_h</code> 的 <code>xi</code>、<code>gcp</code>、<code>nlaylte</code>，读取 <code>comcstfi_h</code> 的 <code>g/cpp</code>，读取 <code>time_phylmdz_mod</code> 与 <code>callkeys_mod</code> 的时间步和半隐式控制量；副作用只限于写入调用方传入的 <code>newpcolc</code> 数组。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>计算辐射时间间隔 <code>deltat = dtphys * iradia</code>，再乘以半隐式权重得到 <code>semit = semi * deltat</code>。</li>
+<li>对 <code>i=1:nlaylte-1</code> 组装三对角主对角 <code>di</code>：系数包含本层到太空、上一层和下一层的 <code>xi</code>，并乘以本层 <code>zdblay(:,1:2,i)</code>。</li>
+<li>对最顶层 <code>nlaylte</code> 单独组装 <code>di</code>，源码注释说明这里移除 <code>i,i+1</code> 项，避免把 <code>cooling2space</code> 计算两次。</li>
+<li>组装上对角 <code>hi</code>，使用本层到上一索引方向相邻层 <code>i+1</code> 的 <code>xi</code> 和相邻层的 <code>zdblay(:,1:2,i+1)</code>。</li>
+<li>组装下对角 <code>bi</code>，使用本层到 <code>i-1</code> 的 <code>xi</code> 和下方相邻层的 <code>zdblay(:,1:2,i-1)</code>；第 1 层强制 <code>bi(:,1)=0</code>，源码注释说明这是因为尚无干净的 <code>zdblay(0)</code> 来处理地表温度不连续。</li>
+<li>从顶层开始计算消元系数 <code>ci/ai</code>，其中右端项是 <code>gcp * psi / pdp</code>，随后从 <code>nlaylte-1</code> 向 1 做反向消元。</li>
+<li>从第 1 层开始回代：<code>newpcolc(:,1)=ci(:,1)</code>，再用 <code>newpcolc(:,i)=ci(:,i)+ai(:,i)*newpcolc(:,i-1)</code> 得到各层新冷却率。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>deltat = dtphys * iradia
+semit = semi * deltat
+
+for each layer i below top:
+  di(i) = 1 + semit * g/(pdp(i)*cpp) *
+          sum over CO2 bands 1:2 of
+          (xi(i,space) + xi(i,i+1) + xi(i,i-1)) * zdblay(band,i)
+
+for top layer:
+  di(top) = same form, but without xi(top,top+1)
+
+for i = 1 to top-1:
+  hi(i) = -semit * g/(pdp(i)*cpp) *
+          sum over bands of xi(i,i+1) * zdblay(band,i+1)
+
+for i = 2 to top:
+  bi(i) = -semit * g/(pdp(i)*cpp) *
+          sum over bands of xi(i,i-1) * zdblay(band,i-1)
+bi(1) = 0
+
+ci(top) = (gcp * psi(top) / pdp(top)) / di(top)
+ai(top) = -bi(top) / di(top)
+
+for i = top-1 downto 1:
+  denom = di(i) + hi(i) * ai(i+1)
+  ci(i) = (gcp * psi(i) / pdp(i) - hi(i) * ci(i+1)) / denom
+  ai(i) = -bi(i) / denom
+
+newpcolc(1) = ci(1)
+for i = 2 to top:
+  newpcolc(i) = ci(i) + ai(i) * newpcolc(i-1)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">辐射计算</a></td>
+<td>长波 LTE 主流程的半隐式冷却率修正阶段；位于 <code>lwflux</code> 汇总净辐射收支之后，<code>lwmain</code> 覆盖输出 <code>coolrate</code> 之前。</td>
+</tr>
+<tr>
+<td><a href="index.html">phymars 核心物理模块目录</a></td>
+<td>属于 <code>libf\phymars</code> 的长波辐射辅助文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 文件，模块内只有一个子例程。</li>
+<li>形参数组按 <code>kflev</code> 声明，但所有主要垂直循环使用 <code>nlaylte</code>；复现时需要保证调用链中二者覆盖同一 LTE 长波层范围。</li>
+<li>局部工作数组 <code>di/hi/bi/ci/ai</code> 按 <code>ndlon,nflev</code> 声明，而输入输出按 <code>ndlo2,kflev</code> 声明；循环只访问 <code>1:kdlon</code> 和 <code>1:nlaylte</code>。</li>
+<li><code>zdblay</code> 的红外谱带维度是 <code>nir</code>，但半隐式线性化只显式读取谱带 1 和 2，对应 CO2 15 微米带内净交换率 <code>xi</code>。</li>
+<li><code>semi</code> 控制格式权重：源码注释给出 <code>0</code> 为显式、<code>0.5</code> 为半隐式、<code>1</code> 为隐式。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>xi(ig0+jl,1:2,*,*)</code> 必须已由 <code>lwxd/lwxn/lwxb</code> 等长波交换率步骤更新；否则 <code>lwi</code> 的三对角系数会使用旧交换率。</li>
+<li><code>lwb</code> 必须先生成 <code>dblay</code>，且 <code>dblay(:,1:2,:)</code> 的温度导数单位要与 <code>xi</code> 和 <code>pdp</code> 的换算关系一致。</li>
+<li><code>pdp(:,i)</code> 不能为零或异常小；<code>di/hi/bi</code> 和右端项都含 <code>g / pdp / cpp</code> 或 <code>gcp * psi / pdp</code>。</li>
+<li><code>semi</code> 和 <code>iradia</code> 直接改变隐式修正强度；当 <code>semi=0</code> 时，<code>semit=0</code>，线性化系数退化为显式冷却率换算。</li>
+<li>复现风险：第 1 层下对角被硬置零，源代码注释指出这是地表温度不连续处理尚未干净解决的近似；若修改地表边界线性化，必须重新审查这一边界条件。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>gcp</code> 与 <code>g/cpp</code> 同时参与换算：<code>gcp</code> 用于右端冷却率，<code>g/cpp</code> 用于系数线性化。二者的精确定义来源在 <code>yomlw_h</code> 初始化链中，本页只确认当前文件的读取和使用方式。</li>
+<li><code>zdblay</code> 只读谱带 1 和 2；这与 <code>lwflux</code> 把 CO2 15 微米带内贡献合并到工作谱带的写法一致，但谱带编号的物理标签需结合长波系数表继续确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../themes/radiation.html">radiation</a></li>
+<li><a href="index.html">phymars/index</a></li>
+<li><a href="lwb.html">lwb</a></li>
+<li><a href="lwdiff.html">lwdiff</a></li>
+<li><a href="lwflux.html">lwflux</a></li>
+<li><a href="lwmain_mod.html">lwmain_mod</a> - 长波 LTE 主调度入口，直接调用本例程并把 <code>newcoolrate</code> 覆盖回 <code>coolrate</code>。</li>
+<li><a href="lwtt.html">lwtt</a></li>
+<li><a href="lwu.html">lwu</a></li>
+<li><a href="lwxb.html">lwxb</a></li>
+<li><a href="lwxd.html">lwxd</a></li>
+<li><a href="lwxn.html">lwxn</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

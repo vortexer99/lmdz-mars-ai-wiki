@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>check_fields - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/check_fields.md</span>
+    </nav>
+    <article class="content">
+<h1 id="check_fieldsf90">check_fields.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\check_fields.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>check_fields.F90</code> 定义 <code>check_fields_mod</code>，为 <code>physiq</code> 主物理步提供可选的防御性场检查。它不改变物理状态，也不输出 NetCDF；当 <code>physiq_mod.F</code> 中 <code>check_physics_inputs</code> 或 <code>check_physics_outputs</code> 开关打开时，分别在物理步开始和结束调用 <code>check_physics_fields</code>，检查温度、水平风、表面压力和 tracer 场是否出现 NaN 或超出硬编码的合理范围。</p>
+<p>该文件的定位是调试和复现实验保护：正常生产路径默认不开启这些检查；一旦检查失败，它先向标准输出打印具体格点、层号和值，然后通过 <code>abort_physic</code> 中止物理步。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>check_fields_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装物理场一致性检查例程和默认阈值</td>
+</tr>
+<tr>
+<td><code>check_physics_fields</code></td>
+<td>subroutine</td>
+<td>13</td>
+<td>聚合检查温度、风、表面压力和 tracer；失败时调用 <code>abort_physic</code></td>
+</tr>
+<tr>
+<td><code>check_temperature</code></td>
+<td>subroutine</td>
+<td>46</td>
+<td>检查温度 NaN、低于最小阈值和高于最大阈值</td>
+</tr>
+<tr>
+<td><code>check_winds</code></td>
+<td>subroutine</td>
+<td>101</td>
+<td>检查 <code>u</code>/<code>v</code> 风速 NaN 和绝对值过大</td>
+</tr>
+<tr>
+<td><code>check_ps</code></td>
+<td>subroutine</td>
+<td>155</td>
+<td>检查表面压力 NaN、低于最小阈值和高于最大阈值</td>
+</tr>
+<tr>
+<td><code>check_tracers</code></td>
+<td>subroutine</td>
+<td>207</td>
+<td>检查 tracer NaN，并统计/警告负 tracer 混合比</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimphy</code></td>
+<td><code>klon</code>, <code>klev</code></td>
+<td>给温度、风、压力和 tracer 数组提供物理网格维度</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>nqmx</code></td>
+<td>在 <code>check_physics_fields</code> 中决定 tracer 维度和是否调用 tracer 检查</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>nqmx</code>, <code>noms</code></td>
+<td>在 <code>check_tracers</code> 中循环所有 tracer，并用 <code>noms(iq)</code> 打印 tracer 名</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>check_temperature</code></td>
+<td><code>check_fields_mod</code> / <code>check_fields.F90</code></td>
+<td>行 31</td>
+<td>检查 <code>temp(klon,klev)</code></td>
+</tr>
+<tr>
+<td><code>check_winds</code></td>
+<td><code>check_fields_mod</code> / <code>check_fields.F90</code></td>
+<td>行 32</td>
+<td>检查 <code>u</code> 和 <code>v</code></td>
+</tr>
+<tr>
+<td><code>check_ps</code></td>
+<td><code>check_fields_mod</code> / <code>check_fields.F90</code></td>
+<td>行 33</td>
+<td>用 <code>pplev(:,1)</code> 当作表面压力检查</td>
+</tr>
+<tr>
+<td><code>check_tracers</code></td>
+<td><code>check_fields_mod</code> / <code>check_fields.F90</code></td>
+<td>行 35</td>
+<td>在 <code>nqmx&gt;=1</code> 时检查 tracer 场</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>物理层通用中止例程</td>
+<td>行 40</td>
+<td>任一检查失败后中止运行</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>message</code></td>
+<td>调用方</td>
+<td>character</td>
+<td>-</td>
+<td>诊断前缀；<code>physiq</code> 传入 <code>"begin physiq:"</code> 或 <code>"end of physiq:"</code></td>
+</tr>
+<tr>
+<td><code>temp</code></td>
+<td><code>physiq</code> 状态场</td>
+<td>real <code>(klon,klev)</code></td>
+<td>K</td>
+<td>待检查温度</td>
+</tr>
+<tr>
+<td><code>u</code>, <code>v</code></td>
+<td><code>physiq</code> 状态场</td>
+<td>real <code>(klon,klev)</code></td>
+<td>m/s</td>
+<td>待检查水平风</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td><code>physiq</code> 压力界面</td>
+<td>real <code>(klon,klev+1)</code></td>
+<td>Pa</td>
+<td>层界面压力；本文件只用 <code>pplev(:,1)</code> 作为表面压力</td>
+</tr>
+<tr>
+<td><code>q</code></td>
+<td><code>physiq</code> tracer 状态</td>
+<td>real <code>(klon,klev,nqmx)</code></td>
+<td>tracer mixing ratio</td>
+<td>待检查 tracer 混合比</td>
+</tr>
+<tr>
+<td><code>temp_min</code>, <code>temp_max</code></td>
+<td>直接调用 <code>check_temperature</code> 的可选参数</td>
+<td>real scalar</td>
+<td>K</td>
+<td>覆盖默认温度阈值</td>
+</tr>
+<tr>
+<td><code>wind_max</code></td>
+<td>直接调用 <code>check_winds</code> 的可选参数</td>
+<td>real scalar</td>
+<td>m/s</td>
+<td>覆盖默认风速绝对值上限</td>
+</tr>
+<tr>
+<td><code>ps_min</code>, <code>ps_max</code></td>
+<td>直接调用 <code>check_ps</code> 的可选参数</td>
+<td>real scalar</td>
+<td>Pa</td>
+<td>覆盖默认表面压力阈值</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ok</code></td>
+<td>各检查子例程调用方</td>
+<td>logical</td>
+<td>-</td>
+<td><code>.true.</code> 表示该字段通过检查；<code>.false.</code> 表示至少发现一个 NaN 或越界值</td>
+</tr>
+<tr>
+<td>诊断文本</td>
+<td>标准输出</td>
+<td><code>write(*,*)</code></td>
+<td>-</td>
+<td>打印出错字段、数值、水平点 <code>i</code>、垂直层 <code>k</code> 或 tracer 名</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>模块内定义硬编码默认阈值：温度 50-350 K，风速绝对值上限 500 m/s，表面压力 80-2000 Pa。</li>
+<li><code>check_physics_fields</code> 本身没有可选阈值参数；只有底层 <code>check_temperature</code>、<code>check_winds</code>、<code>check_ps</code> 支持直接调用时覆盖阈值。</li>
+<li>所有检查都只读输入数组，不写回 <code>temp/u/v/pplev/q</code>。</li>
+<li>出错时通过 <code>write(*,*)</code> 打印诊断，随后 <code>check_physics_fields</code> 调用 <code>abort_physic</code> 中止。</li>
+<li><code>abort_physic</code> 在本文件中没有显式 <code>use</code>；按当前源码只能确认它由构建/宿主作用域提供，需在接口清理时再确认来源。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>check_physics_fields</code> 初始化 <code>ok_q=.true.</code>，然后依次调用温度、风、表面压力检查。</li>
+<li>表面压力检查使用 <code>pplev(:,1)</code>，即假定 <code>physiq</code> 传入的第一个界面压力是近地表压力。</li>
+<li>若 <code>nqmx&gt;=1</code>，继续调用 <code>check_tracers</code> 检查所有 tracer。</li>
+<li>任一 <code>ok_t</code>、<code>ok_w</code>、<code>ok_ps</code>、<code>ok_q</code> 为 <code>.false.</code> 时，调用 <code>abort_physic("check_physics_fields", trim(message)//" Invalid field values", 1)</code>。</li>
+<li><code>check_temperature</code> 遍历 <code>klon*klev</code>，用 <code>x.ne.x</code> 检测 NaN，并检查 50-350 K 默认范围。</li>
+<li><code>check_winds</code> 分别检查 <code>u</code>、<code>v</code> 的 NaN 和 <code>abs(value)&gt;500</code>。</li>
+<li><code>check_ps</code> 遍历 <code>klon</code>，检查 NaN 和 80-2000 Pa 范围。</li>
+<li><code>check_tracers</code> 对每个 tracer 统计 NaN 和负值；NaN 会让 <code>ok=.false.</code>，负值只打印 warning，不会中止。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>check_physics_fields(message, temp, u, v, pplev, q):
+    ok_q = true
+    check_temperature(message, temp, ok_t)
+    check_winds(message, u, v, ok_w)
+    check_ps(message, pplev(:,1), ok_ps)
+    if nqmx &gt;= 1:
+        check_tracers(message, q, ok_q)
+
+    if any of ok_t, ok_w, ok_ps, ok_q is false:
+        abort_physic(&quot;check_physics_fields&quot;,
+                     message + &quot; Invalid field values&quot;, 1)
+
+check_temperature:
+    tmin = optional temp_min or 50 K
+    tmax = optional temp_max or 350 K
+    for each grid point and level:
+        fail if temp is NaN
+        fail if temp &lt; tmin or temp &gt; tmax
+
+check_winds:
+    wmax = optional wind_max or 500 m/s
+    for each grid point and level:
+        fail if u or v is NaN
+        fail if abs(u) or abs(v) exceeds wmax
+
+check_ps:
+    pmin/pmax = optional values or 80/2000 Pa
+    for each grid point:
+        fail if ps is NaN or outside range
+
+check_tracers:
+    for each tracer:
+        count NaNs and negative values
+        NaNs fail the check
+        negative values print a warning only</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>主物理时间步 <code>physiq</code></td>
+<td><code>physiq_mod.F</code> 在行 105 <code>use check_fields_mod, only: check_physics_fields</code>，并在行 828-830 和 4153-4155 分别检查物理输入和输出</td>
+</tr>
+<tr>
+<td>调试 / 复现实验保护</td>
+<td>通过 <code>check_physics_inputs</code>、<code>check_physics_outputs</code> 两个 <code>getin_p</code> 开关在运行时启用额外 sanity check</td>
+</tr>
+<tr>
+<td>tracer 系统</td>
+<td>用 <code>tracer_mod:nqmx</code> 遍历 tracer 数量，用 <code>tracer_mod:noms</code> 输出负值 tracer 名</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>NaN 检测使用 <code>x.ne.x</code>，没有依赖 IEEE 模块。</li>
+<li>阈值是模块常量，不来自 <code>callphys.def</code>；<code>check_physics_fields</code> 也没有把可选阈值向上传递。</li>
+<li><code>check_tracers</code> 中负 tracer 的 <code>ok=.false.</code> 被注释掉，因此负 tracer 只作为警告，不触发 <code>abort_physic</code>。</li>
+<li><code>nb_bad_nan</code> 在所有 tracer 上累计，但源码没有直接打印 NaN 总数；NaN 的影响体现在 <code>ok=.false.</code> 并最终中止。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>默认运行不会自动检查这些场；需要在物理配置链中打开 <code>check_physics_inputs</code> 或 <code>check_physics_outputs</code>。</li>
+<li>若在非常规火星实验中出现温度低于 50 K、高于 350 K，或表面压力超出 80-2000 Pa，即使数值不是 NaN，也会触发中止。</li>
+<li><code>pplev(:,1)</code> 必须对应表面压力；若上游垂直坐标约定改变，该检查会误判。</li>
+<li>tracer 负值不会中止运行；若复现实验要求负 tracer 作为硬错误，需要修改源码或额外检查。</li>
+<li>由于 <code>check_physics_outputs</code> 检查的是 <code>zt/zu/zv/zplev/zq</code>，它能定位物理过程更新后的异常，但不能直接指出具体是哪一个物理子方案首次产生异常。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>abort_physic</code> 的显式模块来源未在本文件声明；当前页面按外部/宿主可见例程记录。</li>
+<li><code>check_physics_inputs</code> 和 <code>check_physics_outputs</code> 的默认值在 <code>physiq_mod.F</code> 中为 <code>.false.</code>，具体配置文件是否显式打开需按实验个案核查。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars/index</a>：<code>phymars</code> 目录总览。</li>
+<li><a href="../../architecture/config-system.html">config-system</a>：总体配置链和 <code>getin_p</code> 运行时参数上下文。</li>
+<li><a href="tracer_mod.html">tracer_mod</a>：tracer 数量和名称表来源。</li>
+<li><a href="physiq_mod.html">physiq_mod.md</a>：主物理时间步调度总入口。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

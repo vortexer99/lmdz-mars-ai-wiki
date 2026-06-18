@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>updatereffrad_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/updatereffrad_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="updatereffrad_modf">updatereffrad_mod.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\updatereffrad_mod.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>updatereffrad_mod.F</code> 定义 <code>updatereffrad_mod</code> 模块（第 1 行）和唯一导出的 <code>updatereffrad</code> 例程（第 7 行）。它位于辐射调用链中 <code>suaer</code> 之后、<code>aeroptproperties</code> 之前：<code>callradite_mod.F</code> 第 418 行调用本例程，把动态场和微物理 tracer 中的尘埃、水冰、CO2 冰半径信息整理成辐射传输使用的 <code>reffrad(ngrid,nlayer,naerkind)</code> 和 <code>nueffrad(ngrid,nlayer,naerkind)</code>。</p>
+<p>本文件不读取外部光学表，也不直接计算光学厚度。它负责把 <code>pq</code> 中的质量/数浓度 tracer、<code>tauscaling</code>、<code>tau</code>、<code>pplay</code>、<code>pt</code> 和物理开关转换为每类气溶胶的有效半径与有效方差；随后 <a href="aeroptproperties.html">aeroptproperties</a> 按这些半径去卷积 <a href="suaer.html">suaer</a> 预先填充的离散光学表。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>updatereffrad_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>封装辐射粒径更新例程。</td>
+</tr>
+<tr>
+<td><code>updatereffrad</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7</td>
+<td>更新尘埃、水冰、CO2 冰等气溶胶的辐射有效半径 <code>reffrad</code> 和有效方差 <code>nueffrad</code>。</td>
+</tr>
+<tr>
+<td><code>threshold</code></td>
+<td>local parameter</td>
+<td style="text-align: right;">89</td>
+<td>CO2 冰和 CO2 CCN 数值下限，值为 <code>1e-30</code>。</td>
+</tr>
+<tr>
+<td><code>rhocloud</code></td>
+<td>local array</td>
+<td style="text-align: right;">92</td>
+<td>水冰微物理分支中 <code>updaterice_micro</code> 返回的云密度。</td>
+</tr>
+<tr>
+<td><code>rhocloudco2</code></td>
+<td>local array</td>
+<td style="text-align: right;">94</td>
+<td>CO2 冰微物理分支中 <code>updaterice_microco2</code> 返回的云密度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>updaterad</code></td>
+<td><code>updaterdust, updaterice_micro, updaterice_microco2, updaterice_typ</code></td>
+<td>标量半径反演工具：由质量/数浓度或典型廓线计算尘埃、水冰、CO2 冰半径。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>nqmx, igcm_*</code>, <code>radius</code>, <code>nuice*_ref</code>, <code>varian</code>, <code>ref_r0</code>, <code>rho_ice</code></td>
+<td>提供 tracer 维度、tracer 索引、固定小尘埃半径、有效方差参考值和对数正态半径转换因子。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>nueffdust, naerkind, name_iaer, iaer_*</code></td>
+<td>提供辐射气溶胶种类循环、名称识别和尘埃有效方差共享表。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td><code>doubleq, active</code></td>
+<td>控制双矩尘埃分支是否由质量/数浓度更新。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>water, activice, microphys, rdstorm, topflows, co2clouds, activeco2ice, co2useh2o</code></td>
+<td>控制水冰、CO2 冰、stormdust、topdust 和 H2O-CCN 混入 CO2 云的分支。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>updaterdust</code></td>
+<td><code>updaterad</code> / <code>updaterad.F90</code></td>
+<td>第 102、120、131 行</td>
+<td>由尘埃、stormdust、topdust 的质量和数浓度 tracer 计算几何平均半径。</td>
+</tr>
+<tr>
+<td><code>updaterice_micro</code></td>
+<td><code>updaterad</code> / <code>updaterad.F90</code></td>
+<td>第 149 行</td>
+<td>水冰微物理开启时，由水冰、CCN 质量和数浓度及 <code>tauscaling</code> 计算 <code>rice</code>。</td>
+</tr>
+<tr>
+<td><code>updaterice_typ</code></td>
+<td><code>updaterad</code> / <code>updaterad.F90</code></td>
+<td>第 164 行</td>
+<td>水冰微物理关闭时，用 <code>tau=0.2</code> 和层中高度 <code>pplay</code> 估算典型水冰半径。</td>
+</tr>
+<tr>
+<td><code>updaterice_microco2</code></td>
+<td><code>updaterad</code> / <code>updaterad.F90</code></td>
+<td>第 199 行</td>
+<td>CO2 冰微物理开启时，由 CO2 冰、CO2 CCN、可选 H2O CCN 和温度计算 <code>riceco2</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid, nlayer</code></td>
+<td><code>callradite</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>水平格点数和垂直层数。</td>
+</tr>
+<tr>
+<td><code>pq(ngrid,nlayer,nqmx)</code></td>
+<td><code>callradite</code> / 物理 tracer 状态</td>
+<td>real</td>
+<td>kg/kg 或 kg^-1，按 tracer 定义</td>
+<td>质量混合比和数浓度 tracer；由 <code>igcm_*</code> 索引读取尘埃、水冰、CCN、CO2 冰等分量。</td>
+</tr>
+<tr>
+<td><code>tauscaling(ngrid)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>-</td>
+<td>用于微物理 CCN 数/质量缩放；源码注释说明 first call 时可由 <code>startfi</code> 读入，缺省为 1。</td>
+</tr>
+<tr>
+<td><code>tau(ngrid,naerkind)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>-</td>
+<td>气溶胶光学厚度；非微物理水冰分支实际使用硬编码 <code>0.2</code>，不是本数组。</td>
+</tr>
+<tr>
+<td><code>pplay(ngrid,nlayer)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>m</td>
+<td>层中点高度；传给 <code>updaterice_typ</code>。</td>
+</tr>
+<tr>
+<td><code>pt(ngrid,nlayer)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>K</td>
+<td>温度；传给 CO2 冰半径计算。</td>
+</tr>
+<tr>
+<td><code>name_iaer(1:naerkind)</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>character array</td>
+<td>-</td>
+<td>当前辐射气溶胶种类名称，驱动第二阶段 <code>SELECT CASE</code>。</td>
+</tr>
+<tr>
+<td><code>doubleq, active, water, activice, microphys, rdstorm, topflows, co2clouds, activeco2ice, co2useh2o</code></td>
+<td><code>dust_param_mod</code> / <code>callkeys_mod</code></td>
+<td>logical</td>
+<td>-</td>
+<td>控制各半径更新分支是否执行。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rdust(ngrid,nlayer)</code></td>
+<td><code>callradite</code> 局部状态</td>
+<td>real</td>
+<td>m</td>
+<td>常规尘埃几何平均半径。</td>
+</tr>
+<tr>
+<td><code>rstormdust(ngrid,nlayer)</code></td>
+<td><code>callradite</code> 局部状态</td>
+<td>real</td>
+<td>m</td>
+<td>stormdust 几何平均半径。</td>
+</tr>
+<tr>
+<td><code>rtopdust(ngrid,nlayer)</code></td>
+<td><code>callradite</code> 局部状态</td>
+<td>real</td>
+<td>m</td>
+<td>topdust 几何平均半径。</td>
+</tr>
+<tr>
+<td><code>rice(ngrid,nlayer)</code></td>
+<td><code>callradite</code> 局部状态</td>
+<td>real</td>
+<td>m</td>
+<td>水冰质量平均半径或由典型廓线估算的半径。</td>
+</tr>
+<tr>
+<td><code>nuice(ngrid,nlayer)</code></td>
+<td><code>callradite</code> 局部状态</td>
+<td>real</td>
+<td>-</td>
+<td>水冰有效方差；本例程写为 <code>nuice_ref</code>。</td>
+</tr>
+<tr>
+<td><code>riceco2(ngrid,nlayer)</code></td>
+<td><code>callradite</code> 局部状态</td>
+<td>double precision</td>
+<td>m</td>
+<td>CO2 冰半径。</td>
+</tr>
+<tr>
+<td><code>nuiceco2(ngrid,nlayer)</code></td>
+<td><code>callradite</code> 局部状态</td>
+<td>real</td>
+<td>-</td>
+<td>CO2 冰有效方差；本例程写为 <code>nuiceco2_ref</code>。</td>
+</tr>
+<tr>
+<td><code>reffrad(ngrid,nlayer,naerkind)</code></td>
+<td><code>callradite</code> -&gt; <code>aeroptproperties</code></td>
+<td>real</td>
+<td>m</td>
+<td>每类辐射气溶胶的有效半径。</td>
+</tr>
+<tr>
+<td><code>nueffrad(ngrid,nlayer,naerkind)</code></td>
+<td><code>callradite</code> -&gt; <code>aeroptproperties</code></td>
+<td>real</td>
+<td>-</td>
+<td>每类辐射气溶胶的有效方差。</td>
+</tr>
+<tr>
+<td><code>nueffdust(ngrid,nlayer)</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>real shared array</td>
+<td>-</td>
+<td>尘埃有效方差；双矩尘埃、stormdust、topdust 分支会写入。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本例程没有 <code>SAVE</code> 局部状态、没有文件 I/O、没有诊断输出。</li>
+<li>主要副作用是写入 <code>dimradmars_mod::nueffdust</code>。注意 stormdust/topdust 分支也写同一个 <code>nueffdust(ig,l)</code>，如果多个尘埃分支同时启用，最后执行的分支会覆盖前面的尘埃方差。</li>
+<li>所有输出数组由调用方传入；本例程按分支条件写入。如果某类气溶胶名称出现在 <code>name_iaer</code> 中，但对应物理分支没有先更新半径数组，该类 <code>reffrad/nueffrad</code> 可能沿用调用方已有值或未定义值。</li>
+<li><code>rhocloud</code> 和 <code>rhocloudco2</code> 是局部临时数组，只接收 <code>updaterad</code> 子例程返回值，本文件没有继续使用它们。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>尘埃半径更新</strong>：如果 <code>doubleq.AND.active</code>，对每个 <code>ig,l</code> 调用 <code>updaterdust(pq(dust_mass), pq(dust_number), rdust)</code>，并把 <code>nueffdust=exp(varian**2)-1</code>；否则 <code>rdust=0.8e-6</code>、<code>nueffdust=0.3</code>。</li>
+<li><strong>stormdust/topdust 半径更新</strong>：如果 <code>rdstorm.AND.active</code> 或 <code>topflows.AND.active</code>，分别用 <code>igcm_stormdust_*</code> 或 <code>igcm_topdust_*</code> tracer 调 <code>updaterdust</code>，并同样写 <code>nueffdust=exp(varian**2)-1</code>。</li>
+<li><strong>水冰半径更新</strong>：如果 <code>water.AND.activice</code>，微物理开启时用 <code>updaterice_micro(h2o_ice, ccn_mass, ccn_number, tauscaling)</code>；微物理关闭时用 <code>updaterice_typ(h2o_ice, 0.2, pplay)</code>。两条路径都把 <code>nuice=nuice_ref</code>。</li>
+<li><strong>CO2 冰半径更新</strong>：如果 <code>co2clouds.AND.activeco2ice</code>，先用 <code>threshold=1e-30</code> 限制 CO2 冰、CO2 CCN 质量和数浓度；若 <code>co2useh2o</code>，再从 CO2 CCN 中扣除 H2O CCN 分量，并在扣成非正值时重置为阈值；随后调用 <code>updaterice_microco2(..., pt, tauscaling, riceco2, rhocloudco2)</code>，并写 <code>nuiceco2=nuiceco2_ref</code>。</li>
+<li><strong>按辐射气溶胶名称写 <code>reffrad/nueffrad</code></strong>：对 <code>iaer=1..naerkind</code> 循环，按 <code>name_iaer(iaer)</code> 选择公式：
+<ul>
+<li><code>dust_conrath</code>：<code>reffrad = rdust * (1+nueffdust)**2.5</code>，<code>nueffrad=nueffdust</code>。</li>
+<li><code>dust_doubleq</code>：<code>reffrad = rdust * ref_r0</code>，<code>nueffrad=nueffdust</code>。</li>
+<li><code>dust_submicron</code>：<code>reffrad = radius(igcm_dust_submicron)</code>，<code>nueffrad=0.03</code>。</li>
+<li><code>h2o_ice</code>：<code>reffrad = rice * (1+nuice_ref)</code>，<code>nueffrad=nuice_ref</code>。</li>
+<li><code>co2_ice</code>：<code>reffrad = real(riceco2) * (1+nuiceco2_ref)</code>，<code>nueffrad=nuiceco2_ref</code>。</li>
+<li><code>stormdust_doubleq</code> / <code>topdust_doubleq</code>：分别用 <code>rstormdust</code> / <code>rtopdust</code> 乘 <code>ref_r0</code>，方差用 <code>nueffdust</code>。</li>
+</ul></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if doubleq and active:
+  for each layer/grid:
+    updaterdust(dust_mass, dust_number, rdust)
+    nueffdust = exp(varian^2) - 1
+else:
+  rdust = 0.8e-6
+  nueffdust = 0.3
+
+if rdstorm and active:
+  updaterdust(stormdust_mass, stormdust_number, rstormdust)
+  nueffdust = exp(varian^2) - 1
+
+if topflows and active:
+  updaterdust(topdust_mass, topdust_number, rtopdust)
+  nueffdust = exp(varian^2) - 1
+
+if water and activice:
+  if microphys:
+    updaterice_micro(h2o_ice, ccn_mass, ccn_number, tauscaling, rice)
+  else:
+    updaterice_typ(h2o_ice, tau=0.2, pplay, rice)
+  nuice = nuice_ref
+
+if co2clouds and activeco2ice:
+  clamp CO2 ice and CCN tracers to threshold
+  if co2useh2o:
+    subtract H2O CCN mass/number from CO2 CCN pool
+    clamp non-positive residuals to threshold
+  updaterice_microco2(..., pt, tauscaling, riceco2)
+  nuiceco2 = nuiceco2_ref
+
+for iaer in 1..naerkind:
+  select name_iaer(iaer):
+    write reffrad(:,:,iaer) and nueffrad(:,:,iaer)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">辐射</a></td>
+<td>在 <code>callradite</code> 的辐射准备阶段把 tracer/微物理粒径转换为 <code>aeroptproperties</code> 使用的 <code>reffrad/nueffrad</code>。</td>
+</tr>
+<tr>
+<td><a href="../../themes/dust-cycle.html">尘埃循环</a></td>
+<td>读取常规尘埃、stormdust、topdust 的质量/数浓度 tracer，更新尘埃辐射粒径。</td>
+</tr>
+<tr>
+<td><a href="../../themes/water-cycle.html">水循环</a></td>
+<td>在水冰云开启时为 <code>h2o_ice</code> 气溶胶种类提供水冰辐射粒径。</td>
+</tr>
+<tr>
+<td><a href="../../themes/co2-cycle.html">CO2 循环</a></td>
+<td>在 CO2 云开启时为 <code>co2_ice</code> 气溶胶种类提供 CO2 冰辐射粒径，并处理可选的 H2O CCN 混入。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 源文件，但模块和 <code>use</code> 语句采用较新的模块化风格。</li>
+<li>先按物理过程更新基础半径数组，再按 <code>name_iaer</code> 投影到辐射气溶胶维度；这使同一动态/微物理半径可以服务多个辐射气溶胶种类。</li>
+<li>水冰非微物理分支把 <code>tau</code> 固定传为 <code>0.2</code>，虽然子例程接口中有 <code>tau(ngrid,naerkind)</code> 输入。</li>
+<li>CO2+H2O CCN 分支先扣除 H2O CCN 分量，再把 H2O 分量作为独立参数传给 <code>updaterice_microco2</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>callradite</code> 中调用顺序必须保持：<code>suaer</code> 首次加载离散光学表，<code>updatereffrad</code> 更新 <code>reffrad/nueffrad</code>，<code>aeroptproperties</code> 再按这些半径积分光学属性。</li>
+<li><code>name_iaer</code> 只能匹配本文件 <code>SELECT CASE</code> 中列出的名称；未匹配名称不会写对应 <code>reffrad/nueffrad</code>。</li>
+<li><code>stormdust_doubleq</code> 和 <code>topdust_doubleq</code> 的有效方差都复用共享 <code>nueffdust</code>，而不是独立方差数组。</li>
+<li><code>dust_submicron</code> 不从 <code>pq</code> 反演半径，直接使用 <code>tracer_mod::radius(igcm_dust_submicron)</code> 且固定 <code>nueffrad=0.03</code>。</li>
+<li>非微物理水冰分支使用硬编码典型光学厚度 <code>0.2</code> 调 <code>updaterice_typ</code>；复现时不要误以为使用了输入数组 <code>tau</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>tau(ngrid,naerkind)</code> 是接口输入，但当前文件内没有被实际传给任何计算分支；推断该参数保留自旧接口或供未来分支使用。</li>
+<li><code>iaer_*</code> 索引从 <code>dimradmars_mod</code> 导入但当前文件没有直接引用；当前逻辑完全依赖 <code>name_iaer</code> 字符串分支。</li>
+<li><code>nueffdust</code> 被 stormdust/topdust 分支覆盖是否符合多尘埃种类同时启用时的预期，需要结合 <code>dimradmars_mod</code> 和辐射方案设计确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="updaterad.html">updaterad</a> - 提供本例程调用的标量半径反演工具。</li>
+<li><a href="aeroptproperties.html">aeroptproperties</a> - 消费本例程输出的 <code>reffrad/nueffrad</code>。</li>
+<li><a href="suaer.html">suaer</a> - 在同一辐射准备链中加载离散光学属性表。</li>
+<li><a href="aeropacity_mod.html">aeropacity_mod</a> - 在 <code>aeroptproperties</code> 之后计算气溶胶光学厚度。</li>
+<li><a href="../../themes/radiation.html">radiation 主题</a></li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle 主题</a></li>
+<li><a href="../../themes/water-cycle.html">water-cycle 主题</a></li>
+<li><a href="../../themes/co2-cycle.html">co2-cycle 主题</a></li>
+<li><a href="callradite_mod.html">callradite_mod</a> - 唯一调用本例程的辐射入口。</li>
+<li><a href="dimradmars_mod.html">dimradmars_mod</a> - 提供 <code>name_iaer/naerkind/nueffdust</code> 等辐射维度状态。</li>
+<li><a href="callkeys_mod.html">callkeys_mod.F90</a> - 提供水冰、CO2 冰、stormdust、topdust 等分支开关。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

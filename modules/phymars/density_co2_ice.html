@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>density_co2_ice - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/density_co2_ice.md</span>
+    </nav>
+    <article class="content">
+<h1 id="density_co2_icef90">density_co2_ice.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\density_co2_ice.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>CO2 冰密度的温度依赖计算函数。根据 Mangan et al. (2017) 的经验公式，给定温度返回 CO2 冰粒子密度（kg/m³）。被 CO2 云微物理（<code>improvedco2clouds</code>）、气溶胶光学厚度（<code>aeropacity</code>）和粒子半径更新（<code>updaterad</code>）调用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>density_co2_ice_mod</code></td>
+<td>module</td>
+<td>13</td>
+<td>封装 <code>density_co2_ice</code> 的模块</td>
+</tr>
+<tr>
+<td><code>density_co2_ice</code></td>
+<td>subroutine</td>
+<td>18</td>
+<td>给定温度计算 CO2 冰密度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无外部调用</td>
+<td>-</td>
+<td>-</td>
+<td>纯函数式计算，无子例程调用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>temperature</code></td>
+<td>调用点</td>
+<td>DOUBLE PRECISION, scalar</td>
+<td>K</td>
+<td>温度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>density</code></td>
+<td>调用点</td>
+<td>DOUBLE PRECISION, scalar</td>
+<td>kg/m³</td>
+<td>CO2 冰密度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>无 module 变量读写</li>
+<li>无文件 I/O</li>
+<li>纯函数式计算，无副作用</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<p>按 Mangan et al. (2017) 经验公式计算 CO2 冰密度：</p>
+<pre><code>density = 1000 × (1.72391 − 2.53×10⁻⁴ × T − 2.87×10⁻⁶ × T²)</code></pre>
+<ul>
+<li>公式中 <code>1.72391 − 2.53e-4*T − 2.87e-6*T²</code> 给出 g/cm³ 单位的密度</li>
+<li>乘以 1000 转换为 kg/m³</li>
+<li>系数为多项式拟合，适用范围：P ≈ 1e-2 mbar，80 K ≤ T ≤ 195 K</li>
+</ul>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>density_co2_ice(temperature, density):
+    density = 1000. * (1.72391 - 2.53e-4 * temperature - 2.87e-6 * temperature * temperature)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CO2 循环 (CO2-cycle)</td>
+<td>为 CO2 冰粒子密度提供温度依赖计算</td>
+</tr>
+<tr>
+<td>辐射 (radiation)</td>
+<td>通过 <code>aeropacity</code> 计算 CO2 冰光学厚度时使用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>自由格式 Fortran 90</strong>（.F90 后缀）。</li>
+<li>无任何 <code>use</code>、<code>SAVE</code>、<code>THREADPRIVATE</code> 或编译宏。</li>
+<li>单行公式实现，无循环、无分支。</li>
+<li>输入输出均为 <code>double precision</code>，但公式系数为单精度字面量。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>公式系数（1.72391、2.53e-4、2.87e-6）来自 Mangan et al. (2017)，修改需核对原文。</li>
+<li>适用温度范围 80-195 K；超出此范围的外推行为未验证。</li>
+<li>输出单位为 kg/m³（×1000 转换），非 cgs。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>公式在 T &lt; 80 K 或 T &gt; 195 K 时的外推行为是否合理（Mangan et al. 2017 标注适用范围 80-195 K）。</li>
+<li><code>co2cloud_mod.F90</code> 中 use 了 <code>density_co2_ice</code> 但未调用——是否为接口遗留或 <code>improvedco2clouds</code> 内部需要（Fortran use 不自动传递）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="co2cloud_mod.html">co2cloud_mod — CO2 云主调度</a></li>
+<li><a href="improvedco2clouds_mod.html">improvedco2clouds_mod</a>（TASK-0046）- 调用 <code>density_co2_ice</code> 计算云内 CO2 冰密度</li>
+<li><a href="updaterad.html">updaterad — 冰粒/尘埃半径更新</a> - 调用 <code>density_co2_ice</code> 计算 CO2 冰密度</li>
+<li><a href="../../themes/co2-cycle.html">CO2 循环主题页</a>（TASK-0011）</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

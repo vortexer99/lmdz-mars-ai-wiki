@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>simpleclouds_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/simpleclouds_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="simpleclouds_modf">simpleclouds_mod.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\simpleclouds_mod.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>该文件定义 <code>simpleclouds_mod</code> 模块，含唯一 subroutine <code>simpleclouds</code>。职责是：在 GCM 某格点空气<strong>水汽过饱和</strong>时，用一个<strong>简化的水冰云方案</strong>形成/升华水冰。该方案几乎不含微物理——没有过饱和（瞬时调整到饱和）、不算成核率、不显式追踪 CCN，凝结/升华只按“水汽与饱和混合比之差”一步到位。源码注释明确指出更精确的方案在 <code>improvedclouds</code>（TASK-0034）。</p>
+<p>它额外处理 HDO（半重水）同位素的分馏（<code>hdo</code> 开关），并在末尾调用 <code>updaterice_typ</code> 用 Montmessin et al. (2004) 的典型 CCN 廓线反演水冰晶半径 <code>rice</code>。</p>
+<p>调用方（核验）：唯一被 <code>watercloud_mod.F</code> 的简化路径调用（<code>:20</code> use，<code>:349</code> call），即 <code>microphys=.false.</code> 时走 simpleclouds、<code>microphys=.true.</code> 时走 improvedclouds。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>simpleclouds_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>容器模块</td>
+</tr>
+<tr>
+<td><code>simpleclouds</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>简化水冰云凝结/升华 + HDO 分馏 + 半径反演</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>updaterad</code></td>
+<td><code>updaterice_typ</code></td>
+<td>由水冰量 + 尘埃光深反演水冰晶质量平均半径 <code>rice</code>（Montmessin 2004 典型 CCN 廓线）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>watersat_mod</code></td>
+<td><code>watersat</code></td>
+<td>算各层水饱和混合比 <code>zqsat</code>（见 TASK-0032）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_h2o_vap</code>, <code>igcm_h2o_ice</code>, <code>igcm_hdo_vap</code>, <code>igcm_hdo_ice</code>, <code>qparentmin</code></td>
+<td>水/HDO 气冰 tracer 索引；<code>qparentmin</code> 为母体最小混合比阈值（防 HDO/H2O 比值除零）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>cpp</code></td>
+<td>大气定压比热，潜热加热率换算</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>naerkind</code></td>
+<td>气溶胶种类数，<code>tau</code> 维度</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>hdo</code>, <code>hdofrac</code></td>
+<td><code>hdo</code>：是否启用 HDO 同位素；<code>hdofrac</code>：是否启用凝结分馏</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>watersat</code></td>
+<td><code>watersat_mod</code></td>
+<td><code>:128</code></td>
+<td>一次性算 <code>ngrid*nlay</code> 个点的饱和混合比</td>
+</tr>
+<tr>
+<td><code>updaterice_typ</code></td>
+<td><code>updaterad</code></td>
+<td><code>:219</code></td>
+<td>逐点反演水冰晶半径 <code>rice</code></td>
+</tr>
+</tbody>
+</table>
+<p>本文件不调用其他源文件中的例程。</p>
+<p>调用方（核验 <code>watercloud_mod.F</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>位置</th>
+<th>上下文</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>watercloud_mod.F</code></td>
+<td><code>:349</code></td>
+<td>微物理时间步循环内，先把各前序参数化的 tendency 累加进 <code>sum_subpdt</code>/<code>sum_subpdq</code> 作为“阶梯输入”，调用后把 <code>subpdqcloud</code> 累加回 <code>sum_subpdq</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer, in</td>
+<td>—</td>
+<td>大气列数</td>
+</tr>
+<tr>
+<td><code>nlay</code></td>
+<td>调用方</td>
+<td>integer, in</td>
+<td>—</td>
+<td>大气层数</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>调用方</td>
+<td>integer, in</td>
+<td>—</td>
+<td>tracer 数</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>调用方</td>
+<td>real, in</td>
+<td>s</td>
+<td>物理（微物理）时间步（传 <code>microtimestep</code>）</td>
+</tr>
+<tr>
+<td><code>pplay(ngrid,nlay)</code></td>
+<td>调用方</td>
+<td>real, in</td>
+<td>Pa</td>
+<td>层中压力</td>
+</tr>
+<tr>
+<td><code>pzlay(ngrid,nlay)</code></td>
+<td>调用方</td>
+<td>real, in</td>
+<td>m</td>
+<td>层中高度</td>
+</tr>
+<tr>
+<td><code>pt(ngrid,nlay)</code></td>
+<td>调用方</td>
+<td>real, in</td>
+<td>K</td>
+<td>输入温度</td>
+</tr>
+<tr>
+<td><code>pdt(ngrid,nlay)</code></td>
+<td>调用方</td>
+<td>real, in</td>
+<td>K/s</td>
+<td>前序参数化的温度 tendency（传 <code>sum_subpdt</code>）</td>
+</tr>
+<tr>
+<td><code>pq(ngrid,nlay,nq)</code></td>
+<td>调用方</td>
+<td>real, in</td>
+<td>kg/kg</td>
+<td>输入 tracer 混合比（传 <code>pqeff</code>）</td>
+</tr>
+<tr>
+<td><code>pdq(ngrid,nlay,nq)</code></td>
+<td>调用方</td>
+<td>real, in</td>
+<td>kg/kg/s</td>
+<td>前序 tracer tendency（传 <code>sum_subpdq</code>）</td>
+</tr>
+<tr>
+<td><code>tau(ngrid,naerkind)</code></td>
+<td>调用方</td>
+<td>real, in</td>
+<td>—</td>
+<td>各列尘埃柱光深</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rice(ngrid,nlay)</code></td>
+<td>调用方</td>
+<td>real, out</td>
+<td>m</td>
+<td>水冰晶质量平均半径（Montmessin 2004 的 r_c）</td>
+</tr>
+<tr>
+<td><code>pdqcloud(ngrid,nlay,nq)</code></td>
+<td>调用方</td>
+<td>real, out</td>
+<td>kg/kg/s</td>
+<td>因 H2O（及 HDO）凝结/升华的 tracer tendency</td>
+</tr>
+<tr>
+<td><code>pdtcloud(ngrid,nlay)</code></td>
+<td>调用方</td>
+<td>real, out</td>
+<td>K/s</td>
+<td>潜热引起的温度 tendency</td>
+</tr>
+</tbody>
+</table>
+<p>注意：<code>pdqcloud</code> 只对 <code>h2o_vap</code>/<code>h2o_ice</code>（及 hdo 对应）赋值，其余 tracer 分量被初始化为 0。</p>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>无 common block，不写文件，无诊断打印。</li>
+<li>无 SAVE 变量、无 firstcall；纯计算（输出仅由输入和被调例程决定）。</li>
+<li>内部用局部数组 <code>zq</code>/<code>zq0</code>/<code>zt</code>/<code>zqsat</code> 工作，不修改输入数组。</li>
+<li>局部 <code>ccn_factor</code>（注释掉的 PARAMETER 4.5）和 <code>rhocloud</code>、<code>rdusttyp</code>、<code>ccntyp</code>、<code>DoH_vap</code>、<code>DoH_ice</code> 等声明但未实际使用（见写法特点）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>初始化</strong>（<code>:90-121</code>）：把 <code>h2o_vap</code>、<code>h2o_ice</code>（及 hdo 对应，若 <code>hdo</code>）按 <code>pq + pdq*ptimestep</code> 更新到局部 <code>zq</code>，水汽下限 <code>1e-30</code>、水冰下限 <code>0</code>，并存初值 <code>zq0</code>；温度 <code>zt = pt + pdt*ptimestep</code>。<code>pdqcloud</code>/<code>pdtcloud</code>/<code>alpha_c</code> 清零。</li>
+<li><strong>饱和混合比</strong>（<code>:128</code>）：<code>call watersat</code> 得 <code>zqsat</code>。</li>
+<li><strong>凝结/升华量</strong>（<code>:133-150</code>）：逐点
+<ul>
+<li>若 <code>zq(h2o_vap) &gt;= zqsat</code>（过饱和）：<code>dzq = zq(h2o_vap) - zqsat</code>（全部多余水汽凝结）。</li>
+<li>否则（不饱和）：<code>dzq = -min(zqsat - zq(h2o_vap), zq(h2o_ice))</code>（升华，但不超过现有冰量）。</li>
+<li>更新 <code>zq(h2o_ice) += dzq</code>、<code>zq(h2o_vap) -= dzq</code>。</li>
+</ul></li>
+<li><strong>tendency 与潜热</strong>（<code>:155-163</code>）：<code>pdqcloud = (zq - zq0)/ptimestep</code>；潜热 <code>lw = (2834.3 - 0.28*(zt-To) - 0.004*(zt-To)²)*1e3</code>（升华潜热温度依赖式，To=273.15），<code>pdtcloud = -pdqcloud(h2o_vap)*lw/cpp</code>。</li>
+<li><strong>HDO 分馏</strong>（<code>:165-211</code>，仅 <code>hdo</code>）：
+<ul>
+<li>凝结（<code>pdqcloud(h2o_ice)&gt;0</code>）：分馏系数 <code>alpha_c = exp(13525/zt² - 5.59e-2)</code>（Lamb，仅 <code>hdofrac</code>，否则 =1）；<code>pdqcloud(hdo_ice) = pdqcloud(h2o_ice)*alpha_c*(hdo_vap/h2o_vap)</code>（母体 <code>h2o_vap&gt;qparentmin</code> 才算，否则 0），并以可用 <code>hdo_vap</code> 为上限封顶；<code>pdqcloud(hdo_vap) = -pdqcloud(hdo_ice)</code>。</li>
+<li>升华（else）：<code>pdqcloud(hdo_ice) = pdqcloud(h2o_ice)*(hdo_ice/h2o_ice)</code>（母体 <code>h2o_ice&gt;qparentmin</code> 才算），以 <code>-hdo_ice</code> 为下限，<code>pdqcloud(hdo_vap) = -pdqcloud(hdo_ice)</code>。</li>
+</ul></li>
+<li><strong>半径反演</strong>（<code>:217-222</code>）：逐点 <code>call updaterice_typ(zq(h2o_ice), tau(ig,1), pzlay, rice)</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>subroutine simpleclouds(...):
+    # 1. 更新局部场
+    zq(h2o_vap) = max(pq + pdq*dt, 1e-30);  zq0 = zq
+    zq(h2o_ice) = max(pq + pdq*dt, 0.)
+    zt = pt + pdt*dt
+    if hdo: 同样更新 hdo_vap, hdo_ice
+    pdqcloud = 0;  pdtcloud = 0
+
+    # 2. 饱和混合比
+    call watersat(zt, pplay -&gt; zqsat)
+
+    # 3. 凝结/升华（瞬时调整到饱和）
+    for ig,l:
+        if zq(h2o_vap) &gt;= zqsat: dzq = zq(h2o_vap) - zqsat       # 凝结
+        else:                    dzq = -min(zqsat-zq(h2o_vap), zq(h2o_ice))  # 升华
+        zq(h2o_ice) += dzq;  zq(h2o_vap) -= dzq
+
+    # 4. tendency + 潜热
+    for ig,l:
+        pdqcloud(h2o_vap) = (zq(h2o_vap)-zq0)/dt
+        pdqcloud(h2o_ice) = (zq(h2o_ice)-zq0)/dt
+        lw = (2834.3 - 0.28*(zt-To) - 0.004*(zt-To)^2)*1e3
+        pdtcloud = -pdqcloud(h2o_vap)*lw/cpp
+
+    # 5. HDO 分馏（若 hdo）
+        if 凝结: alpha = hdofrac ? exp(13525/zt^2 - 5.59e-2) : 1
+                 pdqcloud(hdo_ice) = pdqcloud(h2o_ice)*alpha*(hdo_vap/h2o_vap)  # 受 qparentmin / 可用量限制
+        else:    pdqcloud(hdo_ice) = pdqcloud(h2o_ice)*(hdo_ice/h2o_ice)
+        pdqcloud(hdo_vap) = -pdqcloud(hdo_ice)
+
+    # 6. 冰晶半径
+    for ig,l: call updaterice_typ(zq(h2o_ice), tau(ig,1), pzlay -&gt; rice)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>水循环</td>
+<td>水冰云的简化路径（<code>microphys=.false.</code>）：把过饱和水汽瞬时转为水冰、释放潜热，并给出冰晶半径供辐射（<code>activice</code>）/沉降使用。是 <code>improvedclouds</code> 完整微物理方案的轻量替代</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran（<code>.F</code>），续行第 6 列 <code>&amp;</code>，注释 <code>c</code>。</li>
+<li>简化方案核心是“瞬时饱和调整”：凝结把全部过饱和水汽转冰，升华受现有冰量限制，无过饱和/无成核动力学。</li>
+<li>潜热 <code>lw</code> 用温度二次多项式（<code>2834.3/0.28/0.004</code> 硬编码系数）。</li>
+<li>HDO 分馏系数 <code>exp(13525/zt² - 5.59e-2)</code>（Lamb 形式）；源码另有一行被注释掉的旧系数 <code>exp(16288/zt² - 9.34e-2)</code>（<code>:169</code>）。</li>
+<li>声明但未使用的变量：<code>rhocloud</code>、<code>rdusttyp</code>、<code>ccntyp</code>、<code>DoH_vap</code>、<code>DoH_ice</code>，以及注释掉的 <code>ccn_factor</code>。<code>alpha_c</code> 是数组但只在标量意义上逐点用。推断为历史遗留/未来扩展占位。</li>
+<li>文件头注释提到的 <code>ccn_factor</code>（在一部分尘埃上成核）实际未在本版本代码中生效，半径由 <code>updaterice_typ</code> 的 Montmessin 廓线决定。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>凝结判据用的是“是否 <code>&gt;= zqsat</code>”，过饱和度恒为 0（瞬时平衡）；与 <code>improvedclouds</code> 的显式过饱和/成核完全不同。</li>
+<li>升华量被 <code>min(..., zq(h2o_ice))</code> 限制，不会产生负冰。</li>
+<li>潜热加热只由 <code>pdqcloud(h2o_vap)</code> 驱动（= 凝结潜热释放/升华吸热）。</li>
+<li>HDO 是被动“子”tracer：其 tendency 按母体 H2O 的相变量乘同位素比值（凝结时再乘分馏系数 <code>alpha_c</code>），并受 <code>qparentmin</code> 与可用量限制。复现需保持凝结/升华分支用不同的母体（凝结用 vap 比值，升华用 ice 比值）。</li>
+<li><code>rice</code> 用 <code>tau(ig,1)</code>（第 1 类气溶胶 = 尘埃）的柱光深，经 <code>updaterice_typ</code> 的典型 CCN 廓线反演，不是预报量。</li>
+<li>调用方在微物理子步内累加 tendency 作“阶梯输入”，复现时注意本例程内部又一次 <code>pq + pdq*ptimestep</code> 的前推。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>文件头注释描述的 <code>ccn_factor</code>/“在一部分尘埃上成核”与当前代码不一致（<code>ccn_factor</code> 已注释掉，半径由 <code>updaterice_typ</code> 决定）。推断注释过时。</li>
+<li>声明未用变量（<code>rhocloud</code>/<code>rdusttyp</code>/<code>ccntyp</code>/<code>DoH_*</code>）是否在其他版本曾被使用；当前版本确认未用。</li>
+<li><code>alpha_c</code> 声明为 <code>(ngrid,nlay)</code> 数组但实际逐点赋值/使用，是否有意做空间变量（注释 <code>!!MARGAUX</code>）——当前不影响结果。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="watercloud_mod.html">watercloud_mod</a>（TASK-0031，已写）：水云主调度，本例程的唯一调用方，按 <code>microphys</code> 在 simpleclouds/improvedclouds 间切换。</li>
+<li><a href="improvedclouds_mod.html">improvedclouds_mod</a>（TASK-0034）：完整水冰云微物理方案，本简化方案的对照。</li>
+<li><a href="water-saturation-helpers.html">water-saturation-helpers</a>（TASK-0032，已写）：<code>watersat</code> 饱和混合比公式。</li>
+<li><a href="updaterad.html">updaterad</a>（TASK-0028，已写）：<code>updaterice_typ</code> 半径反演所在模块。</li>
+<li><a href="../../themes/water-cycle.html">水循环父级主题页</a>（TASK-0010）。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

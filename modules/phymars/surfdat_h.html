@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>surfdat_h - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/surfdat_h.md</span>
+    </nav>
+    <article class="content">
+<h1 id="surfdat_hf90">surfdat_h.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\surfdat_h.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>surfdat_h.F90</code> 定义 <code>surfdat_h</code>，是 Mars physics 中地表共享状态的集中声明模块。它保存裸地反照率、地表位势、粗糙度、次网格地形统计、水冰帽标志、地表 tracer、坡面温度/发射率/热容/导热通量、山顶地形和极冠参数，并提供按 <code>ngrid,nq,nslope</code> 分配和释放这些 allocatable 数组的例程。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>surfdat_h</code></td>
+<td>module</td>
+<td>1</td>
+<td>地表共享状态模块。</td>
+</tr>
+<tr>
+<td><code>ini_surfdat_h</code></td>
+<td>subroutine</td>
+<td>61</td>
+<td>分配完整地表状态数组，包括单坡面和坡面维度变量。</td>
+</tr>
+<tr>
+<td><code>end_surfdat_h</code></td>
+<td>subroutine</td>
+<td>95</td>
+<td>逐项检查并释放完整地表状态数组。</td>
+</tr>
+<tr>
+<td><code>ini_surfdat_h_slope_var</code></td>
+<td>subroutine</td>
+<td>125</td>
+<td>只分配依赖 <code>nslope</code> 的地表状态数组。</td>
+</tr>
+<tr>
+<td><code>end_surfdat_h_slope_var</code></td>
+<td>subroutine</td>
+<td>141</td>
+<td>只释放依赖 <code>nslope</code> 的地表状态数组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<p>本文件不 <code>use</code> 其他模块。维度全部由调用方通过 <code>ngrid,nq,nslope</code> 传入。</p>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 来源</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>allocate</code></td>
+<td>Fortran intrinsic</td>
+<td>行 68-88、132-138</td>
+<td>分配地表共享数组。</td>
+</tr>
+<tr>
+<td><code>allocated</code> / <code>deallocate</code></td>
+<td>Fortran intrinsic</td>
+<td>行 101-120、147-153</td>
+<td>防御性释放已分配数组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="主要被调用点">主要被调用点</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>源码位置</th>
+<th>调用</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phys_state_var_init_mod.F90</code></td>
+<td>行 39、132-133</td>
+<td><code>end_surfdat_h</code>; <code>ini_surfdat_h(ngrid,nq,nslope)</code></td>
+<td>按当前物理网格、tracer 数和坡面数重建地表状态数组。</td>
+</tr>
+<tr>
+<td><code>dynphy_lonlat/phymars/newstart.F</code></td>
+<td>行 29-32、1832-1833</td>
+<td><code>end_surfdat_h_slope_var</code>; <code>ini_surfdat_h_slope_var(ngridmx,nqtot,nslope_new)</code></td>
+<td><code>newstart</code> 改变坡面维度时只重分配 slope-var 数组。</td>
+</tr>
+<tr>
+<td><code>dyn1d/init_testphys1d_mod.F90</code></td>
+<td>行 16-18、505-506</td>
+<td><code>end_surfdat_h_slope_var</code>; <code>ini_surfdat_h_slope_var(1,nq,nslope)</code></td>
+<td>1D 初始化中按最终坡面数重建坡面地表数组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer scalar</td>
+<td>columns</td>
+<td>物理列数；用于第一维。</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>调用方</td>
+<td>integer scalar</td>
+<td>tracers</td>
+<td>tracer 数；用于 <code>qsurf(ngrid,nq,nslope)</code>。</td>
+</tr>
+<tr>
+<td><code>nslope</code></td>
+<td>调用方</td>
+<td>integer scalar</td>
+<td>slopes</td>
+<td>次网格坡面数；用于坡面维度数组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>albedodat</code>, <code>phisfi</code>, <code>z0</code>, <code>zmea/zstd/zsig/zgam/zthe</code></td>
+<td>多个物理模块</td>
+<td>allocatable <code>(ngrid)</code></td>
+<td>混合</td>
+<td>裸地反照率、地表位势、粗糙度和次网格地形统计。</td>
+</tr>
+<tr>
+<td><code>watercaptag</code>, <code>dryness</code></td>
+<td>水循环/地表交换模块</td>
+<td>allocatable <code>(ngrid)</code></td>
+<td>logical / scalar</td>
+<td>水冰帽标记和地表水冰 sublimation dryness 系数。</td>
+</tr>
+<tr>
+<td><code>qsurf</code>, <code>tsurf</code>, <code>watercap</code>, <code>perennial_co2ice</code>, <code>emis</code>, <code>capcal</code>, <code>fluxgrd</code></td>
+<td>地表能量和 tracer 流程</td>
+<td>allocatable <code>(ngrid,nq,nslope)</code> 或 <code>(ngrid,nslope)</code></td>
+<td>混合</td>
+<td>坡面地表 tracer、温度、冰量、发射率、热容和导热通量。</td>
+</tr>
+<tr>
+<td><code>hmons</code>, <code>summit</code>, <code>base</code>, <code>alpha_hmons</code>, <code>hsummit</code>, <code>contains_mons</code></td>
+<td>山顶地形/尘暴流程</td>
+<td>allocatable <code>(ngrid)</code></td>
+<td>混合</td>
+<td>亚格点山顶地形及面积分数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p><code>surfdat_h</code> 本身就是共享状态模块。多数变量带 <code>!$OMP THREADPRIVATE</code>，说明 OpenMP 线程各有一份模块状态；分配、释放和赋值顺序必须与物理初始化流程一致。分配例程只分配数组，不初始化物理数值；实际填充值来自 <code>phyetat0_mod.F90</code>、<code>surfini_mod.F90</code>、<code>topmons_mod.F90</code>、配置读取和 restart 读取等流程。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>模块头部声明地表静态参数、allocatable 数组和 OMP threadprivate 属性。</li>
+<li><code>ini_surfdat_h</code> 按 <code>ngrid,nq,nslope</code> 分配所有 allocatable 地表数组。</li>
+<li><code>end_surfdat_h</code> 对每个完整数组执行 <code>if (allocated(...)) deallocate(...)</code>。</li>
+<li><code>ini_surfdat_h_slope_var</code> 只分配 <code>qsurf/tsurf/watercap/perennial_co2ice/emis/capcal/fluxgrd</code>。</li>
+<li><code>end_surfdat_h_slope_var</code> 只释放同一组坡面维度数组，供 1D/newstart 改坡面数时复用。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>ini_surfdat_h(ngrid,nq,nslope):
+    allocate all one-dimensional surface arrays over ngrid
+    allocate qsurf over ngrid,nq,nslope
+    allocate slope-dependent surface arrays over ngrid,nslope
+    allocate mountain/topography arrays over ngrid
+
+end_surfdat_h():
+    for each allocatable array:
+        if allocated, deallocate it</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>物理状态初始化</td>
+<td><code>phys_state_var_init</code> 先释放再分配本模块数组，建立后续物理流程共享状态。</td>
+</tr>
+<tr>
+<td>地表 / 水循环</td>
+<td><code>surfini</code>, <code>vdifc</code>, <code>soilwater</code>, <code>waterice_tifeedback</code> 等读取或写入 <code>watercaptag/dryness/qsurf/watercap/tsurf</code>。</td>
+</tr>
+<tr>
+<td>地形重力波</td>
+<td><code>calldrag_noro</code> 读取 <code>zstd/zsig/zgam/zthe</code> 作为次网格地形输入。</td>
+</tr>
+<tr>
+<td>山顶地形尘流</td>
+<td><code>topmons_mod</code> 和 <code>rocketduststorm_mod</code> 读取或写入 <code>hmons/summit/base/alpha_hmons/contains_mons</code>。</td>
+</tr>
+<tr>
+<td>地表辐射参数</td>
+<td><code>albedocaps</code>, <code>co2snow</code>, <code>co2condens</code>, <code>tabfi</code> 等使用反照率、发射率、冰粒半径和粗糙度参数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>分配例程不检查是否已分配；调用方通常先调用对应 <code>end_*</code> 例程。</li>
+<li><code>ini_surfdat_h_slope_var</code> 是局部重分配工具，只处理 slope-dependent 数组，不触碰 <code>albedodat/phisfi/z0/zstd</code> 等一维数组。</li>
+<li><code>albedice</code>, <code>emisice</code>, <code>iceradius</code>, <code>dtemisice</code>, <code>albedo_perennialco2</code> 是固定长度 2 的半球参数，不由分配例程处理。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>修改 <code>nq</code> 或 <code>nslope</code> 后必须重分配相关数组，否则 <code>qsurf</code> 等维度会与调用方不一致。</li>
+<li>仅分配不代表值有效；restart、配置和初始化流程必须在物理调用前填入地表参数。</li>
+<li>OpenMP 下 threadprivate 变量的初始化和复制语义会影响多线程运行一致性。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>本文件不记录各共享参数的默认值来源；需结合 <code>conf_phys.F</code>、<code>tabfi.F</code>、<code>phyetat0_mod.F90</code> 和 restart 读写流程逐项确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod</a>：完整分配本模块数组的物理状态初始化编排。</li>
+<li><a href="phyetat0_mod.html">phyetat0_mod</a>：读取和初始化多组 <code>surfdat_h</code> 地表状态。</li>
+<li><a href="phyredem.html">phyredem</a>：写出 restart 中的地表和水冰状态。</li>
+<li><a href="surfini_mod.html">surfini_mod</a>：水冰帽 <code>watercaptag/dryness</code> 初始化。</li>
+<li><a href="topmons_mod.html">topmons_mod</a>：山顶地形共享状态写入与使用。</li>
+<li><a href="calldrag_noro_mod.html">calldrag_noro_mod</a>：读取 <code>zstd/zsig/zgam/zthe</code> 驱动地形 GW 筛选。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

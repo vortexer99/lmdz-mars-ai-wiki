@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>chemthermos - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/chemthermos.md</span>
+    </nav>
+    <article class="content">
+<h1 id="chemthermosf90">chemthermos.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\chemthermos.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>chemthermos.F90</code> 定义 <code>chemthermos_mod</code>，包装热层化学主例程 <code>chemthermos</code>。该例程接收单个物理网格列的化学示踪物 mole fraction、热层温度、数密度和太阳几何，先在 <code>firstcall</code> 阶段校验热层化学需要的 tracer 组合并缓存 GCM tracer 索引，再把 <code>zycol</code> 转成 <code>rm(nlayer,nesptherm)</code> 数密度矩阵，调用 <code>jthermcalc_e107</code> 计算光吸收/光解相关系数，调用 <code>paramfoto_compact</code> 执行 C/O/H/N/ion 化学源汇，最后把 <code>lswitch:nlayer</code> 的结果写回 <code>zycol</code>。</p>
+<p>调用方是 <a href="calchim_mod.html">calchim_mod</a> 的 <code>.not.unichim</code> 分支。<code>calchim_mod</code> 源码默认 <code>unichim=.true.</code>，因此常规统一化学路径不会进入本例程；只有切到分离的低层/高层化学方案时才会先读取 <code>chemthermos_reactionrates.def</code>，再逐列调用 <code>chemthermos</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>chemthermos_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1-552</td>
+<td>热层化学主例程模块</td>
+</tr>
+<tr>
+<td><code>chemthermos</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7-550</td>
+<td>校验热层化学 tracer、构造数密度矩阵、调用光吸收和化学源汇并写回 mole fraction</td>
+</tr>
+<tr>
+<td><code>nesptherm</code></td>
+<td><code>integer, save, THREADPRIVATE</code></td>
+<td style="text-align: right;">61, 65</td>
+<td>当前热层化学方案使用的物种数：11/12/17/28</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td><code>logical, save, THREADPRIVATE</code></td>
+<td style="text-align: right;">63, 65</td>
+<td>控制 tracer 索引缓存和物种数校验只在每线程首次调用执行</td>
+</tr>
+<tr>
+<td><code>g_*</code> tracer 索引</td>
+<td><code>integer, save, THREADPRIVATE</code></td>
+<td style="text-align: right;">68-98</td>
+<td>缓存 <code>tracer_mod::igcm_*</code> 到热层化学使用的 GCM tracer 槽位</td>
+</tr>
+<tr>
+<td><code>i_co2</code>..<code>i_elec</code></td>
+<td><code>integer, parameter</code></td>
+<td style="text-align: right;">106-146</td>
+<td>热层化学内部 <code>rm</code> 物种槽位；源码要求与 <code>jthermcalc*</code>、<code>paramfoto_compact</code>、<code>euvheat</code>、<code>hrtherm</code> 保持一致</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>nqmx</code>, <code>igcm_co2</code>, <code>igcm_co</code>, <code>igcm_o</code>, <code>igcm_o1d</code>, <code>igcm_o2</code>, <code>igcm_h</code>, <code>igcm_h2</code>, <code>igcm_oh</code>, <code>igcm_ho2</code>, <code>igcm_h2o2</code>, <code>igcm_h2o_vap</code>, <code>igcm_o3</code>, <code>igcm_n2</code>, <code>igcm_n</code>, <code>igcm_no</code>, <code>igcm_no2</code>, <code>igcm_n2d</code>, ion tracer indexes, <code>igcm_elec</code></td>
+<td>找到 GCM tracer 数组 <code>zycol(:,iq)</code> 中对应化学物种的位置</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>param_v4_h</code></td>
+<td><code>Pno</code>, <code>Po2</code></td>
+<td>从 <code>paramfoto_compact</code> 填充的反应产率矩阵导出 <code>em_no</code> 和 <code>em_o2</code></td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>jthermcalc_e107_mod</code></td>
+<td><code>jthermcalc_e107</code></td>
+<td>计算热层光吸收/光解相关系数</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>paramfoto_compact_mod</code></td>
+<td><code>paramfoto_compact</code></td>
+<td>对 <code>rm</code> 执行热层化学源汇积分并填充 <code>P*</code> 反应产率矩阵</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th style="text-align: right;">调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>jthermcalc_e107</code></td>
+<td><code>jthermcalc_e107_mod.F</code></td>
+<td style="text-align: right;">502</td>
+<td>用 <code>ig/nlayer/chemthermod/rm/ztemp/zlocal/zenit/zday</code> 计算光吸收/光解相关量</td>
+</tr>
+<tr>
+<td><code>paramfoto_compact</code></td>
+<td><code>paramfoto_compact.F</code></td>
+<td style="text-align: right;">505-506</td>
+<td>依据 <code>chemthermod/lswitch/ztemp/ptimestep/zenit/zlocal</code> 更新 <code>rm</code> 并填充产率/寿命数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ig</code></td>
+<td><code>calchim_mod::calchim</code> 当前列</td>
+<td><code>integer</code></td>
+<td>网格索引</td>
+<td>物理水平格点索引，转交给下游例程</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>调用方垂直层数</td>
+<td><code>integer</code></td>
+<td>层</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>lswitch</code></td>
+<td><code>calchim_mod</code> 热层切换层</td>
+<td><code>integer</code></td>
+<td>层索引</td>
+<td><code>paramfoto_compact</code> 和写回循环从该层开始应用化学更新</td>
+</tr>
+<tr>
+<td><code>chemthermod</code></td>
+<td>调用方化学方案标志</td>
+<td><code>integer</code></td>
+<td>无</td>
+<td>0: C/O/H 基础；1: 加 O3；2: 加 N；3: 加离子</td>
+</tr>
+<tr>
+<td><code>zycol</code></td>
+<td><code>calchim_mod</code> 单列 mole fraction</td>
+<td><code>real(nlayer,nqmx)</code></td>
+<td>mole fraction</td>
+<td>输入化学组成；本例程也会写回</td>
+</tr>
+<tr>
+<td><code>ztemp</code></td>
+<td>调用方热层温度</td>
+<td><code>real(nlayer)</code></td>
+<td>K</td>
+<td>反应速率和光吸收计算温度</td>
+</tr>
+<tr>
+<td><code>zdens</code></td>
+<td>调用方总数密度</td>
+<td><code>real(nlayer)</code></td>
+<td>cm^-3（按源码数密度用法推断）</td>
+<td><code>zycol*zdens</code> 转成各物种数密度</td>
+</tr>
+<tr>
+<td><code>zpress</code></td>
+<td>调用方气压</td>
+<td><code>real(nlayer)</code></td>
+<td>mbar</td>
+<td>声明为输入但本文件内未使用</td>
+</tr>
+<tr>
+<td><code>zlocal</code></td>
+<td>调用方局地时/高度相关坐标</td>
+<td><code>real(nlayer)</code></td>
+<td>源码未注明</td>
+<td>传给 <code>jthermcalc_e107</code> 和 <code>paramfoto_compact</code></td>
+</tr>
+<tr>
+<td><code>zenit</code></td>
+<td>调用方太阳天顶角</td>
+<td><code>real</code></td>
+<td>度（按下游 zenit 判断推断）</td>
+<td>控制光化学/日夜项</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>物理时间步长</td>
+<td><code>real</code></td>
+<td>s（按调用链推断）</td>
+<td>化学积分时间步</td>
+</tr>
+<tr>
+<td><code>zday</code></td>
+<td>调用方日期/太阳活动相关量</td>
+<td><code>real</code></td>
+<td>源码未注明</td>
+<td>传给 <code>jthermcalc_e107</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zycol(lswitch:nlayer,*)</code></td>
+<td>返回 <code>calchim_mod</code> 后再转成 <code>dqchim</code></td>
+<td><code>real(nlayer,nqmx)</code></td>
+<td>mole fraction</td>
+<td>热层段更新后的 C/O/H/O3/N/ion 物种；<code>1:lswitch-1</code> 不由本例程写回</td>
+</tr>
+<tr>
+<td><code>em_no(lswitch:nlayer)</code></td>
+<td><code>calchim_mod</code> 后续化学诊断/耦合</td>
+<td><code>real(nlayer)</code></td>
+<td>源码未注明</td>
+<td><code>Pno(l,45)</code>，来自 <code>paramfoto_compact</code> 的 NO 生成项</td>
+</tr>
+<tr>
+<td><code>em_o2(lswitch:nlayer)</code></td>
+<td><code>calchim_mod</code> 后续化学诊断/耦合</td>
+<td><code>real(nlayer)</code></td>
+<td>源码未注明</td>
+<td><code>Po2(l,10)*0.75</code>，来自 <code>paramfoto_compact</code> 的 O2 生成项缩放</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>nesptherm</code>、<code>firstcall</code> 和所有 <code>g_*</code> tracer 索引为 <code>save</code> 且 <code>THREADPRIVATE</code>，每个 OpenMP 线程首次进入时独立初始化。</li>
+<li><code>firstcall</code> 会打印 tracer/方案信息，并在 tracer 缺失或物种数不匹配时 <code>write(*,*)</code> 后直接 <code>stop</code>；这里没有走 <code>abort_physic</code>。</li>
+<li><code>chemthermod</code> 没有 <code>intent</code>，且 firstcall 中当调用方传入 <code>&lt;1</code> 但存在 <code>igcm_o3</code> 时会把 <code>chemthermod=1</code>，因此该修改可能对调用方可见。</li>
+<li>每次调用都会 <code>allocate(rm(nlayer,nesptherm))</code>，结束时 <code>deallocate(rm)</code>。</li>
+<li><code>paramfoto_compact</code> 会写 <code>param_v4_h</code> 中的共享 <code>P*</code>、<code>L*</code>、<code>tau*</code> 等数组；本例程随后读取 <code>Pno</code>、<code>Po2</code>。</li>
+<li><code>zpress</code> 在本文件中未被读取。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>首次进入时读取 <code>tracer_mod::igcm_*</code>，校验基础 C/O/H 物种必备：<code>CO2, CO, O, O1D, O2, H, H2, OH, HO2, H2O2, H2O</code>。</li>
+<li>按 <code>chemthermod</code> 扩展物种集合：<code>&gt;=1</code> 需要 O3；<code>&gt;=2</code> 需要 <code>N2,N,NO,NO2,N2D</code>；<code>==3</code> 需要 <code>CO2+,O+,O2+,CO+,C+,N+,NO+,N2+,H+,HCO2+,e-</code>。</li>
+<li>校验 <code>nesptherm</code> 是否等于 11、12、17 或 28；否则打印错误并 <code>stop</code>。</li>
+<li>分配 <code>rm(nlayer,nesptherm)</code>，把 <code>zycol(l,g_*)*zdens(l)</code> 转成数密度，所有值用 <code>max(...,1.e-30)</code> 加下限。</li>
+<li>调 <code>jthermcalc_e107</code> 计算光吸收/光解相关系数。</li>
+<li>调 <code>paramfoto_compact</code> 执行热层化学积分，输入输出都在 <code>rm</code>。</li>
+<li>仅对 <code>l=lswitch,nlayer</code> 把 <code>rm(l,i_*)/zdens(l)</code> 写回对应 <code>zycol(l,g_*)</code>，并设置 <code>em_no(l)=Pno(l,45)</code>、<code>em_o2(l)=Po2(l,10)*0.75</code>。</li>
+<li>释放 <code>rm</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>chemthermos(args):
+  if firstcall:
+    load igcm_* tracer indexes into g_*
+    require base C/O/H species
+    if chemthermod &gt;= 1 require O3
+    else if O3 exists, include it and set chemthermod = 1
+    if chemthermod &gt;= 2 require N, N2, NO, NO2, N2D
+    if chemthermod == 3 require ion/electron species
+    check nesptherm is 11/12/17/28
+    firstcall = false
+
+  allocate rm(nlayer, nesptherm)
+  for each layer:
+    rm(layer, species_slot) = max(zycol(layer, tracer_index) * zdens(layer), 1.e-30)
+
+  call jthermcalc_e107(...)
+  call paramfoto_compact(...)
+
+  for layer = lswitch..nlayer:
+    zycol(layer, tracer_index) = max(rm(layer, species_slot) / zdens(layer), 1.e-30)
+    em_no(layer) = Pno(layer,45)
+    em_o2(layer) = Po2(layer,10) * 0.75
+
+  deallocate rm</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热层化学 / 光化学</td>
+<td>在 <code>calchim_mod</code> 的 <code>.not.unichim</code> 路径中执行上层 C/O/H/O3/N/ion 化学源汇</td>
+</tr>
+<tr>
+<td>热层光吸收 / EUV 链路</td>
+<td>共享 <code>i_co2..i_elec</code> 物种槽位并调用 <code>jthermcalc_e107</code>，与 <a href="hrtherm.html">hrtherm</a>、<a href="euvheat.html">euvheat</a> 同步</td>
+</tr>
+<tr>
+<td>反应速率配置</td>
+<td><code>paramfoto_compact</code> 消费 <a href="../../reference/reaction-rates.html">reaction-rates</a> 中由 <a href="chemthermos_readini.html">chemthermos_readini</a> 读入的 <code>rcoef(61,3)</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>chemthermod</code> 同时控制物种清单、<code>rm</code> 宽度、<code>jthermcalc_e107</code> 和 <code>paramfoto_compact</code> 的下游分支；复现实验需要记录它的实际值。</li>
+<li>内部物种槽位硬编码，源码注释要求与 <code>jthermcal.F</code>、<code>column.F</code>、<code>paramfoto_compact.F</code>、<code>euvheat.F</code>、<code>hrtherm.F</code> 同步；本仓库实际还可见 <code>jthermcalc_e107_mod.F</code> 和 <code>jthermcalc_util.F</code> 使用相同要求。</li>
+<li><code>rm(l,i_co)</code> 在 <code>chemthermod&gt;=2</code> 的 N 化学块中被再次赋值一次，与前面的基础赋值相同，属于重复写入。</li>
+<li><code>em_no</code> 和 <code>em_o2</code> 只在 <code>lswitch:nlayer</code> 被赋值；低层值需要由调用方初始化或保持原值。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>默认 <code>calchim_mod</code> 中 <code>unichim=.true.</code>，不会进入 <code>chemthermos</code>；要复现本路径需使用 <code>.not.unichim</code> 的配置/源码路径。</li>
+<li>运行目录需要有 <code>chemthermos_reactionrates.def</code>，因为 <code>calchim_mod</code> 会在 <code>.not.unichim</code> firstcall 中调用 <code>chemthermos_readini</code>。</li>
+<li><code>traceur.def</code> 必须包含与 <code>chemthermod</code> 对应的 tracer 集合；缺任一必需 tracer 会直接 <code>stop</code>。</li>
+<li><code>chemthermod</code> 若在首次调用中被 O3 自动提升为 1，后续调用沿用同线程缓存的 <code>nesptherm</code> 和 <code>g_*</code>；不要在一次运行中假设可安全切换不同物种集合。</li>
+<li><code>zdens</code> 不能为 0，因为写回阶段除以 <code>zdens(l)</code>。</li>
+<li>复现数值时要保留 <code>1.e-30</code> 下限，否则低浓度层会与源码偏离。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>zpress</code> 作为参数保留但未使用，可能是历史接口遗留。</li>
+<li><code>chemthermod</code> 由 <code>chemthermos</code> firstcall 修改是否为预期接口行为；源码未声明 <code>intent</code>。</li>
+<li><code>em_no/em_o2</code> 低于 <code>lswitch</code> 的值是否始终由 <code>calchim_mod</code> 或其他调用方预先清零。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="calchim_mod.html">calchim_mod</a>：唯一已确认调用方，说明 <code>.not.unichim</code>、<code>chemthermos_readini</code> 和 <code>chemthermos</code> 调用点。</li>
+<li><a href="chemthermos_readini.html">chemthermos_readini</a>：读取 <code>chemthermos_reactionrates.def</code> 到 <code>param_v4_h::rcoef</code>。</li>
+<li><a href="../../reference/reaction-rates.html">reaction-rates</a>：61 个热层化学反应速率常数。</li>
+<li><a href="euvheat.html">euvheat</a>：共享热层物种槽位的 EUV 加热入口。</li>
+<li><a href="hrtherm.html">hrtherm</a>：共享热层物种槽位的 EUV 加热率计算。</li>
+<li><a href="paramfoto_compact.html">paramfoto_compact</a>：展开本例程调用的热层光化学/离子化学积分细节。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

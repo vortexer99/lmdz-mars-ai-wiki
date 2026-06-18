@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>init_testphys1d_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../../index.html">主页</a>
+        <a href="../../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../../libf-overview.html">模块</a>
+        <a href="../../../themes/index.html">主题</a>
+        <a href="../../../routines/index.html">例程</a>
+        <a href="../../../reference/file-index.html">文件索引</a>
+        <a href="../../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dyn1d/init_testphys1d_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dyn1dinit_testphys1d_modf90">dyn1d/init_testphys1d_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d\init_testphys1d_mod.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>init_testphys1d_mod.F90</code> 是 1D <code>testphys1d</code> 列模式的初始化主例程。它把 <code>run.def</code>/<code>callphys.def</code>、<code>traceur.def</code>、<code>start1D.txt</code>、<code>startfi.nc</code>、profile 文件和一组物理公共模块串在一起，生成 <code>physiq</code> 前需要的单格点大气、地表、土壤、tracer、几何、时间和配置状态。</p>
+<p>调用方是 <code>dyn1d/testphys1d.F90</code>，主程序在时间循环前调用 <code>init_testphys1d(...)</code>，随后把本例程填好的 <code>psurf/u/v/temp/q/play/plev/qsurf/tsoil</code> 等状态送入物理过程。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>init_testphys1d_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>包装 1D 物理测试初始化例程。</td>
+</tr>
+<tr>
+<td><code>init_testphys1d</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7-848</td>
+<td>读取配置和初始场，分配/填充 1D 物理状态，初始化几何、垂直层、tracer、坡面、土壤和水控制量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="接口和主要实参">接口和主要实参</h2>
+<table>
+<thead>
+<tr>
+<th>实参</th>
+<th>方向</th>
+<th>维度/单位</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>start1Dname</code>, <code>startfiname</code></td>
+<td>输入</td>
+<td>字符串</td>
+<td>restart 文本文件和物理 restart NetCDF 名。调用方传入 <code>start1D.txt</code>、<code>startfi.nc</code>。</td>
+</tr>
+<tr>
+<td><code>therestart1D</code>, <code>therestartfi</code></td>
+<td>输入</td>
+<td>logical</td>
+<td>控制是否从 <code>start1D.txt</code> 和 <code>startfi.nc</code> 读初始场。</td>
+</tr>
+<tr>
+<td><code>ngrid</code>, <code>nlayer</code>, <code>nq</code></td>
+<td>输出或输入输出</td>
+<td>单格点、垂直层数、tracer 数</td>
+<td><code>ngrid</code> 固定服务 1D；<code>nq</code> 从 <code>traceur.def</code> 首行读取。</td>
+</tr>
+<tr>
+<td><code>q</code>, <code>dq</code>, <code>dqdyn</code></td>
+<td>输出 allocatable</td>
+<td><code>(1,nlayer,nq)</code></td>
+<td>tracer 混合比和 tendency 工作数组。</td>
+</tr>
+<tr>
+<td><code>zqsat</code></td>
+<td>输出 allocatable</td>
+<td><code>(nlayer)</code></td>
+<td>饱和相关工作数组，初始化分配。</td>
+</tr>
+<tr>
+<td><code>time</code>, <code>day0</code>, <code>day</code>, <code>ndt</code>, <code>dttestphys</code></td>
+<td>输出</td>
+<td>sol 或秒</td>
+<td>从配置/restart 建立初始时间、积分 sol 数、物理步长和总步数。</td>
+</tr>
+<tr>
+<td><code>psurf</code>, <code>u</code>, <code>v</code>, <code>temp</code>, <code>w</code></td>
+<td>输出</td>
+<td>Pa, m s-1, K</td>
+<td>单柱表压、风、温度和垂直风。</td>
+</tr>
+<tr>
+<td><code>play</code>, <code>plev</code></td>
+<td>输出</td>
+<td>Pa</td>
+<td>层中和界面压力，由 <code>ap/bp/aps/bps</code> 与 <code>psurf</code> 构造。</td>
+</tr>
+<tr>
+<td><code>latitude</code>, <code>longitude</code>, <code>cell_area</code></td>
+<td>输出</td>
+<td>rad, rad, m2</td>
+<td>1D 网格几何；默认纬度 0 度，经度 0。</td>
+</tr>
+<tr>
+<td><code>ctrl_h2ovap</code>, <code>ctrl_h2oice</code> 等</td>
+<td>输出</td>
+<td>logical, s, kg kg-1</td>
+<td>水汽/水冰 profile 强制与松弛控制。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="使用的模块状态">使用的模块状态</h2>
+<p>本例程写入或依赖大量公共状态，关键链路如下：</p>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>主要符号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comcstfi_h</code>, <code>planete_h</code></td>
+<td><code>rad/daysec/omeg/g/r/cpp/year_day/periheli/aphelie/peri_day</code> 等</td>
+<td>设置火星物理常数和轨道默认值。</td>
+</tr>
+<tr>
+<td><code>infotrac</code></td>
+<td><code>nqtot/tname/nqperes/nqfils</code></td>
+<td>直接读取 <code>traceur.def</code>，建立 1D tracer 名称和简化父子关系。</td>
+</tr>
+<tr>
+<td><code>comvert_mod</code></td>
+<td><code>ap/bp/aps/bps/presnivs/pseudoalt</code></td>
+<td>由 <code>disvert_noterre</code> 和 <code>init_vertical_layers</code> 填充后构造 <code>plev/play</code>。</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code>, <code>comsoil_h</code>, <code>comslope_mod</code></td>
+<td><code>albedodat/inertiedat/qsurf/tsoil/qsoil/nslope</code> 等</td>
+<td>初始化地表、土壤、坡面和 surface tracer 状态。</td>
+</tr>
+<tr>
+<td><code>logic_mod</code>, <code>callkeys_mod</code></td>
+<td><code>photochem/callthermos/water/adsorption_soil/paleoclimate</code> 等</td>
+<td>决定化学初始化、水控制、地下冰和古气候分支。</td>
+</tr>
+<tr>
+<td><code>dimphy</code>, <code>phys_state_var_init_mod</code>, <code>comgeomfi_h</code></td>
+<td><code>init_dimphy</code>, <code>phys_state_var_init</code>, <code>ini_fillgeom</code></td>
+<td>建立物理维度、日期状态和几何三角函数缓存。</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>initracer</code>, <code>igcm_*</code></td>
+<td>建立物理侧 tracer 索引，随后用于 CO2、H2O、土壤冰等数组位置。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="初始化流程">初始化流程</h2>
+<h3 id="1-常数和-tracer-数组">1. 常数和 tracer 数组</h3>
+<ol type="1">
+<li>设置火星默认常数：<code>rad=3397200</code> m、<code>daysec=88775</code> s、<code>g=3.72</code> m s-2、<code>mugaz=43.49</code> g mol-1、<code>rcp=.256793</code>、<code>year_day=669</code>、<code>obliquit=25.2</code>、<code>eccentric=0.0934</code>、<code>Lsperi=251</code>。</li>
+<li>设置地表和边界层默认值：<code>z0_default=1.e-2</code>、<code>emin_turb=1.e-6</code>、<code>lmixmin=30</code>、<code>inertieice=2100</code>、<code>rho_H2O_ice=920</code>、<code>cell_area(1)=1</code>。</li>
+<li>打开 <code>traceur.def</code>。缺失、首行读取失败或 <code>nq&lt;1</code> 都会停止。</li>
+<li>分配 <code>tname(nq)</code>、<code>q(1,nlayer,nq)</code>、<code>dq(1,nlayer,nq)</code>、<code>dqdyn(1,nlayer,nq)</code>、<code>zqsat(nlayer)</code> 和 <code>tnom_transp(nq)</code>。</li>
+<li>每个 tracer 行先尝试读取 <code>tname, tnom_transp</code> 两列；失败则只读 <code>tname</code>，并把 transporting fluid 设为 <code>air</code>。</li>
+<li><code>tnom_transp=='air'</code> 的 tracer 计入父 tracer；其他 tracer 向前查找父名并累加 <code>nqfils</code>。找不到父 tracer 时调用 <code>abort_gcm('infotrac_init','Un traceur est orphelin',1)</code>。</li>
+</ol>
+<h3 id="2-时间restart-和垂直坐标">2. 时间、restart 和垂直坐标</h3>
+<ol type="1">
+<li>初始化 physics distribution：有 XIOS 时使用 <code>COMM_LMDZ</code>，否则使用串行 communicator <code>1</code>。</li>
+<li>无 <code>startfi.nc</code> 时从 <code>getin("day0")</code> 和 <code>getin("time")</code> 读取初始日期和小时，并把小时转为 sol 分数。</li>
+<li>有 <code>startfi.nc</code> 时调用 <code>open_startphy</code>，读取 <code>controle</code> 和 <code>Time</code>，并从 <code>tab_cntrl(3)</code> 取 <code>day0</code>。</li>
+<li>设置 <code>nlevel=nlayer+1</code>、<code>nsoil=nsoilmx</code>、默认 <code>day_step=48</code>、默认 <code>ndt=10</code>。配置中的 <code>ndt</code> 先表示积分 sol 数，随后乘以 <code>day_step</code> 转为物理步数；<code>dttestphys=daysec/day_step</code>。</li>
+<li>默认 <code>psurf=610</code> Pa、<code>pa=20</code>、<code>preff=610</code>。若 <code>therestart1D</code> 为真，则从 <code>start1D.txt</code> 第一行读取 <code>psurf, pa, preff</code>。</li>
+<li>默认 <code>hybrid=.true.</code>，可由 <code>getin("hybrid")</code> 改写。随后调用 <code>disvert_noterre</code> 和 <code>init_vertical_layers</code>，再用 <code>plev=ap+psurf*bp</code>、<code>play=aps+psurf*bps</code> 构造压力，并用 <code>zlay=-200*r*log(play/plev(1))/g</code> 估算层高。</li>
+</ol>
+<h3 id="3-轨道几何和物理公共状态">3. 轨道、几何和物理公共状态</h3>
+<ol type="1">
+<li><code>CO2cond_ps</code> 默认 1，可配置但必须在 <code>[0,1]</code>。</li>
+<li><code>tauvis</code> 默认 0.2。</li>
+<li>无 <code>startfi.nc</code> 时可启用 <code>paleomars</code>，读取 <code>obliquit/eccentric/Lsperi</code>，并通过 <code>call_dayperi</code> 换算 <code>peri_day</code>。源码中 <code>Lsperi</code> 合法性判断的条件仍引用 <code>eccentric</code>，这是一个需要保留源码事实的可疑分支。</li>
+<li>纬度默认 0 度并转为弧度，经度固定 0 弧度。</li>
+<li>依次调用 <code>init_interface_dyn_phys</code>、<code>init_regular_lonlat</code>、<code>init_geometry</code>、<code>init_geometry_cell_area_for_outputs</code>、<code>init_dimphy</code>、<code>phys_state_var_init</code>、<code>ini_fillgeom</code>、<code>conf_phys</code>、<code>initracer</code>。</li>
+<li>若 <code>iphysiq</code> 不是 1，本例程强制设为 1。</li>
+</ol>
+<h3 id="4-坡面tracer-profile-和地表">4. 坡面、tracer profile 和地表</h3>
+<ol type="1">
+<li><code>nslope</code> 默认 1，可配置为 1、3、5、7；其他值直接 <code>error stop</code>。</li>
+<li>无 <code>startfi.nc</code> 时重新初始化坡面相关数组，并为 3/5/7 坡面写入硬编码坡度 <code>def_slope</code> 和面积分布 <code>subslope_dist</code>。</li>
+<li>有 <code>startfi.nc</code> 时检查 restart 中的 <code>nslope</code> 是否等于配置值，不一致则停止；一致时使用 restart 的坡面分布。</li>
+<li>读取 <code>slope_inclination</code> 和 <code>slope_orientation</code>，分别写入 <code>theta_sl</code> 和 <code>psi_sl</code>。</li>
+<li>无 <code>start1D.txt</code> 时调用 <code>read_profile(nq,nlayer,qsurf(1,:,1),q,play)</code> 初始化 tracer profile，并把 <code>qsurf</code> 复制到所有 slope。</li>
+<li>有 <code>start1D.txt</code> 时逐 tracer 读取名称和垂直廓线，并检查文件中的 tracer 名等于 <code>tname(iq)</code>。</li>
+<li>无 <code>startfi.nc</code> 时读取 <code>albedo</code>、<code>inertia</code>、<code>subsurface_ice_depth</code>、<code>z0</code>，并设置 <code>zmea/zstd/zsig/zgam/zthe=0</code>、地形 GW tendency 为 0、<code>tauscaling=1</code>、<code>totcloudfrac=1</code>、<code>phisfi=0</code>。</li>
+<li><code>ptif=2*omeg*sinlat(1)</code>；<code>u</code>、<code>v</code> 默认来自 <code>getin("u")</code>、<code>getin("v")</code> 的地转风，restart 路径从 <code>start1D.txt</code> 读取。<code>w=0</code>，<code>q2=0</code>。</li>
+<li>无 <code>startfi.nc</code> 时设置 surface CO2 ice 默认值，并可由 <code>getin("co2ice")</code> 改写。</li>
+</ol>
+<h3 id="5-温度土壤化学和水-profile-控制">5. 温度、土壤、化学和水 profile 控制</h3>
+<ol type="1">
+<li><code>pks=psurf**rcp</code>。</li>
+<li>无 <code>start1D.txt</code> 时用 <code>zlay/1000</code> 构造 km 高度，调用 <code>profile_temp(nlayer+1,zkm,teta)</code>，令 <code>tsurf=teta(0)</code>、<code>temp=teta(1:)</code>；restart 路径从 <code>start1D.txt</code> 读取 <code>temp</code> 后关闭文件。</li>
+<li>无 <code>startfi.nc</code> 时设置 <code>qsoil=0</code>，构造土壤层深： <code>mlayer(isoil)=2.e-4*(1+isoil**2.9*(1-exp(-real(isoil)/20.)))</code>，界面 <code>layer</code> 用相邻中层平均。</li>
+<li>若 <code>subsurface_ice_depth&gt;0</code>，按冰/土边界所在层改写 <code>inertiedat</code>；若启用 <code>adsorption_soil</code>，还按 <code>ads_massive_ice</code> 或孔隙度把地下水冰质量写入 <code>qsoil(:,:,igcm_h2o_ice_soil,:)</code>。</li>
+<li>若无地下冰，所有土壤层使用表层热惯量；随后把 <code>inertiedat</code> 复制到 <code>inertiesoil</code>，把 <code>tsurf</code> 复制到 <code>tsoil</code>。</li>
+<li><code>flux_geo</code> 默认 0，可由 <code>getin("flux_geo")</code> 读取单值后复制到全数组。</li>
+<li>若 <code>photochem</code> 或 <code>callthermos</code> 为真，检查是否存在 <code>profile_h2o_vap</code> 来决定 <code>flagh2o</code>，分配临时 <code>qdyn(2,1,llm,nq)</code> 和 <code>psdyn(2,1)</code>，调用 <code>inichim_newstart</code>，再把第一列结果写回 <code>q</code>。</li>
+<li><code>watercaptag</code> 默认 <code>.false.</code>，可通过 <code>getin("watercaptag")</code> 控制水冰地表库；无 <code>startfi.nc</code> 时 <code>watercap=0</code>。</li>
+<li>若 <code>water</code> 为真，可设置 <code>ctrl_h2ovap</code> 和 <code>ctrl_h2oice</code>。打开 <code>profile_ref_h2o_vap</code> 或 <code>profile_ref_h2o_ice</code> 逐层读取参考 mixing ratio；<code>relaxtime_h2ovap</code> 和 <code>relaxtime_h2oice</code> 小于 0 表示强制 profile，不小于 0 表示按秒级时间常数松弛。</li>
+</ol>
+<h2 id="配置键和外部文件">配置键和外部文件</h2>
+<table>
+<thead>
+<tr>
+<th>名称</th>
+<th>类型</th>
+<th>默认/要求</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>traceur.def</code></td>
+<td>必需文本</td>
+<td>首行为 <code>nq</code></td>
+<td>定义 tracer 数量、名称和可选 transporting fluid。</td>
+</tr>
+<tr>
+<td><code>start1D.txt</code></td>
+<td>可选文本</td>
+<td><code>therestart1D</code> 为真时读取</td>
+<td>表压、温度、风和 tracer profile restart。</td>
+</tr>
+<tr>
+<td><code>startfi.nc</code></td>
+<td>可选 NetCDF</td>
+<td><code>therestartfi</code> 为真时读取</td>
+<td>物理 restart，提供 <code>controle</code>、<code>Time</code> 和 slope/地表状态。</td>
+</tr>
+<tr>
+<td><code>day0</code>, <code>time</code>, <code>day_step</code>, <code>ndt</code></td>
+<td><code>getin</code></td>
+<td><code>0</code>, <code>0</code>, <code>48</code>, <code>10</code></td>
+<td>初始时间、每天步数和积分长度。</td>
+</tr>
+<tr>
+<td><code>psurf</code>, <code>hybrid</code>, <code>CO2cond_ps</code>, <code>tauvis</code></td>
+<td><code>getin</code></td>
+<td><code>610</code>, <code>.true.</code>, <code>1</code>, <code>0.2</code></td>
+<td>表压、垂直坐标、CO2 凝结压力因子和尘埃可见光光学厚度。</td>
+</tr>
+<tr>
+<td><code>paleomars</code>, <code>obliquit</code>, <code>eccentric</code>, <code>Lsperi</code></td>
+<td><code>getin</code></td>
+<td><code>.false.</code> 和现代火星默认</td>
+<td>古气候轨道参数。</td>
+</tr>
+<tr>
+<td><code>latitude</code>, <code>nslope</code>, <code>slope_inclination</code>, <code>slope_orientation</code></td>
+<td><code>getin</code></td>
+<td><code>0</code>, <code>1</code>, 源码默认数组</td>
+<td>单柱位置和坡面几何。</td>
+</tr>
+<tr>
+<td><code>albedo</code>, <code>inertia</code>, <code>subsurface_ice_depth</code>, <code>z0</code>, <code>co2ice</code>, <code>flux_geo</code></td>
+<td><code>getin</code></td>
+<td>源码默认值</td>
+<td>地表反照率、热惯量、地下冰深度、粗糙度、CO2 冰和地热通量。</td>
+</tr>
+<tr>
+<td><code>profile_h2o_vap</code></td>
+<td>可选存在性检查</td>
+<td>存在则不由化学例程初始化 H2O vap</td>
+<td>控制 <code>inichim_newstart</code> 的 <code>flagh2o</code>。</td>
+</tr>
+<tr>
+<td><code>profile_ref_h2o_vap</code>, <code>profile_ref_h2o_ice</code></td>
+<td>条件必需文本</td>
+<td><code>ctrl_h2ovap/ctrl_h2oice</code> 为真时必须存在</td>
+<td>逐层参考水汽/水冰 mixing ratio。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用关系">调用关系</h2>
+<table>
+<thead>
+<tr>
+<th>方向</th>
+<th>符号/文件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>调用方</td>
+<td><a href="testphys1d.html">testphys1d.F90</a></td>
+<td>主程序 <code>use init_testphys1d_mod, only: init_testphys1d</code>，在时间循环前调用。</td>
+</tr>
+<tr>
+<td>被调</td>
+<td><a href="disvert_noterre.html">disvert_noterre</a></td>
+<td>生成 1D hybrid/sigma 垂直坐标系数。</td>
+</tr>
+<tr>
+<td>被调</td>
+<td><a href="../call_dayperi.html">call_dayperi</a></td>
+<td>在 <code>paleomars</code> 分支把 <code>Lsperi/eccentric</code> 转成 <code>peri_day</code>。</td>
+</tr>
+<tr>
+<td>被调</td>
+<td><a href="../tracer_mod.html">tracer_mod</a></td>
+<td><code>initracer(ngrid,nq)</code> 建立物理 tracer 索引。</td>
+</tr>
+<tr>
+<td>被调</td>
+<td><a href="../phys_state_var_init_mod.html">phys_state_var_init_mod</a></td>
+<td>初始化物理状态变量公共模块。</td>
+</tr>
+<tr>
+<td>被调</td>
+<td><a href="../comgeomfi_h.html">comgeomfi_h</a></td>
+<td><code>ini_fillgeom</code> 缓存纬经度三角函数。</td>
+</tr>
+<tr>
+<td>被调</td>
+<td><a href="../../aeronomars/inichim_newstart.html">inichim_newstart</a></td>
+<td>化学或热层分支初始化化学 tracer。</td>
+</tr>
+<tr>
+<td>被调</td>
+<td><a href="read_profile_mod.html">read_profile_mod</a></td>
+<td>无 restart 时读取 tracer 初始 profile。</td>
+</tr>
+<tr>
+<td>被调</td>
+<td><a href="profile_temp_mod.html">profile_temp_mod</a></td>
+<td>无 restart 时构造温度廓线。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li><code>traceur.def</code> 是硬需求；即使 <code>tracer_mod</code> 另有 <code>tracer.def</code> 回退路径，本例程在读取 tracer 数量时只打开 <code>traceur.def</code>。</li>
+<li><code>start1D.txt</code> 的 tracer 名顺序必须和 <code>traceur.def</code> 中的 <code>tname(iq)</code> 一致，否则 restart 读取会停止。</li>
+<li><code>nslope</code> 只能是 1、3、5、7；restart 与配置的 slope 数不一致会停止。</li>
+<li><code>ndt</code> 在配置中表示 sol 数，但例程内最终乘以 <code>day_step</code> 变成时间步数；复现实验时不要把两者混淆。</li>
+<li><code>ctrl_h2ovap</code> 或 <code>ctrl_h2oice</code> 为真时，对应 <code>profile_ref_h2o_vap</code> 或 <code>profile_ref_h2o_ice</code> 必须至少包含 <code>nlayer</code> 行。</li>
+<li>启用 <code>photochem</code> 或 <code>callthermos</code> 时，<code>inichim_newstart</code> 使用动态网格形状的临时数组包装 1D 数据；如果 tracer 名或化学数据文件缺失，失败会发生在该后续例程中。</li>
+</ol>
+<h2 id="待确认和风险">待确认和风险</h2>
+<ul>
+<li><code>Lsperi</code> 范围检查处的源码条件引用了 <code>eccentric</code>，不像是有意设计；本文按源码事实记录，是否应修正需代码维护者确认。</li>
+<li><code>traceur.def</code> 的 modern 格式兼容性未在本文件中实现；当前读取逻辑是旧式首行数量格式。</li>
+<li><code>qdyn</code> 和 <code>psdyn</code> 在化学初始化分支中分配后未在本例程内显式释放；Fortran 例程返回时是否释放取决于 allocatable 局部变量语义和编译器实现，未做运行验证。</li>
+<li>地下冰写入 <code>qsoil</code> 时使用 <code>igcm_h2o_ice_soil</code>，该索引依赖 <code>tracer_mod::initracer</code> 是否识别对应 tracer。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn1d/index.md</a> - dyn1d 子目录索引。</li>
+<li><a href="../../../architecture/testphys1d-config.html">testphys1d 配置</a> - 1D 运行配置入口。</li>
+<li><a href="infotrac.html">infotrac</a> - dyn1d tracer 元数据 stub 和 1D tracer 名称链。</li>
+<li><a href="comvert_mod.html">comvert_mod</a> - 垂直坐标状态。</li>
+<li><a href="disvert_noterre.html">disvert_noterre</a> - 非地球垂直离散。</li>
+<li><a href="../comcstfi_h.html">comcstfi_h</a> - 物理常数状态。</li>
+<li><a href="../comgeomfi_h.html">comgeomfi_h</a> - 几何缓存。</li>
+<li><a href="../tracer_mod.html">tracer_mod</a> - 物理 tracer 索引。</li>
+<li><a href="../../aeronomars/inichim_newstart.html">inichim_newstart</a> - 化学初始场构造。</li>
+<li><a href="testphys1d.html">testphys1d.F90</a> - 1D 主程序。</li>
+<li><a href="read_profile_mod.html">read_profile_mod</a> - 1D tracer 初始廓线读取。</li>
+<li><a href="profile_temp_mod.html">profile_temp_mod</a> - 1D 温度廓线构造。</li>
+<li><a href="writerestart1D_mod.html">writerestart1D_mod</a> - 1D 文本 restart 写出方。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

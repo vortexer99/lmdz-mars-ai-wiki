@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>inichim_newstart - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/inichim_newstart.md</span>
+    </nav>
+    <article class="content">
+<h1 id="inichim_newstartf90">inichim_newstart.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\inichim_newstart.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>inichim_newstart.F90</code> 定义 <code>inichim_newstart_mod</code>，提供 <code>inichim_newstart</code> 例程，用于在构造新 start 文件或 1D <code>testphys1d</code> 初始化时，为化学相关 tracer 填充三维初始场和地表储量。它不是时间步内的化学积分器，而是<strong>初始廓线装配器</strong>：先按 <code>traceur.def</code> 中的 <code>noms</code> 重建 <code>tracer_mod</code> 的 <code>igcm_*</code> 索引和 <code>mmol</code> 摩尔质量，再从 <code>datadir</code> 读取 <code>atmosfera_LMD_may.dat</code>、<code>atmosfera_LMD_min.dat</code>、可选 <code>atmosfera_LMD_nitr.dat</code>，把参考廓线按 log pressure 插值到 GCM 垂直层，最后把体积混合比转换为质量混合比写入 <code>pq</code>。</p>
+<p>上游调用点包括 <code>dynphy_lonlat/phymars/newstart.F</code> 的交互式 <code>ini_q</code> / <code>ini_q-h2o</code> 分支，以及 1D <code>dyn1d/init_testphys1d_mod.F90</code> 中 <code>photochem .or. callthermos</code> 时的自动初始化分支。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inichim_newstart_mod</code></td>
+<td>module</td>
+<td>1（<code>END MODULE</code> 822）</td>
+<td>包装化学初始场构造例程</td>
+</tr>
+<tr>
+<td><code>inichim_newstart</code></td>
+<td>subroutine</td>
+<td>7（<code>END SUBROUTINE</code> 820）</td>
+<td>重建 tracer 索引，读取参考化学廓线，插值并写入 <code>pq/qsurf</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td>未限制</td>
+<td>读取/重写 <code>nqmx</code>、<code>noms</code>、<code>igcm_*</code> tracer 索引和 <code>mmol</code> 摩尔质量</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>vertical_layers_mod</code></td>
+<td><code>aps</code>, <code>bps</code></td>
+<td>由 <code>pgcm=aps(l)+bps(l)*ps(i,j)</code> 计算 GCM 层气压</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>nbp_lon</code>, <code>nbp_lat</code>, <code>nbp_lev</code></td>
+<td>决定 <code>pq</code>、<code>ps</code>、本地 <code>mmean</code> 的动态标量网格维度</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>datafile_mod</code></td>
+<td><code>datadir</code></td>
+<td>拼接初始化数据文件路径 <code>trim(datadir)//'/atmosfera_LMD_*.dat'</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td><code>doubleq</code>, <code>submicron</code>, <code>dustbin</code></td>
+<td>决定 dust tracer 命名模式和索引扫描分支</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>intrplf_mod</code></td>
+<td><code>intrplf</code></td>
+<td>按 log pressure 把参考 VMR 廓线插值到 GCM 层</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>microphys</code>, <code>rdstorm</code>, <code>topflows</code></td>
+<td>决定 CCN、rocket dust、topflow dust tracer 是否参与索引扫描</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>co2clouds</code>, <code>co2useh2o</code>, <code>meteo_flux</code></td>
+<td>决定 CO2 云相关 CCN/meteor/H2O-CCN tracer 是否参与索引扫描</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abort_physic</code></td>
+<td>LMDZ 物理工具（本例程未显式 <code>use</code> 其宿主模块）</td>
+<td>512, 528, 538, 620, 632, 645, 756, 810</td>
+<td>tracer 数不匹配、N 物种组合不完整、数据文件缺失或离子组合不完整时中止</td>
+</tr>
+<tr>
+<td><code>intrplf</code></td>
+<td><code>intrplf_mod</code> / <code>intrplf.F</code></td>
+<td>693</td>
+<td>把 <code>vmrinit(:,n)</code> 从初始化文件的 log pressure 网格插值到当前 GCM 层</td>
+</tr>
+<tr>
+<td><code>open</code> / <code>read</code> / <code>close</code></td>
+<td>Fortran intrinsic</td>
+<td>610-677</td>
+<td>打开并读取 <code>atmosfera_LMD_may/min/nitr.dat</code></td>
+</tr>
+<tr>
+<td><code>inquire</code></td>
+<td>上游 <code>init_testphys1d_mod.F90</code></td>
+<td>755（调用方）</td>
+<td>1D 路径检测 <code>profile_h2o_vap</code>，决定是否让本例程初始化 <code>h2o_vap</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>物理列数；用于 <code>qsurf(1:ngrid,iq)</code></td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>tracer 总数；赋给 <code>tracer_mod::nqmx</code></td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td>调用方</td>
+<td>real <code>(nbp_lon+1,nbp_lat,nbp_lev,nq)</code></td>
+<td>mass mixing ratio</td>
+<td>动态标量网格上的 tracer 场；本例程原地写入化学初始值</td>
+</tr>
+<tr>
+<td><code>qsurf</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nq)</code></td>
+<td>kg/m2</td>
+<td>地表 tracer 储量；本例程对化学 tracer、CH4 和离子清零</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td>调用方</td>
+<td>real <code>(nbp_lon+1,nbp_lat)</code></td>
+<td>Pa</td>
+<td>表面气压，用于 <code>pgcm=aps+bps*ps</code></td>
+</tr>
+<tr>
+<td><code>flagh2o</code></td>
+<td><code>newstart</code> / <code>init_testphys1d</code></td>
+<td>integer</td>
+<td>-</td>
+<td><code>1</code> 表示初始化 <code>h2o_vap</code>，<code>0</code> 表示保留已有水汽</td>
+</tr>
+<tr>
+<td><code>flagthermo</code></td>
+<td><code>newstart</code> / <code>init_testphys1d</code></td>
+<td>integer</td>
+<td>-</td>
+<td><code>1</code> 表示只初始化热层低压段，<code>0</code> 表示全层初始化</td>
+</tr>
+<tr>
+<td><code>aps</code>, <code>bps</code></td>
+<td><code>vertical_layers_mod</code></td>
+<td>real <code>(nbp_lev)</code></td>
+<td>Pa / -</td>
+<td>sigma/混合坐标系数</td>
+</tr>
+<tr>
+<td><code>noms</code></td>
+<td><code>tracer_mod</code></td>
+<td>character array</td>
+<td>-</td>
+<td>tracer 名称列表，用于识别 <code>igcm_*</code></td>
+</tr>
+<tr>
+<td><code>datadir</code></td>
+<td><code>datafile_mod</code></td>
+<td>character</td>
+<td>-</td>
+<td>外部初始化数据文件所在目录</td>
+</tr>
+<tr>
+<td><code>dustbin</code>, <code>doubleq</code>, <code>submicron</code>, <code>microphys</code>, <code>rdstorm</code>, <code>topflows</code>, <code>co2clouds</code>, <code>co2useh2o</code>, <code>meteo_flux</code></td>
+<td>配置/共享模块</td>
+<td>logical / integer</td>
+<td>-</td>
+<td>决定非化学 tracer 分支是否必须被计入 <code>count</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pq(:,:,:,iq)</code></td>
+<td>调用方 start 场 / 1D 初始场</td>
+<td>real</td>
+<td>mass mixing ratio</td>
+<td>初始化文件中的 VMR 经 <code>vmr*mmol/mmean</code> 转换后的 tracer 质量混合比</td>
+</tr>
+<tr>
+<td><code>qsurf(1:ngrid,iq)</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>kg/m2</td>
+<td><code>flagthermo==0</code> 时化学 tracer 地表储量清零；CH4 和离子也显式清零</td>
+</tr>
+<tr>
+<td><code>tracer_mod::igcm_*</code></td>
+<td>共享 tracer 状态</td>
+<td>integer</td>
+<td>-</td>
+<td>按 <code>noms</code> 重新识别后的 tracer 索引</td>
+</tr>
+<tr>
+<td><code>tracer_mod::mmol</code></td>
+<td>共享 tracer 状态</td>
+<td>real</td>
+<td>g/mole</td>
+<td>本例程为识别到的 tracer 设置摩尔质量</td>
+</tr>
+<tr>
+<td>标准输出</td>
+<td>终端/log</td>
+<td>text</td>
+<td>-</td>
+<td>打印 tracer 识别结果、错误说明和缺失数据文件提示</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>直接写 <code>tracer_mod</code> 的大量 <code>igcm_*</code> 索引和 <code>mmol</code>，并把 <code>nqmx=nq</code>。这与 <code>initracer.F</code> 的识别逻辑类似，但是在 newstart/testphys 初始化路径中重新执行。</li>
+<li>打开外部文件单元 <code>210</code>、<code>220</code>、<code>230</code>；对应 <code>atmosfera_LMD_may.dat</code>、<code>atmosfera_LMD_min.dat</code>、<code>atmosfera_LMD_nitr.dat</code>。文件缺失时打印 <code>datadir</code> 帮助信息并 <code>abort_physic</code>。</li>
+<li><code>niq</code>、<code>vmrinit</code>、<code>vmrint</code> 为本地 allocatable，行 546-548 分配，行 816-818 释放。</li>
+<li><code>qsurf</code> 被多处清零；特别是 <code>flagthermo==0</code> 时化学初始化文件内物种的地表储量全部清零。</li>
+<li>对 <code>pq</code> 的写入受 <code>flagthermo</code> 和 <code>flagh2o</code> 控制：<code>flagthermo==1</code> 只在 <code>exp(pgcm)&lt;0.1</code> Pa 的低压层写入；<code>flagh2o==0</code> 时跳过 <code>h2o_vap</code>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>重置 tracer 索引</strong>：设置 <code>nqmx=nq</code>，把 dust、water、chemistry、aerosol、ion 等 <code>igcm_*</code> 索引归零。</li>
+<li><strong>扫描非化学 tracer</strong>：按 <code>dustbin</code>、<code>doubleq</code>、<code>microphys</code>、<code>submicron</code>、<code>rdstorm</code>、<code>topflows</code> 等开关扫描 dust、CCN、rocket dust 和 topflow dust tracer，并更新 <code>count</code>。</li>
+<li><strong>扫描化学/水/气溶胶/离子 tracer</strong>：遍历 <code>noms(1:nqmx)</code>，识别 CO2、CO、O、O1D、O2、O3、H、H2、OH、HO2、H2O2、N2、CH4、Ar、N/NO/NO2/N2D、He、H2O/HDO、CO2 ice、H2O ice、CO2 cloud CCN、离子和 <code>Ar_N2</code>，同步设置 <code>mmol</code>。</li>
+<li><strong>校验 tracer 数</strong>：若 <code>count /= nqmx</code>，打印已识别数量和名称并 <code>abort_physic("tracer mismatch")</code>；否则打印所有 tracer。</li>
+<li><strong>决定 N 物种维度</strong>：若没有 NO，则要求 N/NO2/N2D 也不存在，<code>flagnitro=.false.</code> 且 <code>nspe=14</code>；若有 NO，则要求 N、NO2、N2D 全部存在，<code>flagnitro=.true.</code> 且 <code>nspe=18</code>。</li>
+<li><strong>建立初始化文件物种映射</strong>：<code>niq(1:7)</code> 对应 major species CO2、Ar、N2、O2、CO、O、H2；<code>niq(8:14)</code> 对应 H、OH、HO2、H2O、H2O2、O1D、O3；若 <code>flagnitro</code>，<code>niq(15:18)</code> 对应 N、NO、NO2、N2D。</li>
+<li><strong>读取初始化文件</strong>：<code>atmosfera_LMD_may.dat</code> 提供温度、压力、总数密度和 7 个主物种；压力从 mbar 乘 100 转 Pa 后取 log。<code>atmosfera_LMD_min.dat</code> 提供 7 个 minor species；<code>atmosfera_LMD_nitr.dat</code> 在 <code>flagnitro</code> 时提供 4 个 N species。</li>
+<li><strong>按层插值并写入 <code>pq</code></strong>：对每个 <code>(i,j,l)</code>，计算 <code>pgcm=log(aps(l)+bps(l)*ps(i,j))</code>，对每个 species 调 <code>intrplf</code> 得 <code>vmrint(n)</code>，累计 <code>mmean=sum(vmrint*mmol)</code>；若满足 <code>flagthermo/flagh2o</code> 条件，写 <code>pq=vmrint*mmol/mmean</code>。</li>
+<li><strong>地表值和额外物种</strong>：<code>flagthermo==0</code> 时清零初始化文件中 species 的 <code>qsurf</code>；若 CH4 tracer 存在，设 <code>vmr=10.e-9</code> 并全层初始化、地表清零；若 CO2+ 存在，要求其它离子和电子齐全并把所有离子 <code>pq/qsurf</code> 置零，否则任何其它离子单独存在都会中止。</li>
+<li><strong>释放本地数组</strong>：释放 <code>niq/vmrinit/vmrint</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>inichim_newstart(ngrid,nq,pq,qsurf,ps,flagh2o,flagthermo):
+  nqmx = nq
+  reset all tracer_mod igcm_* indexes to 0
+
+  count = 0
+  scan noms for dust/CCN/storm/topflow tracers depending on callkeys and dust_param_mod
+  scan noms for chemistry, water, aerosol, ion, and Ar_N2 tracers
+  set igcm_* indexes and mmol values
+
+  if count != nqmx:
+    print found/expected and abort
+
+  if NO absent:
+    require N, NO2, N2D absent
+    nspe = 14
+  else:
+    require N, NO2, N2D present
+    nspe = 18
+
+  allocate niq(nspe), vmrinit(252,nspe), vmrint(nspe)
+  map initialization-file species order to tracer indexes
+
+  open datadir/atmosfera_LMD_may.dat
+  open datadir/atmosfera_LMD_min.dat
+  if nitrogen species enabled: open datadir/atmosfera_LMD_nitr.dat
+  read 252 levels of major/minor/(optional nitrogen) VMR profiles
+  convert pinit from mbar to Pa, then log(pinit)
+
+  for each GCM i,j,l:
+    pgcm = log(aps(l) + bps(l)*ps(i,j))
+    mmean = 0
+    for each initialization species n:
+      intrplf(pgcm, vmr, pinit, vmrinit(:,n), 252)
+      vmrint(n) = vmr
+      mmean += vmr * mmol(niq(n))
+    if flagthermo == 0 or (flagthermo == 1 and exp(pgcm) &lt; 0.1):
+      for each species n:
+        if species is not h2o_vap or flagh2o == 1:
+          pq(i,j,l,iq) = vmrint(n) * mmol(iq) / mmean
+
+  if flagthermo == 0:
+    qsurf for initialization-file species = 0
+
+  if CH4 tracer exists:
+    initialize CH4 to 10 ppbv by mass mixing ratio and qsurf=0
+
+  if CO2+ tracer exists:
+    require full ion set and electron tracer
+    set all ion pq and qsurf to 0
+  else:
+    abort if any other ion exists without CO2+
+
+  deallocate local arrays</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>newstart 初始场生成</td>
+<td><code>newstart.F</code> 的 <code>ini_q</code> 分支以 <code>flagh2o=1</code> 调用，初始化化学物种和水汽；<code>ini_q-h2o</code> 以 <code>flagh2o=0</code> 调用，保留已有水汽</td>
+</tr>
+<tr>
+<td>1D testphys 初始化</td>
+<td><code>init_testphys1d_mod.F90</code> 在 <code>photochem .or. callthermos</code> 时调用；若存在 <code>profile_h2o_vap</code>，令 <code>flagh2o=0</code>，否则初始化水汽</td>
+</tr>
+<tr>
+<td>化学初始廓线</td>
+<td>从 <code>datadir</code> 下的 <code>atmosfera_LMD_*</code> 文件读取参考 VMR 廓线，按 log pressure 插值到 GCM 层</td>
+</tr>
+<tr>
+<td>tracer 索引维护</td>
+<td>与 <code>initracer</code> 类似地按 <code>noms</code> 重建 <code>igcm_*</code> 和 <code>mmol</code>，保证后续化学/热层路径可用统一索引</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>文件为自由格式 <code>.F90</code> 模块，但内部保留较长的顺序式 tracer 名称扫描逻辑。</li>
+<li>初始化文件固定使用 <code>nalt=252</code>，species 数为 <code>nspe=14</code> 或 <code>18</code>，取决于 N 物种是否启用。</li>
+<li>插值自变量为 <code>log(pressure)</code>；初始化文件压力先从 mbar 转为 Pa，再取 log。</li>
+<li><code>flagthermo==1</code> 的阈值是 <code>exp(pgcm)&lt;0.1</code> Pa；源码注释称“thermosphere only”。</li>
+<li><code>qsurf</code> 是 <code>intent(out)</code>，但只对特定化学/CH4/离子 tracer 显式赋值；调用方必须理解非这些 tracer 的 <code>qsurf</code> 值不会由本例程填全。</li>
+<li>源码第 348-350 行识别 <code>"hd"</code> 时写的是 <code>igcm_d = iq</code>、<code>mmol(igcm_d)=3.</code>，而不是前面初始化过的 <code>igcm_hd</code>。本页按源码字面记录，是否为笔误待确认。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>datadir</code> 必须包含 <code>atmosfera_LMD_may.dat</code> 和 <code>atmosfera_LMD_min.dat</code>；若 traceur 中启用 N species，还必须包含 <code>atmosfera_LMD_nitr.dat</code>。当前仓库 <code>LMDZ.MARS\datadir</code> 下未发现这三个文件，运行时需外部数据包或配置正确的 <code>datadir</code>。</li>
+<li><code>count</code> 必须等于 <code>nqmx</code>；任何 traceur 名称未被本例程扫描逻辑覆盖都会触发 <code>tracer mismatch</code>。</li>
+<li>NO 与 N/NO2/N2D 必须成组出现或成组缺失；离子物种也必须以 CO2+ 为首触发完整离子集合。</li>
+<li><code>ini_q-h2o</code> 或 1D 中存在 <code>profile_h2o_vap</code> 时，<code>flagh2o=0</code> 会跳过 <code>h2o_vap</code> 的 <code>pq</code> 写入，保留已有水汽。</li>
+<li><code>flagthermo=1</code> 只改低压热层段；低层化学 tracer 仍保留调用前值。</li>
+<li>CH4 若存在固定初始化为 <code>10.e-9</code> VMR；离子若完整存在则初始化为 0。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>abort_physic</code> 的宿主模块未在本例程 <code>use</code> 列表中显式声明；是否依赖旧式外部过程或间接可见性，待编译链路确认。</li>
+<li><code>"hd"</code> 分支写入 <code>igcm_d</code> 而非 <code>igcm_hd</code>，疑似复制粘贴或拼写问题，需源码维护者确认。</li>
+<li><code>tinit</code>、<code>zzfile</code>、<code>densinit</code> 被读取或声明但当前活跃初始化只使用 <code>pinit/vmrinit</code>；这些字段是否用于历史版本或后续扩展待确认。</li>
+<li><code>qsurf</code> 为 <code>intent(out)</code> 但非化学 tracer 不在本例程内统一初始化；调用方是否在调用前后另有完整赋值需结合 <code>newstart</code>/1D 全流程确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览，本文件位于“初始化”分类。</li>
+<li><a href="intrplf.html">intrplf</a>：本例程调用的一维线性插值器。</li>
+<li><a href="../phymars/datafile_mod.html">datafile_mod</a>：提供 <code>datadir</code>，本例程从其中读取 <code>atmosfera_LMD_*</code> 文件。</li>
+<li><a href="../../architecture/testphys1d-config.html">testphys1d-config</a>：1D 初始化与配置上下文。</li>
+<li><a href="../dynphy_lonlat/index.html">dynphy_lonlat/index</a>：<code>newstart.F</code> 所在目录总览。</li>
+<li><a href="../dynphy_lonlat/newstart.html">newstart</a> — <code>ini_q</code> / <code>ini_q-h2o</code> 调用路径。</li>
+<li><a href="../phymars/dyn1d/init_testphys1d_mod.html">init_testphys1d_mod.md</a>：1D <code>photochem/callthermos</code> 初始化路径。</li>
+<li><a href="../phymars/tracer_mod.html">tracer_mod.md</a>：<code>noms</code>、<code>igcm_*</code>、<code>mmol</code> 的全局语义。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

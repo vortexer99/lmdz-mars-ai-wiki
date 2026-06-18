@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ini_archive - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/ini_archive.md</span>
+    </nav>
+    <article class="content">
+<h1 id="ini_archivef">ini_archive.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\ini_archive.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>ini_archive</code> 是 start_archive NetCDF 文件的头部初始化写入例程。它在已打开的 NetCDF 文件中创建完整的维度定义、坐标变量、垂直层系数、土壤层深度、地表位势、热惯量、网格面积、协变/反变转换系数、次网格坡向分布和坡度定义等静态元数据，并把动力+物理运行控制参数写入 <code>controle</code> 一维数组变量。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ini_archive</code></td>
+<td>subroutine</td>
+<td>2</td>
+<td>写入 start_archive NetCDF 文件头部：维度、坐标、垂直系数、地表场和控制参数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>nsoilmx, mlayer</code></td>
+<td>土壤层数和层中点深度</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comvert_mod</code></td>
+<td><code>ap, bp, aps, bps, pa, preff, presnivs, pseudoalt</code></td>
+<td>混合 sigma 坐标系数、参考气压、伪高度</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>daysec, dtvr, rad, omeg, g, cpp, kappa, pi</code></td>
+<td>火星物理常数（日长、动力步长、半径、角速度、重力、比热、比热比、圆周率）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td><code>fxyhypb, ysinus</code></td>
+<td>zoom 函数类型选择标志</td>
+<td></td>
+</tr>
+<tr>
+<td><code>serre_mod</code></td>
+<td><code>clon, clat, grossismx, grossismy, dzoomx, dzoomy</code></td>
+<td>zoom 中心经纬、放大因子和扩展范围</td>
+<td></td>
+</tr>
+<tr>
+<td><code>ener_mod</code></td>
+<td><code>etot0, ptot0, ztot0, stot0, ang0</code></td>
+<td>全局守恒控制变量（总能、总压、总涡度、总焓、角动量）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comslope_mod</code></td>
+<td><code>nslope</code></td>
+<td>次网格坡面类别数</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>def_var</code></td>
+<td><code>phymars/def_var.F90</code></td>
+<td>行 180</td>
+<td>定义 <code>Time</code> 无限维度变量</td>
+</tr>
+<tr>
+<td><code>NF_DEF_DIM</code></td>
+<td>NetCDF API</td>
+<td>行 160-171</td>
+<td>定义 latitude/longitude/altitude/subsurface_layers/index/rlonu/rlatv/interlayer/Time/nslope/nslope_plus_1 维度</td>
+</tr>
+<tr>
+<td><code>NF_DEF_VAR</code></td>
+<td>NetCDF API</td>
+<td>行 185-552</td>
+<td>定义 controle/rlonu/rlatu/rlonv/rlatv/ap/bp/aps/bps/presnivs/latitude/longitude/altitude/soildepth/inertiedat/cu/cv/aire/phisinit/subslope_dist/def_slope 变量</td>
+</tr>
+<tr>
+<td><code>NF_PUT_VAR_*</code></td>
+<td>NetCDF API</td>
+<td>多处</td>
+<td>写入各变量数据（DOUBLE/REAL 编译期分派）</td>
+</tr>
+<tr>
+<td><code>NF_PUT_ATT_TEXT</code></td>
+<td>NetCDF API</td>
+<td>多处</td>
+<td>写入 title/long_name/units/positive 文本属性</td>
+</tr>
+<tr>
+<td><code>NF_REDEF</code>/<code>NF_ENDDEF</code></td>
+<td>NetCDF API</td>
+<td>多处</td>
+<td>在定义模式和数据写入模式间切换</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nid</code></td>
+<td>调用方打开的 NetCDF 文件句柄</td>
+<td><code>INTEGER</code></td>
+<td>—</td>
+<td>start_archive 文件的逻辑单元号</td>
+</tr>
+<tr>
+<td><code>idayref</code></td>
+<td>调用方传入</td>
+<td><code>INTEGER*4</code></td>
+<td>day</td>
+<td>初始日参考值，写入 controle(4)</td>
+</tr>
+<tr>
+<td><code>phis</code></td>
+<td>调用方（<code>start2archive</code>）</td>
+<td><code>REAL(ip1jmp1)</code></td>
+<td>m²/s²</td>
+<td>地表位势，写入 <code>phisinit</code> 变量</td>
+</tr>
+<tr>
+<td><code>ith</code></td>
+<td>调用方</td>
+<td><code>REAL(ip1jmp1,nsoilmx)</code></td>
+<td>J·s⁻¹/²·m⁻²·K⁻¹</td>
+<td>土壤热惯量，写入 <code>inertiedat</code> 变量</td>
+</tr>
+<tr>
+<td><code>tab_cntrl_fi</code></td>
+<td>物理初始化路径</td>
+<td><code>REAL(length=100)</code></td>
+<td>混合</td>
+<td>物理控制参数表（前 50 个），复制到 <code>tab_cntrl(51:100)</code></td>
+</tr>
+<tr>
+<td><code>def_slope</code></td>
+<td>调用方</td>
+<td><code>REAL(nslope+1)</code></td>
+<td>—</td>
+<td>坡面类别定义边界值</td>
+</tr>
+<tr>
+<td><code>subslope_dist</code></td>
+<td>调用方</td>
+<td><code>REAL(ip1jmp1,nslope)</code></td>
+<td>—</td>
+<td>次网格坡面面积分数分布</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NetCDF 文件</td>
+<td><code>nid</code> 指向的 start_archive 文件</td>
+<td>—</td>
+<td>—</td>
+<td>完整的文件头部和静态元数据</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>读共享状态</strong>：从 <code>comvert_mod</code> 读 <code>ap/bp/aps/bps/pa/preff/presnivs/pseudoalt</code>，从 <code>comconst_mod</code> 读物理常数，从 <code>serre_mod</code> 读 zoom 参数，从 <code>ener_mod</code> 读全局守恒变量，从 <code>comsoil_h</code> 读 <code>nsoilmx/mlayer</code>，从 <code>comslope_mod</code> 读 <code>nslope</code>，从 <code>logic_mod</code> 读 zoom 类型标志。</li>
+<li><strong>INCLUDE 公共块</strong>：<code>dimensions.h</code>（<code>iim/jjm/llm/ip1jmp1/llmp1</code>）、<code>paramet.h</code>、<code>comgeom.h</code>（<code>rlonu/rlatv/rlatv/cu/cv/aire</code>）、<code>netcdf.inc</code>（NetCDF 常量）。</li>
+<li><strong>文件写入</strong>：向 <code>nid</code> 对应的 NetCDF 文件写入所有定义和数据。</li>
+<li><strong>标准输出</strong>：行 562-565 PRINT 打印 <code>iim/jjm/llm/idayref</code> 和物理常数摘要。</li>
+<li><strong>局部赋值</strong>：行 87 <code>pi = 2.*ASIN(1.)</code> 覆写 <code>comconst_mod::pi</code>（副作用）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>控制参数表填充</strong>：清零 <code>tab_cntrl(100)</code>，填入 26 个动力控制参数（网格维度 iim/jjm/llm、idayref、火星物理常数 rad/omeg/g/cpp/kappa、日长 daysec、动力步长 dtvr、全局守恒量 etot0/ptot0/ztot0/stot0/ang0、气压 pa/preff、zoom 参数 clon/clat/grossismx/grossismy/dzoomx/dzoomy 和 fxyhypb/ysinus 标志），再把 <code>tab_cntrl_fi(1:50)</code> 复制到 <code>tab_cntrl(51:100)</code>。</li>
+<li><strong>NetCDF 维度定义</strong>：创建 latitude(jjp1)、longitude(iip1)、altitude(llm)、subsurface_layers(nsoilmx)、index(100)、rlonu(iip1)、rlatv(jjm)、interlayer(llmp1)、Time(unlimited)、nslope、nslope_plus_1 共 11 个维度。</li>
+<li><strong>变量定义与写入</strong>：依次用 REDEF/ENDDEF 循环定义并写入：Time 变量（<code>def_var</code>）、controle 控制参数（<code>tab_cntrl</code>）、四组经纬坐标（rlonu/rlatu/rlonv/rlatv）、六组垂直系数（ap/bp/aps/bps/presnivs/altitude）、土壤深度（soildepth/mlayer）、热惯量（inertiedat/ith）、协变/反变转换系数（cu/cv）、网格面积（aire）、地表位势（phisinit）、次网格坡面分布（subslope_dist）和坡度定义（def_slope）。所有浮点变量均通过 <code>#ifdef NC_DOUBLE</code> 分派 DOUBLE/REAL。</li>
+<li><strong>latitude/longitude 可视化坐标</strong>：额外写入 degree 单位的 latitude 和 longitude 变量（带 <code>degrees_north</code>/<code>degrees_east</code> 属性），用于 GrADS/Ferret 后处理可视化。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>pi = 2 * asin(1)
+
+! 清零并填充控制参数表
+tab_cntrl(:) = 0
+tab_cntrl(1:26) = [iim, jjm, llm, idayref, rad, omeg, g, cpp, kappa, daysec, dtvr,
+                    etot0, ptot0, ztot0, stot0, ang0, pa, preff,
+                    clon, clat, grossismx, grossismy, fxyhypb_flag, dzoomx, dzoomy, ysinus_flag]
+tab_cntrl(51:100) = tab_cntrl_fi(1:50)
+
+! 定义 NetCDF 维度 (11 个)
+NF_DEF_DIM: latitude, longitude, altitude, subsurface_layers, index,
+            rlonu, rlatv, interlayer, Time(unlimited), nslope, nslope_plus_1
+NF_ENDDEF
+
+! 定义 Time 变量
+def_var(nid, &quot;Time&quot;, ...)
+
+! 逐个定义并写入变量 (REDEF→DEF_VAR→ATT→ENDDEF→PUT_VAR 循环)
+controle     = tab_cntrl
+rlonu/rlatu  = 坐标
+rlonv/rlatv  = 坐标
+ap/bp/aps/bps/presnivs = 垂直系数
+latitude     = rlatu * 180/pi    (degrees_north)
+longitude    = rlonv * 180/pi    (degrees_east)
+altitude     = pseudoalt          (km, positive=up)
+soildepth    = mlayer             (m, positive=down)
+inertiedat   = ith                (J·s⁻¹/²·m⁻²·K⁻¹)
+cu/cv        = 协变/反变转换系数
+aire         = 网格面积
+phisinit     = phis               (地表位势)
+subslope_dist = subslope_dist     (3D: lon×lat×nslope)
+def_slope    = def_slope          (1D: nslope+1)
+
+PRINT 物理常数摘要
+RETURN</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>初始场 / restart 管理</td>
+<td>为 start_archive 文件创建完整的 NetCDF 头部和静态元数据</td>
+</tr>
+<tr>
+<td>归档输出</td>
+<td>在 <code>start2archive</code> 流程中作为第一步，建立文件结构供后续 <code>write_archive</code> 追加时间步数据</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>固定格式 Fortran</strong>：源码使用 F77 固定格式（列 6 续行符 <code>&amp;</code>/<code>*</code>、列 1-5 标签），与 <code>iniwrite.F</code> 风格一致。</li>
+<li><strong>条件编译</strong>：<code>#ifdef NC_DOUBLE</code> 在每对 DEF_VAR/PUT_VAR 处切换 DOUBLE/REAL 精度；<code>#include "dimensions.h"</code> 等提供网格维度。</li>
+<li><strong>硬编码常数</strong>：行 107 <code>cpp = 43.49</code> 覆写 <code>comconst_mod::cpp</code>（注释 "mars temporaire"），行 87 <code>pi = 2.*ASIN(1.)</code> 覆写 <code>comconst_mod::pi</code>。</li>
+<li><strong>tab_cntrl 索引布局</strong>：前 26 个位置为动力控制参数（但编号 8 出现两次赋值，cpp 被 43.49 覆写），51-100 为物理参数副本。</li>
+<li><strong>REDEF/ENDDEF 模式</strong>：每个变量写入遵循 REDEF → DEF_VAR → PUT_ATT → ENDDEF → PUT_VAR 的固定模式。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>需要已打开的 NetCDF 文件句柄（<code>NF_CREATE</code> 由调用方 <code>start2archive</code> 完成）。</li>
+<li>需要 <code>comgeom.h</code> 公共块中的 <code>rlonu/rlatv/cu/cv/aire</code> 已被动力初始化填充。</li>
+<li>需要 <code>comvert_mod</code> 的垂直坐标系数已由 <code>comvert</code> 或等价初始化路径建立。</li>
+<li><code>tab_cntrl_fi</code> 的前 50 个元素来自物理初始化路径（<code>tabfi</code> → 物理参数表）。</li>
+<li><code>#include "netcdf.inc"</code> 提供 <code>NF_GLOBAL/NF_UNLIMITED/NF_DOUBLE/NF_FLOAT</code> 等常量。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>行 106-107 <code>tab_cntrl(8)</code> 被赋值两次（先 <code>cpp</code> 再 <code>43.49</code>），注释写 "mars temporaire"——是否已在后续版本修正。</li>
+<li>行 87 <code>pi = 2.*ASIN(1.)</code> 直接覆写 <code>comconst_mod::pi</code> 而非使用模块值，是否为遗留做法。</li>
+<li><code>tab_cntrl</code> 的 27-50 位置保持为 0（仅在 fxyhypb/ysinus 分支写入 23-26），是否有未使用的扩展槽。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../phymars/def_var.html">def_var</a>：被调用的 NetCDF 变量定义辅助例程</li>
+<li><a href="../phymars/iniwrite.html">iniwrite</a>：结构类似的 diagfi 初始化写入例程</li>
+<li><a href="write_archive.html">write_archive</a>：追加时间步数据到同一文件</li>
+<li><a href="start2archive.html">start2archive</a>：唯一调用方，打开文件并调用 <code>ini_archive</code> 后循环写时间步</li>
+<li><a href="../phymars/dyn1d/comvert_mod.html">comvert_mod.md</a>：垂直坐标系数来源。</li>
+<li><a href="../phymars/comsoil_h.html">comsoil_h</a>：土壤层数和深度常数来源</li>
+<li><a href="../phymars/comslope_mod.html">comslope_mod</a>：坡面类别数来源</li>
+<li><a href="index.html">dynphy_lonlat/index</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>control_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../../index.html">主页</a>
+        <a href="../../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../../libf-overview.html">模块</a>
+        <a href="../../../themes/index.html">主题</a>
+        <a href="../../../routines/index.html">例程</a>
+        <a href="../../../reference/file-index.html">文件索引</a>
+        <a href="../../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dyn1d/control_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dyn1dcontrol_modf90">dyn1d/control_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d\control_mod.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>dyn1d/control_mod.F90</code> 在当前源码树中不是独立实现，而是一行相对路径：</p>
+<pre class="text"><code>../../../../LMDZ.COMMON/libf/dyn3d_common/control_mod.F90</code></pre>
+<p>它把 1D 编译路径中的 <code>control_mod</code> 模块解析到 <code>LMDZ.COMMON/libf/dyn3d_common/control_mod.F90</code>。目标模块是公共动力核心的运行控制状态容器，保存日期、步长、物理调用频率、动力输出、offline 和旧 Mars/Generic 兼容控制量。定向搜索显示当前 <code>libf/phymars/dyn1d</code> 目录内没有直接 <code>use control_mod</code>；1D <code>testphys1d</code> 的运行长度、输出频率、垂直坐标和 restart 控制主要在 <code>init_testphys1d_mod.F90</code> 里通过本地变量和 <code>getin</code> 读取。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>control_mod.F90</code></td>
+<td>path stub</td>
+<td>dyn1d line 1</td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d_common/control_mod.F90</code>。</td>
+</tr>
+<tr>
+<td><code>control_mod</code></td>
+<td>module</td>
+<td>common target line 5</td>
+<td>保存 3D 动力核心运行控制变量。</td>
+</tr>
+</tbody>
+</table>
+<p>目标模块只声明 <code>SAVE</code> 标量和字符串变量，没有子例程、函数、分配或文件 I/O。</p>
+<h2 id="控制状态清单">控制状态清单</h2>
+<table>
+<thead>
+<tr>
+<th>变量组</th>
+<th>符号</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>日期和运行长度</td>
+<td><code>nday</code>, <code>dayref</code>, <code>anneeref</code>, <code>raz_date</code>, <code>starttime</code>, <code>less1day</code>, <code>fractday</code>, <code>ndynstep</code>, <code>nday_r</code></td>
+<td>3D 动力运行起止日期、参考日期、短于一天运行和按步数运行控制。</td>
+</tr>
+<tr>
+<td>动力步进频率</td>
+<td><code>day_step</code>, <code>iperiod</code>, <code>iapp_tracvl</code>, <code>iphysiq</code>, <code>nsplit_phys</code>, <code>dissip_period</code>, <code>idissip</code></td>
+<td>每日动力步数、Matsuno/leapfrog 周期、tracer 平流、物理调用和耗散频率。</td>
+</tr>
+<tr>
+<td>输出和诊断</td>
+<td><code>periodav</code>, <code>iecri</code>, <code>iecrimoy</code>, <code>ip_ebil_dyn</code>, <code>output_grads_dyn</code>, <code>ok_dynzon</code>, <code>ok_dyn_ins</code>, <code>ok_dyn_ave</code>, <code>ecritstart</code>, <code>timestart</code></td>
+<td>动力历史、平均、zonal transport、start/restart 和能量收支输出控制。</td>
+</tr>
+<tr>
+<td>模式和兼容开关</td>
+<td><code>offline</code>, <code>cpofT</code>, <code>force_conserv_tracer</code>, <code>config_inca</code>, <code>planet_type</code>, <code>resetvarc</code></td>
+<td>offline、温度相关热容、tracer 质量守恒、INCA 配置、行星类型和变量重置。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="公共赋值路径">公共赋值路径</h2>
+<p><code>LMDZ.COMMON/libf/dyn3d/conf_gcm.F90</code> 和 <code>dyn3dpar/conf_gcm.F90</code> 是主要配置读取方。代表性默认值和 <code>getin</code> 路径：</p>
+<table>
+<thead>
+<tr>
+<th>配置键</th>
+<th>默认值/行为</th>
+<th>证据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dayref</code></td>
+<td><code>1</code> 后 <code>getin('dayref', dayref)</code></td>
+<td><code>dyn3d/conf_gcm.F90:132-133</code></td>
+</tr>
+<tr>
+<td><code>anneeref</code></td>
+<td><code>1998</code> 后 <code>getin('anneeref', anneeref)</code></td>
+<td><code>dyn3d/conf_gcm.F90:140-141</code></td>
+</tr>
+<tr>
+<td><code>raz_date</code></td>
+<td><code>0</code> 后 <code>getin('raz_date', raz_date)</code></td>
+<td><code>dyn3d/conf_gcm.F90:150-151</code></td>
+</tr>
+<tr>
+<td><code>nday</code></td>
+<td><code>10</code> 后 <code>getin('nday', nday)</code></td>
+<td><code>dyn3d/conf_gcm.F90:165-166</code></td>
+</tr>
+<tr>
+<td><code>day_step</code></td>
+<td><code>240</code> 后 <code>getin('day_step', day_step)</code></td>
+<td><code>dyn3d/conf_gcm.F90:212-213</code></td>
+</tr>
+<tr>
+<td><code>iperiod</code></td>
+<td><code>5</code> 后 <code>getin('iperiod', iperiod)</code></td>
+<td><code>dyn3d/conf_gcm.F90:226-227</code></td>
+</tr>
+<tr>
+<td><code>periodav</code></td>
+<td><code>1.</code> 后 <code>getin('periodav', periodav)</code></td>
+<td><code>dyn3d/conf_gcm.F90:260-261</code></td>
+</tr>
+<tr>
+<td><code>offline</code></td>
+<td><code>.FALSE.</code> 后 <code>getin('offline', offline)</code></td>
+<td><code>dyn3d/conf_gcm.F90:513-514</code></td>
+</tr>
+<tr>
+<td><code>ok_dynzon</code></td>
+<td><code>.FALSE.</code> 后 <code>getin('ok_dynzon', ok_dynzon)</code></td>
+<td><code>dyn3d/conf_gcm.F90:541-542</code></td>
+</tr>
+</tbody>
+</table>
+<p>这些是公共 3D 动力配置事实；当前 dyn1d 主程序没有直接调用 <code>conf_gcm</code> 的证据。</p>
+<h2 id="读取方和运行影响">读取方和运行影响</h2>
+<table>
+<thead>
+<tr>
+<th>读取方</th>
+<th>读取符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dyn3d/gcm.F90</code></td>
+<td><code>planet_type</code>, <code>nday</code>, <code>day_step</code>, <code>iperiod</code>, <code>iphysiq</code>, <code>raz_date</code>, <code>anneeref</code>, <code>dayref</code>, <code>ok_dyn_*</code>, <code>periodav</code> 等</td>
+<td>检查步频约束、设置动力时间步和历史输出。</td>
+</tr>
+<tr>
+<td><code>dyn3d/leapfrog.F</code> / <code>dyn3dpar/leapfrog_p.F</code></td>
+<td><code>nday</code>, <code>day_step</code>, <code>iperiod</code>, <code>iphysiq</code>, <code>dissip_period</code>, <code>offline</code>, <code>ok_dynzon</code>, <code>periodav</code> 等</td>
+<td>控制 Matsuno/leapfrog 步进、物理调用、耗散和输出。</td>
+</tr>
+<tr>
+<td><code>dyn3d/advtrac.F90</code></td>
+<td><code>iapp_tracvl</code>, <code>day_step</code></td>
+<td>控制 tracer 平流累计调用频率。</td>
+</tr>
+<tr>
+<td><code>evolution/pem.F90</code></td>
+<td><code>iphysiq</code>, <code>day_step</code>, <code>nsplit_phys</code></td>
+<td>派生物理时间步 <code>iphysiq*daysec/day_step/nsplit_phys</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="dyn1d-关系">dyn1d 关系</h2>
+<p>当前 <code>libf/phymars/dyn1d</code> 的定向搜索没有发现 <code>use control_mod</code>。1D 运行控制由其他文件直接管理：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>控制项</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>init_testphys1d_mod.F90</code></td>
+<td>通过 <code>getin</code> 读取 <code>day0</code>、<code>time</code>、<code>steps_per_sol</code>、<code>outputs_per_sol</code>、<code>ndt</code>、<code>psurf</code>、<code>hybrid</code> 等；派生 <code>dttestphys = daysec/steps_per_sol</code>。</td>
+</tr>
+<tr>
+<td><code>testphys1d.F90</code></td>
+<td>按 <code>do idt=1,ndt</code> 主循环推进 <code>time/day</code>，每步调用 <code>physiq</code> 并更新风、温度、地表压力和 tracer。</td>
+</tr>
+<tr>
+<td><code>writerestart1D_mod.F90</code></td>
+<td>写出 <code>restart1D.txt</code>，但不读取 <code>control_mod</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>因此，本页的 <code>control_mod</code> 是 dyn1d 编译路径可见的公共模块，不是当前 1D 运行控制的直接来源。</p>
+<h2 id="副作用和-io">副作用和 I/O</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文件 I/O</td>
+<td><code>control_mod</code> 本身无 I/O。</td>
+</tr>
+<tr>
+<td>分配/释放</td>
+<td>无。</td>
+</tr>
+<tr>
+<td>全局状态</td>
+<td>所有变量为 <code>SAVE</code>，由 <code>conf_gcm</code> 或动力初始化路径赋值后供公共动力例程读取。</td>
+</tr>
+<tr>
+<td>线程</td>
+<td>目标模块没有 <code>THREADPRIVATE</code> 声明。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>复现 3D GCM 控制流时，应先运行 <code>conf_gcm</code> 填写 <code>control_mod</code>，再进入 <code>gcm/leapfrog</code>。</li>
+<li>复现 1D <code>testphys1d</code> 时，不应假设 <code>control_mod::day_step/nday/iphysiq</code> 控制主循环；应查看 <code>init_testphys1d_mod.F90</code> 的本地 <code>ndt/steps_per_sol/dttestphys</code>。</li>
+<li>若某个 dyn1d 构建目标链接到公共动力例程，仍需保证该 path stub 或符号链接能提供 <code>control_mod</code> 模块文件。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 Windows 工作树把链接文件呈现为一行路径文本；在原始类 Unix 工作树中它可能是符号链接。</li>
+<li>dyn1d 构建是否因为公共依赖而需要编译 <code>control_mod</code>，需结合 makefile/构建脚本确认。</li>
+<li>若后续页面发现 dyn1d 间接调用公共 <code>gcm/leapfrog</code> 路径，需要回补本页的调用关系。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn1d/index.md</a> - dyn1d 子目录索引。</li>
+<li><a href="init_testphys1d_mod.html">init_testphys1d_mod.F90</a> - 1D 初始化主流程。</li>
+<li><a href="testphys1d.html">testphys1d.F90</a> - 1D 主程序。</li>
+<li><a href="logic_mod.html">logic_mod.F90</a> - dyn1d 使用的公共逻辑状态 stub。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

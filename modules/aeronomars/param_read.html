@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>param_read - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/param_read.md</span>
+    </nav>
+    <article class="content">
+<h1 id="param_readf">param_read.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\param_read.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>param_read.F</code> 定义 <code>param_read_mod</code>，提供旧版 EUV 参数表读取例程 <code>param_read</code>。它只在 <code>is_master</code> 进程上从 <code>datadir/EUVDAT/param_v5/</code> 读取光吸收截面、柱含量表、太阳通量周期参数、解离效率和电离效率，然后把结果写入 <code>param_v4_h</code> 的共享数组，并在 master 读完后通过 <code>bcast</code> 广播给其他进程。</p>
+<p>该文件不直接计算光化学倾向；它的职责是把离线表格转成 <code>param_v4_h::c1_16/c17_24/.../jabsifotsintpar/efdis*/efion*/fluxtop/ct*/p*</code> 等全局参数，供热层 EUV 和光解相关例程复用。源码树中未发现 <code>call param_read</code> 的直接调用；当前已确认的热层路径主要调用 <code>param_read_e107</code>，因此本页按源码字面行为记录 <code>param_read</code> 本身，而不推断它在默认运行中的启用条件。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>param_read_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1（<code>end module</code> 433）</td>
+<td>包装 <code>param_read</code> 参数读取例程</td>
+</tr>
+<tr>
+<td><code>param_read</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7（<code>end subroutine</code> 431）</td>
+<td>从 <code>EUVDAT/param_v5</code> 读取旧版 EUV/光解参数表并广播到 <code>param_v4_h</code></td>
+</tr>
+<tr>
+<td><code>ierr</code></td>
+<td>local integer</td>
+<td style="text-align: right;">34</td>
+<td>只用于 <code>coln.dat</code> 打开失败检测</td>
+</tr>
+<tr>
+<td><code>nada</code></td>
+<td>local real</td>
+<td style="text-align: right;">35</td>
+<td>读取 <code>varflujo.dat</code> 第 6 列的占位值</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>param_v4_h</code></td>
+<td><code>jfotsout</code>, <code>crscabsi2</code>, <code>c1_16</code>, <code>c17_24</code>, <code>c25_29</code>, <code>c30_31</code>, <code>c32</code>, <code>c33</code>, <code>c34</code>, <code>c35</code>, <code>c36</code>, <code>co2crsc195</code>, <code>co2crsc295</code>, <code>t0</code>, <code>jabsifotsintpar</code>, <code>ninter</code>, <code>nz2</code>, <code>efdisco2</code>, <code>efdiso2</code>, <code>efdish2o</code>, <code>efdish2o2</code>, <code>efdish2</code>, <code>efdiso3</code>, <code>efdiso</code>, <code>efdisn</code>, <code>efdish</code>, <code>efdisno</code>, <code>efdisn2</code>, <code>efdisno2</code>, <code>efdisco</code>, <code>efionco2</code>, <code>efionn2</code>, <code>efionco</code>, <code>efiono3p</code>, <code>efionn</code>, <code>efionno</code>, <code>efionh</code>, <code>fluxtop</code>, <code>ct1</code>, <code>ct2</code>, <code>p1</code>, <code>p2</code></td>
+<td>目标共享参数数组；本例程主要写入柱含量、光吸收表、解离/电离效率和太阳通量周期参数</td>
+<td><code>jfotsout/crscabsi2/co2crsc195/co2crsc295</code> 在本例程未写入</td>
+</tr>
+<tr>
+<td><code>datafile_mod</code></td>
+<td><code>datadir</code></td>
+<td>构造 <code>EUVDAT/param_v5</code> 数据文件路径</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code></td>
+<td>限定只有 master 进程执行文件 I/O</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td><code>bcast</code></td>
+<td>把 master 读入的数组广播到其他进程</td>
+<td>部分已写数组未见广播，见“待确认”</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td>393-426</td>
+<td>广播读入或设置后的 <code>param_v4_h</code> 数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datadir</code></td>
+<td><code>datafile_mod</code> / <code>callphys.def</code> 的 <code>datadir</code> 键</td>
+<td>character path</td>
+<td>-</td>
+<td>数据目录根路径，例程拼接 <code>EUVDAT/param_v5/*.dat</code></td>
+</tr>
+<tr>
+<td><code>nz2</code></td>
+<td><code>param_v4_h</code></td>
+<td>integer</td>
+<td>-</td>
+<td>表格垂直层数；读取循环按 <code>nz2,1,-1</code> 反向填数组</td>
+</tr>
+<tr>
+<td><code>ninter</code></td>
+<td><code>param_v4_h</code></td>
+<td>integer</td>
+<td>-</td>
+<td>EUV 光谱区间数；控制效率数组和 <code>fluxtop</code> 初始化</td>
+</tr>
+<tr>
+<td><code>coln.dat</code></td>
+<td><code>datadir/EUVDAT/param_v5</code></td>
+<td>ASCII table</td>
+<td>mixed</td>
+<td>柱含量分组 <code>c1_16/c17_24/c25_29/c30_31/c32..c36</code></td>
+</tr>
+<tr>
+<td><code>j*.dat</code></td>
+<td><code>datadir/EUVDAT/param_v5</code></td>
+<td>ASCII tables</td>
+<td>mixed</td>
+<td>各物种/通道的 <code>jabsifotsintpar(i,species,interval)</code> 光吸收参数</td>
+</tr>
+<tr>
+<td><code>varflujo.dat</code></td>
+<td><code>datadir/EUVDAT/param_v5</code></td>
+<td>ASCII table</td>
+<td>-</td>
+<td>11 年太阳通量变化参数 <code>ct1/p1/ct2/p2</code></td>
+</tr>
+<tr>
+<td><code>efdis_inter.dat</code></td>
+<td><code>datadir/EUVDAT/param_v5</code></td>
+<td>ASCII table</td>
+<td>-</td>
+<td>CO2、O2、NO 在部分区间的解离效率</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>c1_16</code>, <code>c17_24</code>, <code>c25_29</code>, <code>c30_31</code>, <code>c32</code>..<code>c36</code></td>
+<td><code>param_v4_h</code></td>
+<td>real arrays over <code>nz2</code></td>
+<td>mixed</td>
+<td><code>coln.dat</code> 中的柱含量或区间聚合列</td>
+</tr>
+<tr>
+<td><code>jabsifotsintpar</code></td>
+<td><code>param_v4_h</code></td>
+<td>real <code>(nz2, species, interval)</code></td>
+<td>mixed</td>
+<td>各物种/光谱区间的光吸收参数表</td>
+</tr>
+<tr>
+<td><code>t0</code></td>
+<td><code>param_v4_h</code></td>
+<td>real <code>(nz2)</code></td>
+<td>K</td>
+<td>固定设为 <code>195.</code></td>
+</tr>
+<tr>
+<td><code>fluxtop</code></td>
+<td><code>param_v4_h</code></td>
+<td>real <code>(ninter)</code></td>
+<td>-</td>
+<td>先全部设为 <code>1.</code>，作为顶端太阳通量缩放初值</td>
+</tr>
+<tr>
+<td><code>ct1</code>, <code>p1</code>, <code>ct2</code>, <code>p2</code></td>
+<td><code>param_v4_h</code></td>
+<td>real arrays, 读取前 24 行</td>
+<td>-</td>
+<td><code>varflujo.dat</code> 给出的太阳周期参数</td>
+</tr>
+<tr>
+<td><code>efdis*</code></td>
+<td><code>param_v4_h</code></td>
+<td>real arrays over <code>ninter</code></td>
+<td>fraction</td>
+<td>CO2/O2/H2O/H2O2/H2/O3/O/N/H/NO/N2/NO2/CO 解离效率</td>
+</tr>
+<tr>
+<td><code>efion*</code></td>
+<td><code>param_v4_h</code></td>
+<td>real arrays over <code>ninter</code> and channels</td>
+<td>fraction</td>
+<td>CO2/N2/CO/O(3P)/N/NO/H 电离效率或通道拆分</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>所有主要输出都写入 <code>param_v4_h</code> 的模块级共享数组；例程本身没有入参和出参。</li>
+<li>文件 I/O 只在 <code>is_master</code> 分支内执行，随后用 <code>bcast</code> 同步给并行进程。</li>
+<li><code>coln.dat</code> 使用 <code>iostat=ierr</code> 检查缺失；打开失败时打印 <code>datadir</code> 修复提示并执行 <code>STOP</code>。其他 <code>j*.dat</code>、<code>varflujo.dat</code>、<code>efdis_inter.dat</code> 没有同等 <code>iostat</code> 检查。</li>
+<li>固定 Fortran unit 使用范围包括 100、120、150-180、210-300、390-510；<code>efdis_inter.dat</code> 的 unit 120 在源码中读完后未见 <code>close(120)</code>。</li>
+<li>路径中多处写成 <code>EUVDAT//param_v5/...</code>；通常等价于单斜杠路径，但复现时应按源码字面路径构造。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>只有 <code>is_master</code> 为真时进入读表分支。</li>
+<li>打开 <code>coln.dat</code>，若失败则打印数据目录获取方式和 <code>callphys.def</code> 中 <code>datadir</code> 的修复提示，然后 <code>STOP</code>。</li>
+<li>打开 26 个 <code>j*.dat</code> 光吸收参数文件，按 unit 分组跳过两行表头。</li>
+<li>反向遍历 <code>i=nz2,1,-1</code>，先读 <code>coln.dat</code> 到柱含量数组，再把 <code>j1/j2/.../j13</code> 系列表按物种编号和区间范围填入 <code>jabsifotsintpar</code>。</li>
+<li>关闭光吸收表 unit，设置 <code>t0(:)=195.</code> 与 <code>fluxtop(:)=1.</code>。</li>
+<li>读取 <code>varflujo.dat</code> 的 24 行太阳周期参数到 <code>ct1/p1/ct2/p2</code>。</li>
+<li>清零解离和电离效率数组；再读取 <code>efdis_inter.dat</code> 设置 CO2/O2/NO，硬编码 N2、CO、H2O、H2O2、O3、NO2、H2 等区间效率。</li>
+<li>按固定区间和分支比例设置 CO2、N2、CO、O(3P)、N、NO、H 的电离效率通道。</li>
+<li>离开 master 分支后广播一组 <code>param_v4_h</code> 数组。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>param_read():
+  if is_master:
+    open datadir/EUVDAT/param_v5/coln.dat with iostat
+    if missing:
+      print datadir help
+      STOP
+
+    open j2_an, j3_an, j1_an, ..., j13_cn tables
+    skip two header lines on each table
+
+    for i = nz2 downto 1:
+      read column groups from coln.dat into c1_16/c17_24/.../c36
+    for each opened j table:
+      for i = nz2 downto 1:
+        read the table into the corresponding species/channel and interval slice
+    close j-table units
+
+    t0(:) = 195.
+    fluxtop(:) = 1.
+
+    read 24 rows of varflujo.dat into ct1,p1,ct2,p2
+
+    zero efdis* and efion* arrays
+    read efdis_inter.dat for inter = 8..28
+    set high-interval CO2/O2/NO efficiencies to 1
+    hard-code remaining dissociation and ionization channel efficiencies
+
+  bcast column groups, t0, jabsifotsintpar
+  bcast selected efdis*/efion* arrays and solar-cycle parameters</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热层 EUV 参数初始化</td>
+<td>提供 <code>jabsifotsintpar</code>、<code>fluxtop</code>、<code>ct1/p1/ct2/p2</code> 等共享参数；下游热层光吸收计算通过 <code>param_v4_h</code> 消费这些量</td>
+</tr>
+<tr>
+<td>光化学/光解表数据</td>
+<td>把 <code>EUVDAT/param_v5</code> 离线表格转为按物种和光谱区间索引的数组</td>
+</tr>
+<tr>
+<td>并行参数同步</td>
+<td>master 读表后依靠 <code>bcast</code> 把大部分共享数组分发到其他进程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 <code>.F</code>，没有显式接口参数；所有状态通过 <code>param_v4_h</code> 写入。</li>
+<li>读表顺序依赖硬编码 unit 号和文件名，表头固定跳过两行。</li>
+<li>垂直维按 <code>nz2</code> 到 <code>1</code> 反向读取，意味着表文件行序与模型数组索引方向相反。</li>
+<li>解离/电离效率一部分来自 <code>efdis_inter.dat</code>，另一部分由硬编码区间和比例补齐。</li>
+<li><code>bcast(efdisco2)</code> 与 <code>bcast(efionco2)</code> 各出现两次，<code>bcast(efdish2o2)</code> 出现三次；源码字面如此。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>运行目录的 <code>datadir</code> 必须包含 <code>EUVDAT/param_v5/</code> 以及 <code>coln.dat</code>、<code>varflujo.dat</code>、<code>efdis_inter.dat</code> 和所有 <code>j*.dat</code> 表；只有 <code>coln.dat</code> 有清晰的缺失诊断。</li>
+<li>若在并行运行中复现，必须保证 master 读表后 <code>bcast</code> 覆盖了所有下游会读取的数组；未广播数组在非 master 进程上的值需要特别核验。</li>
+<li><code>fluxtop</code> 在本例程中只是初始化为 <code>1.</code>；随太阳周期修正的实际使用需结合 <a href="param_v4_h.html">param_v4_h</a> 和 <code>jthermcalc*</code> 路径确认。</li>
+<li>因源码未发现直接调用点，复现默认流程前应先确认当前配置是否仍会调用 <code>param_read</code>，还是只调用 E107 版本 <code>param_read_e107</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>源码中未见 <code>call param_read</code>；它是否仍服务某个旧配置、外部入口或已被 <code>param_read_e107</code> 替代，需要调用链确认。</li>
+<li><code>efdiso2</code>、<code>efdiso3</code>、<code>efdiso</code>、<code>efdish2</code>、<code>efionn2</code> 在 master 分支中被设置或读取，但本文件末尾未见对应 <code>bcast</code>；并行非 master 进程是否依赖这些数组需确认。</li>
+<li><code>efdis_inter.dat</code> 的 unit 120 读完后未见 <code>close(120)</code>，是否会影响长流程或重复初始化需确认。</li>
+<li><code>k</code>、<code>jfotsout</code>、<code>crscabsi2</code>、<code>co2crsc195</code>、<code>co2crsc295</code> 在本例程中声明或导入但未使用，可能是历史接口残留。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览，本文件在“参数与数据”分类下。</li>
+<li><a href="hrtherm.html">hrtherm</a>：热层 EUV 加热率计算；通过 <code>param_v4_h</code> 读取 <code>fluxtop</code> 等参数。</li>
+<li><a href="../phymars/datafile_mod.html">datafile_mod</a>：提供 <code>datadir</code>，本例程用它定位 <code>EUVDAT/param_v5</code>。</li>
+<li><a href="param_read_e107.html">param_read_e107</a>：当前 <code>physiq_mod</code> 调用的 E107/<code>param_v6</code> 参数读取版本。</li>
+<li><a href="param_v4_h.html">param_v4_h</a>：共享参数模块文件页，定义本例程写入的热层参数数组。</li>
+<li><a href="jthermcalc.html">jthermcalc.F</a> / <a href="jthermcalc_e107_mod.html">jthermcalc_e107_mod.F</a>：光吸收计算文件页。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,899 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>index - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/index.md</span>
+    </nav>
+    <article class="content">
+<h1 id="phymars-核心物理模块目录">phymars 核心物理模块目录</h1>
+<h2 id="路径">路径</h2>
+<pre><code>LMDZ.MARS\libf\phymars</code></pre>
+<h2 id="职责">职责</h2>
+<p>phymars 是 LMDZ.MARS 的核心物理模块目录，包含火星大气物理过程的全部实现。该目录主要负责 80km 以下大气层的物理计算，包括辐射、尘埃、水循环、CO2 循环、云、边界层、对流、重力波等过程。</p>
+<h2 id="目录内容">目录内容</h2>
+<p>共 164 个文件（含子目录 dyn1d），按功能分类如下：</p>
+<h3 id="1-主入口">1. 主入口</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="physiq_mod.html"><code>physiq_mod.F</code></a></td>
+<td><strong>物理主入口</strong>，包含 <code>physiq()</code> 子例程；按源码顺序调度 firstcall/restart、辐射、尘埃、PBL、热羽流、对流、水循环、CO2 循环、化学、热层、地表/土壤和诊断输出</td>
+</tr>
+</tbody>
+</table>
+<h3 id="2-辐射过程">2. 辐射过程</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="callradite_mod.html"><code>callradite_mod.F</code></a></td>
+<td>辐射调用入口，调度气溶胶光学准备、长波 <code>lwmain</code> 和短波 <code>swmain</code></td>
+</tr>
+<tr>
+<td><a href="lwmain_mod.html"><code>lwmain_mod.F</code></a></td>
+<td>长波 LTE 辐射主程序；组织 Planck 预处理、CO2/aerosol 吸收量、交换率缓存刷新、通量汇总和半隐式冷却率修正</td>
+</tr>
+<tr>
+<td><a href="swmain_mod.html"><code>swmain_mod.F</code></a></td>
+<td>短波辐射主程序；按 <code>swrtype</code> 调度 Fouquart/Toon 两太阳谱段 solver，缩放上下行短波通量并计算 <code>dtsw</code></td>
+</tr>
+<tr>
+<td><a href="lwxb.html"><code>lwxb.F</code></a>, <a href="lwxd.html"><code>lwxd.F</code></a>, <a href="lwxn.html"><code>lwxn.F</code></a></td>
+<td>长波辐射计算；<code>lwxb.F</code> 负责地面/空间边界交换系数，<code>lwxd.F</code> 负责远距离层间交换系数，<code>lwxn.F</code> 负责相邻层子层积分交换系数</td>
+</tr>
+<tr>
+<td><a href="lwb.html"><code>lwb.F</code></a>, <a href="lwdiff.html"><code>lwdiff.F</code></a>, <a href="lwflux.html"><code>lwflux.F</code></a>, <a href="lwi.html"><code>lwi.F</code></a>, <a href="lwtt.html"><code>lwtt.F</code></a>, <a href="lwu.html"><code>lwu.F</code></a>, <a href="yomlw_h.html"><code>yomlw_h.F90</code></a></td>
+<td>长波辐射辅助；Planck 函数、散射通量、通量/冷却率、半隐式修正、透过率近似、吸收量准备和长波共享缓存</td>
+</tr>
+<tr>
+<td><a href="swr_toon.html"><code>swr_toon.F</code></a>, <a href="swr_fouquart.html"><code>swr_fouquart.F</code></a>, <a href="swrayleigh.html"><code>swrayleigh.F</code></a></td>
+<td>短波辐射算法；Fouquart 连续散射、Toon two-stream 和 Rayleigh 柱光学厚度辅助</td>
+</tr>
+<tr>
+<td><a href="aeropacity_mod.html"><code>aeropacity_mod.F</code></a></td>
+<td>气溶胶不透明度；逐种气溶胶逐层算可见光光学厚度</td>
+</tr>
+<tr>
+<td><a href="aeroptproperties.html"><code>aeroptproperties.F</code></a></td>
+<td>气溶胶光学属性；尺寸分布积分得散射参数</td>
+</tr>
+<tr>
+<td><a href="blendrad.html"><code>blendrad.F</code></a></td>
+<td>LTE/NLTE 辐射加热率混合</td>
+</tr>
+<tr>
+<td><a href="updatereffrad_mod.html"><code>updatereffrad_mod.F</code></a></td>
+<td>更新辐射使用的粒子有效半径和有效方差</td>
+</tr>
+<tr>
+<td><a href="aerave.html"><code>aerave.F</code></a>, <a href="suaer.html"><code>suaer.F90</code></a></td>
+<td>气溶胶光学属性带平均和查找表加载</td>
+</tr>
+</tbody>
+</table>
+<h3 id="3-尘埃循环">3. 尘埃循环</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="dust_param_mod.html"><code>dust_param_mod.F90</code></a></td>
+<td>尘埃循环配置开关与缩放状态枢纽</td>
+</tr>
+<tr>
+<td><a href="dust_scaling_mod.html"><code>dust_scaling_mod.F90</code></a></td>
+<td>尘埃光学厚度缩放（三模式）</td>
+</tr>
+<tr>
+<td><a href="dust_windstress_lift.html"><code>dust_windstress_lift.F90</code></a></td>
+<td>风应力起尘源项（White 1979）</td>
+</tr>
+<tr>
+<td><a href="dustdevil.html"><code>dustdevil.F90</code></a></td>
+<td>尘卷风起尘参数化（Renno 1998）</td>
+</tr>
+<tr>
+<td><a href="dust_coagulation_mod.html"><code>dust_coagulation_mod.F90</code></a></td>
+<td>尘埃凝并</td>
+</tr>
+<tr>
+<td><a href="compute_dtau_mod.html"><code>compute_dtau_mod.F90</code></a></td>
+<td>尘埃地表注入调度（dtau→dustliftday）</td>
+</tr>
+<tr>
+<td><a href="read_dust_scenario_mod.html"><code>read_dust_scenario_mod.F90</code></a></td>
+<td>读取并插值 <code>dust_*.nc</code> 尘埃场景，向地表注入和辐射缩放路径提供目标柱厚度</td>
+</tr>
+<tr>
+<td><a href="dust_rad_adjust_mod.html"><code>dust_rad_adjust_mod.F90</code></a></td>
+<td>尘埃辐射调整（GCM v6 仅辐射缩放）</td>
+</tr>
+<tr>
+<td><a href="rocketduststorm_mod.html"><code>rocketduststorm_mod.F90</code></a></td>
+<td>突发沙尘暴</td>
+</tr>
+<tr>
+<td><a href="calcstormfract_mod.html"><code>calcstormfract_mod.F90</code></a></td>
+<td>沙尘暴分数计算</td>
+</tr>
+<tr>
+<td><a href="newsedim_mod.html"><code>newsedim_mod.F</code></a></td>
+<td>沉降计算</td>
+</tr>
+</tbody>
+</table>
+<h3 id="4-水循环">4. 水循环</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="watercloud_mod.html"><code>watercloud_mod.F</code></a></td>
+<td>水云计算</td>
+</tr>
+<tr>
+<td><a href="water-saturation-helpers.html"><code>watersat_mod.F90</code></a></td>
+<td>水饱和计算</td>
+</tr>
+<tr>
+<td><a href="water-saturation-helpers.html"><code>tcondwater.F90</code></a></td>
+<td>水凝结</td>
+</tr>
+<tr>
+<td><a href="waterice_tifeedback_mod.html"><code>waterice_tifeedback_mod.F90</code></a></td>
+<td>水冰热惯量反馈</td>
+</tr>
+<tr>
+<td><a href="improvedclouds_mod.html"><code>improvedclouds_mod.F90</code></a></td>
+<td>改进的云参数化</td>
+</tr>
+<tr>
+<td><a href="simpleclouds_mod.html"><code>simpleclouds_mod.F</code></a></td>
+<td>简化云方案</td>
+</tr>
+<tr>
+<td><a href="sig_h2o.html"><code>sig_h2o.F90</code></a></td>
+<td>水冰-空气表面张力线性公式；供 <code>nuclea</code> 的临界胚胎半径/能垒和 <code>improvedclouds</code> 的 Kelvin 饱和修正使用。</td>
+</tr>
+<tr>
+<td><a href="hdo_surfex_mod.html"><code>hdo_surfex_mod.F</code></a></td>
+<td>HDO 地表-大气通量计算；基于 H2O 通量和同位素分馏，由 <code>vdifc</code> 调用</td>
+</tr>
+</tbody>
+</table>
+<h3 id="5-co2-循环">5. CO2 循环</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../routines/co2condens.html"><code>co2condens_mod.F</code></a></td>
+<td>CO2 凝结</td>
+</tr>
+<tr>
+<td><a href="co2-saturation-helpers.html"><code>co2sat.F</code></a></td>
+<td>CO2 饱和</td>
+</tr>
+<tr>
+<td><a href="co2snow.html"><code>co2snow.F</code></a></td>
+<td>CO2 雪</td>
+</tr>
+<tr>
+<td><a href="co2cloud_mod.html"><code>co2cloud_mod.F90</code></a></td>
+<td>CO2 云</td>
+</tr>
+<tr>
+<td><a href="improvedco2clouds_mod.html"><code>improvedco2clouds_mod.F90</code></a></td>
+<td>改进的 CO2 云</td>
+</tr>
+<tr>
+<td><a href="co2-saturation-helpers.html"><code>tcondco2.F90</code></a></td>
+<td>CO2 凝结温度</td>
+</tr>
+<tr>
+<td><a href="nucleaco2.html"><code>nucleaco2.F90</code></a></td>
+<td>CO2 成核</td>
+</tr>
+<tr>
+<td><a href="massflowrateco2.html"><code>massflowrateco2.F90</code></a></td>
+<td>CO2 质量流率</td>
+</tr>
+<tr>
+<td><a href="density_co2_ice.html"><code>density_co2_ice.F90</code></a></td>
+<td>CO2 冰密度</td>
+</tr>
+</tbody>
+</table>
+<h3 id="6-边界层与湍流">6. 边界层与湍流</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="turb_mod.html"><code>turb_mod.F90</code></a></td>
+<td>湍流/PBL 共享状态模块；保存 <code>q2</code>、<code>ustar/wstar/tstar</code>、热羽流诊断和感热通量缓存，并提供分配/释放入口</td>
+</tr>
+<tr>
+<td><a href="yamada4.html"><code>yamada4.F</code></a></td>
+<td>Mars 版 Mellor-Yamada 湍流闭合；更新 <code>q2/km/kn/kq</code> 供 <code>vdifc</code> 垂直扩散使用</td>
+</tr>
+<tr>
+<td><a href="lmdz_atke_exchange_coeff.html"><code>lmdz_atke_exchange_coeff.F90</code></a></td>
+<td>ATKE 1.5 阶湍流闭合方案核心模块；计算湍流 Km/Kh 交换系数和 TKE 演化，支持多种数值格式和混合长度参数化</td>
+</tr>
+<tr>
+<td><a href="lmdz_atke_turbulence_ini.html"><code>lmdz_atke_turbulence_ini.F90</code></a></td>
+<td>ATKE 湍流初始化与参数共享模块；读取 <code>iflag_atke</code>、<code>atke_*</code> 配置键，派生稳定度函数常数、混合长度和 TKE 扩散参数</td>
+</tr>
+<tr>
+<td><a href="lmdz_call_atke.html"><code>lmdz_call_atke.F90</code></a></td>
+<td>ATKE 调用接口模块；协调核心计算和可选的显式风切变预测，支持前向-后向时间步进</td>
+</tr>
+<tr>
+<td><a href="vdifc_mod.html"><code>vdifc_mod.F</code></a>, <a href="vdif_kc.html"><code>vdif_kc.F</code></a>, <a href="vdif_cd_mod.html"><code>vdif_cd_mod.F90</code></a></td>
+<td>垂直扩散主流程、K 系数和地表层交换系数；<code>vdifc_mod.F</code> 还耦合尘埃注入、H2O/HDO 地表交换与坡面/地下冰通量</td>
+</tr>
+</tbody>
+</table>
+<h3 id="7-重力波拖曳">7. 重力波拖曳</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="sugwd.html"><code>sugwd.F90</code></a></td>
+<td>地形重力波参数初始化层；根据半层 sigma 坐标写入 <code>yoegwd_h</code> 调参常量和安全阈值</td>
+</tr>
+<tr>
+<td><a href="yoegwd_h.html"><code>yoegwd_h.F90</code></a></td>
+<td>地形重力波拖曳共享调参状态；保存 <code>SUGWD</code> 写入的 drag 系数、Richardson 阈值、安全下限和 <code>NKTOPG</code></td>
+</tr>
+<tr>
+<td><a href="gwprofil_mod.html"><code>gwprofil_mod.F90</code></a></td>
+<td>地形重力波 stress profile 计算；按临界层、波破碎判据和阻塞层插值重算 <code>ZTAU</code></td>
+</tr>
+<tr>
+<td><a href="gwstress_mod.html"><code>gwstress_mod.F90</code></a></td>
+<td>重力波应力</td>
+</tr>
+<tr>
+<td><a href="orodrag_mod.html"><code>orodrag_mod.F90</code></a></td>
+<td>地形重力波 / 次网格地形拖曳核心；调用 <code>OROSETUP</code>、<code>GWSTRESS</code>、<code>GWPROFIL</code> 得到 <code>ZTAU</code>，再计算 U/V/T tendency</td>
+</tr>
+<tr>
+<td><a href="orosetup.html"><code>orosetup.F90</code></a></td>
+<td>地形重力波拖曳预处理；计算 <code>IKNU/IKENVH/IKCRITH/ICRIT</code> 层索引、低层风、<code>BV/ZRHO/ZVPH</code>、地形方向组合量和阻塞层 <code>ZZDEP</code></td>
+</tr>
+<tr>
+<td><a href="calldrag_noro_mod.html"><code>calldrag_noro_mod.F90</code></a></td>
+<td>地形重力波/次网格地形拖曳调用</td>
+</tr>
+<tr>
+<td><a href="drag_noro_mod.html"><code>drag_noro_mod.F90</code></a></td>
+<td>地形重力波/次网格地形拖曳的 <code>ORODRAG</code> 包装层；翻转垂直层序、构造 <code>zgeom</code> 并返回每步增量</td>
+</tr>
+<tr>
+<td><a href="nonoro_gwd_mix_mod.html"><code>nonoro_gwd_mix_mod.F90</code></a></td>
+<td>非地形重力波诱导混合方案；在 <code>calllott_nonoro</code> 且 <code>calljliu_gwimix</code> 为真时追加温度、纬向风和 tracer 混合 tendency</td>
+</tr>
+<tr>
+<td><a href="nonoro_gwd_ran_mod.html"><code>nonoro_gwd_ran_mod.F90</code></a></td>
+<td>非地形重力波随机拖曳方案；在 <code>calllott_nonoro</code> 分支内构造离散随机 GW、推进 EP flux 并返回 U/V 动量拖曳 tendency</td>
+</tr>
+</tbody>
+</table>
+<h3 id="8-对流">8. 对流</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="convadj.html"><code>convadj.F</code></a></td>
+<td>干对流调整；按 <code>calladj</code> 在 <code>physiq</code> 中混合不稳定层段并输出风、焓和 tracer tendency</td>
+</tr>
+<tr>
+<td><a href="calltherm_interface_mod.html"><code>calltherm_interface_mod.F90</code></a></td>
+<td>热羽流模型与 <code>physiq</code> 的接口层，负责子步长调度、热羽流 tendency 单位转换和 <code>wstar</code> 反馈</td>
+</tr>
+<tr>
+<td><a href="thermcell_main_mars.html"><code>thermcell_main_mars.F90</code></a></td>
+<td>热羽流主求解器；在子步长内计算热羽流高度、质量通量、温度/CO2 演化和诊断通量</td>
+</tr>
+<tr>
+<td><a href="thermcell_dqup.html"><code>thermcell_dqup.F90</code></a></td>
+<td>热羽流质量通量已知后的被动变量上升输送算子</td>
+</tr>
+<tr>
+<td><a href="call_dayperi.html"><code>call_dayperi.F</code></a></td>
+<td>1D/testphys 轨道近日点日期换算</td>
+</tr>
+</tbody>
+</table>
+<h3 id="9-示踪剂系统">9. 示踪剂系统</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="tracer_mod.html"><code>tracer_mod.F90</code></a></td>
+<td>示踪剂主模块</td>
+</tr>
+<tr>
+<td><a href="initracer.html"><code>initracer.F90</code></a></td>
+<td>tracer 名称识别、<code>igcm_*</code> 索引和物性初始化</td>
+</tr>
+<tr>
+<td><a href="parse_tracer_file.html"><code>parse_tracer_file.F90</code></a></td>
+<td>新格式 <code>tracer.def</code> 解析接口</td>
+</tr>
+<tr>
+<td><a href="parse_traceur_file.html"><code>parse_traceur_file.F90</code></a></td>
+<td>旧格式 <code>traceur.def</code> 解析接口</td>
+</tr>
+<tr>
+<td><a href="tracer_mass_fixer_dyn_mod.html"><code>tracer_mass_fixer_dyn_mod.F90</code></a></td>
+<td>示踪剂质量修正</td>
+</tr>
+</tbody>
+</table>
+<h3 id="10-初始化">10. 初始化</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="phyetat0_mod.html"><code>phyetat0_mod.F90</code></a></td>
+<td>物理状态初始化；读取 <code>startfi.nc</code> 或 no-startfi 缺省路径，恢复地表、土壤、坡面、tracer、古气候和 restart 记忆状态</td>
+</tr>
+<tr>
+<td><a href="phyredem.html"><code>phyredem.F90</code></a></td>
+<td>物理 start/restart 写出；写控制表、网格、地表、土壤、tracer、尘埃、古气候和质量修正状态</td>
+</tr>
+<tr>
+<td><a href="phys_state_var_init_mod.html"><code>phys_state_var_init_mod.F90</code></a></td>
+<td>物理状态变量初始化；读取 <code>startfi.nc</code> 的 <code>nslope</code> 维度，初始化常数/时间状态，并按 <code>ngrid/nlayer/nq/nslope</code> 分配共享物理数组</td>
+</tr>
+<tr>
+<td><a href="iniwrite.html"><code>iniwrite.F</code></a></td>
+<td>传统 <code>diagfi</code> / <code>diagmicrofi</code> NetCDF 初始化：定义坐标、垂直层、控制参数、土壤深度、网格面积和地表位势</td>
+</tr>
+<tr>
+<td><a href="iniwritesoil.html"><code>iniwritesoil.F90</code></a></td>
+<td>土壤初始化写入</td>
+</tr>
+<tr>
+<td><a href="iostart.html"><code>iostart.F90</code></a></td>
+<td>物理重启文件 NetCDF I/O 核心模块；提供 <code>startfi.nc</code> 读取和 <code>restartfi.nc</code> 写入的统一接口，支持并行环境下的数据分发和重排</td>
+</tr>
+<tr>
+<td><a href="surfini_mod.html"><code>surfini_mod.F90</code></a></td>
+<td>水冰帽初始化；按 <code>icelocationmode</code> 从 surface.nc、预定义表、经纬度、startfi 或热惯量生成 <code>watercaptag/dryness</code></td>
+</tr>
+<tr>
+<td><a href="surfdat_h.html"><code>surfdat_h.F90</code></a></td>
+<td>地表共享状态模块；保存反照率、地形统计、水冰帽、坡面地表和山顶地形数组，并提供分配/释放例程</td>
+</tr>
+</tbody>
+</table>
+<h3 id="11-输出与诊断">11. 输出与诊断</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="writediagfi.html"><code>writediagfi.F</code></a></td>
+<td>传统 <code>diagfi.nc</code> 诊断写入后端；按采样间隔追加 0D/1D/2D/3D 变量</td>
+</tr>
+<tr>
+<td><a href="writediagmicrofi.html"><code>writediagmicrofi.F</code></a></td>
+<td>微物理子步 <code>diagmicrofi.nc</code> 诊断写入后端；在 <code>Time</code> 外增加 <code>microtime</code> 维度</td>
+</tr>
+<tr>
+<td><a href="wstats_mod.html"><code>wstats_mod.F90</code></a></td>
+<td>统计日 <code>stats.nc</code> 生成模块；累加 12 个日内时刻的均值和标准差</td>
+</tr>
+<tr>
+<td><a href="check_fields.html"><code>check_fields.F90</code></a></td>
+<td><code>physiq</code> 步首/步尾可选场检查；检查温度、风、表面压力和 tracer 的 NaN/越界值</td>
+</tr>
+<tr>
+<td><a href="writediagsoil.html"><code>writediagsoil.F90</code></a></td>
+<td>土壤诊断</td>
+</tr>
+<tr>
+<td><a href="xios_output_mod.html"><code>xios_output_mod.F90</code></a></td>
+<td>XIOS 输出封装；初始化 XIOS 轴/domain/calendar 并发送 0D/1D/2D/3D 字段</td>
+</tr>
+<tr>
+<td><a href="write_output_mod.html"><code>write_output_mod.F90</code></a></td>
+<td>通用输出封装；按类型/维度分派到 <code>writediagfi</code>、<code>writediagsoil</code> 和可选 XIOS</td>
+</tr>
+</tbody>
+</table>
+<h3 id="12-nlte非局部热力学平衡">12. NLTE（非局部热力学平衡）</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="nltecool.html"><code>nltecool.F</code></a></td>
+<td><code>nltemodel=0/1</code> 的 CO2 15 微米 NLTE cool-to-space 冷却率模块；使用内置 escape function / VMR 表或动态 tracer 成分，直接输出 K/s</td>
+</tr>
+<tr>
+<td><a href="nlte_calc.html"><code>nlte_calc.F</code></a></td>
+<td>NLTE 光学厚度、escape probability 和 Curtis-matrix 系数计算；为 <code>nlte_tcool_mod.F</code> 生成 <code>c110/vc110/c121/vc121/taustar*</code></td>
+</tr>
+<tr>
+<td><a href="nlte_aux.html"><code>nlte_aux.F</code></a></td>
+<td>NLTE 辅助例程集合；读取/恢复历史谱线表，提供温度/高度/多维查表、Voigt 等效线宽、escape probability 归一化、LU 求解和平滑工具</td>
+</tr>
+<tr>
+<td><a href="nlte_commons_h.html"><code>nlte_commons_h.F90</code></a></td>
+<td>NLTE 15 微米 CO2 共享状态模块；保存谱线常数、查表、主网格/CTS 网格剖面、Curtis matrices、escape probability、碰撞率和历史谱线缓存</td>
+</tr>
+<tr>
+<td><a href="nlte_paramdef_h.html"><code>nlte_paramdef_h.F90</code></a></td>
+<td>NLTE 15 微米 CO2 编译期参数定义；保存网格维度、压力边界、谱带/同位素数量、辐射常数、波数表和同位素混合比</td>
+</tr>
+<tr>
+<td><a href="nlte_setup.html"><code>nlte_setup.F</code></a></td>
+<td>NLTE 15 微米 CO2 运行时表初始化；读取 <code>NLTEDAT</code> 谱线、Tstar/VC、历史谱线表并计算温度相关碰撞速率</td>
+</tr>
+<tr>
+<td><a href="nlte_tcool_mod.html"><code>nlte_tcool_mod.F</code></a></td>
+<td><code>nltemodel=2</code> 的 CO2 15 微米 NLTE 快速冷却率模块；构造 NLTE/CTS 网格、求解 CZA 耦合矩阵、拼接 CTS 顶层冷却率并回插到 GCM 网格</td>
+</tr>
+<tr>
+<td><a href="nlteparams_h.html"><code>nlteparams_h.F90</code></a></td>
+<td>LTE/NLTE 辐射倾向过渡参数；定义 <code>ptrans=0.1 Pa</code>、<code>zw=0.5</code>、<code>pminte=0.4*ptrans</code> 和 <code>zwi=2/zw</code>，供 <code>blendrad</code> 与 <code>nlthermeq</code> 使用</td>
+</tr>
+<tr>
+<td><a href="nlthermeq.html"><code>nlthermeq.F</code></a></td>
+<td>LTE/NLTE 过渡层选择器；用 <code>pminte</code> 和当前层压强剖面计算 <code>yomlw_h::nlaylte</code>，限制 LTE 辐射覆盖层数</td>
+</tr>
+</tbody>
+</table>
+<h3 id="13-配置与公共模块">13. 配置与公共模块</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="conf_phys.html"><code>conf_phys.F</code></a></td>
+<td>物理配置入口；读取 <code>callphys.def</code>/<code>radia.def</code>，设置 <code>callkeys_mod</code>、尘埃/水/CO2/热层开关，分配气溶胶 scatterer 名称并执行依赖校验</td>
+</tr>
+<tr>
+<td><a href="callkeys_mod.html"><code>callkeys_mod.F90</code></a></td>
+<td>物理包运行时开关与共享参数模块；保存辐射、尘埃、水循环、CO2 云、PBL 和高层大气分支开关</td>
+</tr>
+<tr>
+<td><a href="def_var.html"><code>def_var.F90</code></a></td>
+<td>NetCDF 变量定义辅助例程；用 <code>NF_FLOAT</code> 创建变量并写 <code>title</code>/<code>units</code> 属性，供 <code>diagfi</code>、微物理诊断、土壤诊断和 archive 输出首次定义变量时调用</td>
+</tr>
+<tr>
+<td><a href="dimphy.html"><code>dimphy.F90</code></a></td>
+<td>本地物理网格维度共享状态；保存 <code>klon/klev/klevp1/klevm1</code>，由 <code>Init_dimphy</code> 初始化并声明为 OpenMP threadprivate</td>
+</tr>
+<tr>
+<td><a href="conc_mod.html"><code>conc_mod.F90</code></a></td>
+<td>大气混合物热力学属性缓存；保存 <code>mmean/Akknew/cpnew/rnew</code>，由初始化填常数背景并在 <code>photochem</code> 或 <code>callthermos</code> 路径中按 tracer 组成更新</td>
+</tr>
+<tr>
+<td><a href="comcstfi_h.html"><code>comcstfi_h.F90</code></a></td>
+<td>公共物理常数；保存 <code>rad/g/r/cpp/rcp/mugaz/omeg/pi</code></td>
+</tr>
+<tr>
+<td><a href="comgeomfi_h.html"><code>comgeomfi_h.F90</code></a></td>
+<td>公共几何三角函数缓存；保存 <code>sinlat/coslat/sinlon/coslon</code>，由初始化路径从物理网格经纬度填充</td>
+</tr>
+<tr>
+<td><a href="comm_wrf.html"><code>comm_wrf.F90</code></a></td>
+<td>MESOSCALE/WRF 风格输出缓存；保存 <code>HR_SW/HR_LW/TAU_DUST/RDUST/MTOT/ICETOT</code> 等诊断数组</td>
+</tr>
+<tr>
+<td><a href="comsoil_h.html"><code>comsoil_h.F90</code></a></td>
+<td>公共土壤</td>
+</tr>
+<tr>
+<td><a href="comtherm_h.html"><code>comtherm_h.F90</code></a></td>
+<td>热羽流模型编译期参数和调参常数；定义 <code>nsplit_thermals</code>、tracer/TKE 输送开关、卷入/脱离/下沉气流/速度方程常数，供 <code>calltherm_interface</code> 和 <code>thermcell_main_mars</code> 读取</td>
+</tr>
+<tr>
+<td><a href="comsaison_h.html"><code>comsaison_h.F90</code></a></td>
+<td>公共季节和太阳几何共享状态；保存 <code>dist_sol/declin/zls/mu0/fract/local_time</code>，由 <code>physiq</code> 每步写入后供辐射、尘暴、山顶尘流和尘埃注入读取</td>
+</tr>
+<tr>
+<td><a href="datafile_mod.html"><code>datafile_mod.F90</code></a></td>
+<td>运行时外部数据目录共享模块；保存 <code>datadir</code> 默认路径并由 <code>callphys.def</code> 覆盖，供 CO2 云、极冠反照率、尘埃场景、辐射、化学和初始化读表路径使用</td>
+</tr>
+<tr>
+<td><a href="comslope_mod.html"><code>comslope_mod.F90</code></a></td>
+<td>斜坡</td>
+</tr>
+<tr>
+<td><a href="planete_h.html"><code>planete_h.F90</code></a></td>
+<td>行星轨道和湍流下限共享状态；保存 <code>aphelie/periheli/year_day/peri_day/obliquit</code>，由 <code>iniorbit</code> 派生 <code>e_elips/p_elips/lsperi</code>，供 <code>solarlong</code> 和 <code>orbite</code> 使用</td>
+</tr>
+<tr>
+<td><a href="planetwide_mod.html"><code>planetwide_mod.F90</code></a></td>
+<td>全行星最大值、最小值和求和规约工具；并行路径通过 <code>gather</code>、master intrinsic 规约和 <code>bcast</code> 得到跨物理网格一致的标量结果。</td>
+</tr>
+<tr>
+<td><a href="time_phylmdz_mod.html"><code>time_phylmdz_mod.F90</code></a></td>
+<td>物理时间共享状态模块；保存 <code>daysec/dtphys/steps_per_sol</code>、运行起止日和诊断/restart 调度标量。</td>
+</tr>
+<tr>
+<td><a href="turb_mod.html"><code>turb_mod.F90</code></a></td>
+<td>湍流/PBL 共享状态模块；保存界面层 TKE、surface-layer 速度/温度尺度和热羽流反馈诊断数组。</td>
+</tr>
+<tr>
+<td><a href="dimradmars_mod.html"><code>dimradmars_mod.F90</code></a></td>
+<td>辐射维度、气溶胶 scatterer 和光学查找表共享状态</td>
+</tr>
+<tr>
+<td><a href="yoegwd_h.html"><code>yoegwd_h.F90</code></a>, <a href="yomlw_h.html"><code>yomlw_h.F90</code></a></td>
+<td>GWD/LW 头文件；<code>yoegwd_h</code> 保存地形 GW 链共享调参变量，<code>yomlw_h</code> 保存长波 LTE 辐射共享系数和交换率缓存</td>
+</tr>
+</tbody>
+</table>
+<h3 id="14-土壤与表面">14. 土壤与表面</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="soil.html"><code>soil.F</code></a></td>
+<td>土壤模型</td>
+</tr>
+<tr>
+<td><a href="soil_settings.html"><code>soil_settings.F</code></a></td>
+<td>土壤设置</td>
+</tr>
+<tr>
+<td><a href="soilwater.html"><code>soilwater.F90</code></a></td>
+<td>土壤水</td>
+</tr>
+<tr>
+<td><a href="albedocaps.html"><code>albedocaps.F90</code></a></td>
+<td>极冠反照率</td>
+</tr>
+<tr>
+<td><a href="geticecover.html"><code>geticecover.F90</code></a></td>
+<td>Titus/TES CO2 季节极冠覆盖掩膜；<code>tituscap</code> 分支中由 <code>physiq</code> 调用并写入 <code>qsurf_tmp(:,igcm_co2)</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="15-轨道与太阳">15. 轨道与太阳</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="orbite.html"><code>orbite.F</code></a></td>
+<td>轨道几何换算；<code>physiq</code> 在 <code>callrad</code> 分支用 <code>zls</code> 调用它，计算 <code>dist_sol</code> 和 <code>declin</code>，供太阳角、辐射通量缩放、近红外 CO2 和坡面/热层路径使用</td>
+</tr>
+<tr>
+<td><a href="solang.html"><code>solang.F</code></a></td>
+<td>日变化太阳角计算；按经纬度三角缓存、太阳赤纬和时角写出每格点 <code>mu0</code> 与 0/1 日照标志 <code>fract</code>。</td>
+</tr>
+<tr>
+<td><a href="solarlong.html"><code>solarlong.F</code></a></td>
+<td>火星日期到太阳经度转换；读取 <code>planete_h</code> 轨道参数，用 Kepler 方程 Newton 解得到 <code>Ls</code>。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="16-其他物理">16. 其他物理</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="nirdata.html"><code>nirdata.F90</code></a>, <a href="nirco2abs.html"><code>nirco2abs.F</code></a></td>
+<td>近红外 CO2 吸收；<code>nirdata.F90</code> 读取并保存 NLTE 修正表，<code>nirco2abs.F</code> 计算近红外 CO2 加热率</td>
+</tr>
+<tr>
+<td><a href="growthrate.html"><code>growthrate.F</code></a></td>
+<td>水冰晶增长阻力和水汽扩散系数；<code>improvedclouds</code> 用其输出 <code>res</code> 进入隐式冰增长/升华公式</td>
+</tr>
+<tr>
+<td><a href="nuclea.html"><code>nuclea.F</code></a></td>
+<td>水冰异质成核率；<code>improvedclouds</code> 用它按水汽分压、饱和比和尘核 bin 计算 <code>rate</code>，再把尘埃转入 CCN</td>
+</tr>
+<tr>
+<td><a href="microphys_h.html"><code>microphys_h.F90</code></a></td>
+<td>水冰/CO2 微物理共享常数和线程私有半径网格头文件；定义 <code>nbin_cld</code>、<code>nbinco2_cld</code>、分子常数、接触参数和 <code>rad_cld/rad_cldco2</code></td>
+</tr>
+<tr>
+<td><a href="pbl_parameters_mod.html"><code>pbl_parameters_mod.F90</code></a></td>
+<td>PBL 参数</td>
+</tr>
+<tr>
+<td><a href="topmons_mod.html"><code>topmons_mod.F90</code></a></td>
+<td>顶层单体</td>
+</tr>
+<tr>
+<td><a href="paleoclimate_mod.html">paleoclimate_mod</a></td>
+<td>古气候/lag-layer 共享状态模块；保存 <code>paleoclimate</code>、<code>lag_layer</code>、<code>include_waterbuoyancy</code> 开关，以及地下冰深度、扩散系数和地下冰交互总通量数组</td>
+</tr>
+<tr>
+<td><a href="flusv.html"><code>flusv.F</code></a>, <a href="cvmgt.html"><code>cvmgt.F</code></a>, <a href="mucorr.html"><code>mucorr.F</code></a></td>
+<td>辅助计算；<code>flusv.F</code> 是长波红外散射通量求解器，<code>cvmgt.F</code> 是实数条件选择函数，<code>mucorr.F</code> 在非日变化分支计算等效太阳角和日照比例</td>
+</tr>
+<tr>
+<td><a href="interp_line.html"><code>interp_line.F</code></a></td>
+<td>通用线性插值工具；在有序源数据点之间进行线性插值</td>
+</tr>
+<tr>
+<td><a href="tabfi.html"><code>tabfi.F</code></a></td>
+<td>物理控制表读取和默认常数初始化；读取 <code>controle</code> 数组、写入公共物理/轨道/地表参数，并可串行交互修改</td>
+</tr>
+</tbody>
+</table>
+<h3 id="17-dyn1d-子目录">17. dyn1d 子目录</h3>
+<p>1D 测试模型相关文件，见 <a href="dyn1d/index.html">dyn1d/index.md</a>。已建页面：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="dyn1d/abort_gcm.html"><code>dyn1d/abort_gcm.F</code></a></td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d/abort_gcm.F</code> 的中止例程路径 stub，供 1D 初始化路径调用 <code>abort_gcm</code>。</td>
+</tr>
+<tr>
+<td><a href="dyn1d/comconst_mod.html"><code>dyn1d/comconst_mod.F90</code></a></td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d_common/comconst_mod.F90</code> 的动力常数模块路径 stub；目标模块保存维度、时间步、行星常数、耗散和顶层 sponge 参数。</td>
+</tr>
+<tr>
+<td><a href="dyn1d/comvert_mod.html"><code>dyn1d/comvert_mod.F90</code></a></td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d_common/comvert_mod.F90</code> 的垂直坐标模块路径 stub；保存 <code>ap/bp/aps/bps</code>、参考压力和伪高度，供 1D 压力层构造。</td>
+</tr>
+<tr>
+<td><a href="dyn1d/control_mod.html"><code>dyn1d/control_mod.F90</code></a></td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d_common/control_mod.F90</code> 的公共动力控制状态 stub；保存 3D GCM 日期、步频、输出和模式开关，当前 1D 主程序不直接读取。</td>
+</tr>
+<tr>
+<td><a href="dyn1d/disvert_noterre.html"><code>dyn1d/disvert_noterre.F</code></a></td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d_common/disvert_noterre.F</code> 的非地球垂直离散例程 stub；读取 <code>esasig.def</code> 或 <code>z2sig.def</code> 生成 hybrid/sigma 压力坐标系数。</td>
+</tr>
+<tr>
+<td><a href="dyn1d/ener_mod.html"><code>dyn1d/ener_mod.F90</code></a></td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d_common/ener_mod.F90</code> 的公共动力能量诊断状态 stub；保存质量、能量、涡度/熵、角动量和 RMS 诊断量。</td>
+</tr>
+<tr>
+<td><a href="dyn1d/infotrac.html"><code>dyn1d/infotrac.F90</code></a></td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d_common/infotrac.F90</code> 的 tracer 元数据模块 stub；dyn1d 初始化用它保存 <code>traceur.def</code> 读取出的 tracer 名和父子关系。</td>
+</tr>
+<tr>
+<td><a href="dyn1d/init_testphys1d_mod.html"><code>dyn1d/init_testphys1d_mod.F90</code></a></td>
+<td>1D <code>testphys1d</code> 初始化主例程；串联配置、<code>traceur.def</code>、restart/profile、垂直坐标、几何、坡面、地表、土壤、tracer 和水控制状态。</td>
+</tr>
+<tr>
+<td><a href="dyn1d/logic_mod.html"><code>dyn1d/logic_mod.F90</code></a></td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d/logic_mod.F90</code> 的动力逻辑状态 stub；当前 1D 初始化用 <code>hybrid</code> 选择垂直坐标。</td>
+</tr>
+<tr>
+<td><a href="dyn1d/mod_const_mpi.html"><code>dyn1d/mod_const_mpi.F90</code></a></td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3dpar/mod_const_mpi.F90</code> 的并行常量 stub；<code>COMM_LMDZ</code> 在 XIOS 分支传给 1D physics distribution 初始化。</td>
+</tr>
+<tr>
+<td><a href="dyn1d/mod_interface_dyn_phys.html"><code>dyn1d/mod_interface_dyn_phys.F90</code></a></td>
+<td>指向 <code>LMDZ.COMMON/libf/dynphy_lonlat/mod_interface_dyn_phys.F90</code> 的动力-物理接口 stub；并行分支建立物理列到动力网格 <code>(i,j)</code> 的映射。</td>
+</tr>
+<tr>
+<td><a href="dyn1d/parallel_lmdz.html"><code>dyn1d/parallel_lmdz.F90</code></a></td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3dpar/parallel_lmdz.F90</code> 的并行运行时 stub；<code>testphys1d</code> 调用 <code>init_parallel</code> 初始化 rank/线程状态。</td>
+</tr>
+<tr>
+<td><a href="dyn1d/profile_temp_mod.html"><code>dyn1d/profile_temp_mod.F90</code></a></td>
+<td>1D 温度廓线构造模块；提供常温、Savidjari、Lindner、逆温、Seiff、Gaussian 和 <code>profile_temp</code> 文件读取分支。</td>
+</tr>
+<tr>
+<td><a href="dyn1d/read_profile_mod.html"><code>dyn1d/read_profile_mod.F90</code></a></td>
+<td>1D tracer profile 读取模块；读取 <code>profile_&lt;tracer&gt;</code> 的 surface-first 廓线格式，并处理 CO2/HDO/dust 缺文件默认值。</td>
+</tr>
+<tr>
+<td><a href="dyn1d/serre_mod.html"><code>dyn1d/serre_mod.F90</code></a></td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d_common/serre_mod.F90</code> 的公共动力 zoom/水平网格状态 stub；保存 <code>clon/clat/grossismx/grossismy/dzoomx/dzoomy/taux/tauy</code> 等参数。</td>
+</tr>
+<tr>
+<td><a href="dyn1d/testphys1d.html"><code>dyn1d/testphys1d.F90</code></a></td>
+<td>1D 单柱物理测试主程序；检查 <code>run.def/start</code> 文件、调用初始化、写 <code>startfi.nc</code>、逐步调用 <code>physiq</code> 并推进风、温度、表压和 tracer。</td>
+</tr>
+<tr>
+<td><a href="dyn1d/writerestart1D_mod.html"><code>dyn1d/writerestart1D_mod.F90</code></a></td>
+<td>1D 文本 restart 写出模块；将表压、tracer、风和温度按 <code>start1D.txt</code> 兼容顺序写入 <code>restart1D.txt</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与其他目录的关系">与其他目录的关系</h2>
+<table>
+<thead>
+<tr>
+<th>相关目录</th>
+<th>关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>../aeronomars/</code></td>
+<td>调用光化学、热层过程</td>
+</tr>
+<tr>
+<td><code>../dynphy_lonlat/</code></td>
+<td>被物理调用接口调用</td>
+</tr>
+<tr>
+<td><code>../../deftank/</code></td>
+<td>读取 callphys.def 配置</td>
+</tr>
+<tr>
+<td><code>../../datadir/</code></td>
+<td>读取辐射、尘埃等数据</td>
+</tr>
+</tbody>
+</table>
+<h2 id="关键文件">关键文件</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="physiq_mod.html"><code>physiq_mod.F</code></a></td>
+<td>物理主入口，<code>physiq()</code> 是核心调度例程；见 <a href="physiq_mod.html">physiq_mod</a></td>
+</tr>
+<tr>
+<td><a href="callradite_mod.html"><code>callradite_mod.F</code></a></td>
+<td>辐射计算入口</td>
+</tr>
+<tr>
+<td><code>dust_param_mod.F90</code></td>
+<td>尘埃循环配置开关与缩放状态枢纽，见 <a href="dust_param_mod.html">dust_param_mod</a></td>
+</tr>
+<tr>
+<td><code>watercloud_mod.F</code></td>
+<td>水云计算</td>
+</tr>
+<tr>
+<td><code>co2condens_mod.F</code></td>
+<td>CO2 凝结</td>
+</tr>
+<tr>
+<td><code>tracer_mod.F90</code></td>
+<td>示踪剂系统</td>
+</tr>
+<tr>
+<td><a href="turb_mod.html"><code>turb_mod.F90</code></a></td>
+<td>湍流/PBL 共享状态</td>
+</tr>
+</tbody>
+</table>
+<h2 id="典型物理调用链">典型物理调用链</h2>
+<pre><code>physiq()  (physiq_mod.F)
+├── callradite()         辐射
+│   ├── lwmain()         长波
+│   └── swmain()         短波
+├── 尘埃lifting          dust_param_mod
+├── 水循环               watercloud_mod / watersat_mod
+├── CO2循环              co2condens_mod / co2cloud_mod
+├── 湍流                 turb_mod / lmdz_call_atke
+├── 重力波               sugwd_mod
+├── 对流                 convadj_mod / thermcell_main_mars
+├── 边界层               vdif_kc / vdifc_mod
+└── NLTE                 nltecool (80km以上)</code></pre>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>physiq()</code> 是核心入口，需要提供网格、时间步、压力、温度、风场、示踪剂等输入</li>
+<li>各物理过程通过 <code>callphys.def</code> 开关控制</li>
+<li>辐射计算需要光学数据文件</li>
+<li>尘埃 lifting 需要风场和地表参数</li>
+<li>示踪剂输运依赖于动力核心</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>各物理模块之间的详细调用依赖关系</li>
+<li><code>callphys.def</code> 中各开关的具体作用</li>
+<li>dyn1d 子目录的详细功能</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

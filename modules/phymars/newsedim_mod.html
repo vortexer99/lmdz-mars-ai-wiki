@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>newsedim_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/newsedim_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="newsedim_modf">newsedim_mod.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\newsedim_mod.F</code></pre>
+<h2 id="所属目录">所属目录</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>newsedim_mod.F</code>（全文 224 行，固定格式 Fortran）只定义一个例程 <code>newsedim</code>，是 LMDZ.MARS 中<strong>单示踪物重力沉降的核心计算单元</strong>。</p>
+<p>它做两件事（源码依据：文件头注释第 13-18 行 "Compute sedimentation of 1 tracer of radius rd (m) and density rho (kg.m-3)"）：</p>
+<ol type="1">
+<li>用 <strong>Stokes 定律 + Cunningham 滑移修正</strong>计算每层的粒子下落速度 <code>vstokes</code>，再换算出本时间步内穿过每个层间界面的"被输运大气质量" <code>w</code>（kg·m⁻²）。</li>
+<li>把 <code>w</code> 交给 <code>vlz_fi</code>（半拉格朗日垂直输运），由后者实际更新示踪物混合比 <code>pqi</code> 并返回界面通量 <code>wq</code>。</li>
+</ol>
+<p>也就是说：<strong>下落速度公式在本文件，输运数值格式在 <code>vlz_fi.F</code></strong>。上层调度（按示踪物类别准备粒径/密度）在 <code>callsedim_mod.F</code> 和 <code>co2cloud_mod.F90</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>newsedim_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>容器模块，无模块级变量</td>
+</tr>
+<tr>
+<td><code>newsedim</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>单示踪物沉降：算下落速度 → 算输运质量 → 调 <code>vlz_fi</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vlz_fi_mod</code></td>
+<td><code>vlz_fi</code></td>
+<td>垂直输运数值格式（第 9 行）</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>r</code>, <code>g</code></td>
+<td>比气体常数 r 与重力加速度 g（第 10 行）；<code>comcstfi_h.F90</code> 中 r、g 为运行时由物理初始化赋值的 SAVE 变量</td>
+<td>无</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vlz_fi</code></td>
+<td><code>vlz_fi_mod</code>（<code>vlz_fi.F</code>）</td>
+<td>第 216 行</td>
+<td>用 <code>w</code> 实施"pseudo upstream"垂直平流，更新 <code>pqi</code>，输出 <code>wq</code>；坡度限制参数固定传 <code>2.</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用者</td>
+<td>integer</td>
+<td>-</td>
+<td>水平列数</td>
+</tr>
+<tr>
+<td><code>nlay</code></td>
+<td>调用者</td>
+<td>integer</td>
+<td>-</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>naersize</code></td>
+<td>调用者</td>
+<td>integer</td>
+<td>-</td>
+<td><code>rd</code> 数组长度：1 = 全场单一半径；<code>ngrid*nlay</code> = 每格点每层各自半径</td>
+</tr>
+<tr>
+<td><code>nrhosize</code></td>
+<td>调用者</td>
+<td>integer</td>
+<td>-</td>
+<td><code>rho</code> 数组长度，语义同上</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>调用者</td>
+<td>real</td>
+<td>s</td>
+<td>物理时间步（或微物理子步）</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td>调用者</td>
+<td>real(ngrid,nlay+1)</td>
+<td>Pa</td>
+<td>层间界面气压</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td>调用者</td>
+<td>real(ngrid,nlay)</td>
+<td>kg（注释原文；推断：实为 kg·m⁻²，见"待确认"）</td>
+<td>每层大气质量</td>
+</tr>
+<tr>
+<td><code>epaisseur</code></td>
+<td>调用者</td>
+<td>real(ngrid,nlay)</td>
+<td>m</td>
+<td>每层厚度</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td>调用者</td>
+<td>real(ngrid,nlay)</td>
+<td>K</td>
+<td>层中心温度</td>
+</tr>
+<tr>
+<td><code>rd</code></td>
+<td>调用者</td>
+<td>real(naersize)</td>
+<td>m</td>
+<td>粒子半径</td>
+</tr>
+<tr>
+<td><code>rho</code></td>
+<td>调用者</td>
+<td>real(nrhosize)</td>
+<td>kg·m⁻³</td>
+<td>粒子密度</td>
+</tr>
+<tr>
+<td><code>beta</code></td>
+<td>调用者</td>
+<td>real</td>
+<td>-</td>
+<td>粒子形状修正因子（Murphy et al. JGR 1990）：1 球形、0.85 不规则、0.5 盘状（第 41-45 行注释）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pqi</code></td>
+<td>inout，调用者</td>
+<td>real(ngrid,nlay)</td>
+<td>如 kg/kg</td>
+<td>示踪物混合比，被 <code>vlz_fi</code> 原地更新为沉降后的值</td>
+</tr>
+<tr>
+<td><code>wq</code></td>
+<td>out，调用者</td>
+<td>real(ngrid,nlay+1)</td>
+<td>注释写 ?/m-2（推断：kg·m⁻²，即本时间步穿过各界面的示踪物量）</td>
+<td>界面示踪物通量；<code>wq(ig,1)</code> 即落到地表的量，调用者用 <code>wq(ig,1)/ptimestep</code> 得地表通量倾向</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>firstcall</code>（SAVE，THREADPRIVATE，第 53-55 行）：首调时计算 Stokes 常数 <code>b = 2/9 · g/visc</code>。</li>
+<li><code>a</code>, <code>b</code>（SAVE，THREADPRIVATE，第 73-75 行）：<code>b</code> 仅 firstcall 算一次；<strong><code>a</code> 每次调用都重算</strong>（第 97-100 行在 firstcall 块之外），因为 <code>a</code> 要乘以本次调用传入的 <code>beta</code>。</li>
+<li>物理常数硬编码在本文件：CO2 气体分子粘度 <code>visc = 1.e-5</code> N·s·m⁻²、CO2 有效分子半径 <code>molrad = 2.2e-10</code> m（第 68-70 行）。</li>
+<li>无文件读写；无诊断输出（仅注释掉的 write）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<p>按执行顺序（行号为源码行号）：</p>
+<ol type="1">
+<li><strong>firstcall 初始化</strong>（第 82-93 行）：<code>b = (2/9)·g/visc</code>，即 Stokes 速度公式 <code>Vstokes = b·ρ·r²</code> 的系数。</li>
+<li><strong>平均自由程系数</strong>（第 97-100 行，每次调用）： <code>a = 0.707·8.31 / (4π·molrad²·N_A)</code>，再乘形状因子：<code>a = a·beta</code>。 气体平均自由程为 <code>λ = a·T/P</code>（第 96 行注释）。</li>
+<li><strong>逐层逐列算下落速度</strong>（第 113-136 行）：
+<ul>
+<li>按 <code>naersize</code>/<code>nrhosize</code> 取标量或场值：<code>rfall</code>、<code>rhofall</code>。场值索引方式为 <code>i = ngrid*(l-1)+ig</code>，即把 (ngrid,nlay) 数组按列优先展平后取第 i 个元素。</li>
+<li><strong>Stokes + Cunningham 滑移修正</strong>（第 130-131 行）： <code>vstokes = b·ρ·r²·(1 + 1.333·(a·T/P)/r)</code> 注释注明该修正按 Rossow (Icarus 36, 1-50, 1978)。</li>
+<li>穿层时间 <code>traversee = epaisseur/vstokes</code>（第 134 行）。</li>
+</ul></li>
+<li><strong>算每个界面被输运的大气质量 <code>w</code></strong>（第 145-215 行）：
+<ul>
+<li>下落距离 <code>dztop = vstokes·ptimestep</code>（第 148 行）。</li>
+<li><strong>简单法</strong>（第 161-171 行，总是先算）： <code>w = (1 − exp(−dztop·g/(r·T)))·pplev/g</code> 即静力学下 dztop 厚度内的气柱质量。数值保护（JF+AS 2005/11 注释）：当指数太小使 <code>1−exp(−x)</code> 圆整为 0 时，改用一阶泰勒展开 <code>w = (dztop·g/(r·T))·pplev/g</code>。</li>
+<li><strong>复杂法</strong>（第 176-201 行，仅当 <code>dztop &gt; epaisseur</code>，即一个时间步穿越多层）： 用 while 循环逐层下推（第 182-187 行）：累计已穿越厚度 <code>Ep</code> 和已耗时间 <code>Stra</code>，剩余时间用下一层的 <code>vstokes(ig,l+k)</code> 继续下落，直到 <code>dztop ≤ Ep</code> 或到达 <code>l+k+1 &gt; nlay</code>。最终落点气压 <code>ptop = pplev(ig,l+k)·exp(−(dztop−Ep)·g/(r·T(l+k)))</code> （同样有指数过小时的泰勒保护，第 193-198 行），则 <code>w(ig,l) = (pplev(ig,l) − ptop)/g</code>。</li>
+</ul></li>
+<li><strong>调用输运格式</strong>（第 216 行）：<code>call vlz_fi(ngrid,nlay,pqi,2.,masse,w,wq)</code>，原地更新 <code>pqi</code>，输出 <code>wq</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>subroutine newsedim(..., rd, rho, pqi, wq, beta):
+  if firstcall: b = (2/9)*g/visc
+  a = 0.707*8.31/(4*pi*molrad^2*Avogadro) * beta
+
+  for each layer l, column ig:
+    rfall  = rd(1)  or rd(ngrid*(l-1)+ig)    # 按 naersize
+    rhofall= rho(1) or rho(ngrid*(l-1)+ig)   # 按 nrhosize
+    vstokes = b*rhofall*rfall^2 * (1 + 1.333*(a*T/P)/rfall)
+    traversee = epaisseur/vstokes
+
+  for each layer l, column ig:
+    dztop = vstokes*ptimestep
+    w = (1 - exp(-dztop*g/(r*T))) * pplev/g     # 数值下溢时用泰勒展开
+    if dztop &gt; epaisseur(l):                    # 一步穿多层
+      沿 l+1, l+2, ... 累计厚度 Ep 与时间 Stra，
+      用各层各自的 vstokes 推进剩余时间，
+      ptop = pplev(l+k)*exp(-(dztop-Ep)*g/(r*T(l+k)))
+      w = (pplev(l) - ptop)/g
+
+  call vlz_fi(ngrid, nlay, pqi, 2., masse, w, wq)  # 更新 pqi，输出 wq</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>尘埃循环</td>
+<td><code>callsedim_mod.F</code> 第 569 行（doubleq 分箱，<code>beta=0.5</code>，密度 <code>rho_dust</code>）</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td><code>callsedim_mod.F</code> 第 593/599 行（水冰/CCN，<code>beta</code> 来自 run 参数 <code>ice_shape</code>，默认 0.75，源码依据 callsedim 第 341-342 行）</td>
+</tr>
+<tr>
+<td>通用示踪物沉降</td>
+<td><code>callsedim_mod.F</code> 第 654 行（<code>beta=1.0</code>）</td>
+</tr>
+<tr>
+<td>CO2 云</td>
+<td><code>co2cloud_mod.F90</code> 共 8 处调用（第 819-884 行区间），均为 <code>naersize=nrhosize=ngrid*nlay</code> 的场模式，<code>beta=0.85</code>（co2cloud 第 178 行参数常量），对 CO2 冰与各类 CCN 示踪物在微时间步内沉降</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>下落速度公式必须同时含 Stokes 项与 Cunningham 滑移项：<code>v = (2/9)(g/visc)·ρ·r²·(1 + 1.333·λ/r)</code>，其中 <code>λ = a·T/P</code>，且 <code>a</code> 已乘形状因子 <code>beta</code>。注意 <code>beta</code> 进的是<strong>滑移修正项</strong>而不是 Stokes 项。</li>
+<li>粘度 <code>visc=1e-5</code>、分子半径 <code>molrad=2.2e-10</code> 是 CO2 的硬编码值；重新实现时不能换成地球空气值。</li>
+<li><code>naersize</code>/<code>nrhosize</code> 的 1 vs <code>ngrid*nlay</code> 双模式必须保留，且场模式索引是 <code>ngrid*(l-1)+ig</code> 的展平约定——调用方传 <code>rsedcloud</code>/<code>rhocloud</code> 这类 (ngrid,nlay) 数组时依赖该内存布局。</li>
+<li>两处 <code>1-exp(-x)</code> / <code>exp(-x)</code> 的小指数泰勒保护（第 167-171、193-198 行）影响极小粒子/极短时间步的结果，需保留。</li>
+<li>跨层 while 循环上界条件 <code>l+k+1.le.nlay</code>：粒子最多推到模式顶下一层，超出部分按最后到达层的温度做静力外推。</li>
+<li><code>w</code> 的含义是"该界面在本时间步被示踪物穿越的大气质量（kg·m⁻²）"，正方向向下；真正的守恒输运与坡度限制（<code>pente_max=2</code>）在 <code>vlz_fi</code> 内完成。</li>
+<li>复现风险：复杂法只在 <code>dztop &gt; epaisseur</code> 时覆盖简单法的 <code>w</code>；两种方法在临界处不连续是否影响结果未验证。</li>
+<li>复现风险：firstcall 只算 <code>b</code> 不算 <code>a</code>，若误把 <code>a</code> 也放进 firstcall（如早期版本结构），不同 <code>beta</code> 的多次调用会互相污染。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>待确认：<code>masse</code> 的注释单位写 "kg"，但 <code>vlz_fi.F</code> 第 25 行同名参数注释为 "mass of atmospheric layer delta(P)/g"，推断实际单位为 kg·m⁻²（柱密度）。</li>
+<li>待确认：<code>wq</code> 注释单位写 "?/m-2"，推断对 kg/kg 混合比示踪物而言是 kg·m⁻²。</li>
+<li>待确认：<code>0.707</code> 即 1/√2（来自分子运动论平均自由程公式 λ = kT/(√2·π·d²·P) 的变形），此为推断；<code>8.31</code> 为通用气体常数，<code>6.023e23</code> 为 Avogadro 常数（源码字面值，精度较低）。</li>
+<li>待确认：形状因子 <code>beta</code> 乘在平均自由程系数 <code>a</code> 上（而非直接乘速度）的物理依据，注释只给出 Murphy et al. JGR 1990 文献指引，未展开。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="callsedim_mod.html">callsedim_mod.md</a>：上层调度器，准备粒径/密度并分类调用本例程。</li>
+<li><a href="vlz_fi.html">vlz_fi.md</a>：本例程调用的垂直输运内核（TASK-0027 已完成）。</li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle.md</a>：尘埃沉降主题流程。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

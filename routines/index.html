@@ -1,0 +1,2289 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>index - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>routines/index.md</span>
+    </nav>
+    <article class="content">
+<h1 id="例程索引">例程索引</h1>
+<p>本页有两层入口：先列 <code>routines/</code> 目录下的例程级专题页，再从 <a href="../reference/symbol-index.html">symbol-index</a> 摘录所有 <code>subroutine</code> / <code>function</code> 记录，方便从导航栏直接反查具体例程。</p>
+<h2 id="例程专题页">例程专题页</h2>
+<table>
+<thead>
+<tr>
+<th>页面</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="co2condens-scavenging.html">co2condens-scavenging.md</a></td>
+<td><code>co2condens</code> 中 CO2 凝结清除尘埃/水冰的局部路径。</td>
+</tr>
+<tr>
+<td><a href="co2condens.html">co2condens.md</a></td>
+<td>CO2 地表/大气凝结主例程。</td>
+</tr>
+<tr>
+<td><a href="dust_coagulation_main.html">dust_coagulation_main.md</a></td>
+<td>尘埃凝并主例程和 Smoluchowski 半隐式离散。</td>
+</tr>
+<tr>
+<td><a href="initracer-co2-tracers.html">initracer-co2-tracers.md</a></td>
+<td><code>initracer</code> 中 CO2/CO2 ice/CCNCO2 tracer 识别和一致性检查。</td>
+</tr>
+<tr>
+<td><a href="physiq-co2-cycle-callpoints.html">physiq-co2-cycle-callpoints.md</a></td>
+<td><code>physiq</code> 中 CO2 云、CO2 凝结和 tendency 注入调用点。</td>
+</tr>
+<tr>
+<td><a href="physiq-water-cycle-callpoints.html">physiq-water-cycle-callpoints.md</a></td>
+<td><code>physiq</code> 中水云、沉降和水循环 tendency 注入调用点。</td>
+</tr>
+<tr>
+<td><a href="vdifc-water-surface-exchange.html">vdifc-water-surface-exchange.md</a></td>
+<td><code>vdifc</code> 中水汽地表交换、地下冰/吸附水和坡面通量路径。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="例程与函数反查表">例程与函数反查表</h2>
+<p>本表共收录 314 条 <code>subroutine</code> / <code>function</code> 记录。内容摘录自 <a href="../reference/symbol-index.html">symbol-index</a>，相关页面链接保持指向对应文件页、主题页或例程专题页。</p>
+<table>
+<thead>
+<tr>
+<th>例程/函数</th>
+<th>类型</th>
+<th>源码位置</th>
+<th>说明</th>
+<th>相关页面</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>conf_phys</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/conf_phys.F</code></td>
+<td>读取 <code>callphys.def</code>/<code>radia.def</code> 风格配置，设置物理开关、气溶胶 scatterer 名称和长波参数，并执行配置依赖校验。</td>
+<td><a href="../modules/phymars/conf_phys.html">conf_phys</a>, <a href="../modules/phymars/callkeys_mod.html">callkeys_mod</a></td>
+</tr>
+<tr>
+<td><code>ini_scatterers</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dimradmars_mod.F90</code></td>
+<td>按 <code>naerkind</code> 分配 <code>aerosol</code> 和气溶胶光学查找表，并清空 <code>name_iaer</code> 等待 <code>conf_phys</code> 填充。</td>
+<td><a href="../modules/phymars/dimradmars_mod.html">dimradmars_mod</a>, <a href="../modules/phymars/conf_phys.html">conf_phys</a></td>
+</tr>
+<tr>
+<td><code>callradite</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/callradite_mod.F</code></td>
+<td>识别并校验 scatterer，准备气溶胶粒径/光学厚度，按子域调用 <code>lwmain</code> 和 <code>swmain</code>，输出 LTE 层辐射加热率和地表/顶层通量。</td>
+<td><a href="../modules/phymars/callradite_mod.html">callradite_mod</a>, <a href="../modules/phymars/physiq_mod.html">physiq_mod</a>, <a href="../themes/radiation.html">radiation</a></td>
+</tr>
+<tr>
+<td><code>lwmain</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/lwmain_mod.F</code></td>
+<td>调用 <code>lwb/lwu/lwxd/lwxn/lwxb/lwflux/lwi</code>，输出长波冷却率、地表下行长波通量、顶层 OLR 和 <code>netrad</code>。</td>
+<td><a href="../modules/phymars/lwmain_mod.html">lwmain_mod</a>, <a href="../modules/phymars/lwb.html">lwb</a>, <a href="../modules/phymars/lwu.html">lwu</a>, <a href="../modules/phymars/lwflux.html">lwflux</a>, <a href="../modules/phymars/lwi.html">lwi</a></td>
+</tr>
+<tr>
+<td><code>SWMAIN</code> / <code>swmain</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/swmain_mod.F</code></td>
+<td>在 <code>nlaylte</code> 层内按两太阳谱段调用 <code>SWR_FOUQUART</code> 或 <code>SWR_TOON</code>，输出短波上下行通量和短波加热率。</td>
+<td><a href="../modules/phymars/swmain_mod.html">swmain_mod</a>, <a href="../modules/phymars/swr_fouquart.html">swr_fouquart</a>, <a href="../modules/phymars/swr_toon.html">swr_toon</a></td>
+</tr>
+<tr>
+<td><code>init_time</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/time_phylmdz_mod.F90</code></td>
+<td>写入运行起止日、初始时刻、sol 长度和物理时间步，并用 <code>nint(daysec/dtphys)</code> 派生 <code>steps_per_sol</code>。</td>
+<td><a href="../modules/phymars/time_phylmdz_mod.html">time_phylmdz_mod</a>, <a href="../modules/phymars/phys_state_var_init_mod.html">phys_state_var_init_mod</a></td>
+</tr>
+<tr>
+<td><code>writediagfi</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/writediagfi.F</code></td>
+<td>传统 <code>diagfi.nc</code> 写入后端，按 <code>dim=0/1/2/3</code> 创建并追加诊断变量。</td>
+<td><a href="../modules/phymars/writediagfi.html">writediagfi</a>, <a href="../modules/phymars/write_output_mod.html">write_output_mod</a></td>
+</tr>
+<tr>
+<td><code>writediagmicrofi</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/writediagmicrofi.F</code></td>
+<td>传统微物理子步诊断写入后端，按 <code>dim=0/1/2/3</code> 创建并追加带 <code>microtime</code> 维的变量。</td>
+<td><a href="../modules/phymars/writediagmicrofi.html">writediagmicrofi</a>, <a href="../modules/phymars/writediagfi.html">writediagfi</a></td>
+</tr>
+<tr>
+<td><code>wstats</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/wstats_mod.F90</code></td>
+<td>按 <code>istime=12</code> 个日内时刻槽位累加诊断字段和平方和。</td>
+<td><a href="../modules/phymars/wstats_mod.html">wstats_mod</a>, <a href="../routines/physiq-water-cycle-callpoints.html">physiq-water-cycle-callpoints</a>, <a href="../routines/physiq-co2-cycle-callpoints.html">physiq-co2-cycle-callpoints</a></td>
+</tr>
+<tr>
+<td><code>mkstats</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/wstats_mod.F90</code></td>
+<td>运行结束时把 <code>stats.nc</code> 中的累加量原地转换为均值和标准差。</td>
+<td><a href="../modules/phymars/wstats_mod.html">wstats_mod</a></td>
+</tr>
+<tr>
+<td><code>initialize_xios_output</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/xios_output_mod.F90</code></td>
+<td>设置 XIOS 轴、domain、calendar、起始时间并关闭定义阶段。</td>
+<td><a href="../modules/phymars/xios_output_mod.html">xios_output_mod</a>, <a href="../architecture/xios-config.html">xios-config</a></td>
+</tr>
+<tr>
+<td><code>update_xios_timestep</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/xios_output_mod.F90</code></td>
+<td>设置当前 XIOS context，递增 <code>time_it</code> 并推进 calendar。</td>
+<td><a href="../modules/phymars/xios_output_mod.html">xios_output_mod</a></td>
+</tr>
+<tr>
+<td><code>xios_is_active_field</code></td>
+<td>function</td>
+<td><code>libf/phymars/xios_output_mod.F90</code></td>
+<td>查询 XIOS field 是否激活并广播结果；当前 <code>write_output_mod</code> 中活跃性检查被注释。</td>
+<td><a href="../modules/phymars/xios_output_mod.html">xios_output_mod</a>, <a href="../modules/phymars/write_output_mod.html">write_output_mod</a></td>
+</tr>
+<tr>
+<td><code>convadj</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/convadj.F</code></td>
+<td>在 <code>physiq</code> 的 <code>calladj</code> 分支中混合不稳定层段，返回风、焓和 tracer 对流调整 tendency。</td>
+<td><a href="../modules/phymars/convadj.html">convadj</a></td>
+</tr>
+<tr>
+<td><code>mucorr</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/mucorr.F</code></td>
+<td>根据太阳赤纬和纬度计算日平均等效太阳角 <code>mu0</code> 与日照比例 <code>fract</code>；<code>physiq</code> 在 <code>diurnal=.false.</code> 时调用。</td>
+<td><a href="../modules/phymars/mucorr.html">mucorr</a>, <a href="../themes/radiation.html">radiation</a></td>
+</tr>
+<tr>
+<td><code>orbite</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/orbite.F</code></td>
+<td>用 <code>zls/pls</code>、<code>planete_h</code> 轨道参数和倾角计算 <code>dist_sol</code> 与 <code>declin</code>；<code>physiq</code> 在 <code>callrad</code> 分支调用。</td>
+<td><a href="../modules/phymars/orbite.html">orbite</a>, <a href="../themes/radiation.html">radiation</a></td>
+</tr>
+<tr>
+<td><code>lsp2solp</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/planete_h.F90</code></td>
+<td>由近日点太阳经度反推近日点 sol，并同步重算 <code>e_elips</code>。</td>
+<td><a href="../modules/phymars/planete_h.html">planete_h</a></td>
+</tr>
+<tr>
+<td><code>iniorbit</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/planete_h.F90</code></td>
+<td>根据 <code>aphelie/periheli/year_day/peri_day</code> 计算 <code>e_elips/p_elips/lsperi</code>，供 <code>solarlong</code> 和 <code>orbite</code> 读取。</td>
+<td><a href="../modules/phymars/planete_h.html">planete_h</a>, <a href="../modules/phymars/orbite.html">orbite</a></td>
+</tr>
+<tr>
+<td><code>solarlong</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/solarlong.F</code></td>
+<td>由 sol 日期、近日点日期和椭圆轨道参数计算弧度制太阳经度 <code>Ls</code>。</td>
+<td><a href="../modules/phymars/solarlong.html">solarlong</a>, <a href="../modules/phymars/orbite.html">orbite</a></td>
+</tr>
+<tr>
+<td><code>NIR_leedat</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nirdata.F90</code></td>
+<td>从 <code>datadir/NIRcorrection_feb2011.dat</code> 读取 42 层修正表，并在非 <code>MESOSCALE</code> 路径广播表数组。</td>
+<td><a href="../modules/phymars/nirdata.html">nirdata</a></td>
+</tr>
+<tr>
+<td><code>MZESC110</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_calc.F</code></td>
+<td>在 CTS 网格上计算 110 跃迁 escape probability 光学厚度 <code>taustar11_cts</code>。</td>
+<td><a href="../modules/phymars/nlte_calc.html">nlte_calc</a>, <a href="../modules/phymars/nlte_aux.html">nlte_aux</a></td>
+</tr>
+<tr>
+<td><code>MZTUD110</code> / <code>MZCUD110</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_calc.F</code></td>
+<td>计算 110 主带 <code>tau/tauinf</code> 并转换为 Curtis matrix <code>c110</code> 和边界向量 <code>vc110</code>。</td>
+<td><a href="../modules/phymars/nlte_calc.html">nlte_calc</a></td>
+</tr>
+<tr>
+<td><code>MZMC121</code> / <code>MZTUD121</code> / <code>MZCUD121</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_calc.F</code></td>
+<td>计算并合成 121 热带三个子带的 Curtis matrix <code>c121</code> 和边界向量 <code>vc121</code>。</td>
+<td><a href="../modules/phymars/nlte_calc.html">nlte_calc</a></td>
+</tr>
+<tr>
+<td><code>MZESC121</code> / <code>MZESC121sub</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_calc.F</code></td>
+<td>计算并归一化 121 热带三个子带的 escape probability <code>taustar12</code>。</td>
+<td><a href="../modules/phymars/nlte_calc.html">nlte_calc</a></td>
+</tr>
+<tr>
+<td><code>MZTVC121</code> / <code>MZTVC121sub</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_calc.F</code></td>
+<td>计算并合成 121 热带边界向量 <code>vc121</code>。</td>
+<td><a href="../modules/phymars/nlte_calc.html">nlte_calc</a></td>
+</tr>
+<tr>
+<td><code>nlte_setup</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_setup.F</code></td>
+<td>读取 <code>NLTEDAT</code> 谱线、Tstar/VC 和历史谱线表，初始化 NLTE 共享表状态。</td>
+<td><a href="../modules/phymars/nlte_setup.html">nlte_setup</a>, <a href="../modules/phymars/nlte_commons_h.html">nlte_commons_h</a></td>
+</tr>
+<tr>
+<td><code>LeeHISTOGRMS</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_setup.F</code></td>
+<td>逐个设置 <code>hid26-1..4.dat</code> 历史谱线表路径，并调用 <code>rhist_03</code> 读入缓存。</td>
+<td><a href="../modules/phymars/nlte_setup.html">nlte_setup</a>, <a href="../modules/phymars/nlte_aux.html">nlte_aux</a></td>
+</tr>
+<tr>
+<td><code>GETK_dlvr11</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_setup.F</code></td>
+<td>按温度计算 k19/k20/k21/k33 碰撞速率族，供 <code>nlte_tcool_mod.F</code> 的 NLTE cooling-time 计算使用。</td>
+<td><a href="../modules/phymars/nlte_setup.html">nlte_setup</a></td>
+</tr>
+<tr>
+<td><code>nlte_tcool</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_tcool_mod.F</code></td>
+<td>从 GCM 压强、温度、高度和 CO2/N2/CO/O 剖面计算 NLTE CO2 15 微米冷却率，输出 K/day。</td>
+<td><a href="../modules/phymars/nlte_tcool_mod.html">nlte_tcool_mod</a></td>
+</tr>
+<tr>
+<td><code>NLTEdlvr11_ZGRID</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_tcool_mod.F</code></td>
+<td>根据 <code>Pbottom_atm/Ptop_atm</code> 构造 NLTE 主网格、细网格、CTS 网格和 CTS 细网格，并写入 <code>nlte_commons_h</code>。</td>
+<td><a href="../modules/phymars/nlte_tcool_mod.html">nlte_tcool_mod</a></td>
+</tr>
+<tr>
+<td><code>NLTEdlvr11_CZALU</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_tcool_mod.F</code></td>
+<td>组装并求解 CO2 同位素振动态耦合矩阵，生成 <code>hr110/hr210/hr310/hr410/hr121</code> 冷却率。</td>
+<td><a href="../modules/phymars/nlte_tcool_mod.html">nlte_tcool_mod</a></td>
+</tr>
+<tr>
+<td><code>NLTEdlvr11_FB626CTS</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_tcool_mod.F</code></td>
+<td>在 CTS 延伸网格上计算 626 组分高层 <code>hr110CTS</code>，用于与主网格冷却率拼接。</td>
+<td><a href="../modules/phymars/nlte_tcool_mod.html">nlte_tcool_mod</a></td>
+</tr>
+<tr>
+<td><code>hrkday_convert</code></td>
+<td>function</td>
+<td><code>libf/phymars/nlte_tcool_mod.F</code></td>
+<td>使用 <code>daysec</code>、<code>n_avog</code>、平均热容和平均分子量把体积冷却功率换算为 K/day 因子。</td>
+<td><a href="../modules/phymars/nlte_tcool_mod.html">nlte_tcool_mod</a></td>
+</tr>
+<tr>
+<td><code>ERRORS</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_tcool_mod.F</code></td>
+<td>打印 NLTE 错误编号对应的诊断并调用 <code>abort_physic("nlte_tcool",...)</code> 终止；也被 <code>nlte_calc.F</code> 复用。</td>
+<td><a href="../modules/phymars/nlte_tcool_mod.html">nlte_tcool_mod</a>, <a href="../modules/phymars/nlte_calc.html">nlte_calc</a></td>
+</tr>
+<tr>
+<td><code>nltecool</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nltecool.F</code></td>
+<td>从 GCM 压强、温度和可选动态 tracer 成分计算 NLTE CO2 15 微米温度倾向，输出 K/s。</td>
+<td><a href="../modules/phymars/nltecool.html">nltecool</a></td>
+</tr>
+<tr>
+<td><code>interp1</code> / <code>interp3</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nltecool.F</code></td>
+<td>将本文件内置 escape function 与 VMR 压强表线性插值到 GCM 层压强。</td>
+<td><a href="../modules/phymars/nltecool.html">nltecool</a></td>
+</tr>
+<tr>
+<td><code>nlthermeq</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlthermeq.F</code></td>
+<td>根据 <code>pminte</code>、<code>callnlte</code> 和当前压强剖面确定 LTE 辐射计算到的层索引 <code>nlaylte</code>。</td>
+<td><a href="../modules/phymars/nlthermeq.html">nlthermeq</a>, <a href="../modules/phymars/nlteparams_h.html">nlteparams_h</a>, <a href="../modules/phymars/blendrad.html">blendrad</a></td>
+</tr>
+<tr>
+<td><code>planckdp</code></td>
+<td>function</td>
+<td><code>libf/phymars/nlte_aux.F</code></td>
+<td>NLTE cooling-time 路径使用的双精度 Planck 辅助函数。</td>
+<td><a href="../modules/phymars/nlte_aux.html">nlte_aux</a></td>
+</tr>
+<tr>
+<td><code>rhist_03</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_aux.F</code></td>
+<td>读取 NLTE 历史谱线表 <code>hisfile</code>，检查 <code>nbox_max</code>，并在非 <code>MESOSCALE</code> 路径广播缓存数组。</td>
+<td><a href="../modules/phymars/nlte_aux.html">nlte_aux</a></td>
+</tr>
+<tr>
+<td><code>gethist_03</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_aux.F</code></td>
+<td>把已缓存的历史谱线表恢复为当前 <code>thist/no/sk1/xls1/xld1</code> 工作数组。</td>
+<td><a href="../modules/phymars/nlte_aux.html">nlte_aux</a></td>
+</tr>
+<tr>
+<td><code>interstrhunt</code> / <code>intershphunt</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_aux.F</code></td>
+<td>按温度历史表插值 NLTE 谱线强度、self Lorentz 线宽和 Doppler 线宽。</td>
+<td><a href="../modules/phymars/nlte_aux.html">nlte_aux</a></td>
+</tr>
+<tr>
+<td><code>intzhunt</code> / <code>intzhunt_cts</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_aux.F</code></td>
+<td>在高度网格上插值 CO2、压力、混合比和温度等 NLTE 状态量。</td>
+<td><a href="../modules/phymars/nlte_aux.html">nlte_aux</a></td>
+</tr>
+<tr>
+<td><code>LUdec</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nlte_aux.F</code></td>
+<td>调用 LU 分解和回代，求解 NLTE cooling-time 相关矩阵方程。</td>
+<td><a href="../modules/phymars/nlte_aux.html">nlte_aux</a></td>
+</tr>
+<tr>
+<td><code>flusv</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/flusv.F</code></td>
+<td>组装并求解双流红外散射边值问题，返回层界向上/向下通量；<code>lwdiff</code> 当前以 <code>nsf=0</code> 调用。</td>
+<td><a href="../modules/phymars/flusv.html">flusv</a></td>
+</tr>
+<tr>
+<td><code>sys3v</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/flusv.F</code></td>
+<td><code>flusv</code> 内部使用的向量化三对角线性系统求解器。</td>
+<td><a href="../modules/phymars/flusv.html">flusv</a></td>
+</tr>
+<tr>
+<td><code>lwb</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/lwb.F</code></td>
+<td>按谱带多项式系数计算 <code>bsurf/btop/blev/blay/dblay/dbsublay</code>，供 <code>lwmain</code> 后续 <code>lwflux</code> 和 <code>lwi</code> 使用。</td>
+<td><a href="../modules/phymars/lwb.html">lwb</a></td>
+</tr>
+<tr>
+<td><code>lwdiff</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/lwdiff.F</code></td>
+<td>对 <code>iir=3:nir</code> 带外谱段构造双倍扩散子层，调用 <code>flusv</code> 并把上下行通量回填给 <code>lwflux</code>。</td>
+<td><a href="../modules/phymars/lwdiff.html">lwdiff</a>, <a href="../modules/phymars/flusv.html">flusv</a></td>
+</tr>
+<tr>
+<td><code>lwflux</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/lwflux.F</code></td>
+<td>合并 CO2 带内净交换率与 <code>lwdiff</code> 带外扩散通量，输出 <code>netrad</code>、<code>coolrate</code>、<code>fluxground</code> 和 <code>fluxtop</code>。</td>
+<td><a href="../modules/phymars/lwflux.html">lwflux</a>, <a href="../modules/phymars/lwdiff.html">lwdiff</a></td>
+</tr>
+<tr>
+<td><code>lwi</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/lwi.F</code></td>
+<td>用 <code>netrad</code>、<code>dblay</code>、<code>dp</code> 和 CO2 净交换率表组装三对角系统，求解半隐式长波冷却率 <code>newcoolrate</code>。</td>
+<td><a href="../modules/phymars/lwi.html">lwi</a></td>
+</tr>
+<tr>
+<td><code>lwtt</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/lwtt.F</code></td>
+<td>用 Voigt 等效吸收量、Padé 近似和 Horner 算法计算 CO2 长波透过率 <code>tr</code>。</td>
+<td><a href="../modules/phymars/lwtt.html">lwtt</a></td>
+</tr>
+<tr>
+<td><code>ini_yomlw_h</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/yomlw_h.F90</code></td>
+<td>分配 <code>xi/xi_ground/xi_emis</code> 并初始化 <code>xp/at/bt/ga/gb/cst_voigt</code> 固定系数表。</td>
+<td><a href="../modules/phymars/yomlw_h.html">yomlw_h</a>, <a href="../modules/phymars/phys_state_var_init_mod.html">phys_state_var_init_mod</a></td>
+</tr>
+<tr>
+<td><code>end_yomlw_h</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/yomlw_h.F90</code></td>
+<td>释放长波交换率缓存数组，供物理状态重初始化前调用。</td>
+<td><a href="../modules/phymars/yomlw_h.html">yomlw_h</a>, <a href="../modules/phymars/phys_state_var_init_mod.html">phys_state_var_init_mod</a></td>
+</tr>
+<tr>
+<td><code>lwu</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/lwu.F</code></td>
+<td>生成 CO2 累积吸收量 <code>co2_u/co2_up</code>、气溶胶透过率 <code>aer_t</code> 和总单散射参数 <code>tautotal/omegtotal/gtotal</code>。</td>
+<td><a href="../modules/phymars/lwu.html">lwu</a></td>
+</tr>
+<tr>
+<td><code>lwxb</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/lwxb.F</code></td>
+<td>计算地面/空间边界相关传输函数差分，并把边界净交换率写入 <code>yomlw_h::xi</code>。</td>
+<td><a href="../modules/phymars/lwxb.html">lwxb</a>, <a href="../modules/phymars/lwtt.html">lwtt</a></td>
+</tr>
+<tr>
+<td><code>lwxd</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/lwxd.F</code></td>
+<td>计算非相邻真实层对的传输函数差分，并把远距离净交换率写入 <code>yomlw_h::xi</code>。</td>
+<td><a href="../modules/phymars/lwxd.html">lwxd</a>, <a href="../modules/phymars/lwtt.html">lwtt</a></td>
+</tr>
+<tr>
+<td><code>lwxn</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/lwxn.F</code></td>
+<td>用可配置子层积分计算相邻层净交换率，并写入 <code>yomlw_h::xi</code> 与 <code>xi_ground</code>。</td>
+<td><a href="../modules/phymars/lwxn.html">lwxn</a>, <a href="../modules/phymars/lwtt.html">lwtt</a></td>
+</tr>
+<tr>
+<td><code>aeroptproperties</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/aeroptproperties.F</code></td>
+<td>由 <code>callradite</code> 在 <code>aeropacity</code> 前调用，输出 <code>QVISsQREF3d/omegaVIS3d/gVIS3d</code>、<code>QIRsQREF3d/omegaIR3d/gIR3d</code> 与 <code>QREFvis3d/QREFir3d</code>。</td>
+<td><a href="../modules/phymars/aeroptproperties.html">aeroptproperties</a>, <a href="../modules/phymars/aeropacity_mod.html">aeropacity_mod</a></td>
+</tr>
+<tr>
+<td><code>aeropacity</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/aeropacity_mod.F</code></td>
+<td>由 <code>callradite</code> 调用，按 <code>iaervar</code> 取场景柱厚度，逐种气溶胶逐层算可见光光学厚度 <code>aerosol</code>/柱厚度 <code>tau</code>/<code>taucloudtes</code>，产出 dso 诊断并调 <code>compute_dustscaling</code>。</td>
+<td><a href="../modules/phymars/aeropacity_mod.html">aeropacity_mod</a>, <a href="../modules/phymars/calcstormfract_mod.html">calcstormfract_mod</a></td>
+</tr>
+<tr>
+<td><code>compute_dtau</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/compute_dtau_mod.F90</code></td>
+<td>按每日 <code>t_scenario_sol</code> 更新 <code>dtau</code>，并用 <code>coeff_injection/(daysec*(tf-ti))</code> 计算地表尘埃注入速率 <code>dustliftday</code>。</td>
+<td><a href="../modules/phymars/compute_dtau_mod.html">compute_dtau_mod</a></td>
+</tr>
+<tr>
+<td><code>read_dust_scenario</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/read_dust_scenario_mod.F90</code></td>
+<td>按 <code>zday</code>、GCM 经纬度和 <code>IRtoVIScoef</code> 输出参考气压处的可见光场景柱厚度 <code>tau_pref_scenario</code>。</td>
+<td><a href="../modules/phymars/read_dust_scenario_mod.html">read_dust_scenario_mod</a>, <a href="../modules/phymars/compute_dtau_mod.html">compute_dtau_mod</a>, <a href="../modules/phymars/dust_rad_adjust_mod.html">dust_rad_adjust_mod</a></td>
+</tr>
+<tr>
+<td><code>compute_dust_rad_adjust</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dust_rad_adjust_mod.F90</code></td>
+<td>读取次日场景柱厚度，按 <code>tau_pref_scenario_next*pplev/odpref/taudust</code> 生成目标比并在两日间线性插值。</td>
+<td><a href="../modules/phymars/dust_rad_adjust_mod.html">dust_rad_adjust_mod</a>, <a href="../modules/phymars/dust_scaling_mod.html">dust_scaling_mod</a></td>
+</tr>
+<tr>
+<td><code>compute_dustscaling</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dust_scaling_mod.F90</code></td>
+<td>由 <code>aeropacity</code> 调用，计算 <code>taudust</code>、更新 <code>tauscaling</code> 或 <code>dust_rad_adjust</code> 并就地缩放 <code>aerosol</code>。</td>
+<td><a href="../modules/phymars/dust_scaling_mod.html">dust_scaling_mod</a>, <a href="../modules/phymars/aeropacity_mod.html">aeropacity_mod</a></td>
+</tr>
+<tr>
+<td><code>dust_windstress_lift</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dust_windstress_lift.F90</code></td>
+<td>在 <code>windstress_lift_scheme=0</code> 下用摩擦速度阈值和 White(1979) 水平通量计算 <code>dqslift</code>，CO2 冰覆盖时不注入。</td>
+<td><a href="../modules/phymars/dust_windstress_lift.html">dust_windstress_lift</a></td>
+</tr>
+<tr>
+<td><code>dustdevil</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dustdevil.F90</code></td>
+<td>由 <code>physiq</code> 在 <code>callddevil</code> 下调用，用固定 <code>wind=15</code> 的感热通量估 <code>devila</code>，生成 <code>pdqs_dev</code> 和边界层内 <code>pdqdev</code>。</td>
+<td><a href="../modules/phymars/dustdevil.html">dustdevil</a>, <a href="../modules/phymars/dust_param_mod.html">dust_param_mod</a></td>
+</tr>
+<tr>
+<td><code>geticecover</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/geticecover.F90</code></td>
+<td>按 <code>Ls</code>、经度、纬度逐点返回 0/1 极冠覆盖；<code>physiq</code> 的 <code>tituscap</code> 分支调用它覆盖 <code>qsurf_tmp(:,igcm_co2)</code>。</td>
+<td><a href="../modules/phymars/geticecover.html">geticecover</a></td>
+</tr>
+<tr>
+<td><code>growthrate</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/growthrate.F</code></td>
+<td>计算热阻、扩散阻、Knudsen 修正和水汽扩散系数，输出 <code>res</code> 供 <code>improvedclouds</code> 隐式冰增长公式使用。</td>
+<td><a href="../modules/phymars/growthrate.html">growthrate</a></td>
+</tr>
+<tr>
+<td><code>nuclea</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nuclea.F</code></td>
+<td>按水汽分压、温度、饱和比和各尘核 bin 数量计算水冰成核率 <code>nucrate</code>，由 <code>improvedclouds</code> 用于 dust-&gt;CCN 转换。</td>
+<td><a href="../modules/phymars/nuclea.html">nuclea</a>, <a href="../modules/phymars/improvedclouds_mod.html">improvedclouds_mod</a></td>
+</tr>
+<tr>
+<td><code>def_var</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/def_var.F90</code></td>
+<td>传统 NetCDF 变量定义辅助例程；调用 <code>NF_REDEF</code>、<code>NF_DEF_VAR</code>、<code>NF_PUT_ATT_TEXT</code> 和 <code>NF_ENDDEF</code> 创建 <code>NF_FLOAT</code> 变量并写 <code>title</code>/<code>units</code> 属性。</td>
+<td><a href="../modules/phymars/def_var.html">def_var</a>, <a href="../modules/phymars/writediagsoil.html">writediagsoil</a></td>
+</tr>
+<tr>
+<td><code>Init_dimphy</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dimphy.F90</code></td>
+<td>用调用方传入的 <code>klon0/klev0</code> 初始化本地列数和垂直层数派生维度；1D testphys 路径调用 <code>init_dimphy(1,nlayer)</code>。</td>
+<td><a href="../modules/phymars/dimphy.html">dimphy</a></td>
+</tr>
+<tr>
+<td><code>watercloud</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/watercloud_mod.F</code></td>
+<td>水冰云形成主例程；按 <code>microphys</code> 分派 <code>simpleclouds</code>/<code>improvedclouds</code>，汇总 tendency、半径和沉降参数。</td>
+<td><a href="../modules/phymars/watercloud_mod.html">watercloud_mod</a>, <a href="../themes/water-cycle.html">water-cycle</a></td>
+</tr>
+<tr>
+<td><code>ini_watercloud_mod</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/watercloud_mod.F</code></td>
+<td>分配 <code>zdqcloud</code> / <code>zdqscloud</code>。</td>
+<td><a href="../modules/phymars/watercloud_mod.html">watercloud_mod</a></td>
+</tr>
+<tr>
+<td><code>end_watercloud_mod</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/watercloud_mod.F</code></td>
+<td>释放 <code>zdqcloud</code> / <code>zdqscloud</code>。</td>
+<td><a href="../modules/phymars/watercloud_mod.html">watercloud_mod</a></td>
+</tr>
+<tr>
+<td><code>simpleclouds</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/simpleclouds_mod.F</code></td>
+<td><code>microphys=.false.</code> 时由 <code>watercloud</code> 调用；做瞬时饱和调整，无显式成核动力学。</td>
+<td><a href="../modules/phymars/simpleclouds_mod.html">simpleclouds_mod</a>, <a href="../modules/phymars/watercloud_mod.html">watercloud_mod</a></td>
+</tr>
+<tr>
+<td><code>improvedclouds</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/improvedclouds_mod.F90</code></td>
+<td>水冰成核、冰增长/升华、尘核释放、HDO 分馏主例程。</td>
+<td><a href="../modules/phymars/improvedclouds_mod.html">improvedclouds_mod</a></td>
+</tr>
+<tr>
+<td><code>adapt_imicro</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/improvedclouds_mod.F90</code></td>
+<td>按可凝结量估算水云微物理自适应子步数。</td>
+<td><a href="../modules/phymars/improvedclouds_mod.html">improvedclouds_mod</a></td>
+</tr>
+<tr>
+<td><code>watersat</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/watersat_mod.F90</code></td>
+<td>给定温度和压力计算水饱和质量混合比。</td>
+<td><a href="../modules/phymars/water-saturation-helpers.html">water-saturation-helpers</a></td>
+</tr>
+<tr>
+<td><code>tcondwater</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/tcondwater.F90</code></td>
+<td>给定压力和水质量混合比反推水凝结温度。</td>
+<td><a href="../modules/phymars/water-saturation-helpers.html">water-saturation-helpers</a></td>
+</tr>
+<tr>
+<td><code>soilwater</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/soilwater.F90</code></td>
+<td>地下水汽、地下冰和吸附水的一维吸附-扩散-相变求解器；由 <code>vdifc</code> 水汽段调用。</td>
+<td><a href="../modules/phymars/soilwater.html">soilwater</a>, <a href="../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a>, <a href="../themes/water-cycle.html">water-cycle</a></td>
+</tr>
+<tr>
+<td><code>waterice_tifeedback</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/waterice_tifeedback_mod.F90</code></td>
+<td>由地表水冰量或孔隙冰填充率计算新的土壤热惯量廓线。</td>
+<td><a href="../modules/phymars/waterice_tifeedback_mod.html">waterice_tifeedback_mod</a></td>
+</tr>
+<tr>
+<td><code>hdo_surfex</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/hdo_surfex_mod.F</code></td>
+<td>基于 H2O 通量和同位素分馏计算 HDO 地表通量；由 <code>vdifc</code> 调用。</td>
+<td><a href="../modules/phymars/hdo_surfex_mod.html">hdo_surfex_mod</a>, <a href="../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a></td>
+</tr>
+<tr>
+<td><code>iniwrite</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/iniwrite.F</code></td>
+<td>初始化传统 <code>diagfi</code> / <code>diagmicrofi</code> NetCDF 文件的维度、坐标变量、控制参数和固定字段。</td>
+<td><a href="../modules/phymars/iniwrite.html">iniwrite</a>, <a href="../modules/phymars/def_var.html">def_var</a></td>
+</tr>
+<tr>
+<td><code>interp_line</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/interp_line.F</code></td>
+<td>在有序源数据点之间进行线性插值，超出范围时使用最近边界值；由 <code>soil_settings</code> 和 <code>lect_start_archive</code> 调用。</td>
+<td><a href="../modules/phymars/interp_line.html">interp_line</a>, <a href="../modules/phymars/soil_settings.html">soil_settings</a></td>
+</tr>
+<tr>
+<td><code>open_startphy</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/iostart.F90</code></td>
+<td>打开 <code>startfi.nc</code> 初始场文件。</td>
+<td><a href="../modules/phymars/iostart.html">iostart</a></td>
+</tr>
+<tr>
+<td><code>close_startphy</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/iostart.F90</code></td>
+<td>关闭 <code>startfi.nc</code> 文件。</td>
+<td><a href="../modules/phymars/iostart.html">iostart</a></td>
+</tr>
+<tr>
+<td><code>open_restartphy</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/iostart.F90</code></td>
+<td>创建或打开 <code>restartfi.nc</code> 重启文件。</td>
+<td><a href="../modules/phymars/iostart.html">iostart</a></td>
+</tr>
+<tr>
+<td><code>close_restartphy</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/iostart.F90</code></td>
+<td>关闭 <code>restartfi.nc</code> 文件。</td>
+<td><a href="../modules/phymars/iostart.html">iostart</a></td>
+</tr>
+<tr>
+<td><code>atke_compute_km_kh</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/lmdz_atke_exchange_coeff.F90</code></td>
+<td>计算湍流 Km/Kh 交换系数和 TKE 演化。</td>
+<td><a href="../modules/phymars/lmdz_atke_exchange_coeff.html">lmdz_atke_exchange_coeff</a></td>
+</tr>
+<tr>
+<td><code>atke_vdiff_tke</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/lmdz_atke_exchange_coeff.F90</code></td>
+<td>TKE 的垂直扩散（隐式三对角求解）。</td>
+<td><a href="../modules/phymars/lmdz_atke_exchange_coeff.html">lmdz_atke_exchange_coeff</a></td>
+</tr>
+<tr>
+<td><code>atke_ini</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/lmdz_atke_turbulence_ini.F90</code></td>
+<td>读取 ATKE 配置键、缓存行星常数和黏性系数，并派生稳定度函数参数。</td>
+<td><a href="../modules/phymars/lmdz_atke_turbulence_ini.html">lmdz_atke_turbulence_ini</a></td>
+</tr>
+<tr>
+<td><code>call_atke</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/lmdz_call_atke.F90</code></td>
+<td>ATKE 主调用例程，协调核心计算和可选的显式风切变预测。</td>
+<td><a href="../modules/phymars/lmdz_call_atke.html">lmdz_call_atke</a></td>
+</tr>
+<tr>
+<td><code>atke_explicit_prediction</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/lmdz_call_atke.F90</code></td>
+<td>显式风切变预测，用于前向-后向时间步进。</td>
+<td><a href="../modules/phymars/lmdz_call_atke.html">lmdz_call_atke</a></td>
+</tr>
+<tr>
+<td><code>co2cloud</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/co2cloud_mod.F90</code></td>
+<td>CO2 云形成主例程；调用 <code>improvedCO2clouds</code>，在内部处理 CO2 cloud tracer 沉降与非负保护。</td>
+<td><a href="../modules/phymars/co2cloud_mod.html">co2cloud_mod</a>, <a href="../routines/physiq-co2-cycle-callpoints.html">physiq-co2-cycle-callpoints</a></td>
+</tr>
+<tr>
+<td><code>improvedCO2clouds</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/improvedco2clouds_mod.F90</code></td>
+<td>CO2 冰成核、增长/升华和 CCN 释放主例程。</td>
+<td><a href="../modules/phymars/improvedco2clouds_mod.html">improvedco2clouds_mod</a></td>
+</tr>
+<tr>
+<td><code>tcondco2</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/tcondco2.F90</code></td>
+<td>给定压力和 CO2 质量混合比反推 CO2 凝结温度。</td>
+<td><a href="../modules/phymars/co2-saturation-helpers.html">co2-saturation-helpers</a>, <a href="../themes/co2-cycle.html">co2-cycle</a></td>
+</tr>
+<tr>
+<td><code>co2condens</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/co2condens_mod.F</code></td>
+<td>CO2 地表/大气凝结主调度；处理表压变化、地表 CO2 冰和 sigma 层校正。</td>
+<td><a href="../routines/co2condens.html">co2condens</a>, <a href="../themes/co2-cycle.html">co2-cycle</a></td>
+</tr>
+<tr>
+<td><code>scavenging_by_co2</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/co2condens_mod.F</code></td>
+<td>CO2 凝结清除尘埃/水冰的 section 例程。</td>
+<td><a href="../routines/co2condens-scavenging.html">co2condens-scavenging</a>, <a href="../routines/co2condens.html">co2condens</a></td>
+</tr>
+<tr>
+<td><code>vl1d</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/co2condens_mod.F</code></td>
+<td><code>co2condens</code> 内部 Van Leer 1D 垂直输送算子。</td>
+<td><a href="../routines/co2condens.html">co2condens</a></td>
+</tr>
+<tr>
+<td><code>co2snow</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/co2snow.F</code></td>
+<td>根据 CO2 雪沉积修正地表红外发射率。</td>
+<td><a href="../modules/phymars/co2snow.html">co2snow</a>, <a href="../routines/co2condens.html">co2condens</a></td>
+</tr>
+<tr>
+<td><code>albedocaps</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/albedocaps.F90</code></td>
+<td>根据裸地、多年 CO2 冰和当前 CO2 霜状态设置 <code>psolaralb</code> 与 <code>emisref</code>。</td>
+<td><a href="../modules/phymars/albedocaps.html">albedocaps</a>, <a href="../routines/co2condens.html">co2condens</a></td>
+</tr>
+<tr>
+<td><code>read_TES_icecap_albedo</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/albedocaps.F90</code></td>
+<td>读取南/北半球 TES 极冠反照率 NetCDF 表并广播。</td>
+<td><a href="../modules/phymars/albedocaps.html">albedocaps</a></td>
+</tr>
+<tr>
+<td><code>TES_icecap_albedo</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/albedocaps.F90</code></td>
+<td>按 Ls、经度、纬度对 TES 极冠反照率表插值，并施加半球系数与上限。</td>
+<td><a href="../modules/phymars/albedocaps.html">albedocaps</a></td>
+</tr>
+<tr>
+<td><code>density_co2_ice</code></td>
+<td>function</td>
+<td><code>libf/phymars/density_co2_ice.F90</code></td>
+<td>用温度计算 CO2 冰密度。</td>
+<td><a href="../modules/phymars/density_co2_ice.html">density_co2_ice</a>, <a href="../themes/co2-cycle.html">co2-cycle</a></td>
+</tr>
+<tr>
+<td><code>nucleaco2</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nucleaco2.F90</code></td>
+<td>计算 CO2 冰异质成核率；尘埃、流星尘、水冰核路径均会调用。</td>
+<td><a href="../modules/phymars/nucleaco2.html">nucleaco2</a>, <a href="../modules/phymars/improvedco2clouds_mod.html">improvedco2clouds_mod</a></td>
+</tr>
+<tr>
+<td><code>massflowrateco2</code></td>
+<td>function</td>
+<td><code>libf/phymars/massflowrateco2.F90</code></td>
+<td>计算单个 CO2 冰粒质量增长/升华通量。</td>
+<td><a href="../modules/phymars/massflowrateco2.html">massflowrateco2</a>, <a href="../modules/phymars/improvedco2clouds_mod.html">improvedco2clouds_mod</a></td>
+</tr>
+<tr>
+<td><code>callsedim</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/callsedim_mod.F</code></td>
+<td>按 tracer 类型调度重力沉降；水冰沉降通过此路径进入 <code>newsedim</code>。</td>
+<td><a href="../modules/phymars/callsedim_mod.html">callsedim_mod</a>, <a href="../themes/dust-cycle.html">dust-cycle</a>, <a href="../themes/water-cycle.html">water-cycle</a></td>
+</tr>
+<tr>
+<td><code>newsedim</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/newsedim_mod.F</code></td>
+<td>计算 Stokes + Cunningham 下落速度，调用 <code>vlz_fi</code> 完成垂直输运。</td>
+<td><a href="../modules/phymars/newsedim_mod.html">newsedim_mod</a>, <a href="../modules/phymars/callsedim_mod.html">callsedim_mod</a></td>
+</tr>
+<tr>
+<td><code>vlz_fi</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/vlz_fi.F</code></td>
+<td>已知界面输运质量 <code>w</code> 后，更新 tracer 混合比并返回通量 <code>wq</code>。</td>
+<td><a href="../modules/phymars/vlz_fi.html">vlz_fi</a>, <a href="../modules/phymars/newsedim_mod.html">newsedim_mod</a></td>
+</tr>
+<tr>
+<td><code>updaterice_micro</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/updaterad.F90</code></td>
+<td>水冰微物理活跃时，由冰/CCN 质量数浓度更新水冰半径和云密度。</td>
+<td><a href="../modules/phymars/updaterad.html">updaterad</a>, <a href="../modules/phymars/improvedclouds_mod.html">improvedclouds_mod</a></td>
+</tr>
+<tr>
+<td><code>updaterice_microco2</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/updaterad.F90</code></td>
+<td>CO2 冰微物理半径与云密度反演。</td>
+<td><a href="../modules/phymars/updaterad.html">updaterad</a>, <a href="../modules/phymars/co2cloud_mod.html">co2cloud_mod</a></td>
+</tr>
+<tr>
+<td><code>updaterice_typ</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/updaterad.F90</code></td>
+<td>微物理关闭时，用典型廓线推算水冰半径。</td>
+<td><a href="../modules/phymars/updaterad.html">updaterad</a>, <a href="../modules/phymars/simpleclouds_mod.html">simpleclouds_mod</a></td>
+</tr>
+<tr>
+<td><code>updaterdust</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/updaterad.F90</code></td>
+<td>由尘埃质量/数浓度更新尘埃几何平均半径。</td>
+<td><a href="../modules/phymars/updaterad.html">updaterad</a>, <a href="../themes/dust-cycle.html">dust-cycle</a></td>
+</tr>
+<tr>
+<td><code>updaterccn</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/updaterad.F90</code></td>
+<td>水云微物理用 CCN 质量平均半径反演。</td>
+<td><a href="../modules/phymars/updaterad.html">updaterad</a>, <a href="../modules/phymars/improvedclouds_mod.html">improvedclouds_mod</a></td>
+</tr>
+<tr>
+<td><code>updaterccnCO2</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/updaterad.F90</code></td>
+<td>CO2 云微物理用 CCN 半径反演。</td>
+<td><a href="../modules/phymars/updaterad.html">updaterad</a>, <a href="../modules/phymars/improvedco2clouds_mod.html">improvedco2clouds_mod</a></td>
+</tr>
+<tr>
+<td><code>updatereffrad</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/updatereffrad_mod.F</code></td>
+<td>由 <code>callradite</code> 调用，更新尘埃、水冰、CO2 冰等气溶胶的辐射有效半径和有效方差。</td>
+<td><a href="../modules/phymars/updatereffrad_mod.html">updatereffrad_mod</a>, <a href="../modules/phymars/aeroptproperties.html">aeroptproperties</a></td>
+</tr>
+<tr>
+<td><code>dust_coagulation_main</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dust_coagulation_mod.F90</code></td>
+<td>尘埃凝并主例程；已有例程页。</td>
+<td><a href="../routines/dust_coagulation_main.html">dust_coagulation_main</a>, <a href="../modules/phymars/dust_coagulation_mod.html">dust_coagulation_mod</a></td>
+</tr>
+<tr>
+<td><code>calcstormfract</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/calcstormfract_mod.F90</code></td>
+<td>根据 <code>stormdust_mass</code> 垂直廓线计算 <code>totstormfract</code>，供辐射和 rocket dust storm 输运使用。</td>
+<td><a href="../modules/phymars/calcstormfract_mod.html">calcstormfract_mod</a>, <a href="../modules/phymars/rocketduststorm_mod.html">rocketduststorm_mod</a></td>
+</tr>
+<tr>
+<td><code>call_dayperi</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/call_dayperi.F</code></td>
+<td>根据近日点太阳经度、偏心率和火星年长度计算 <code>peri_day</code>。</td>
+<td><a href="../modules/phymars/call_dayperi.html">call_dayperi</a>, <a href="../architecture/testphys1d-config.html">testphys1d-config</a></td>
+</tr>
+<tr>
+<td><code>disvert_noterre</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dyn1d/disvert_noterre.F</code> -&gt; <code>LMDZ.COMMON/libf/dyn3d_common/disvert_noterre.F</code></td>
+<td>非地球垂直离散构造例程；读取 <code>esasig.def</code> 或 <code>z2sig.def</code>，按 <code>hybrid</code> 生成 <code>ap/bp/aps/bps/presnivs/pseudoalt</code>。</td>
+<td><a href="../modules/phymars/dyn1d/disvert_noterre.html">disvert_noterre</a></td>
+</tr>
+<tr>
+<td><code>sig_hybrid</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dyn1d/disvert_noterre.F</code> -&gt; <code>LMDZ.COMMON/libf/dyn3d_common/disvert_noterre.F</code></td>
+<td>从目标 sigma 位置反解 hybrid <code>newsig</code> 的辅助迭代例程。</td>
+<td><a href="../modules/phymars/dyn1d/disvert_noterre.html">disvert_noterre</a></td>
+</tr>
+<tr>
+<td><code>infotrac_init</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dyn1d/infotrac.F90</code> -&gt; <code>LMDZ.COMMON/libf/dyn3d_common/infotrac.F90</code></td>
+<td>公共 3D tracer 初始化例程；读取 <code>traceur.def</code>/modern planetary 格式并构造 <code>tname/ttext/iadv/niadv</code>。</td>
+<td><a href="../modules/phymars/dyn1d/infotrac.html">infotrac</a></td>
+</tr>
+<tr>
+<td><code>init_testphys1d</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dyn1d/init_testphys1d_mod.F90</code></td>
+<td>读取配置、tracer、restart/profile，初始化时间、垂直坐标、几何、坡面、地表、土壤、化学和水 profile 控制状态。</td>
+<td><a href="../modules/phymars/dyn1d/init_testphys1d_mod.html">init_testphys1d_mod</a>, <a href="../architecture/testphys1d-config.html">testphys1d-config</a></td>
+</tr>
+<tr>
+<td><code>init_interface_dyn_phys</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dyn1d/mod_interface_dyn_phys.F90</code> -&gt; <code>LMDZ.COMMON/libf/dynphy_lonlat/mod_interface_dyn_phys.F90</code></td>
+<td>初始化 <code>index_i/index_j</code>；非 <code>CPP_PARA</code> 时为空例程。</td>
+<td><a href="../modules/phymars/dyn1d/mod_interface_dyn_phys.html">mod_interface_dyn_phys</a>, <a href="../modules/phymars/dyn1d/init_testphys1d_mod.html">init_testphys1d_mod</a></td>
+</tr>
+<tr>
+<td><code>init_parallel</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dyn1d/parallel_lmdz.F90</code> -&gt; <code>LMDZ.COMMON/libf/dyn3dpar/parallel_lmdz.F90</code></td>
+<td>初始化 <code>COMM_LMDZ</code> 上的 rank/size、纬向带分配、输出文件、极点标志和 OpenMP chunk；<code>testphys1d</code> 直接调用。</td>
+<td><a href="../modules/phymars/dyn1d/parallel_lmdz.html">parallel_lmdz</a>, <a href="../modules/phymars/dyn1d/mod_const_mpi.html">mod_const_mpi</a></td>
+</tr>
+<tr>
+<td><code>exchange_hallo</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dyn1d/parallel_lmdz.F90</code> -&gt; <code>LMDZ.COMMON/libf/dyn3dpar/parallel_lmdz.F90</code></td>
+<td>按 <code>up/down</code> halo 行数和极点标志在相邻 MPI rank 之间非阻塞交换边界行。</td>
+<td><a href="../modules/phymars/dyn1d/parallel_lmdz.html">parallel_lmdz</a></td>
+</tr>
+<tr>
+<td><code>profile_temp</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dyn1d/profile_temp_mod.F90</code></td>
+<td>按 <code>ichoice/tref/isin/pic/largeur/hauteur</code> 生成温度廓线，可读取 <code>profile_temp</code> 文件并写出 <code>profile_temp.out</code>。</td>
+<td><a href="../modules/phymars/dyn1d/profile_temp_mod.html">profile_temp_mod</a>, <a href="../modules/phymars/dyn1d/init_testphys1d_mod.html">init_testphys1d_mod</a></td>
+</tr>
+<tr>
+<td><code>read_profile</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dyn1d/read_profile_mod.F90</code></td>
+<td>读取 <code>profile_&lt;tracer&gt;</code> 文件并填充 <code>qsurf/q</code>，缺文件时处理 CO2、HDO 和 dust 默认初始化。</td>
+<td><a href="../modules/phymars/dyn1d/read_profile_mod.html">read_profile_mod</a>, <a href="../modules/phymars/dyn1d/init_testphys1d_mod.html">init_testphys1d_mod</a></td>
+</tr>
+<tr>
+<td><code>writerestart1D</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/dyn1d/writerestart1D_mod.F90</code></td>
+<td>覆盖写出 <code>restart1D.txt</code>，记录 <code>ps</code>、逐 tracer profile、<code>u/v</code> 和 <code>teta</code>。</td>
+<td><a href="../modules/phymars/dyn1d/writerestart1D_mod.html">writerestart1D_mod</a>, <a href="../modules/phymars/dyn1d/testphys1d.html">testphys1d</a></td>
+</tr>
+<tr>
+<td><code>calldrag_noro</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/calldrag_noro_mod.F90</code></td>
+<td>按 <code>zstd</code> 阈值筛选格点，分子域调用 <code>drag_noro</code> 并返回地形 GW tendency。</td>
+<td><a href="../modules/phymars/calldrag_noro_mod.html">calldrag_noro_mod</a>, <a href="../architecture/testphys1d-config.html">testphys1d-config</a></td>
+</tr>
+<tr>
+<td><code>drag_noro</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/drag_noro_mod.F90</code></td>
+<td>翻转垂直层序并调用 <code>ORODRAG</code>，把返回的温度/风 tendency 转为每步增量并累加低层 stress。</td>
+<td><a href="../modules/phymars/drag_noro_mod.html">drag_noro_mod</a>, <a href="../modules/phymars/calldrag_noro_mod.html">calldrag_noro_mod</a></td>
+</tr>
+<tr>
+<td><code>SUGWD</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/sugwd.F90</code></td>
+<td>根据半层 sigma 坐标初始化 <code>yoegwd_h</code> 中的 <code>NKTOPG</code>、drag 系数、Richardson 数阈值和安全下限。</td>
+<td><a href="../modules/phymars/sugwd.html">sugwd</a>, <a href="../modules/phymars/orosetup.html">orosetup</a>, <a href="../modules/phymars/gwstress_mod.html">gwstress_mod</a>, <a href="../modules/phymars/gwprofil_mod.html">gwprofil_mod</a></td>
+</tr>
+<tr>
+<td><code>ini_surfdat_h</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/surfdat_h.F90</code></td>
+<td>按 <code>ngrid,nq,nslope</code> 分配完整地表共享数组。</td>
+<td><a href="../modules/phymars/surfdat_h.html">surfdat_h</a></td>
+</tr>
+<tr>
+<td><code>end_surfdat_h</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/surfdat_h.F90</code></td>
+<td>释放完整地表共享数组。</td>
+<td><a href="../modules/phymars/surfdat_h.html">surfdat_h</a></td>
+</tr>
+<tr>
+<td><code>ini_surfdat_h_slope_var</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/surfdat_h.F90</code></td>
+<td>只分配依赖坡面维度的地表数组。</td>
+<td><a href="../modules/phymars/surfdat_h.html">surfdat_h</a></td>
+</tr>
+<tr>
+<td><code>end_surfdat_h_slope_var</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/surfdat_h.F90</code></td>
+<td>只释放依赖坡面维度的地表数组。</td>
+<td><a href="../modules/phymars/surfdat_h.html">surfdat_h</a></td>
+</tr>
+<tr>
+<td><code>surfini</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/surfini_mod.F90</code></td>
+<td>初始化 <code>watercaptag/dryness</code> 并按配置定位水冰帽。</td>
+<td><a href="../modules/phymars/surfini_mod.html">surfini_mod</a></td>
+</tr>
+<tr>
+<td><code>locate_watercaptag</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/surfini_mod.F90</code></td>
+<td>用手工经纬度边界为任意分辨率定位水冰帽。</td>
+<td><a href="../modules/phymars/surfini_mod.html">surfini_mod</a></td>
+</tr>
+<tr>
+<td><code>SWR_FOUQUART</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/swr_fouquart.F</code></td>
+<td>合成 aerosol/Rayleigh 光学参数并计算短波上下通量。</td>
+<td><a href="../modules/phymars/swr_fouquart.html">swr_fouquart</a>, <a href="../modules/phymars/cvmgt.html">cvmgt</a></td>
+</tr>
+<tr>
+<td><code>SWR_TOON</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/swr_toon.F</code></td>
+<td>合成 aerosol/Rayleigh 光学参数并调用 <code>GFLUXV</code> 计算短波通量。</td>
+<td><a href="../modules/phymars/swr_toon.html">swr_toon</a>, <a href="../modules/phymars/cvmgt.html">cvmgt</a></td>
+</tr>
+<tr>
+<td><code>GFLUXV</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/swr_toon.F</code></td>
+<td>单列 delta-Eddington / Meador-Weaver two-stream 通量求解器。</td>
+<td><a href="../modules/phymars/swr_toon.html">swr_toon</a></td>
+</tr>
+<tr>
+<td><code>swrayleigh</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/swrayleigh.F</code></td>
+<td>用 <code>CRAY</code> 多项式和修正太阳天顶角余弦计算 <code>prayl</code>；当前 Mars 压力缩放行被注释。</td>
+<td><a href="../modules/phymars/swrayleigh.html">swrayleigh</a>, <a href="../modules/phymars/swr_fouquart.html">swr_fouquart</a>, <a href="../modules/phymars/swr_toon.html">swr_toon</a></td>
+</tr>
+<tr>
+<td><code>tabfi</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/tabfi.F</code></td>
+<td>从 <code>controle</code> 数组或默认路径初始化物理常数、轨道量和地表参数，并调用 <code>iniorbit</code>。</td>
+<td><a href="../modules/phymars/tabfi.html">tabfi</a>, <a href="../modules/phymars/planete_h.html">planete_h</a></td>
+</tr>
+<tr>
+<td><code>ORODRAG</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/orodrag_mod.F90</code></td>
+<td>调用 <code>OROSETUP/GWSTRESS/GWPROFIL</code> 后，把 <code>ZTAU</code> stress profile 和阻塞层 wake drag 转换为 U/V/T tendency。</td>
+<td><a href="../modules/phymars/orodrag_mod.html">orodrag_mod</a>, <a href="../modules/phymars/gwstress_mod.html">gwstress_mod</a>, <a href="../modules/phymars/gwprofil_mod.html">gwprofil_mod</a></td>
+</tr>
+<tr>
+<td><code>OROSETUP</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/orosetup.F90</code></td>
+<td>计算 <code>ORODRAG</code> 所需的地形高度层索引、低层风、稳定度、密度、方向投影和阻塞层参数。</td>
+<td><a href="../modules/phymars/orosetup.html">orosetup</a>, <a href="../modules/phymars/orodrag_mod.html">orodrag_mod</a></td>
+</tr>
+<tr>
+<td><code>GWPROFIL</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/gwprofil_mod.F90</code></td>
+<td>在 <code>ORODRAG</code> 内根据临界层、波破碎判据和阻塞层插值改写 <code>ZTAU</code> 半层应力廓线。</td>
+<td><a href="../modules/phymars/gwprofil_mod.html">gwprofil_mod</a></td>
+</tr>
+<tr>
+<td><code>GWSTRESS</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/gwstress_mod.F90</code></td>
+<td>在 <code>ORODRAG</code> 内按方程 (17) 计算底层半层 <code>ZTAU(:,nlayer+1)</code> 的地形重力波应力。</td>
+<td><a href="../modules/phymars/gwstress_mod.html">gwstress_mod</a></td>
+</tr>
+<tr>
+<td><code>NONORO_GWD_MIX</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nonoro_gwd_mix_mod.F90</code></td>
+<td>计算非地形重力波诱导的温度、纬向风和 tracer 混合 tendency；当前源码将经向风混合输出置零。</td>
+<td><a href="../modules/phymars/nonoro_gwd_mix_mod.html">nonoro_gwd_mix_mod</a></td>
+</tr>
+<tr>
+<td><code>ini_nonoro_gwd_mix</code> / <code>end_nonoro_gwd_mix</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nonoro_gwd_mix_mod.F90</code></td>
+<td>分配和释放 <code>nonoro_gwd_mix_mod</code> 的保存数组。</td>
+<td><a href="../modules/phymars/nonoro_gwd_mix_mod.html">nonoro_gwd_mix_mod</a></td>
+</tr>
+<tr>
+<td><code>NONORO_GWD_RAN</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nonoro_gwd_ran_mod.F90</code></td>
+<td>构造离散随机非地形 GW、推进 EP flux，并返回 U/V 动量拖曳 tendency。</td>
+<td><a href="../modules/phymars/nonoro_gwd_ran_mod.html">nonoro_gwd_ran_mod</a></td>
+</tr>
+<tr>
+<td><code>ini_nonoro_gwd_ran</code> / <code>end_nonoro_gwd_ran</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nonoro_gwd_ran_mod.F90</code></td>
+<td>分配和释放 <code>nonoro_gwd_ran_mod</code> 的保存数组。</td>
+<td><a href="../modules/phymars/nonoro_gwd_ran_mod.html">nonoro_gwd_ran_mod</a></td>
+</tr>
+<tr>
+<td><code>calltherm_interface</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/calltherm_interface_mod.F90</code></td>
+<td>在 <code>calltherm</code> 开启时准备热羽流输入、执行子步长、返回热羽流 tendency 和 <code>wstar</code>/<code>hfmax</code>。</td>
+<td><a href="../modules/phymars/calltherm_interface_mod.html">calltherm_interface_mod</a>, <a href="../architecture/config-system.html">config-system</a></td>
+</tr>
+<tr>
+<td><code>thermcell_main_mars</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/thermcell_main_mars.F90</code></td>
+<td>在热羽流子步长内计算源层、羽流高度、质量通量、温度/CO2 tendency 和诊断通量。</td>
+<td><a href="../modules/phymars/thermcell_main_mars.html">thermcell_main_mars</a>, <a href="../modules/phymars/thermcell_dqup.html">thermcell_dqup</a>, <a href="../modules/phymars/comtherm_h.html">comtherm_h</a></td>
+</tr>
+<tr>
+<td><code>thermcell_dqup</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/thermcell_dqup.F90</code></td>
+<td>按热羽流质量通量、夹卷和退卷通量计算标量 <code>dq/dt</code>。</td>
+<td><a href="../modules/phymars/thermcell_dqup.html">thermcell_dqup</a>, <a href="../modules/phymars/comtherm_h.html">comtherm_h</a></td>
+</tr>
+<tr>
+<td><code>check_physics_fields</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/check_fields.F90</code></td>
+<td>检查温度、风、表面压力和 tracer，发现 NaN/越界值后中止。</td>
+<td><a href="../modules/phymars/check_fields.html">check_fields</a>, <a href="../modules/phymars/tracer_mod.html">tracer_mod</a></td>
+</tr>
+<tr>
+<td><code>check_temperature</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/check_fields.F90</code></td>
+<td>检查温度 NaN 和 50-350 K 默认范围。</td>
+<td><a href="../modules/phymars/check_fields.html">check_fields</a></td>
+</tr>
+<tr>
+<td><code>check_winds</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/check_fields.F90</code></td>
+<td>检查 <code>u</code>/<code>v</code> NaN 和 500 m/s 默认绝对值上限。</td>
+<td><a href="../modules/phymars/check_fields.html">check_fields</a></td>
+</tr>
+<tr>
+<td><code>check_ps</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/check_fields.F90</code></td>
+<td>检查表面压力 NaN 和 80-2000 Pa 默认范围。</td>
+<td><a href="../modules/phymars/check_fields.html">check_fields</a></td>
+</tr>
+<tr>
+<td><code>check_tracers</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/check_fields.F90</code></td>
+<td>检查 tracer NaN，并对负 tracer 混合比打印警告。</td>
+<td><a href="../modules/phymars/check_fields.html">check_fields</a>, <a href="../modules/phymars/tracer_mod.html">tracer_mod</a></td>
+</tr>
+<tr>
+<td><code>ini_conc_mod</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/conc_mod.F90</code></td>
+<td>按 <code>ngrid,nlayer</code> 分配 <code>mmean/Akknew/cpnew/rnew</code>。</td>
+<td><a href="../modules/phymars/conc_mod.html">conc_mod</a></td>
+</tr>
+<tr>
+<td><code>end_conc_mod</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/conc_mod.F90</code></td>
+<td>释放已分配的 <code>mmean/Akknew/cpnew/rnew</code>。</td>
+<td><a href="../modules/phymars/conc_mod.html">conc_mod</a></td>
+</tr>
+<tr>
+<td><code>init_r_cp_mu</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/conc_mod.F90</code></td>
+<td>用 <code>comcstfi_h:r/cpp/mugaz</code> 初始化常数背景 <code>rnew/cpnew/mmean</code>。</td>
+<td><a href="../modules/phymars/conc_mod.html">conc_mod</a>, <a href="../modules/phymars/comcstfi_h.html">comcstfi_h</a></td>
+</tr>
+<tr>
+<td><code>update_r_cp_mu_ak</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/conc_mod.F90</code></td>
+<td>在 <code>photochem</code> 或 <code>callthermos</code> 路径中，按 tracer 组成更新 <code>mmean/rnew/cpnew/Akknew</code>。</td>
+<td><a href="../modules/phymars/conc_mod.html">conc_mod</a>, <a href="../modules/phymars/tracer_mod.html">tracer_mod</a></td>
+</tr>
+<tr>
+<td><code>conduction</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/conduction.F</code></td>
+<td>按 <code>conc_mod::Akknew/cpnew/rnew</code> 与温度依赖热导率 <code>k=Akk*T**skk</code>（<code>skk=0.69</code>）求解热传导倾向 <code>zdtconduc</code>，由 <code>thermosphere_mod</code> 在 <code>callconduct</code> 下调用。</td>
+<td><a href="../modules/aeronomars/conduction.html">conduction</a>, <a href="../modules/phymars/conc_mod.html">conc_mod</a>, <a href="../modules/phymars/callkeys_mod.html">callkeys_mod</a></td>
+</tr>
+<tr>
+<td><code>molvis</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/molvis.F</code></td>
+<td>对单个风速分量求解垂直分子黏性扩散；<code>thermosphere_mod</code> 在 <code>callmolvis</code> 下分别用于 <code>pu</code> 和 <code>pv</code>。</td>
+<td><a href="../modules/aeronomars/molvis.html">molvis</a></td>
+</tr>
+<tr>
+<td><code>param_read</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/param_read.F</code></td>
+<td>master-only 读取 <code>coln.dat</code>、<code>j*</code>、<code>varflujo.dat</code>、<code>efdis_inter.dat</code>，写入柱积分、光吸收和解离/电离效率表并广播；当前源码未找到活跃调用点。</td>
+<td><a href="../modules/aeronomars/param_read.html">param_read</a></td>
+</tr>
+<tr>
+<td><code>param_read_e107</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/param_read_e107.F</code></td>
+<td>读取 <code>EUVDAT/param_v6</code>、E107 拟合/年表和 CO2/O2/N2/CO 电离分支比，写入并广播 <code>param_v4_h</code> 热层参数。</td>
+<td><a href="../modules/aeronomars/param_read_e107.html">param_read_e107</a>, <a href="../modules/phymars/datafile_mod.html">datafile_mod</a></td>
+</tr>
+<tr>
+<td><code>fill_data_thermos</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/param_v4_h.F90</code></td>
+<td>填入内置吸收截面、36 个代表波长 <code>freccen</code> 和 195/295 K CO2 截面表；由 <code>physiq_mod</code> 热层初始化段调用。</td>
+<td><a href="../modules/aeronomars/param_v4_h.html">param_v4_h</a>, <a href="../modules/phymars/physiq_mod.html">physiq_mod</a></td>
+</tr>
+<tr>
+<td><code>allocate_param_thermos</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/param_v4_h.F90</code></td>
+<td>按 <code>nlayer</code> 分配 <code>jfotsout/jdistot/jion</code> 和热层化学 <code>P*</code>/<code>L*</code>/<code>tmin*</code> 缓存；由 <code>physiq_mod</code> 调用。</td>
+<td><a href="../modules/aeronomars/param_v4_h.html">param_v4_h</a>, <a href="../modules/phymars/physiq_mod.html">physiq_mod</a></td>
+</tr>
+<tr>
+<td><code>calchim</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/calchim_mod.F90</code></td>
+<td>firstcall 识别化学 tracer 和初始化光解/热层速率；逐列调用 <code>photochemistry</code>、<code>perosat</code>、可选 <code>chemthermos</code>/<code>deposition</code>，并把更新后的 mole fraction 转回 <code>dqchim</code>。</td>
+<td><a href="../modules/aeronomars/calchim_mod.html">calchim_mod</a>, <a href="../modules/aeronomars/photochemistry_mod.html">photochemistry_mod</a>, <a href="../modules/aeronomars/perosat.html">perosat</a>, <a href="../modules/aeronomars/chemistrydata.html">chemistrydata</a>, <a href="../modules/aeronomars/chemthermos_readini.html">chemthermos_readini</a>, <a href="../modules/aeronomars/deposition.html">deposition</a>, <a href="../modules/aeronomars/iono_h.html">iono_h</a></td>
+</tr>
+<tr>
+<td><code>ini_calchim_mod</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/calchim_mod.F90</code></td>
+<td>按 <code>ngrid,nlayer,nq</code> 分配并清零 <code>zdqchim(ngrid,nlayer,nq)</code> 与 <code>zdqschim(ngrid,nq)</code>。</td>
+<td><a href="../modules/aeronomars/calchim_mod.html">calchim_mod</a>, <a href="../modules/phymars/phys_state_var_init_mod.html">phys_state_var_init_mod</a></td>
+</tr>
+<tr>
+<td><code>end_calchim_mod</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/calchim_mod.F90</code></td>
+<td>释放已分配的 <code>zdqchim/zdqschim</code> 化学倾向缓存。</td>
+<td><a href="../modules/aeronomars/calchim_mod.html">calchim_mod</a>, <a href="../modules/phymars/phys_state_var_init_mod.html">phys_state_var_init_mod</a></td>
+</tr>
+<tr>
+<td><code>read_phototable</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/chemistrydata.F90</code></td>
+<td>从 <code>datadir</code>（默认 <code>jmars.20140930</code>，<code>phototable</code> 键可覆盖）读取光解查找表，master 读后 <code>bcast</code>；由 <code>calchim_mod</code> firstcall 在 <code>photochem .and. .not. jonline</code> 下调用。</td>
+<td><a href="../modules/aeronomars/chemistrydata.html">chemistrydata</a>, <a href="../modules/phymars/datafile_mod.html">datafile_mod</a></td>
+</tr>
+<tr>
+<td><code>photolysis</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/photolysis.F90</code></td>
+<td><code>jonline=false</code> 时由 <code>photochemistry</code> 调用；按温度、SZA、CO2 柱、O3 柱和尘埃 5 维插值 <code>jphot</code>，输出基础 <code>v_phot</code>。</td>
+<td><a href="../modules/aeronomars/photolysis.html">photolysis</a>, <a href="../modules/aeronomars/photochemistry_mod.html">photochemistry_mod</a>, <a href="../modules/aeronomars/chemistrydata.html">chemistrydata</a></td>
+</tr>
+<tr>
+<td><code>init_photolysis</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/photolysis_mod.F90</code></td>
+<td>在线光解初始化入口；建立低分辨率波长网格，读取太阳通量、截面、量子产额和反照率。</td>
+<td><a href="../modules/aeronomars/photolysis_mod.html">photolysis_mod</a>, <a href="../modules/aeronomars/calchim_mod.html">calchim_mod</a></td>
+</tr>
+<tr>
+<td><code>photolysis_online</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/photolysis_online.F</code></td>
+<td><code>jonline=true</code> 时由 <code>photochemistry</code> 调用；逐波长做两流辐射传输，累加 15 个光解率到 <code>v_phot</code>。</td>
+<td><a href="../modules/aeronomars/photolysis_online.html">photolysis_online</a>, <a href="../modules/aeronomars/photochemistry_mod.html">photochemistry_mod</a>, <a href="../modules/aeronomars/photolysis_mod.html">photolysis_mod</a></td>
+</tr>
+<tr>
+<td><code>surfacearea</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/surfacearea.F</code></td>
+<td>按微物理/简单云两种方案计算尘/冰颗粒总表面积密度 <code>surfdust</code>/<code>surfice</code>（m2/m3），由 <code>physiq_mod</code> 在 <code>photochem</code> 路径中调用。</td>
+<td><a href="../modules/aeronomars/surfacearea.html">surfacearea</a>, <a href="../modules/phymars/physiq_mod.html">physiq_mod</a>, <a href="../modules/aeronomars/calchim_mod.html">calchim_mod</a></td>
+</tr>
+<tr>
+<td><code>thermosphere</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/thermosphere_mod.F</code></td>
+<td><code>physiq_mod</code> 在 <code>callthermos</code> 下调用；依次执行 EUV 加热、热传导、黏性扩散和分子扩散，累加 tendency 并输出 H/H₂/D 逃逸通量。</td>
+<td><a href="../modules/aeronomars/thermosphere_mod.html">thermosphere_mod</a>, <a href="../modules/phymars/physiq_mod.html">physiq_mod</a></td>
+</tr>
+<tr>
+<td><code>avg_horiz</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/avg_horiz_mod.F</code></td>
+<td>将源网格地表数据按空间搜索分箱平均到目标 GCM 网格；由 <code>datareadnc</code> 调用。</td>
+<td><a href="../modules/dynphy_lonlat/avg_horiz_mod.html">avg_horiz_mod</a></td>
+</tr>
+<tr>
+<td><code>caldyn0</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/caldyn0.F</code></td>
+<td>lon-lat GCM 动力倾向计算；依次调 13 个 EXTERNAL 子过程（<code>covcont/pression/psextbar/massdair/massbar/flumass/convmass/vitvert/tourpot/enercin/bernoui/sortvarc0</code> 等），由 <code>newstart</code> 调用。</td>
+<td><a href="../modules/dynphy_lonlat/caldyn0.html">caldyn0</a></td>
+</tr>
+<tr>
+<td><code>call_physiq</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/callphysiq_mod.F90</code></td>
+<td>校验 <code>planet_type</code> 后将动力核心状态数组转发给 <code>physiq</code>，回写风/温度/示踪剂/地表气压 tendency。</td>
+<td><a href="../modules/dynphy_lonlat/callphysiq_mod.html">callphysiq_mod</a></td>
+</tr>
+<tr>
+<td><code>datareadnc</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/datareadnc.F</code></td>
+<td>从 <code>surface.nc</code> 读取地表数据（z0/反照率/热惯量/MOLA 地形/亚网格参数），经 <code>interp_horiz</code>/<code>avg_horiz</code>/<code>mvc_horiz</code> 插值到 GCM 网格，由 <code>newstart</code> 调用。</td>
+<td><a href="../modules/dynphy_lonlat/datareadnc.html">datareadnc</a></td>
+</tr>
+<tr>
+<td><code>defrun_new</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/defrun_new.F</code></td>
+<td>从 <code>run.def</code> 读取 30+ 运行参数（时间步进/耗散/zoom/海绵层/物理频率等）写入公共模块变量，由 <code>newstart</code> 和 <code>start2archive</code> 调用。</td>
+<td><a href="../modules/dynphy_lonlat/defrun_new.html">defrun_new</a></td>
+</tr>
+<tr>
+<td><code>grid_noro1</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/grid_noro1.F</code></td>
+<td>从 USN 高分辨率高程数据计算亚网格地形参数（zmea/zstd/zsig/zgam/zthe），由 <code>datareadnc</code> 调用。</td>
+<td><a href="../modules/dynphy_lonlat/grid_noro1.html">grid_noro1</a></td>
+</tr>
+<tr>
+<td><code>ini_archive</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/ini_archive.F</code></td>
+<td>写入 start_archive NetCDF 文件头部：11 个维度、坐标/垂直系数/土壤/地表/坡面等静态变量和 100 元素控制参数表，由 <code>start2archive</code> 调用。</td>
+<td><a href="../modules/dynphy_lonlat/ini_archive.html">ini_archive</a></td>
+</tr>
+<tr>
+<td><code>iniphysiq</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/iniphysiq_mod.F90</code></td>
+<td>物理初始化入口；调用 <code>inigeomphy</code>/<code>phys_state_var_init</code>/<code>ini_fillgeom</code>/<code>conf_phys</code>，由 <code>newstart</code>/<code>nogcm</code>/<code>start2archive</code> 调用。</td>
+<td><a href="../modules/dynphy_lonlat/iniphysiq_mod.html">iniphysiq_mod</a></td>
+</tr>
+<tr>
+<td><code>interp_vert</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/interp_vert.F</code></td>
+<td>垂直坐标线性插值；将变量从旧混合 σ-p 垂直层插值到新垂直层，由 <code>lect_start_archive</code> 调用。</td>
+<td><a href="../modules/dynphy_lonlat/interp_vert.html">interp_vert</a></td>
+</tr>
+<tr>
+<td><code>leapfrog_nogcm</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/leapfrog_nogcm.F</code></td>
+<td>独立物理模式时间积分主循环；Matsuno + leapfrog 步进，牛顿松弛替代动力核心，由 <code>nogcm</code> 调用。</td>
+<td><a href="../modules/dynphy_lonlat/leapfrog_nogcm.html">leapfrog_nogcm</a></td>
+</tr>
+<tr>
+<td><code>globaverage2d</code></td>
+<td>function</td>
+<td><code>libf/dynphy_lonlat/phymars/leapfrog_nogcm.F</code></td>
+<td>面积加权全局二维平均（内部辅助函数）。</td>
+<td><a href="../modules/dynphy_lonlat/leapfrog_nogcm.html">leapfrog_nogcm</a></td>
+</tr>
+<tr>
+<td><code>lect_start_archive</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/lect_start_archive.F</code></td>
+<td>读取 start_archive NetCDF 并通过 <code>interp_vert</code>/<code>interp_horiz</code>/<code>interp_line</code> 重映射到当前网格，由 <code>newstart</code> 调用。</td>
+<td><a href="../modules/dynphy_lonlat/lect_start_archive.html">lect_start_archive</a></td>
+</tr>
+<tr>
+<td><code>mvc_horiz</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/mvc_horiz_mod.F</code></td>
+<td>最大值复合水平插值；将高分辨率源数据取亚网格最大值映射到 GCM 目标网格，由 <code>datareadnc</code> 调用。</td>
+<td><a href="../modules/dynphy_lonlat/mvc_horiz_mod.html">mvc_horiz_mod</a></td>
+</tr>
+<tr>
+<td><code>load_MONS_data</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/newstart.F</code></td>
+<td>读取 <code>datadir/results_MONS_lat_lon_H_depth.txt</code>，补南极缺测并插值 MONS 地下冰数据到 GCM 网格；由 <code>newstart</code> 的 <code>mons_ice</code> 分支调用。</td>
+<td><a href="../modules/dynphy_lonlat/newstart.html">newstart</a>, <a href="../modules/phymars/datafile_mod.html">datafile_mod</a></td>
+</tr>
+<tr>
+<td><code>readhead_NC</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/readhead_NC.F</code></td>
+<td>NetCDF 头信息读取器；读取 <code>controle</code>、经纬度、面积、<code>phisinit</code>、<code>aps/bps</code>，设置动力常数、几何数组和垂直坐标状态，由 <code>xvik</code> 调用。</td>
+<td><a href="../modules/dynphy_lonlat/readhead_NC.html">readhead_NC</a></td>
+</tr>
+<tr>
+<td><code>scal_wind</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/scal_wind.F</code></td>
+<td>将 <code>xus/xvs</code> 相邻平均到 u/v 风点；由 <code>lect_start_archive</code> 在 start_archive 风场读取后调用。</td>
+<td><a href="../modules/dynphy_lonlat/scal_wind.html">scal_wind</a>, <a href="../modules/dynphy_lonlat/lect_start_archive.html">lect_start_archive</a></td>
+</tr>
+<tr>
+<td><code>subslope_mola</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/subslope_mola.F90</code></td>
+<td>读取 MOLA 坡面统计并输出 <code>subslope_dist(ngridmx,nslope)</code>；由 <code>newstart</code> 的坡面数量修改分支调用。</td>
+<td><a href="../modules/dynphy_lonlat/subslope_mola.html">subslope_mola</a>, <a href="../modules/dynphy_lonlat/newstart.html">newstart</a></td>
+</tr>
+<tr>
+<td><code>mola</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/subslope_mola.F90</code></td>
+<td>读取 <code>datadir/mola64.nc</code> 的 <code>alt</code> 高程，并调用 <code>getslopes_mola32</code> 生成坡度倾角和坡向。</td>
+<td><a href="../modules/dynphy_lonlat/subslope_mola.html">subslope_mola</a>, <a href="../modules/phymars/datafile_mod.html">datafile_mod</a></td>
+</tr>
+<tr>
+<td><code>getslopes_mola32</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/subslope_mola.F90</code></td>
+<td>用 MOLA 高程中心差分计算坡度倾角 <code>theta_mola</code> 和坡向 <code>psi_mola</code>。</td>
+<td><a href="../modules/dynphy_lonlat/subslope_mola.html">subslope_mola</a></td>
+</tr>
+<tr>
+<td><code>slopes_stat</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/subslope_mola.F90</code></td>
+<td>对单个 GCM 网格框内的 MOLA 点按 <code>def_slope</code> 分箱，得到坡面比例。</td>
+<td><a href="../modules/dynphy_lonlat/subslope_mola.html">subslope_mola</a></td>
+</tr>
+<tr>
+<td><code>wind_scal</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/wind_scal.F</code></td>
+<td>将 u/v 自然风或通量相邻平均回标量格点；由 <code>start2archive</code> 写 archive 风场前调用。</td>
+<td><a href="../modules/dynphy_lonlat/wind_scal.html">wind_scal</a>, <a href="../modules/dynphy_lonlat/start2archive.html">start2archive</a></td>
+</tr>
+<tr>
+<td><code>write_archive</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/write_archive.F</code></td>
+<td>start_archive 变量追加器；按 <code>dim</code> 和变量名选择 NetCDF 维度，创建缺失变量并写入指定 <code>Time</code> 记录。</td>
+<td><a href="../modules/dynphy_lonlat/write_archive.html">write_archive</a>, <a href="../modules/dynphy_lonlat/start2archive.html">start2archive</a></td>
+</tr>
+<tr>
+<td><code>sol2ls</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/xvik.F</code></td>
+<td>将 sol 日期转换为太阳经度 <code>Ls</code>，供 <code>xvik</code> 输出和谐波重建使用。</td>
+<td><a href="../modules/dynphy_lonlat/xvik.html">xvik</a></td>
+</tr>
+<tr>
+<td><code>ls2sol</code></td>
+<td>function</td>
+<td><code>libf/dynphy_lonlat/phymars/xvik.F</code></td>
+<td>将太阳经度 <code>Ls</code> 反算为 sol，用于 <code>Time_unit==2</code> 的日平均分组。</td>
+<td><a href="../modules/dynphy_lonlat/xvik.html">xvik</a></td>
+</tr>
+<tr>
+<td><code>DiscreetFourierHn</code></td>
+<td>subroutine</td>
+<td><code>libf/dynphy_lonlat/phymars/xvik.F</code></td>
+<td>计算离散压力序列的 Fourier 谐波系数，供 <code>xvik</code> 写年度谐波拟合。</td>
+<td><a href="../modules/dynphy_lonlat/xvik.html">xvik</a></td>
+</tr>
+<tr>
+<td><code>photochemistry</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/photochemistry_mod.F90</code></td>
+<td><code>calchim</code> 逐列调用；计算光解/光电离/反应速率，按自适应隐式矩阵法更新 <code>zycol</code>，输出 <code>jo3/jh2o/em_no/em_o2/iter</code>。</td>
+<td><a href="../modules/aeronomars/photochemistry_mod.html">photochemistry_mod</a>, <a href="../modules/aeronomars/calchim_mod.html">calchim_mod</a></td>
+</tr>
+<tr>
+<td><code>chemthermos</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/chemthermos.F90</code></td>
+<td><code>.not.unichim</code> 时由 <code>calchim_mod</code> 逐列调用；按 <code>chemthermod</code> 构造热层数密度矩阵，调 <code>jthermcalc_e107</code> 与 <code>paramfoto_compact</code>，只写回 <code>lswitch:nlayer</code>。</td>
+<td><a href="../modules/aeronomars/chemthermos.html">chemthermos</a>, <a href="../modules/aeronomars/chemthermos_readini.html">chemthermos_readini</a>, <a href="../reference/reaction-rates.html">reaction-rates</a></td>
+</tr>
+<tr>
+<td><code>chemthermos_readini</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/chemthermos_readini.F</code></td>
+<td>由 <code>calchim_mod</code> firstcall（<code>.not.unichim</code>）调用，读 61 个 Arrhenius 参数到 <code>rcoef(61,3)</code>，缺失则 <code>abort_physic</code>。</td>
+<td><a href="../modules/aeronomars/chemthermos_readini.html">chemthermos_readini</a>, <a href="../reference/reaction-rates.html">reaction-rates</a></td>
+</tr>
+<tr>
+<td><code>paramfoto_compact</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/paramfoto_compact.F</code></td>
+<td>由 <code>chemthermos</code> 调用，逐层计算 <code>phdisrate/getch/lifetimes/prodsandlosses</code>，用隐式积分和光化学平衡近似更新热层 <code>rm</code> 数密度。</td>
+<td><a href="../modules/aeronomars/paramfoto_compact.html">paramfoto_compact</a>, <a href="../reference/reaction-rates.html">reaction-rates</a></td>
+</tr>
+<tr>
+<td><code>phdisrate</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/paramfoto_compact.F</code></td>
+<td>把 <code>jfotsout/fluxtop/efdis*/efion*</code> 转成 <code>jdistot/jdistot_b/jion</code>；主例程和 <code>photochemistry_mod</code> 离子光化学路径都会调用。</td>
+<td><a href="../modules/aeronomars/paramfoto_compact.html">paramfoto_compact</a>, <a href="../modules/aeronomars/param_read_e107.html">param_read_e107</a></td>
+</tr>
+<tr>
+<td><code>getch</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/paramfoto_compact.F</code></td>
+<td>消费 <code>rcoef(61,3)</code> 生成 <code>ch2..ch87</code>，中性反应用 <code>tcte</code>，离子/电子反应用插值电子温度。</td>
+<td><a href="../modules/aeronomars/paramfoto_compact.html">paramfoto_compact</a>, <a href="../reference/reaction-rates.html">reaction-rates</a></td>
+</tr>
+<tr>
+<td><code>prodsandlosses</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/paramfoto_compact.F</code></td>
+<td>清零并填充热层化学 <code>P*</code>/<code>L*</code> 逐反应矩阵与 <code>*tot</code> 总源汇，供隐式积分和 <code>chemthermos</code> 诊断读取。</td>
+<td><a href="../modules/aeronomars/paramfoto_compact.html">paramfoto_compact</a></td>
+</tr>
+<tr>
+<td><code>implicito</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/paramfoto_compact.F</code></td>
+<td>用 <code>(c_input+Prod*dt)/(1+Loss*dt)</code> 更新非平衡物种，负输出时停止，低浓度抬底到 <code>1.d-30</code>。</td>
+<td><a href="../modules/aeronomars/paramfoto_compact.html">paramfoto_compact</a></td>
+</tr>
+<tr>
+<td><code>perosat</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/perosat.F</code></td>
+<td>光化学后处理 H2O2 超饱和：计算饱和摩尔分数、向下层转移超出量、写 <code>pdqcloud/pdqscloud</code>。</td>
+<td><a href="../modules/aeronomars/perosat.html">perosat</a>, <a href="../modules/aeronomars/calchim_mod.html">calchim_mod</a></td>
+</tr>
+<tr>
+<td><code>deposition</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/deposition.F</code></td>
+<td>由 <code>calchim_mod</code> 在 <code>if (depos)</code> 下逐列调用；当前不修改 <code>zycol</code>（更新注释），仅 <code>ig==ig_vl1</code> 打印诊断。</td>
+<td><a href="../modules/aeronomars/deposition.html">deposition</a>, <a href="../modules/phymars/conc_mod.html">conc_mod</a></td>
+</tr>
+<tr>
+<td><code>euvheat</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/euvheat.F90</code></td>
+<td>由 <code>thermosphere_mod</code> 在 <code>calleuv</code> 下调用；校验 tracer、构造数密度矩阵、调 <code>hrtherm</code> 得 <code>jtot</code>，并换算为 <code>pdteuv</code> 后由调用方累加到 <code>pdt</code>。</td>
+<td><a href="../modules/aeronomars/euvheat.html">euvheat</a>, <a href="../modules/aeronomars/hrtherm.html">hrtherm</a>, <a href="../modules/phymars/callkeys_mod.html">callkeys_mod</a></td>
+</tr>
+<tr>
+<td><code>hrtherm</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/hrtherm.F</code></td>
+<td>由 <code>euvheat</code> 逐列调用；打包数密度、调 <code>jthermcalc_e107</code> 填 <code>jfotsout</code>、按区间×物种加权求和得 <code>jtot</code>；夜间 <code>zenit&gt;140°</code> 置 0。</td>
+<td><a href="../modules/aeronomars/hrtherm.html">hrtherm</a></td>
+</tr>
+<tr>
+<td><code>inichim_newstart</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/inichim_newstart.F90</code></td>
+<td>按 <code>noms</code> 重建 tracer 索引和 <code>mmol</code>，读取 <code>atmosfera_LMD_*</code> VMR 廓线，按 log pressure 调 <code>intrplf</code> 插值并写入 <code>pq/qsurf</code>。</td>
+<td><a href="../modules/aeronomars/inichim_newstart.html">inichim_newstart</a>, <a href="../modules/aeronomars/intrplf.html">intrplf</a>, <a href="../architecture/testphys1d-config.html">testphys1d-config</a></td>
+</tr>
+<tr>
+<td><code>intrplf</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/intrplf.F</code></td>
+<td>自包含一维线性插值；由 <code>inichim_newstart</code> 插值初始成分廓线。</td>
+<td><a href="../modules/aeronomars/intrplf.html">intrplf</a></td>
+</tr>
+<tr>
+<td><code>jthermcalc</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/jthermcalc.F</code></td>
+<td>按 36 个光谱区间对 13 种物种柱密度做 <code>interfast</code> 查表插值，写 <code>param_v4_h::jfotsout</code>；夜间 <code>zenit&gt;140°</code> 直接返回；当前源码未发现直接调用点。</td>
+<td><a href="../modules/aeronomars/jthermcalc.html">jthermcalc</a></td>
+</tr>
+<tr>
+<td><code>jthermcalc_e107</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/jthermcalc_e107_mod.F</code></td>
+<td>E107 增强版光吸收系数计算；比基础版多 <code>zday</code> 参数，TOA 值用 4 阶 E10.7 多项式，末尾做 <code>(1.52/dist_sol)²</code> 修正；由 <code>hrtherm</code>/<code>chemthermos</code> 调用。</td>
+<td><a href="../modules/aeronomars/jthermcalc_e107_mod.html">jthermcalc_e107_mod</a>, <a href="../modules/aeronomars/hrtherm.html">hrtherm</a>, <a href="../modules/aeronomars/chemthermos.html">chemthermos</a></td>
+</tr>
+<tr>
+<td><code>column</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/jthermcalc_util.F</code></td>
+<td>计算 13 种物种柱密度（cm⁻²），含球面大气光学路径（<code>espesor_optico_A</code>）；由 <code>jthermcalc</code>/<code>jthermcalc_e107</code> 调用。</td>
+<td><a href="../modules/aeronomars/jthermcalc_util.html">jthermcalc_util</a>, <a href="../modules/aeronomars/jthermcalc.html">jthermcalc</a>, <a href="../modules/aeronomars/jthermcalc_e107_mod.html">jthermcalc_e107_mod</a></td>
+</tr>
+<tr>
+<td><code>interfast</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/jthermcalc_util.F</code></td>
+<td>柱密度查找表快速线性插值，返回权重 <code>wm</code>/<code>wp</code> 和索引 <code>nm</code>；由 <code>jthermcalc</code>/<code>jthermcalc_e107</code> 多次调用。</td>
+<td><a href="../modules/aeronomars/jthermcalc_util.html">jthermcalc_util</a></td>
+</tr>
+<tr>
+<td><code>espesor_optico_A</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/jthermcalc_util.F</code></td>
+<td>球面大气几何光学路径厚度计算；三区间 SZA 处理（&lt;60° 平面近似 / 60°–90° 弦长 / &gt;90° 五区域）；由 <code>column</code> 内部调用。</td>
+<td><a href="../modules/aeronomars/jthermcalc_util.html">jthermcalc_util</a></td>
+</tr>
+<tr>
+<td><code>grid_R8</code></td>
+<td>function</td>
+<td><code>libf/aeronomars/jthermcalc_util.F</code></td>
+<td>单调递增网格索引查找；越界钳位并警告；由 <code>espesor_optico_A</code> 内部调用。</td>
+<td><a href="../modules/aeronomars/jthermcalc_util.html">jthermcalc_util</a></td>
+</tr>
+<tr>
+<td><code>flujo</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/jthermcalc_util.F</code></td>
+<td>遗留太阳通量 11 年周期修正（<code>fluxtop</code> 正弦修正 + 日火距离）；当前无调用方。</td>
+<td><a href="../modules/aeronomars/jthermcalc_util.html">jthermcalc_util</a></td>
+</tr>
+<tr>
+<td><code>allocate_param_iono</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/iono_h.F90</code></td>
+<td>按 <code>nlayer,nreact</code> 分配 <code>iono_h</code> 数组；由 <code>physiq_mod</code> 调用。</td>
+<td><a href="../modules/aeronomars/iono_h.html">iono_h</a>, <a href="../modules/phymars/physiq_mod.html">physiq_mod</a></td>
+</tr>
+<tr>
+<td><code>temp_elect</code></td>
+<td>function</td>
+<td><code>libf/aeronomars/iono_h.F90</code></td>
+<td>按高度算电子温度（Viking 表插值 / MAVEN tanh 公式）；由 <code>calchim_mod</code> 调用。注意 <code>photochemistry_mod</code> 另有同名局部数组遮蔽。</td>
+<td><a href="../modules/aeronomars/iono_h.html">iono_h</a></td>
+</tr>
+<tr>
+<td><code>moldiff</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/moldiff.F</code></td>
+<td>Dickinson &amp; Ridley 1972 α 矩阵 + LU 求逆 + 隐式三对角 14 物种分子扩散求解器；含 Jeans H/H₂ 逃逸和 O 质量守恒，仅 <code>z&gt;65km</code>；已被 <code>moldiff_red</code>/<code>moldiff_MPF</code> 取代，无调用方。</td>
+<td><a href="../modules/aeronomars/moldiff.html">moldiff</a>, <a href="../modules/aeronomars/moldiffcoeff.html">moldiffcoeff</a></td>
+</tr>
+<tr>
+<td><code>tridag_sp</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/moldiff.F</code></td>
+<td>Thomas 算法三对角求解器；由 <code>moldiff</code> 内部逐物种调用。</td>
+<td><a href="../modules/aeronomars/moldiff.html">moldiff</a></td>
+</tr>
+<tr>
+<td><code>LUBKSB_SP</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/moldiff.F</code></td>
+<td>Numerical Recipes LU 回代；由 <code>moldiff</code> 求 α 逆矩阵时调用。</td>
+<td><a href="../modules/aeronomars/moldiff.html">moldiff</a></td>
+</tr>
+<tr>
+<td><code>LUDCMP_SP</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/moldiff.F</code></td>
+<td>Numerical Recipes LU 分解 + 部分主元选取；奇异矩阵时 <code>ierr=1</code> 返回。</td>
+<td><a href="../modules/aeronomars/moldiff.html">moldiff</a></td>
+</tr>
+<tr>
+<td><code>moldiff_MPF</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/moldiff_MPF.F90</code></td>
+<td>Wilke 多组分扩散 + Krasnopolsky 涡流扩散 + Jeans H/H₂/D 逃逸 + 可选质量守恒修正；由 <code>thermosphere_mod</code> 在 <code>moldiff_scheme==2</code>（默认）下调用。</td>
+<td><a href="../modules/aeronomars/moldiff_MPF.html">moldiff_MPF</a>, <a href="../modules/aeronomars/moldiffcoeff_red.html">moldiffcoeff_red</a></td>
+</tr>
+<tr>
+<td><code>tridagbloc</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/moldiff_MPF.F90</code></td>
+<td>块三对角求解器；由 <code>moldiff_MPF</code> 时间分裂循环中隐式求解调用（定义但当前未被活跃调用）。</td>
+<td><a href="../modules/aeronomars/moldiff_MPF.html">moldiff_MPF</a></td>
+</tr>
+<tr>
+<td><code>moldiff_red</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/moldiff_red.F90</code></td>
+<td>二元 <code>dij</code> 简化公式逐物种隐式三对角扩散 + Jeans H/H₂/D 逃逸；由 <code>thermosphere_mod</code> 在 <code>moldiff_scheme==1</code>（非默认）下调用。</td>
+<td><a href="../modules/aeronomars/moldiff_red.html">moldiff_red</a>, <a href="../modules/aeronomars/moldiffcoeff_red.html">moldiffcoeff_red</a></td>
+</tr>
+<tr>
+<td><code>moldiffcoeff</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/moldiffcoeff.F</code></td>
+<td>由 <code>moldiff</code> 调用；firstcall 缺任一必需 tracer 即 <code>stop</code> 并在通过后设置 GCM 索引，用 H2-X/H-O 基础系数按 <code>sqrt(mmol)</code> 缩放填对称 <code>dij</code>（对角 1.0）；每次调用覆写 <code>coeffs.dat</code>。</td>
+<td><a href="../modules/aeronomars/moldiffcoeff.html">moldiffcoeff</a>, <a href="../modules/phymars/tracer_mod.html">tracer_mod</a></td>
+</tr>
+<tr>
+<td><code>moldiffcoeff_red</code></td>
+<td>subroutine</td>
+<td><code>libf/aeronomars/moldiffcoeff_red.F</code></td>
+<td>由 <code>moldiff_red</code>/<code>moldiff_MPF</code> 调用；<code>gcmind</code> 由调用方传入，h2/h/o 按 <code>noms</code> 名查，同 Nair 1994 算 <code>dij</code>；<code>coeffs.dat</code> 默认不写。</td>
+<td><a href="../modules/aeronomars/moldiffcoeff_red.html">moldiffcoeff_red</a>, <a href="../modules/aeronomars/moldiffcoeff.html">moldiffcoeff</a></td>
+</tr>
+<tr>
+<td><code>init_comcstfi_h</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/comcstfi_h.F90</code></td>
+<td>初始化 <code>rad/cpp/g/r</code> 并计算 <code>rcp=r/cpp</code>。</td>
+<td><a href="../modules/phymars/comcstfi_h.html">comcstfi_h</a></td>
+</tr>
+<tr>
+<td><code>ini_comgeomfi_h</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/comgeomfi_h.F90</code></td>
+<td>按 <code>ngrid</code> 分配 <code>sinlat/coslat/sinlon/coslon</code> 几何缓存数组。</td>
+<td><a href="../modules/phymars/comgeomfi_h.html">comgeomfi_h</a></td>
+</tr>
+<tr>
+<td><code>end_comgeomfi_h</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/comgeomfi_h.F90</code></td>
+<td>释放已分配的经纬度三角函数缓存数组。</td>
+<td><a href="../modules/phymars/comgeomfi_h.html">comgeomfi_h</a></td>
+</tr>
+<tr>
+<td><code>ini_fillgeom</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/comgeomfi_h.F90</code></td>
+<td>从调用方传入的弧度制纬度/经度填充 <code>sinlat/coslat/sinlon/coslon</code>。</td>
+<td><a href="../modules/phymars/comgeomfi_h.html">comgeomfi_h</a>, <a href="../architecture/testphys1d-config.html">testphys1d-config</a></td>
+</tr>
+<tr>
+<td><code>allocate_comm_wrf</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/comm_wrf.F90</code></td>
+<td>按 <code>ngrid,nlayer</code> 分配 WRF 输出诊断缓存数组。</td>
+<td><a href="../modules/phymars/comm_wrf.html">comm_wrf</a></td>
+</tr>
+<tr>
+<td><code>deallocate_comm_wrf</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/comm_wrf.F90</code></td>
+<td>无条件释放所有 WRF 输出诊断缓存数组。</td>
+<td><a href="../modules/phymars/comm_wrf.html">comm_wrf</a></td>
+</tr>
+<tr>
+<td><code>ini_comsaison_h</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/comsaison_h.F90</code></td>
+<td>按 <code>ngrid</code> 分配 <code>mu0/fract/local_time</code> 数组。</td>
+<td><a href="../modules/phymars/comsaison_h.html">comsaison_h</a></td>
+</tr>
+<tr>
+<td><code>end_comsaison_h</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/comsaison_h.F90</code></td>
+<td>释放已分配的 <code>mu0/fract/local_time</code> 数组。</td>
+<td><a href="../modules/phymars/comsaison_h.html">comsaison_h</a></td>
+</tr>
+<tr>
+<td><code>solang</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/solang.F</code></td>
+<td>按格点经纬度、太阳赤纬和时角计算 <code>mu0</code> 与 0/1 日照标志 <code>fract</code>。</td>
+<td><a href="../modules/phymars/solang.html">solang</a>, <a href="../modules/phymars/mucorr.html">mucorr</a></td>
+</tr>
+<tr>
+<td><code>initracer</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/initracer.F90</code></td>
+<td>按 <code>noms(:)</code> 识别 tracer 名称，写入 <code>igcm_*</code> 索引、<code>mmol/radius/rho_q/alpha_*</code>，并检查 dust/water/HDO/CO2/NLTE/chemistry 开关依赖。</td>
+<td><a href="../modules/phymars/initracer.html">initracer</a>, <a href="../routines/initracer-co2-tracers.html">initracer-co2-tracers</a>, <a href="../architecture/co2-cycle-config.html">co2-cycle-config</a>, <a href="../architecture/water-cycle-config.html">water-cycle-config</a></td>
+</tr>
+<tr>
+<td><code>write_output</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/write_output_mod.F90</code></td>
+<td>XIOS/传统诊断输出封装接口；文件专页已记录泛型分派、<code>output_diagfi</code> 和土壤字段分流。</td>
+<td><a href="../modules/phymars/write_output_mod.html">write_output_mod</a>, <a href="../architecture/xios-config.html">xios-config</a>, <a href="../themes/water-cycle.html">water-cycle</a>, <a href="../themes/co2-cycle.html">co2-cycle</a></td>
+</tr>
+<tr>
+<td><code>initiate</code></td>
+<td>subroutine</td>
+<td><code>util/concatnc.F90</code></td>
+<td>创建并初始化 <code>concat.nc</code> 的坐标维度和 <code>Time</code> 变量。</td>
+<td><a href="../modules/util/concatnc.html">concatnc</a></td>
+</tr>
+<tr>
+<td><code>init2</code></td>
+<td>subroutine</td>
+<td><code>util/concatnc.F90</code></td>
+<td>复制首个输入文件中的垂直坐标、面积和地形静态辅助变量。</td>
+<td><a href="../modules/util/concatnc.html">concatnc</a></td>
+</tr>
+<tr>
+<td><code>change_time_axis</code></td>
+<td>subroutine</td>
+<td><code>util/concatnc.F90</code></td>
+<td>将输出 sol 时间轴转换为 Ls，或在 <code>adls</code> 模式下新增 Ls 变量。</td>
+<td><a href="../modules/util/concatnc.html">concatnc</a></td>
+</tr>
+<tr>
+<td><code>sol2ls</code></td>
+<td>subroutine</td>
+<td><code>util/concatnc.F90</code></td>
+<td><code>concatnc</code> 内部 sol 到太阳经度 Ls 的换算例程。</td>
+<td><a href="../modules/util/concatnc.html">concatnc</a></td>
+</tr>
+<tr>
+<td><code>missing_value</code></td>
+<td>subroutine</td>
+<td><code>util/concatnc.F90</code></td>
+<td>将输入变量的 <code>valid_range</code> 和 <code>missing_value</code> 属性复制到输出变量。</td>
+<td><a href="../modules/util/concatnc.html">concatnc</a></td>
+</tr>
+<tr>
+<td><code>extraction</code></td>
+<td>subroutine</td>
+<td><code>util/extract.F90</code></td>
+<td><code>extract</code> 的四维插值核心，按 time、altitude、latitude、longitude 顺序插值。</td>
+<td><a href="../modules/util/extract.html">extract</a></td>
+</tr>
+<tr>
+<td><code>extract::ls2sol</code></td>
+<td>subroutine</td>
+<td><code>util/extract.F90</code></td>
+<td><code>extract</code> 内部 Ls 到 sol 的换算例程，用于把 Ls/LT 查询转换到输入文件 <code>Time</code> 坐标。</td>
+<td><a href="../modules/util/extract.html">extract</a></td>
+</tr>
+<tr>
+<td><code>interp_horiz</code></td>
+<td>subroutine</td>
+<td><code>util/hrecast.F90</code></td>
+<td>基于新旧格盒交叠面积执行水平重分配，并对极点行做面积平均。</td>
+<td><a href="../modules/util/hrecast.html">hrecast</a></td>
+</tr>
+<tr>
+<td><code>iniinterp_h</code></td>
+<td>subroutine</td>
+<td><code>util/hrecast.F90</code></td>
+<td>预计算新旧水平格盒交集索引、交集面积和新格盒面积。</td>
+<td><a href="../modules/util/hrecast.html">hrecast</a></td>
+</tr>
+<tr>
+<td><code>read_optpropfile</code></td>
+<td>subroutine</td>
+<td><code>util/aeropt_mod.F90</code></td>
+<td>从 ASCII 光学性质文件读取 <code>nwvl/nsize/wvl/radiusdyn/Qext/omeg</code>。</td>
+<td><a href="../modules/util/aeropt_mod.html">aeropt_mod</a></td>
+</tr>
+<tr>
+<td><code>interp_wvl_reff</code></td>
+<td>subroutine</td>
+<td><code>util/aeropt_mod.F90</code></td>
+<td>对 <code>Qext/omeg</code> 按有效半径和波长做线性插值。</td>
+<td><a href="../modules/util/aeropt_mod.html">aeropt_mod</a></td>
+</tr>
+<tr>
+<td><code>end_aeropt_mod</code></td>
+<td>subroutine</td>
+<td><code>util/aeropt_mod.F90</code></td>
+<td>释放光学性质表缓存数组。</td>
+<td><a href="../modules/util/aeropt_mod.html">aeropt_mod</a></td>
+</tr>
+<tr>
+<td><code>create_logfile</code></td>
+<td>subroutine</td>
+<td><code>util/aeropt_mod.F90</code></td>
+<td>创建或覆盖 <code>aeroptical</code> 运行日志文件。</td>
+<td><a href="../modules/util/aeropt_mod.html">aeropt_mod</a></td>
+</tr>
+<tr>
+<td><code>aeroptical::status_check</code></td>
+<td>subroutine</td>
+<td><code>util/aeroptical.F90</code></td>
+<td>NetCDF 状态检查；错误时打印 <code>nf90_strerror</code> 并停止。</td>
+<td><a href="../modules/util/aeroptical.html">aeroptical</a></td>
+</tr>
+<tr>
+<td><code>aeroptical::inidims</code></td>
+<td>subroutine</td>
+<td><code>util/aeroptical.F90</code></td>
+<td>复制输入坐标和可选 <code>controle</code>，并定义输出 NetCDF 维度。</td>
+<td><a href="../modules/util/aeroptical.html">aeroptical</a></td>
+</tr>
+<tr>
+<td><code>aeroptical::init2</code></td>
+<td>subroutine</td>
+<td><code>util/aeroptical.F90</code></td>
+<td>复制垂直/静态辅助字段，并按多种路径计算 <code>delta_z</code>。</td>
+<td><a href="../modules/util/aeroptical.html">aeroptical</a></td>
+</tr>
+<tr>
+<td><code>check_co2cycle::sol2ls</code></td>
+<td>subroutine</td>
+<td><code>util/check_co2cycle.F90</code></td>
+<td>将 sol 转换为太阳经度 Ls，并处理跨年 Ls 累加。</td>
+<td><a href="../modules/util/check_co2cycle.html">check_co2cycle</a></td>
+</tr>
+<tr>
+<td><code>check_co2cycle::ls2sol</code></td>
+<td>function</td>
+<td><code>util/check_co2cycle.F90</code></td>
+<td>将 Ls 转回 sol，供 Ls-only 输出文件做日平均分组。</td>
+<td><a href="../modules/util/check_co2cycle.html">check_co2cycle</a></td>
+</tr>
+<tr>
+<td><code>DiscreetFourierHn</code></td>
+<td>subroutine</td>
+<td><code>util/check_co2cycle.F90</code></td>
+<td>对离散压力序列计算 Fourier 谐波系数。</td>
+<td><a href="../modules/util/check_co2cycle.html">check_co2cycle</a></td>
+</tr>
+<tr>
+<td><code>RUNAVE</code></td>
+<td>subroutine</td>
+<td><code>util/xvik/fit_Iceinertia_MONSicedepth.F</code></td>
+<td>在周期 sol 坐标上对模拟压力和敏感度导数做滑动平均。</td>
+<td><a href="../modules/util/fit_Iceinertia_MONSicedepth.html">fit_Iceinertia_MONSicedepth</a></td>
+</tr>
+<tr>
+<td><code>p_coord_interp</code></td>
+<td>subroutine</td>
+<td><code>util/zrecast.F90</code></td>
+<td>将变量插值到压力坐标。</td>
+<td><a href="../modules/util/zrecast.html">zrecast</a></td>
+</tr>
+<tr>
+<td><code>z_coord_interp</code></td>
+<td>subroutine</td>
+<td><code>util/zrecast.F90</code></td>
+<td>将变量插值到 areoid 高度或半径坐标。</td>
+<td><a href="../modules/util/zrecast.html">zrecast</a></td>
+</tr>
+<tr>
+<td><code>zs_coord_interp</code></td>
+<td>subroutine</td>
+<td><code>util/zrecast.F90</code></td>
+<td>将变量插值到本地地表以上高度坐标。</td>
+<td><a href="../modules/util/zrecast.html">zrecast</a></td>
+</tr>
+<tr>
+<td><code>geoid</code></td>
+<td>subroutine</td>
+<td><code>util/zrecast.F90</code></td>
+<td>计算给定经纬度的 areoid 半径。</td>
+<td><a href="../modules/util/zrecast.html">zrecast</a></td>
+</tr>
+<tr>
+<td><code>extraction</code></td>
+<td>subroutine</td>
+<td><code>util/simu_MCS.F90</code></td>
+<td>在 GCM 4D 场上做四维线性插值。</td>
+<td><a href="../modules/util/simu_MCS.html">simu_MCS</a></td>
+</tr>
+<tr>
+<td><code>ls2sol</code></td>
+<td>subroutine</td>
+<td><code>util/simu_MCS.F90</code></td>
+<td>太阳经度 Ls 到 sol 的换算。</td>
+<td><a href="../modules/util/simu_MCS.html">simu_MCS</a></td>
+</tr>
+<tr>
+<td><code>gen_sol_list</code></td>
+<td>subroutine</td>
+<td><code>util/simu_MCS.F90</code></td>
+<td>生成 sol × 当地时采样点列表。</td>
+<td><a href="../modules/util/simu_MCS.html">simu_MCS</a></td>
+</tr>
+<tr>
+<td><code>LTmod</code></td>
+<td>function</td>
+<td><code>util/simu_MCS.F90</code></td>
+<td>夜间当地时连续化函数。</td>
+<td><a href="../modules/util/simu_MCS.html">simu_MCS</a></td>
+</tr>
+<tr>
+<td><code>aerave</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/aerave.F</code></td>
+<td>将气溶胶光学性质从高分辨率光谱通过普朗克加权平均到 GCM 辐射带。</td>
+<td><a href="../modules/phymars/aerave.html">aerave</a></td>
+</tr>
+<tr>
+<td><code>blackl</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/aerave.F</code></td>
+<td>普朗克黑体辐射函数计算。</td>
+<td><a href="../modules/phymars/aerave.html">aerave</a></td>
+</tr>
+<tr>
+<td><code>suaer</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/suaer.F90</code></td>
+<td>读取 <code>optprop_*</code> 表并填充 <code>dimradmars_mod</code> 离散 VIS/IR 光学查找表。</td>
+<td><a href="../modules/phymars/suaer.html">suaer</a>, <a href="../modules/phymars/aerave.html">aerave</a></td>
+</tr>
+<tr>
+<td><code>ini_comslope_h</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/comslope_mod.F90</code></td>
+<td>初始化分配坡面数组。</td>
+<td><a href="../modules/phymars/comslope_mod.html">comslope_mod</a></td>
+</tr>
+<tr>
+<td><code>end_comslope_h</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/comslope_mod.F90</code></td>
+<td>释放坡面数组。</td>
+<td><a href="../modules/phymars/comslope_mod.html">comslope_mod</a></td>
+</tr>
+<tr>
+<td><code>compute_meshgridavg</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/comslope_mod.F90</code></td>
+<td>计算坡面属性的网格平均值（反照率、发射率、温度、tracer）。</td>
+<td><a href="../modules/phymars/comslope_mod.html">comslope_mod</a></td>
+</tr>
+<tr>
+<td><code>ini_comsoil_h</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/comsoil_h.F90</code></td>
+<td>分配所有土壤数组。</td>
+<td><a href="../modules/phymars/comsoil_h.html">comsoil_h</a></td>
+</tr>
+<tr>
+<td><code>end_comsoil_h</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/comsoil_h.F90</code></td>
+<td>释放所有土壤数组。</td>
+<td><a href="../modules/phymars/comsoil_h.html">comsoil_h</a></td>
+</tr>
+<tr>
+<td><code>iniwritesoil</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/iniwritesoil.F90</code></td>
+<td>为 <code>diagsoil.nc</code> 创建维度和固定字段（area、th_inertia），由 <code>writediagsoil</code> 首次调用时触发。</td>
+<td><a href="../modules/phymars/iniwritesoil.html">iniwritesoil</a></td>
+</tr>
+<tr>
+<td><code>writediagsoil</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/writediagsoil.F90</code></td>
+<td>按采样间隔向 <code>diagsoil.nc</code> 追加土壤剖面、地表场或标量诊断，并在首次调用时触发 <code>iniwritesoil</code>。</td>
+<td><a href="../modules/phymars/writediagsoil.html">writediagsoil</a>, <a href="../modules/phymars/iniwritesoil.html">iniwritesoil</a></td>
+</tr>
+<tr>
+<td><code>nirco2abs</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nirco2abs.F</code></td>
+<td>计算大气 CO2 在近红外波段吸收太阳辐射产生的加热率，含 NLTE 修正。</td>
+<td><a href="../modules/phymars/nirco2abs.html">nirco2abs</a></td>
+</tr>
+<tr>
+<td><code>interpnir</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/nirco2abs.F</code></td>
+<td>压力坐标线性插值（用于 NLTE 修正查找表）。</td>
+<td><a href="../modules/phymars/nirco2abs.html">nirco2abs</a></td>
+</tr>
+<tr>
+<td><code>get_nq_from_tracer_file</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/parse_tracer_file.F90</code></td>
+<td>从 <code>tracer.def</code> 读取 tracer 总数。</td>
+<td><a href="../modules/phymars/parse_tracer_file.html">parse_tracer_file</a></td>
+</tr>
+<tr>
+<td><code>get_names_from_tracer_file</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/parse_tracer_file.F90</code></td>
+<td>从已解析的 <code>tracers</code> 数组提取所有 tracer 名称。</td>
+<td><a href="../modules/phymars/parse_tracer_file.html">parse_tracer_file</a></td>
+</tr>
+<tr>
+<td><code>get_children_from_tracer_file</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/parse_tracer_file.F90</code></td>
+<td>统计每个 tracer 的子 tracer 数量（parent 字段匹配）。</td>
+<td><a href="../modules/phymars/parse_tracer_file.html">parse_tracer_file</a></td>
+</tr>
+<tr>
+<td><code>get_nq_from_traceur_file</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/parse_traceur_file.F90</code></td>
+<td>从 <code>traceur.def</code> 第一行读取 tracer 总数，并广播给所有进程。</td>
+<td><a href="../modules/phymars/parse_traceur_file.html">parse_traceur_file</a></td>
+</tr>
+<tr>
+<td><code>get_names_from_traceur_file</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/parse_traceur_file.F90</code></td>
+<td>读取旧格式 tracer 名称、parent 字段和每个 tracer 的子 tracer 数量。</td>
+<td><a href="../modules/phymars/parse_traceur_file.html">parse_traceur_file</a>, <a href="../modules/phymars/tracer_mod.html">tracer_mod</a></td>
+</tr>
+<tr>
+<td><code>phyetat0</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/phyetat0_mod.F90</code></td>
+<td>从 <code>startfi.nc</code> 或 no-startfi 缺省路径初始化物理地表、土壤、坡面、tracer、古气候和 restart 记忆状态。</td>
+<td><a href="../modules/phymars/phyetat0_mod.html">phyetat0_mod</a></td>
+</tr>
+<tr>
+<td><code>ini_tab_controle_dyn_xios</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/phyetat0_mod.F90</code></td>
+<td>把网格大小、行星常数、物理时间步和初始时刻写入 <code>tab_cntrl_mod</code>。</td>
+<td><a href="../modules/phymars/phyetat0_mod.html">phyetat0_mod</a></td>
+</tr>
+<tr>
+<td><code>physdem0</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/phyredem.F90</code></td>
+<td>创建物理文件并写控制表、网格、静态地表、坡面和水冰标签字段。</td>
+<td><a href="../modules/phymars/phyredem.html">phyredem</a></td>
+</tr>
+<tr>
+<td><code>physdem1</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/phyredem.F90</code></td>
+<td>先写 <code>Time</code>，再写 time-dependent 表面、土壤、tracer、尘埃、GW、古气候和质量修正 restart 字段。</td>
+<td><a href="../modules/phymars/phyredem.html">phyredem</a></td>
+</tr>
+<tr>
+<td><code>phys_state_var_init</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/phys_state_var_init_mod.F90</code></td>
+<td>从 <code>startfi.nc</code> 或默认路径确定 <code>nslope</code>，初始化物理常数/时间状态，并按当前维度释放和分配多个共享模块数组。</td>
+<td><a href="../modules/phymars/phys_state_var_init_mod.html">phys_state_var_init_mod</a></td>
+</tr>
+<tr>
+<td><code>blendrad</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/blendrad.F</code></td>
+<td>用 sigmoid alpha 在 LTE/NLTE 之间平滑过渡，合并四路辐射倾向为净加热率 dtrad。</td>
+<td><a href="../modules/phymars/blendrad.html">blendrad</a></td>
+</tr>
+<tr>
+<td><code>pbl_parameters</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/pbl_parameters_mod.F90</code></td>
+<td>计算摩擦速度/温度、Monin-Obukhov 内插、热通量/速度方差廓线；纯诊断不影响物理倾向。</td>
+<td><a href="../modules/phymars/pbl_parameters_mod.html">pbl_parameters_mod</a></td>
+</tr>
+<tr>
+<td><code>ini_paleoclimate</code> / <code>end_paleoclimate</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/paleoclimate_mod.F90</code></td>
+<td>按 <code>ngrid,nslope</code> 分配或释放古气候共享数组。</td>
+<td><a href="../modules/phymars/paleoclimate_mod.html">paleoclimate_mod</a></td>
+</tr>
+<tr>
+<td><code>getslopes</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/slope_mod.F90</code></td>
+<td>从地形势场计算坡面倾角和方位（仅串行模式）。</td>
+<td><a href="../modules/phymars/slope_mod.html">slope_mod</a></td>
+</tr>
+<tr>
+<td><code>param_slope</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/slope_mod.F90</code></td>
+<td>用 Spiga &amp; Forget (2008) 方法计算坡面上的太阳总辐照度（直接+散射+反射）。</td>
+<td><a href="../modules/phymars/slope_mod.html">slope_mod</a></td>
+</tr>
+<tr>
+<td><code>ini_slope_mod</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/slope_mod.F90</code></td>
+<td>分配 <code>theta_sl</code> 和 <code>psi_sl</code> 数组。</td>
+<td><a href="../modules/phymars/slope_mod.html">slope_mod</a></td>
+</tr>
+<tr>
+<td><code>end_slope_mod</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/slope_mod.F90</code></td>
+<td>释放 <code>theta_sl</code> 和 <code>psi_sl</code> 数组。</td>
+<td><a href="../modules/phymars/slope_mod.html">slope_mod</a></td>
+</tr>
+<tr>
+<td><code>soil</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/soil.F</code></td>
+<td>隐式三对角矩阵求解土壤各层温度，输出地表热容量和扩散热通量。</td>
+<td><a href="../modules/phymars/soil.html">soil</a></td>
+</tr>
+<tr>
+<td><code>soil_settings</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/soil_settings.F</code></td>
+<td>从 <code>startfi.nc</code> 读取土壤层深度、热惯量、温度和 tracer，层数不匹配时垂直插值。</td>
+<td><a href="../modules/phymars/soil_settings.html">soil_settings</a></td>
+</tr>
+<tr>
+<td><code>tracer_mass_fixer_dyn</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/tracer_mass_fixer_dyn_mod.F90</code></td>
+<td>计算 8 个主要大气成分的质量修正因子，返回 tendency 以修正动力传输的质量非守恒。</td>
+<td><a href="../modules/phymars/tracer_mass_fixer_dyn_mod.html">tracer_mass_fixer_dyn_mod</a></td>
+</tr>
+<tr>
+<td><code>compute_tracer_mass_global</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/tracer_mass_fixer_dyn_mod.F90</code></td>
+<td>计算指定 tracer 的全球总质量（柱密度积分 + 全球求和）。</td>
+<td><a href="../modules/phymars/tracer_mass_fixer_dyn_mod.html">tracer_mass_fixer_dyn_mod</a></td>
+</tr>
+<tr>
+<td><code>ini_tracer_mod</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/tracer_mod.F90</code></td>
+<td>解析 traceur.def/tracer.def 配置文件，分配 tracer 数组，检查 CO2 tracer 存在性。</td>
+<td><a href="../modules/phymars/tracer_mod.html">tracer_mod</a></td>
+</tr>
+<tr>
+<td><code>end_tracer_mod</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/tracer_mod.F90</code></td>
+<td>释放多数 allocatable tracer 数组；源码未释放 <code>nqchildren</code>，页面已标为待确认遗漏。</td>
+<td><a href="../modules/phymars/tracer_mod.html">tracer_mod</a></td>
+</tr>
+<tr>
+<td><code>vdif_cd</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/vdif_cd_mod.F90</code></td>
+<td>计算地表动量/热量拖曳系数 Cd/Ch；<code>callrichsl</code> 选择简单对数公式或 Colaïtis 迭代，迭代内由 <code>callatke</code> 选择 ATKE 或 Dyer/England 稳定性函数。</td>
+<td><a href="../modules/phymars/vdif_cd_mod.html">vdif_cd_mod</a></td>
+</tr>
+<tr>
+<td><code>vdif_kc</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/vdif_kc.F</code></td>
+<td>在 <code>vdifc</code> fallback 路径中更新 <code>q2</code>、动量扩散 <code>km</code> 与标量扩散 <code>kn</code>，并可用 CO2 tracer 修正稳定度。</td>
+<td><a href="../modules/phymars/vdif_kc.html">vdif_kc</a></td>
+</tr>
+<tr>
+<td><code>vdifc</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/vdifc_mod.F</code></td>
+<td>由 <code>physiq</code> 的 <code>calldifv</code> 分支调用，输出 U/V/热力/tracer 垂直扩散倾向以及地表温度、水冰、watercap 和尘埃/HDO 通量。</td>
+<td><a href="../modules/phymars/vdifc_mod.html">vdifc_mod</a>, <a href="../modules/phymars/physiq_mod.html">physiq_mod</a>, <a href="../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a></td>
+</tr>
+<tr>
+<td><code>make_tsub</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/vdifc_mod.F</code></td>
+<td>为 <code>vdifc</code> 的 H2O 地表交换段按地表温度变化和霜/永久冰盖状态选择自适应子时间步数。</td>
+<td><a href="../modules/phymars/vdifc_mod.html">vdifc_mod</a>, <a href="../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a></td>
+</tr>
+<tr>
+<td><code>compute_Tice</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/vdifc_mod.F</code></td>
+<td>按地下冰深度在土壤层温度间插值得到地下冰温度，供 lag-layer 地下冰通量使用。</td>
+<td><a href="../modules/phymars/vdifc_mod.html">vdifc_mod</a>, <a href="../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a></td>
+</tr>
+<tr>
+<td><code>yamada4</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/yamada4.F</code></td>
+<td>按 <code>iflag_pbl</code> 分支更新 <code>q2/km/kn/kq</code>，由 <code>vdifc</code> 的 <code>callyamada4</code> 路径调用。</td>
+<td><a href="../modules/phymars/yamada4.html">yamada4</a>, <a href="../modules/phymars/vdifc_mod.html">vdifc_mod</a></td>
+</tr>
+<tr>
+<td><code>vdif_q2</code></td>
+<td>subroutine</td>
+<td><code>libf/phymars/yamada4.F</code></td>
+<td>对 <code>q2</code> 做压力坐标隐式垂直扩散；当前只在 <code>iflag_pbl==9</code> 分支调用。</td>
+<td><a href="../modules/phymars/yamada4.html">yamada4</a></td>
+</tr>
+</tbody>
+</table>
+
+    </article>
+  </main>
+</body>
+</html>

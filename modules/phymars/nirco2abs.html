@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nirco2abs - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/nirco2abs.md</span>
+    </nav>
+    <article class="content">
+<h1 id="nirco2absf">nirco2abs.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\nirco2abs.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>近红外 CO2 吸收加热率计算模块。计算大气 CO2 在近红外波段吸收太阳辐射产生的加热率，包含非局域热平衡（NLTE）效应修正。用于辐射传输计算中的近红外 CO2 吸收参数化。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nirco2abs_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>近红外 CO2 吸收模块</td>
+</tr>
+<tr>
+<td><code>nirco2abs</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>主例程：计算近红外 CO2 吸收加热率</td>
+</tr>
+<tr>
+<td><code>interpnir</code></td>
+<td>subroutine</td>
+<td>260</td>
+<td>压力坐标线性插值辅助函数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_co2</code>, <code>igcm_o</code></td>
+<td>CO2 和 O 原子 tracer 索引</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>comgeomfi_h</code></td>
+<td><code>sinlon</code>, <code>coslon</code>, <code>sinlat</code>, <code>coslat</code></td>
+<td>经纬度三角函数（用于 solang）</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>solang_mod</code></td>
+<td><code>solang</code></td>
+<td>太阳几何计算</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>圆周率常数</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>daysec</code></td>
+<td>一天的秒数</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>nirdata_mod</code></td>
+<td><code>npres</code>, <code>alfa</code>, <code>corgcm</code>, <code>oco21d</code>, <code>pres1d</code></td>
+<td>NLTE 修正查找表</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>diurnal</code>, <code>nircorr</code></td>
+<td>日周期和 NLTE 修正开关</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>solang</code></td>
+<td><code>solang_mod</code></td>
+<td>行 216-218</td>
+<td>计算太阳天顶角和日照时长（<code>diurnal=F</code> 时）</td>
+</tr>
+<tr>
+<td><code>interpnir</code></td>
+<td>本文件（nirco2abs_mod）</td>
+<td>行 159-161, 226-228</td>
+<td>压力坐标线性插值（NLTE 修正表）</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部</td>
+<td>行 121, 127, 137</td>
+<td>错误终止（tracer 缺失时）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>水平网格点数量</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>大气层数量</td>
+</tr>
+<tr>
+<td><code>pplay(ngrid,nlayer)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>Pa</td>
+<td>各层压力</td>
+</tr>
+<tr>
+<td><code>dist_sol</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>AU</td>
+<td>日火距离</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>tracer 数量</td>
+</tr>
+<tr>
+<td><code>pq(ngrid,nlayer,nq)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>kg/kg</td>
+<td>tracer 混合比</td>
+</tr>
+<tr>
+<td><code>mu0(ngrid)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>—</td>
+<td>太阳天顶角余弦</td>
+</tr>
+<tr>
+<td><code>fract(ngrid)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>—</td>
+<td>时间步内白天比例</td>
+</tr>
+<tr>
+<td><code>declin</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>rad</td>
+<td>太阳直射点纬度（赤纬）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdtnirco2(ngrid,nlayer)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>K/s</td>
+<td>近红外 CO2 吸收加热率</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>SAVE 变量</strong>（<code>firstcall</code>、<code>ico2</code>、<code>io</code>）：首次调用时初始化 tracer 索引</li>
+<li><strong>OpenMP</strong>: <code>firstcall</code>、<code>ico2</code>、<code>io</code> 使用 <code>!$OMP THREADPRIVATE</code></li>
+<li><strong>副作用</strong>: 首次调用时检查 tracer 可用性，缺失时调用 <code>abort_physic</code> 终止</li>
+<li><strong>配置一致性检查</strong>: 若 CO2 和 O tracer 都存在但 <code>nircorr=0</code>，源码行 137 调用 <code>abort_physic("nirco2abs","need nircorr=1",1)</code> 终止，要求启用 NLTE 修正</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><p><strong>初始化</strong>（行 114-141）：</p>
+<ul>
+<li>首次调用时检查 <code>nircorr</code> 开关</li>
+<li><code>nircorr=1</code>：需要 CO2 和 O tracer，否则终止</li>
+<li><code>nircorr=0</code>：如果 CO2 和 O tracer 都存在，说明有能力做 NLTE 修正但未启用，源码行 137 直接终止</li>
+<li>保存 <code>ico2</code> 和 <code>io</code> 索引</li>
+</ul></li>
+<li><p><strong>基础加热率</strong>（行 145）：</p>
+<ul>
+<li><code>co2heat0 = n_a * (1.52/dist_sol)^2 / daysec</code></li>
+<li>700Pa 参考压力、零天顶角时的加热率</li>
+</ul></li>
+<li><p><strong>diurnal=T 模式</strong>（行 150-198）：</p>
+<ul>
+<li>对每个网格点计算 <code>zmu = sqrt(1224*mu0^2 + 1) / 35</code>（有效天顶角参数）</li>
+<li>若 <code>nircorr=1</code>：从 <code>nirdata_mod</code> 查表插值得到 <code>cor1</code>、<code>oldoco2</code>、<code>alfa2</code></li>
+<li>对每层计算：
+<ul>
+<li>基础加热：<code>co2heat0 * sqrt(700*zmu/pplay) / (1 + n_p0/pplay)^n_b</code></li>
+<li>NLTE 修正（<code>nircorr=1</code>）：
+<ul>
+<li><code>cor0 = 1/(1 + n_p0/pplay)^n_b</code></li>
+<li><code>oco2gcm = pq(ig,l,io) / pq(ig,l,co2)</code>（O/CO2 比率）</li>
+<li><code>merge = 10^(log10(oco2gcm/oldoco2)*alfa2 + log10(cor0)*(1-alfa2))</code></li>
+<li><code>p2011 = sqrt(merge) * cor0</code></li>
+</ul></li>
+<li>最终加热率 = 基础加热 * <code>cor1</code> * <code>p2011</code></li>
+</ul></li>
+</ul></li>
+<li><p><strong>diurnal=F 模式</strong>（行 207-254）：</p>
+<ul>
+<li>将一天分为 <code>nstep=20</code> 个时间步</li>
+<li>对每个时间步调用 <code>solang</code> 计算太阳几何和白天比例</li>
+<li>累加热率的加权平均（权重 = <code>1/nstep</code>）</li>
+<li>NLTE 修正同 diurnal=T 模式</li>
+</ul></li>
+<li><p><strong>interpnir 子程序</strong>（行 260-292）：</p>
+<ul>
+<li>在压力坐标上做线性插值</li>
+<li>超出范围（<code>p&gt;1500</code> 或 <code>p&lt;1e-13</code>）时返回 0</li>
+</ul></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>! 初始化（首次调用）
+IF firstcall THEN
+  IF nircorr == 1 THEN
+    检查 CO2 和 O tracer 是否存在，否则终止
+  ELSE
+    IF CO2 和 O tracer 都存在 THEN
+      终止：要求 nircorr=1
+    END IF
+  END IF
+  保存 ico2, io 索引
+  firstcall = .false.
+END IF
+
+! 基础加热率
+co2heat0 = n_a * (1.52/dist_sol)^2 / daysec
+
+IF diurnal THEN
+  ! 直接计算
+  DO ig = 1, ngrid
+    zmu = sqrt(1224*mu0^2 + 1) / 35
+    IF nircorr == 1 THEN
+      从 nirdata_mod 查表插值 cor1, oldoco2, alfa2
+    END IF
+    DO l = 1, nlayer
+      基础加热 = co2heat0 * sqrt(700*zmu/pplay) / (1 + n_p0/pplay)^n_b
+      IF nircorr == 1 THEN
+        cor0 = 1/(1 + n_p0/pplay)^n_b
+        oco2gcm = pq(io) / pq(co2)
+        merge = 10^(log10(oco2gcm/oldoco2)*alfa2 + log10(cor0)*(1-alfa2))
+        p2011 = sqrt(merge) * cor0
+      ELSE
+        p2011 = 1, cor1 = 1
+      END IF
+      pdtnirco2 = 基础加热 * cor1 * p2011
+    END DO
+  END DO
+ELSE
+  ! 日平均积分
+  pdtnirco2 = 0
+  DO n = 1, 20  ! 20 个时间步
+    计算当前时间步的太阳几何
+    DO ig = 1, ngrid
+      zmu = sqrt(1224*mu0_int^2 + 1) / 35
+      ! NLTE 修正同上
+      pdtnirco2 += (1/20) * 基础加热 * cor1 * p2011
+    END DO
+  END DO
+END IF</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>辐射计算</td>
+<td>近红外 CO2 吸收加热率计算，为辐射传输提供 NIR 加热</td>
+</tr>
+<tr>
+<td>CO2 循环</td>
+<td>依赖 CO2 和 O tracer 混合比（NLTE 修正时）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>固定格式 Fortran</strong>（列格式）</li>
+<li><strong>SAVE + THREADPRIVATE</strong>: <code>firstcall</code>、<code>ico2</code>、<code>io</code> 用于首次调用初始化</li>
+<li><strong>NLTE 修正</strong>: 通过 <code>nircorr</code> 开关控制，使用 <code>nirdata_mod</code> 查找表</li>
+<li><strong>日平均积分</strong>: <code>diurnal=F</code> 时用 20 步积分代替直接计算，处理非线性效应</li>
+<li><strong>硬编码参数</strong>: <code>n_a=1.1956475</code>、<code>n_p0=0.0015888279</code>、<code>n_b=1.9628251</code>（CO2 加热拟合参数）</li>
+<li><strong>诊断代码</strong>: 行 194-196 注释了旧方案（Forget et al. 1999）</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>mu0</code> 是太阳天顶角的余弦（cos(zenith)），不是角度本身</li>
+<li><code>dist_sol</code> 单位为 AU，加热率与 <code>1/dist_sol^2</code> 成正比</li>
+<li><code>fract</code> 是白天比例（0-1），用于加权加热率</li>
+<li><code>declin</code> 是太阳赤纬（弧度），用于 <code>diurnal=F</code> 时的太阳几何计算</li>
+<li>NLTE 修正需要 CO2 和 O tracer，且 <code>nircorr=1</code></li>
+<li><code>diurnal=F</code> 时使用 20 步积分，可能影响精度</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>nirdata_mod</code> 中查找表的来源和精度</li>
+<li><code>n_a</code>、<code>n_p0</code>、<code>n_b</code> 参数的物理含义和拟合来源</li>
+<li><code>interpnir</code> 中 <code>p&gt;1500</code> 和 <code>p&lt;1e-13</code> 阈值的选择依据</li>
+<li><code>diurnal=F</code> 时 20 步积分是否足够（非线性效应强度）</li>
+<li><code>zmu = sqrt(1224*mu0^2 + 1) / 35</code> 公式的物理来源</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li>辐射计算主题页：<a href="../../themes/radiation.html">radiation</a></li>
+<li>CO2 循环主题页：<a href="../../themes/co2-cycle.html">co2-cycle</a></li>
+<li><a href="nirdata.html">nirdata_mod</a>：NLTE 修正查找表模块</li>
+<li><a href="solang.html">solang.md</a>：太阳几何计算模块。</li>
+<li>callkeys_mod：<a href="../../architecture/config-system.html">config-system</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

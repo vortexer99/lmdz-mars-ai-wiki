@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>serre_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../../index.html">主页</a>
+        <a href="../../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../../libf-overview.html">模块</a>
+        <a href="../../../themes/index.html">主题</a>
+        <a href="../../../routines/index.html">例程</a>
+        <a href="../../../reference/file-index.html">文件索引</a>
+        <a href="../../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dyn1d/serre_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dyn1dserre_modf90">dyn1d/serre_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d\serre_mod.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>dyn1d/serre_mod.F90</code> 在当前源码树中不是独立实现，而是一行相对路径：</p>
+<pre class="text"><code>../../../../LMDZ.COMMON/libf/dyn3d_common/serre_mod.F90</code></pre>
+<p>它把 1D <code>testphys1d</code> 构建路径中可见的 <code>serre_mod</code> 解析到 <code>LMDZ.COMMON/libf/dyn3d_common/serre_mod.F90</code>。公共目标模块只声明水平 zoom/网格变换相关的全局标量；没有子例程、函数、初始化语句、文件 I/O 或分配逻辑。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>serre_mod.F90</code></td>
+<td>path stub</td>
+<td>dyn1d line 1</td>
+<td>指向公共目标文件。</td>
+</tr>
+<tr>
+<td><code>serre_mod</code></td>
+<td>module</td>
+<td>common target line 1</td>
+<td>保存公共动力网格 zoom/变换参数。</td>
+</tr>
+<tr>
+<td><code>clon</code>, <code>clat</code></td>
+<td>real module scalars</td>
+<td>common target lines 5-6</td>
+<td>zoom 中心经度、纬度；公共 <code>defrun</code>/<code>defrun_new</code> 从 <code>run.def</code> 或 start 控制表读取或比对。</td>
+</tr>
+<tr>
+<td><code>grossismx</code>, <code>grossismy</code></td>
+<td>real module scalars</td>
+<td>common target line 6</td>
+<td>x/y 方向放大率；<code>defrun</code> 和 <code>defrun_new</code> 要求有效值不小于 1，并派生 <code>alphax/alphay</code>。</td>
+</tr>
+<tr>
+<td><code>dzoomx</code>, <code>dzoomy</code>, <code>taux</code>, <code>tauy</code></td>
+<td>real module scalars</td>
+<td>common target line 6</td>
+<td>hyperbolic zoom 宽度和形状参数；<code>fyhyp_m</code> 使用 y 方向参数构造纬向映射。</td>
+</tr>
+<tr>
+<td><code>alphax</code>, <code>alphay</code>, <code>transx</code>, <code>transy</code>, <code>pxo</code>, <code>pyo</code></td>
+<td>real module scalars</td>
+<td>common target lines 5-6</td>
+<td>旧式/派生 zoom 参数和几何变换中间量；<code>inigeom</code> 使用它们构造水平网格。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="状态和副作用">状态和副作用</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>模块状态</td>
+<td>14 个 <code>REAL</code> 模块变量，均无显式初值。</td>
+</tr>
+<tr>
+<td>例程</td>
+<td>无。</td>
+</tr>
+<tr>
+<td>文件 I/O</td>
+<td>dyn1d stub 和公共目标模块本身都没有 I/O。</td>
+</tr>
+<tr>
+<td>分配/释放</td>
+<td>无 <code>ALLOCATE</code>、<code>DEALLOCATE</code>。</td>
+</tr>
+<tr>
+<td>并行/线程</td>
+<td>无 <code>THREADPRIVATE</code> 声明；状态是普通模块全局变量。</td>
+</tr>
+<tr>
+<td>1D 直接使用</td>
+<td><code>rg</code> 在 <code>LMDZ.MARS/libf/phymars/dyn1d</code> 中未发现直接 <code>use serre_mod</code> 的 Fortran 使用方。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="赋值和读取路径">赋值和读取路径</h2>
+<p><code>serre_mod</code> 本身只提供变量容器，实际值来自公共动力或 dynphy_lonlat 初始化路径。</p>
+<table>
+<thead>
+<tr>
+<th>路径</th>
+<th>证据</th>
+<th>写入或读取内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LMDZ.COMMON/libf/dyn3d_common/defrun.F</code></td>
+<td><code>USE serre_mod, ONLY: clon,clat,grossismx,grossismy,dzoomx,dzoomy,alphax,alphay,taux,tauy</code></td>
+<td>从 <code>run.def</code> 读取 zoom 参数；非 <code>etatinit</code> 时与 start 中已有值比对，不一致则停止；<code>etatinit</code> 时写入模块变量。</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS/libf/dynphy_lonlat/phymars/defrun_new.F</code></td>
+<td>同样 <code>USE serre_mod</code>，但通过 <code>getin</code> 读取 <code>clon/clat/grossismx/grossismy/dzoomx/dzoomy/taux/tauy</code></td>
+<td>Mars dynphy_lonlat 路径的 run.def 读取和 start 值一致性检查。旧 start 中 <code>grossismx/grossismy=0</code> 时会用 run.def 值补回。</td>
+</tr>
+<tr>
+<td><code>LMDZ.COMMON/libf/dyn3d_common/dynetat0.F90</code></td>
+<td><code>USE serre_mod, ONLY: clon,clat,grossismx,grossismy</code></td>
+<td>从 <code>tab_cntrl</code> 恢复 start/restart 中的 zoom 中心和放大率。</td>
+</tr>
+<tr>
+<td><code>LMDZ.COMMON/libf/dyn3d_common/inigeom.F</code></td>
+<td><code>USE serre_mod, ONLY: ... transx,transy,pxo,pyo</code></td>
+<td>用 <code>clon/clat/alphax/alphay</code> 等参数构造水平网格变换；源码中 <code>pxo=clon*pi/180</code>、<code>pyo=2*clat*pi/180</code>。</td>
+</tr>
+<tr>
+<td><code>LMDZ.COMMON/libf/dyn3d_common/fyhyp_m.F90</code></td>
+<td><code>use serre_mod, only: clat, dzoomy, grossismy, tauy</code></td>
+<td>用 y 方向 zoom 参数构造 hyperbolic 纬向映射；若 <code>2*beta-grossismy &lt;= 0</code>，提示修改 <code>grossismy/tauy/dzoomy</code> 并停止。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与-1d-testphys-路径的边界">与 1D testphys 路径的边界</h2>
+<p>当前 1D 主链的几何状态主要由 <a href="init_testphys1d_mod.html">init_testphys1d_mod</a> 直接构造：读取 1D 位置、坡面、<code>psurf</code>、垂直坐标和物理侧几何数组后进入 <a href="../../../architecture/testphys1d-config.html">testphys1d 配置</a> 所描述的单柱运行。<code>serre_mod</code> 虽然在 <code>dyn1d</code> 目录中可见，但没有在 <code>init_testphys1d_mod.F90</code>、<code>testphys1d.F90</code>、<code>profile_temp_mod.F90</code> 或 <code>read_profile_mod.F90</code> 中被直接 <code>use</code>。</p>
+<p>因此复现 1D <code>testphys1d</code> 时，不应把 <code>serre_mod</code> 当成单柱经纬度或坡面设置来源；它是公共动力 zoom 网格状态容器，主要影响 3D/dynphy_lonlat 水平网格构造和 start/run.def 一致性检查。</p>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>如果构建系统需要 <code>serre_mod</code>，必须让 <code>libf/phymars/dyn1d/serre_mod.F90</code> 解析到 <code>LMDZ.COMMON/libf/dyn3d_common/serre_mod.F90</code>；当前 Windows 工作树中该入口表现为一行路径文本。</li>
+<li>单独编译这一行路径文本不是有效 Fortran；它依赖源码管理或构建系统把 stub 当作公共源文件入口。</li>
+<li>使用公共动力 zoom 的运行必须先通过 <code>defrun</code>、<code>defrun_new</code> 或 restart 读取路径给 <code>clon/clat/grossismx/grossismy/dzoomx/dzoomy/taux/tauy</code> 赋值。</li>
+<li><code>grossismx</code> 和 <code>grossismy</code> 小于 1 会触发停止；<code>dzoomy/tauy/grossismy</code> 的组合还可能在 <code>fyhyp_m</code> 中导致 <code>beta</code> 条件失败。</li>
+<li>对 1D <code>testphys1d</code>，本模块当前只是构建可见性补位；实际单柱几何和物理状态应从 <a href="init_testphys1d_mod.html">init_testphys1d_mod</a>、<a href="../comgeomfi_h.html">comgeomfi_h</a> 和 <a href="../../../architecture/testphys1d-config.html">testphys1d 配置</a> 追踪。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 Windows 工作树把 dyn1d 入口呈现为一行路径文本；原始类 Unix 工作树中它可能是符号链接。</li>
+<li>dyn1d 构建目标是否实际需要编译 <code>serre_mod</code>，需结合 makefile/构建脚本确认。</li>
+<li><code>transx/transy</code> 在公共 <code>inigeom</code> 后续分支中的完整派生公式未在本页展开；本页只覆盖 dyn1d stub 和目标模块状态边界。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn1d/index.md</a> - dyn1d 子目录索引。</li>
+<li><a href="init_testphys1d_mod.html">init_testphys1d_mod</a> - 1D 初始化主流程。</li>
+<li><a href="logic_mod.html">logic_mod</a> - dyn1d 可见的公共动力逻辑状态 stub。</li>
+<li><a href="comvert_mod.html">comvert_mod</a> - dyn1d 可见的公共垂直坐标 stub。</li>
+<li><a href="../../dynphy_lonlat/defrun_new.html">defrun_new</a> - Mars dynphy_lonlat run.def 读取路径。</li>
+<li><a href="../../../architecture/testphys1d-config.html">testphys1d 配置</a> - 1D 运行配置入口。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

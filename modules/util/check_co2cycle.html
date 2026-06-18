@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>check_co2cycle - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/check_co2cycle.md</span>
+    </nav>
+    <article class="content">
+<h1 id="check_co2cyclef90">check_co2cycle.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util\check_co2cycle.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>util</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>check_co2cycle.F90</code> 是一个离线 CO2 cycle 诊断工具。它读取一个或多个 <code>diagfi</code>、<code>concat</code> 或 <code>Xhistins</code> 类 NetCDF 输出文件，把地表压力 <code>ps</code> 双线性插值到 Viking Lander 1、Viking Lander 2 和 InSight 三个硬编码站点，按站点真实高度做静力外推，同时计算全球平均地表压力、南北半球地表 CO2 冰等效压力和总 CO2 库存。</p>
+<p>程序还会在第一轮输出之后重新读取站点压力 ASCII 文件，生成逐日平均文件，并在完整火星年上做 6 阶 Fourier 谐波重建。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>check_co2cycle</code></td>
+<td>program</td>
+<td>1</td>
+<td>主程序；读取 GCM NetCDF 输出，写站点压力、全球 CO2 监控、日平均和谐波重建。</td>
+</tr>
+<tr>
+<td><code>sol2ls</code></td>
+<td>subroutine</td>
+<td>1192</td>
+<td>将 sol 转为太阳经度 Ls；允许跨年时给 Ls 加 360 度倍数。</td>
+</tr>
+<tr>
+<td><code>ls2sol</code></td>
+<td>function</td>
+<td>1286</td>
+<td>将 Ls 转回 sol；用于只按 Ls 输出的站点文件做日平均分组。</td>
+</tr>
+<tr>
+<td><code>DiscreetFourierHn</code></td>
+<td>subroutine</td>
+<td>1358</td>
+<td>对离散序列计算第 <code>n</code> 阶 Fourier 系数 <code>a/b</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖">依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>include "netcdf.inc"</code></td>
+<td>使用旧式 NetCDF Fortran <code>NF_*</code> 接口读取 GCM 输出。</td>
+</tr>
+<tr>
+<td>输入 NetCDF 坐标和诊断变量</td>
+<td>需要 <code>longitude/lon/lon_dom_out</code>、<code>latitude/lat/lat_dom_out</code>、<code>altitude/alt</code>、<code>Time/time_counter</code>、<code>Time/time_instant</code>、<code>phisinit</code>、<code>controle</code>、<code>area/aire</code>、<code>ps</code>、<code>co2ice</code>，并尽量读取 <code>temp</code> 或 <code>temp7</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>来源</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NF_OPEN</code> / <code>NF_CLOSE</code></td>
+<td>NetCDF 库</td>
+<td>打开和关闭每个输入 NetCDF 文件。</td>
+</tr>
+<tr>
+<td><code>NF_INQ_DIMID</code> / <code>NF_INQ_DIMLEN</code></td>
+<td>NetCDF 库</td>
+<td>查找经纬度、高度和时间维度长度。</td>
+</tr>
+<tr>
+<td><code>NF_INQ_VARID</code> / <code>NF_GET_VAR_REAL</code> / <code>NF_GET_VARA_REAL</code></td>
+<td>NetCDF 库</td>
+<td>读取坐标、静态字段、时间序列和每个时间步的 2D/3D 场。</td>
+</tr>
+<tr>
+<td><code>sol2ls</code></td>
+<td>本文件</td>
+<td>把当前 sol 写成 Ls 时间轴。</td>
+</tr>
+<tr>
+<td><code>ls2sol</code></td>
+<td>本文件</td>
+<td>在 Ls-only 输出格式下恢复 sol，用于日平均分组。</td>
+</tr>
+<tr>
+<td><code>DiscreetFourierHn</code></td>
+<td>本文件</td>
+<td>对日平均压力序列计算 0 到 6 阶 Fourier 系数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入目录 <code>pathchmp</code></td>
+<td>stdin / <code>check_co2cycle.def</code></td>
+<td>目录</td>
+<td>-</td>
+<td>NetCDF 文件所在目录。</td>
+</tr>
+<tr>
+<td>输出目录 <code>pathsor</code></td>
+<td>stdin / <code>check_co2cycle.def</code></td>
+<td>目录</td>
+<td>-</td>
+<td>ASCII 输出文件写入目录。</td>
+</tr>
+<tr>
+<td>文件名列表 <code>nomfich</code></td>
+<td>stdin / <code>check_co2cycle.def</code></td>
+<td>多行名称</td>
+<td>-</td>
+<td>每行是不带 <code>.nc</code> 的输入文件名；空行结束。</td>
+</tr>
+<tr>
+<td><code>time_unit</code></td>
+<td>stdin / <code>check_co2cycle.def</code></td>
+<td>1/2/3</td>
+<td>-</td>
+<td>输出时间轴：1=sol，2=Ls，3=sol 和 Ls。</td>
+</tr>
+<tr>
+<td><code>longitude</code>/<code>lon</code>/<code>lon_dom_out</code></td>
+<td>NetCDF</td>
+<td>1D</td>
+<td>degree</td>
+<td>经度坐标，源码假定从 -180 到 180 排序。</td>
+</tr>
+<tr>
+<td><code>latitude</code>/<code>lat</code>/<code>lat_dom_out</code></td>
+<td>NetCDF</td>
+<td>1D</td>
+<td>degree</td>
+<td>纬度坐标，源码假定从 90 到 -90 排序。</td>
+</tr>
+<tr>
+<td><code>altitude</code>/<code>alt</code></td>
+<td>NetCDF</td>
+<td>1D</td>
+<td>-</td>
+<td>仅用于确认垂直维度长度。</td>
+</tr>
+<tr>
+<td><code>phisinit</code></td>
+<td>NetCDF</td>
+<td><code>(lon,lat)</code></td>
+<td>m2 s-2</td>
+<td>模式地形势，用于站点高度差修正。</td>
+</tr>
+<tr>
+<td><code>controle</code></td>
+<td>NetCDF</td>
+<td>长度 100</td>
+<td>mixed</td>
+<td>读取 <code>day_ini</code>、行星半径、重力、平均摩尔质量。</td>
+</tr>
+<tr>
+<td><code>area</code>/<code>aire</code></td>
+<td>NetCDF</td>
+<td><code>(lon,lat)</code></td>
+<td>m2</td>
+<td>格点面积，用于全球平均和 CO2 冰库存。</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td>NetCDF</td>
+<td><code>(lon,lat,Time)</code></td>
+<td>Pa</td>
+<td>地表压力。</td>
+</tr>
+<tr>
+<td><code>co2ice</code></td>
+<td>NetCDF</td>
+<td><code>(lon,lat,Time)</code></td>
+<td>kg m-2</td>
+<td>地表 CO2 冰质量；乘 <code>g</code> 转为等效压力。</td>
+</tr>
+<tr>
+<td><code>temp</code> 或 <code>temp7</code></td>
+<td>NetCDF</td>
+<td><code>(lon,lat,alt,Time)</code> 或 <code>(lon,lat,Time)</code></td>
+<td>K</td>
+<td>第 7 层温度用于站点真实高度压力外推；缺失时退化为 10 km 标尺高度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="硬编码站点">硬编码站点</h2>
+<table>
+<thead>
+<tr>
+<th>站点</th>
+<th style="text-align: right;">经度</th>
+<th style="text-align: right;">纬度</th>
+<th style="text-align: right;">高度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Viking Lander 1</td>
+<td style="text-align: right;"><code>-47.95</code></td>
+<td style="text-align: right;"><code>22.27</code></td>
+<td style="text-align: right;"><code>-3637 m</code></td>
+</tr>
+<tr>
+<td>Viking Lander 2</td>
+<td style="text-align: right;"><code>134.29</code></td>
+<td style="text-align: right;"><code>47.67</code></td>
+<td style="text-align: right;"><code>-4505 m</code></td>
+</tr>
+<tr>
+<td>InSight</td>
+<td style="text-align: right;"><code>135.62</code></td>
+<td style="text-align: right;"><code>4.502</code></td>
+<td style="text-align: right;"><code>-2614 m</code></td>
+</tr>
+</tbody>
+</table>
+<p>程序把这些高度乘以 <code>g</code> 转成地形势，再与四邻点 <code>phisinit</code> 加权得到的模式地形势比较。</p>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prestot_yearN</code></td>
+<td>ASCII</td>
+<td>每个时间步的全球平均地表压力、北/南半球 CO2 冰等效压力和总 CO2 压力库存。</td>
+</tr>
+<tr>
+<td><code>ps_VL1_yearN</code> / <code>ps_VL2_yearN</code> / <code>ps_INS_yearN</code></td>
+<td>ASCII</td>
+<td>每个时间步的站点压力：真实高度外推值 <code>zp2</code> 和模式地形高度值 <code>zp1</code>。</td>
+</tr>
+<tr>
+<td><code>ps_*_yearN_diurnal</code></td>
+<td>ASCII</td>
+<td>对同一整数 sol 内的站点压力做算术平均。</td>
+</tr>
+<tr>
+<td><code>ps_*_yearN_harmonics</code></td>
+<td>ASCII</td>
+<td>完整年时写 0 到 6 阶 Fourier 系数，并按 1 sol 间隔重建压力序列。</td>
+</tr>
+<tr>
+<td>stdout</td>
+<td>终端</td>
+<td>网格定位、变量读取、站点邻点和中间压力诊断信息。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="副作用">副作用</h2>
+<ul>
+<li>输出文件用固定文件名直接打开，已有同名 ASCII 文件会被覆盖。</li>
+<li>程序不创建输出目录；<code>pathsor</code> 必须已经存在。</li>
+<li>会二次读取自己刚写出的 <code>ps_*_yearN</code> 文件来计算日平均，再读取 <code>_diurnal</code> 文件做谐波重建。</li>
+<li><code>day0</code> 在读取 <code>controle(3)</code> 后被强制重置为 0，跨文件时间连续性由每个文件末尾的 <code>day0 = day0 + day</code> 维护。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>读取交互输入</strong>：输入目录、输出目录、首个文件名和输出时间轴类型；后续文件名在每个文件处理完后继续从 stdin 读取。</li>
+<li><strong>读取首个 NetCDF 文件建立网格</strong>：
+<ul>
+<li>若存在 <code>time_counter</code> 维度，认为是 DYNAMICO/XIOS 插值输出；</li>
+<li>否则认为是 native lon-lat 输出，并把最后一个冗余经度排除在 <code>iend=lonlength-1</code> 外。</li>
+</ul></li>
+<li><strong>读取静态场和常数</strong>：
+<ul>
+<li><code>phisinit</code> 提供模式地形；</li>
+<li><code>controle(3/5/7/8)</code> 分别用于初始日、半径、重力和平均摩尔质量；</li>
+<li><code>constR=1000*8.314511/controle(8)</code>；</li>
+<li><code>area</code> 或 <code>aire</code> 用于面积权重。</li>
+</ul></li>
+<li><strong>定位三站点四邻点</strong>：
+<ul>
+<li>在经纬度数组中寻找包围硬编码站点坐标的格盒；</li>
+<li>用相对位置 <code>zalpha/zbeta</code> 构造四个双线性权重；</li>
+<li>用四邻点 <code>phisinit</code> 得到模式站点地形势 <code>phisim</code>。</li>
+</ul></li>
+<li><strong>逐输入文件和逐时间步读取变量</strong>：
+<ul>
+<li>读取 <code>Time</code> 或 <code>time_instant</code>；</li>
+<li>每个时间步读取 <code>ps</code>、<code>co2ice</code>，并尝试读取 <code>temp</code>；<code>temp</code> 缺失时尝试 <code>temp7</code>，再缺失则 <code>t7=0</code>。</li>
+</ul></li>
+<li><strong>计算全球 CO2 监控量</strong>：
+<ul>
+<li><code>pstot=sum(area*ps)</code>；</li>
+<li><code>captotN=sum(area*co2ice)</code> for <code>j=1..jend/2+1</code>；</li>
+<li><code>captotS=sum(area*co2ice)</code> for <code>j=jend/2+1..jend</code>；</li>
+<li>写出时乘 <code>airtot1=1/sum(area)</code>，CO2 冰再乘 <code>g</code> 转 Pa。</li>
+</ul></li>
+<li><strong>计算站点压力</strong>：
+<ul>
+<li>四邻点上用 <code>sum(weight*log(ps))</code> 插值，随后 <code>zp1=exp(sum)</code>；</li>
+<li>第 7 层温度加权为 <code>zt</code>，<code>gh=constR*zt</code>；</li>
+<li>真实高度压力 <code>zp2=zp1*exp(-(phisite-phisim)/gh)</code>；</li>
+<li>若没有温度导致 <code>gh=0</code>，使用 10 km 标尺高度退化公式。</li>
+</ul></li>
+<li><strong>跨年输出管理</strong>：当 <code>sol &gt;= 669</code> 时递增年号；下一时间步关闭上一年文件并打开 <code>yearN</code> 新文件。</li>
+<li><strong>日平均</strong>：对每个站点、每年，把同一 <code>floor(sol)</code> 的连续记录平均，输出 <code>_diurnal</code>。</li>
+<li><strong>谐波重建</strong>：若日平均最后一个 <code>Ls &gt;= 360-1.e-3</code>，计算 0 到 6 阶 Fourier 系数，并用 1 到 669 sol 的 Ls 重建压力序列。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>read input directory, output directory, first file stem, time_unit
+open first NetCDF
+read lon, lat, alt length, phisinit, controle, area
+compute constants and station interpolation weights
+open year1 prestot and ps_SITE files
+while file stem is not blank:
+  open file.nc
+  read time vector
+  for each time index:
+    if year changed: rotate output files
+    read ps, co2ice, temp or temp7
+    sol = time + day0, fold sol into 0..669
+    write global pressure and CO2 ice inventory
+    for each site:
+      bilinear interpolate log(ps) and temp7
+      extrapolate pressure from model terrain to site terrain
+      write ps_SITE_yearN
+    if sol reaches year end: increment year
+  day0 += last time
+  read next file stem
+for each completed year and site:
+  read ps_SITE_yearN and average by integer sol
+  write ps_SITE_yearN_diurnal
+  if full year is present:
+    compute Fourier coefficients through n=6
+    reconstruct one value per sol
+    write ps_SITE_yearN_harmonics</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/co2-cycle.html">co2-cycle</a></td>
+<td>后处理地表 CO2 冰和地表压力库存，检查 CO2 cycle 的年循环幅度和质量守恒倾向。</td>
+</tr>
+<tr>
+<td><a href="index.html">util/index.md</a></td>
+<td>属于 util 观测比较链；与 MCS 抽样和通用点/廓线抽取工具并列。</td>
+</tr>
+<tr>
+<td>xvik 拟合链</td>
+<td><code>util/xvik</code> 中的拟合程序会使用 Viking 压力相关输出；本页按源码记录当前输出文件名，完整兼容性仍需单独核验。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>当前源码读取顺序是：输入目录、输出目录、首个文件名、<code>time_unit</code>，然后在每个文件处理完后继续读取下一个文件名，空行结束。</li>
+<li>仓库中的 <code>check_co2cycle.def</code> 文件把 <code>time_unit</code> 放在文件列表末尾；按当前源码字面读取会把第二个文件名读入 <code>time_unit</code>，自动化运行前应重排或交互输入。</li>
+<li>输入文件名不带 <code>.nc</code>；程序自行拼接 <code>pathchmp/nomfich.nc</code>。</li>
+<li>输入 NetCDF 必须至少有 <code>ps</code>、<code>co2ice</code>、<code>phisinit</code>、<code>controle</code>、<code>area</code> 或 <code>aire</code>。</li>
+<li>经度、纬度排序被源码写死为经度递增、纬度递减；不符合此约定会导致站点定位失败或权重错误。</li>
+<li>若使用 native lon-lat 输出，最后一个冗余经度不参与面积积分和站点定位。</li>
+<li>完整年判定依赖最后的 <code>Ls &gt;= 360-1.e-3</code>；不完整年只会写日平均，不写有效谐波重建。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>sol2ls</code> 使用 <code>year_day=669.</code>，<code>ls2sol</code> 使用 <code>year_day=668.6d0</code>；两者常数不完全一致，页面按源码记录。</li>
+<li>南北半球 CO2 冰积分都包含 <code>jend/2+1</code> 纬圈，赤道或中间纬圈是否有意双计需开发者确认。</li>
+<li><code>temp</code> 读取成功时直接取 <code>t(:,:,7)</code>；若垂直层少于 7 层，源码没有保护。</li>
+<li><code>time_unit</code> 非 1/2 时都进入 “both” 分支，没有拒绝非法值。</li>
+<li><code>check_co2cycle.def</code> 的说明把 <code>time_unit</code> 写在文件列表之后，但主程序先读取首个文件名、再读取 <code>time_unit</code>，后续文件名在文件循环末尾继续读取；页面按源码记录，样例文件是否仍能直接用于当前源码需实机确认。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li>输出目录缺失、输入文件缺少任一必需变量、站点坐标不落入网格都会 <code>stop</code>。</li>
+<li>程序会覆盖同名输出文件。</li>
+<li><code>nbmax=999999</code> 是静态数组上限；超长数据集可能越界，源码没有动态扩容。</li>
+<li>终端输出非常详细，大批量处理时日志会很长。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">util/index.md</a> - util 后处理工具总览。</li>
+<li><a href="../../themes/co2-cycle.html">co2-cycle.md</a> - CO2 cycle 主题页。</li>
+<li><a href="simu_MCS.html">simu_MCS.md</a> - 另一个观测比较后处理工具。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

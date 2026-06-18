@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>logic_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../../index.html">主页</a>
+        <a href="../../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../../libf-overview.html">模块</a>
+        <a href="../../../themes/index.html">主题</a>
+        <a href="../../../routines/index.html">例程</a>
+        <a href="../../../reference/file-index.html">文件索引</a>
+        <a href="../../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dyn1d/logic_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dyn1dlogic_modf90">dyn1d/logic_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d\logic_mod.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>dyn1d/logic_mod.F90</code> 在当前源码树中不是独立实现，而是一行相对路径：</p>
+<pre class="text"><code>../../../../LMDZ.COMMON/libf/dyn3d/logic_mod.F90</code></pre>
+<p>它把 1D <code>testphys1d</code> 构建路径中的 <code>logic_mod</code> 解析到公共动力逻辑状态模块。目标模块本身只声明逻辑开关和少量整型标志，不包含初始化例程；这些变量通常由 3D <code>conf_gcm</code>、时间步循环或 1D 初始化路径赋值。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">目标行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>logic_mod.F90</code></td>
+<td>path stub</td>
+<td style="text-align: right;">dyn1d line 1</td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d/logic_mod.F90</code>。</td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">common line 1</td>
+<td>保存动力核心的逻辑状态。</td>
+</tr>
+<tr>
+<td><code>hybrid</code></td>
+<td>logical</td>
+<td style="text-align: right;">common line 29</td>
+<td>为真时使用 hybrid 垂直坐标；为假时使用 sigma 坐标。当前 dyn1d 初始化直接使用此变量。</td>
+</tr>
+<tr>
+<td><code>iflag_phys</code>, <code>iflag_trac</code></td>
+<td>integer</td>
+<td style="text-align: right;">common lines 34-35</td>
+<td>公共动力物理包和 tracer 调用类型标志；当前 dyn1d 目录未直接使用。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="目标模块状态清单">目标模块状态清单</h2>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>类型</th>
+<th>源码注释或用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>purmats</code></td>
+<td>logical</td>
+<td>为真表示纯 Matsuno 时间步，为假表示 Matsuno-Leapfrog。</td>
+</tr>
+<tr>
+<td><code>forward</code>, <code>leapf</code></td>
+<td>logical</td>
+<td>标记 Matsuno forward 阶段和 leapfrog 步。</td>
+</tr>
+<tr>
+<td><code>apphys</code>, <code>apdiss</code>, <code>apdelq</code></td>
+<td>logical</td>
+<td>标记当前步是否调用物理、耗散或 tracer/delq 相关处理。</td>
+</tr>
+<tr>
+<td><code>statcl</code>, <code>conser</code>, <code>saison</code>, <code>ecripar</code></td>
+<td>logical</td>
+<td>统计、守恒、季节和并行输出相关状态；具体语义在调用方中体现。</td>
+</tr>
+<tr>
+<td><code>fxyhypb</code>, <code>ysinus</code></td>
+<td>logical</td>
+<td>纬向网格离散函数选择。</td>
+</tr>
+<tr>
+<td><code>read_start</code></td>
+<td>logical</td>
+<td>是否读取 <code>start.nc</code> 初始化动力场。</td>
+</tr>
+<tr>
+<td><code>ok_guide</code></td>
+<td>logical</td>
+<td>是否启用 nudging。</td>
+</tr>
+<tr>
+<td><code>ok_strato</code></td>
+<td>logical</td>
+<td>平流层/顶层 sponge 和耗散配置相关开关。</td>
+</tr>
+<tr>
+<td><code>tidal</code></td>
+<td>logical</td>
+<td>Titan 潮汐力开关。</td>
+</tr>
+<tr>
+<td><code>ok_gradsfile</code>, <code>ok_limit</code>, <code>ok_etat0</code>, <code>read_orop</code></td>
+<td>logical</td>
+<td>GrADS 输出、边界文件、初始状态和次网格地形参数读取开关。</td>
+</tr>
+<tr>
+<td><code>hybrid</code></td>
+<td>logical</td>
+<td>垂直坐标选择，当前 1D 路径使用。</td>
+</tr>
+<tr>
+<td><code>moyzon_mu</code>, <code>moyzon_ch</code></td>
+<td>logical</td>
+<td>Titan 纬向平均输出相关状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="dyn1d-使用路径">dyn1d 使用路径</h2>
+<p>当前 <code>LMDZ.MARS/libf/phymars/dyn1d</code> 中只发现一个直接 <code>use logic_mod</code>：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">use</span> logic_mod, <span class="kw">only</span>: hybrid</span></code></pre></div>
+<p><code>init_testphys1d_mod.F90</code> 中的 1D 初始化流程会：</p>
+<ol type="1">
+<li>设 <code>hybrid = .true.</code>。</li>
+<li>通过 <code>getin("hybrid",hybrid)</code> 允许配置覆盖。</li>
+<li>打印 <code>hybrid</code> 当前值。</li>
+<li>调用 <a href="disvert_noterre.html">disvert_noterre</a>，由公共垂直离散例程读取同一 <code>logic_mod::hybrid</code> 并选择 hybrid 或 sigma 坐标。</li>
+</ol>
+<p>因此在 1D testphys 路径里，本文件最重要的可复现影响是垂直坐标分支；其他 <code>logic_mod</code> 变量主要服务公共 3D 动力核心。</p>
+<h2 id="赋值和读取关系">赋值和读取关系</h2>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>赋值位置</th>
+<th>读取/影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hybrid</code></td>
+<td><a href="init_testphys1d_mod.html">init_testphys1d_mod</a> 中默认 <code>.true.</code> 并读取 <code>hybrid</code> 配置键；公共 <a href="disvert_noterre.html">disvert_noterre</a> 也有默认和 <code>getin('hybrid')</code> 读取。</td>
+<td><a href="disvert_noterre.html">disvert_noterre</a> 用它决定是否把 <code>esasig.def</code>/<code>z2sig.def</code> 中的 sigma 位置转换成 hybrid <code>ap/bp/aps/bps</code>。</td>
+</tr>
+<tr>
+<td><code>read_start</code>, <code>ok_guide</code>, <code>ok_strato</code>, <code>iflag_phys</code> 等</td>
+<td>公共 3D <code>conf_gcm.F90</code> 和动力循环路径。</td>
+<td>3D/parallel 动力核心、<code>disvert.F90</code>、<code>inidissip.F90</code>、<code>sortvarc.F</code> 等公共路径。当前 dyn1d 目录未直接读取。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与-mars-物理开关的边界">与 Mars 物理开关的边界</h2>
+<p>不要把本页的 <code>logic_mod</code> 与 Mars 物理侧 <a href="../callkeys_mod.html">callkeys_mod</a> 混淆。<code>water</code>、<code>photochem</code>、<code>callthermos</code>、<code>callsoil</code>、<code>diurnal</code>、<code>season</code> 等物理过程开关定义在 <code>callkeys_mod.F90</code>，不是这里。<code>init_testphys1d_mod.F90</code> 同时 <code>use logic_mod, only: hybrid</code> 和 <code>use callkeys_mod, only: water, photochem, callthermos</code>，两个模块承担不同职责。</p>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>dyn1d 本地文件只是路径 stub；实际变量清单必须以 <code>LMDZ.COMMON/libf/dyn3d/logic_mod.F90</code> 为准。</li>
+<li><code>logic_mod</code> 没有默认初始化语句。除 <code>hybrid</code> 在 1D 初始化里显式赋值外，其他变量若在 1D 路径中被新增使用，需要同时确认赋值来源。</li>
+<li><code>hybrid</code> 配置会影响 <code>plev/play</code> 的构造，进而影响 profile 插值、压力层和后续 <code>physiq</code> 输入。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Windows 工作树把 dyn1d 入口呈现为一行路径文本；原始类 Unix 工作树中它可能是符号链接。</li>
+<li>1D 路径中 <code>hybrid</code> 被 <code>init_testphys1d_mod</code> 和 <code>disvert_noterre</code> 两处读取配置，是否有意保留重复读取未在源码注释中说明。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn1d/index.md</a> - dyn1d 子目录索引。</li>
+<li><a href="init_testphys1d_mod.html">init_testphys1d_mod</a> - 1D 初始化中设置 <code>logic_mod::hybrid</code>。</li>
+<li><a href="disvert_noterre.html">disvert_noterre</a> - 使用 <code>hybrid</code> 构造垂直坐标。</li>
+<li><a href="../../../architecture/testphys1d-config.html">testphys1d 配置</a> - 1D 配置入口。</li>
+<li><a href="../../../architecture/z2sig-config.html">z2sig 配置</a> - 垂直坐标配置背景。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

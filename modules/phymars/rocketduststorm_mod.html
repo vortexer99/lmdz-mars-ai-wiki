@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>rocketduststorm_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/rocketduststorm_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="rocketduststorm_modf90">rocketduststorm_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\rocketduststorm_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>源码依据（第 12-20 行注释及整体结构）：实现"火箭式尘暴"（Rocket Dust Storm, RDS）参数化方案，用于模拟火星尘暴季节中<strong>分离尘埃层</strong>（detached dust layers）的形成机制。</p>
+<p>核心物理思想（第 188-194 行注释）：</p>
+<ul>
+<li>风暴尘埃吸收太阳辐射产生加热</li>
+<li>加热驱动垂直对流（上升气流）</li>
+<li>上升气流通过绝热冷却平衡辐射加热</li>
+<li><code>stormdust</code> 示踪物随垂直气流输运</li>
+<li>在高空或弱风区，<code>stormdust</code> 逐渐"脱轨"（detrain）为背景 <code>dust</code></li>
+</ul>
+<p>该模块是尘埃循环主题页中处理<strong>尘暴期间垂直输运</strong>的专用机制，与背景尘埃的重力沉降（<code>callsedim_mod.F</code>）形成互补。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rocketduststorm_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>容器模块</td>
+</tr>
+<tr>
+<td><code>dustliftday</code></td>
+<td>real(allocatable), SAVE</td>
+<td>5</td>
+<td>尘埃抬升率（s⁻¹），模块级变量，被 <code>compute_dtau_mod.F90</code> 填充，供 <code>physiq_mod.F</code> 消费</td>
+</tr>
+<tr>
+<td><code>rocketduststorm</code></td>
+<td>subroutine</td>
+<td>22</td>
+<td>主例程：辐射加热计算 → 垂直速度 → Van Leer 输运 → 脱轨</td>
+</tr>
+<tr>
+<td><code>van_leer</code></td>
+<td>subroutine</td>
+<td>546</td>
+<td>本地 Van Leer 平流格式（从 <code>vlz_fi.F</code> 复制，源码第 544 行注释明确说明）</td>
+</tr>
+<tr>
+<td><code>ini_rocketduststorm_mod</code></td>
+<td>subroutine</td>
+<td>700</td>
+<td>初始化：分配 <code>dustliftday(ngrid)</code></td>
+</tr>
+<tr>
+<td><code>end_rocketduststorm_mod</code></td>
+<td>subroutine</td>
+<td>710</td>
+<td>清理：释放 <code>dustliftday</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_stormdust_mass/number</code>, <code>igcm_dust_mass/number</code>, <code>rho_dust</code></td>
+<td>尘埃/风暴尘埃示踪物索引与密度（第 38-40 行）</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>r</code>, <code>g</code>, <code>cpp</code>, <code>rcp</code></td>
+<td>比气体常数、重力加速度、定压比热（第 41 行）</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>naerkind</code></td>
+<td>气溶胶种类数（第 42 行）</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>comsaison_h</code></td>
+<td><code>dist_sol</code>, <code>mu0</code>, <code>fract</code></td>
+<td>太阳距离、天顶角余弦、日照分数（第 43 行）</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>zmea</code>, <code>zstd</code>, <code>zsig</code>, <code>hmons</code></td>
+<td>地形数据（平均、标准差、坡度、山顶地形，第 44 行）</td>
+<td><code>hmons</code> 在本文件中未直接使用，推断为接口兼容</td>
+</tr>
+<tr>
+<td><code>callradite_mod</code></td>
+<td><code>callradite</code></td>
+<td>辐射传输计算（第 45 行）</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>write_output_mod</code></td>
+<td><code>write_output</code></td>
+<td>诊断输出（第 46 行）</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>coeff_detrainment</code></td>
+<td>脱轨系数（运行时参数，默认 0.02，第 47 行）</td>
+<td>无</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>callradite</code></td>
+<td><code>callradite_mod</code></td>
+<td>第 259 行</td>
+<td>计算含风暴尘埃的辐射加热率（SW+LW）</td>
+</tr>
+<tr>
+<td><code>van_leer</code></td>
+<td>本模块</td>
+<td>第 400-403 行</td>
+<td>垂直输运：<code>stormdust_mass</code> 和 <code>stormdust_number</code> 的 Van Leer 平流</td>
+</tr>
+<tr>
+<td><code>write_output</code></td>
+<td><code>write_output_mod</code></td>
+<td>第 530 行</td>
+<td>输出 <code>rds_lapserate</code> 诊断场</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用者</td>
+<td>integer（in）</td>
+<td>—</td>
+<td>水平格点数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>调用者</td>
+<td>integer（in）</td>
+<td>—</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>调用者</td>
+<td>integer（in）</td>
+<td>—</td>
+<td>示踪物数</td>
+</tr>
+<tr>
+<td><code>ptime</code></td>
+<td>调用者</td>
+<td>real（in）</td>
+<td>s</td>
+<td>当前时间</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>调用者</td>
+<td>real（in）</td>
+<td>s</td>
+<td>物理时间步</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td>调用者</td>
+<td>real(ngrid,nlayer,nq)（in）</td>
+<td>kg/kg</td>
+<td>示踪物混合比</td>
+</tr>
+<tr>
+<td><code>pdqfi</code></td>
+<td>调用者</td>
+<td>real(ngrid,nlayer,nq)（in）</td>
+<td>kg/kg/s</td>
+<td>上游倾向（本例程未使用）</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td>调用者</td>
+<td>real(ngrid,nlayer)（in）</td>
+<td>K</td>
+<td>层中点温度</td>
+</tr>
+<tr>
+<td><code>pdtfi</code></td>
+<td>调用者</td>
+<td>real(ngrid,nlayer)（in）</td>
+<td>K/s</td>
+<td>上游温度倾向（本例程未使用）</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td>调用者</td>
+<td>real(ngrid,nlayer+1)（in）</td>
+<td>Pa</td>
+<td>层间界面气压</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td>调用者</td>
+<td>real(ngrid,nlayer)（in）</td>
+<td>Pa</td>
+<td>层中点气压</td>
+</tr>
+<tr>
+<td><code>pzlev</code></td>
+<td>调用者</td>
+<td>real(ngrid,nlayer+1)（in）</td>
+<td>m</td>
+<td>层间界面高度</td>
+</tr>
+<tr>
+<td><code>pzlay</code></td>
+<td>调用者</td>
+<td>real(ngrid,nlayer)（in）</td>
+<td>m</td>
+<td>层中点高度</td>
+</tr>
+<tr>
+<td><code>pdtsw</code></td>
+<td>调用者</td>
+<td>real(ngrid,nlayer)（in）</td>
+<td>K/s</td>
+<td>短波辐射加热倾向（背景尘埃）</td>
+</tr>
+<tr>
+<td><code>pdtlw</code></td>
+<td>调用者</td>
+<td>real(ngrid,nlayer)（in）</td>
+<td>K/s</td>
+<td>长波辐射加热倾向（背景尘埃）</td>
+</tr>
+<tr>
+<td><code>clearatm</code></td>
+<td>调用者</td>
+<td>logical（in）</td>
+<td>—</td>
+<td>清空大气标志</td>
+</tr>
+<tr>
+<td><code>icount</code></td>
+<td>调用者</td>
+<td>integer（inout）</td>
+<td>—</td>
+<td>辐射计数器</td>
+</tr>
+<tr>
+<td><code>zday</code>, <code>zls</code></td>
+<td>调用者</td>
+<td>real（in）</td>
+<td>day, °</td>
+<td>太阳日、太阳经度</td>
+</tr>
+<tr>
+<td><code>tsurf</code></td>
+<td>调用者</td>
+<td>real(ngrid)（in）</td>
+<td>K</td>
+<td>地表温度</td>
+</tr>
+<tr>
+<td><code>co2ice</code></td>
+<td>调用者</td>
+<td>real(ngrid)（in）</td>
+<td>kg/m²</td>
+<td>地表 CO2 冰</td>
+</tr>
+<tr>
+<td><code>igout</code></td>
+<td>调用者</td>
+<td>integer（in）</td>
+<td>—</td>
+<td>输出格点索引</td>
+</tr>
+<tr>
+<td><code>totstormfract</code></td>
+<td>调用者</td>
+<td>real(ngrid)（in）</td>
+<td>—</td>
+<td>风暴占据格点的面积分数</td>
+</tr>
+<tr>
+<td><code>tauscaling</code></td>
+<td>调用者</td>
+<td>real(ngrid)（inout）</td>
+<td>—</td>
+<td>尘埃→光学厚度标定因子</td>
+</tr>
+<tr>
+<td><code>dust_rad_adjust</code></td>
+<td>调用者</td>
+<td>real(ngrid)（inout）</td>
+<td>—</td>
+<td>尘埃辐射调整因子</td>
+</tr>
+<tr>
+<td><code>IRtoVIScoef</code></td>
+<td>调用者</td>
+<td>real(ngrid)（inout）</td>
+<td>—</td>
+<td>红外→可见光系数（本例程未修改，推断为接口兼容）</td>
+</tr>
+<tr>
+<td><code>albedo</code></td>
+<td>调用者</td>
+<td>real(ngrid,2)（in）</td>
+<td>—</td>
+<td>地表反照率（VIS/NIR）</td>
+</tr>
+<tr>
+<td><code>emis</code></td>
+<td>调用者</td>
+<td>real(ngrid)（in）</td>
+<td>—</td>
+<td>地表发射率</td>
+</tr>
+<tr>
+<td><code>clearsky</code></td>
+<td>调用者</td>
+<td>logical（in）</td>
+<td>—</td>
+<td>清空标志</td>
+</tr>
+<tr>
+<td><code>totcloudfrac</code></td>
+<td>调用者</td>
+<td>real(ngrid)（in）</td>
+<td>—</td>
+<td>总云量</td>
+</tr>
+<tr>
+<td><code>nohmons</code></td>
+<td>调用者</td>
+<td>logical（in）</td>
+<td>—</td>
+<td>无山顶地形标志</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdqrds</code></td>
+<td>out，调用者回收</td>
+<td>real(ngrid,nlayer,nq)（out）</td>
+<td>kg/kg/s</td>
+<td>火箭式尘暴产生的示踪物倾向（仅 <code>stormdust_mass/number</code> 和 <code>dust_mass/number</code> 非零）</td>
+</tr>
+<tr>
+<td><code>wrad</code></td>
+<td>out，调用者使用</td>
+<td>real(ngrid,nlayer+1)（out）</td>
+<td>m/s</td>
+<td>风暴区域内的垂直速度剖面</td>
+</tr>
+<tr>
+<td><code>dsodust</code></td>
+<td>out，调用者使用</td>
+<td>real(ngrid,nlayer)（out）</td>
+<td>—</td>
+<td>背景尘埃的密度标度不透明度</td>
+</tr>
+<tr>
+<td><code>dsords</code></td>
+<td>out，调用者使用</td>
+<td>real(ngrid,nlayer)（out）</td>
+<td>—</td>
+<td>风暴尘埃的密度标度不透明度</td>
+</tr>
+<tr>
+<td><code>dsotop</code></td>
+<td>out，调用者使用</td>
+<td>real(ngrid,nlayer)（out）</td>
+<td>—</td>
+<td>山顶地形尘埃的密度标度不透明度</td>
+</tr>
+<tr>
+<td><code>tau_pref_scenario</code></td>
+<td>out，调用者使用</td>
+<td>real(ngrid)（out）</td>
+<td>—</td>
+<td>预设尘埃柱可见光不透明度（场景）</td>
+</tr>
+<tr>
+<td><code>tau_pref_gcm</code></td>
+<td>out，调用者使用</td>
+<td>real(ngrid)（out）</td>
+<td>—</td>
+<td>GCM 计算的尘埃柱可见光不透明度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>模块级变量</strong>：<code>dustliftday(ngrid)</code>（SAVE, ALLOCATABLE, THREADPRIVATE），由 <code>compute_dtau_mod.F90</code> 填充，在本模块中仅分配/释放，不直接读写。</li>
+<li><strong>运行时参数</strong>：<code>coeff_detrainment</code>（来自 <code>callkeys_mod</code>），默认 0.02（<code>conf_phys.F:382-383</code>），可通过 <code>callphys.def</code> 覆盖。</li>
+<li><strong>硬编码常量</strong>：
+<ul>
+<li><code>coefmin = 0.025</code>（第 151 行）：最小脱轨分数</li>
+<li><code>wmin = 0.25</code> m/s（第 152 行）：触发完全脱轨的低速阈值</li>
+<li><code>wmax = 10.</code> m/s（第 153 行）：垂直速度上限</li>
+<li><code>secu = 3.</code>（第 160 行）：子步安全系数，限制尘埃每子步穿越层厚</li>
+</ul></li>
+<li><strong>诊断输出</strong>：<code>write_output('rds_lapserate', ..., 'K/m', lapserate)</code>（第 530-532 行）。</li>
+<li><strong>无文件 I/O</strong>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<p>按执行顺序（行号为源码行号）：</p>
+<h3 id="阶段-0初始化与风暴检测第-208-253-行">阶段 0：初始化与风暴检测（第 208-253 行）</h3>
+<ol type="1">
+<li><strong>初始化</strong>（第 208-228 行）：将所有输出数组和中间变量清零，<code>detrain(:,:) = 1.</code>（默认完全脱轨）。</li>
+<li><strong>提取示踪物</strong>（第 232-239 行）：从 <code>pq</code> 复制出 <code>zq_dust_mass/number</code> 和 <code>zq_stormdust_mass/number</code>。</li>
+<li><strong>风暴检测</strong>（第 244-253 行）：对每列 <code>ig</code>，逐层检查 <code>if (stormdust_mass &gt; dust_mass * 1e-4)</code> 若任一层满足，标记 <code>storm(ig) = .true.</code>，否则跳过该列。</li>
+</ol>
+<h3 id="阶段-1辐射传输计算第-259-267-行">阶段 1：辐射传输计算（第 259-267 行）</h3>
+<p>调用 <code>callradite</code> 计算含风暴尘埃的辐射加热率 <code>zdtlw1</code>（长波）和 <code>zdtsw1</code>（短波）。同时输出 <code>dsodust</code>、<code>dsords</code>、<code>dsotop</code>、<code>tau_pref_scenario</code>、<code>tau_pref_gcm</code> 等诊断量。</p>
+<h3 id="阶段-2垂直速度计算第-272-343-行">阶段 2：垂直速度计算（第 272-343 行）</h3>
+<p>对每列 <code>ig</code>，若 <code>storm(ig)</code> 为真：</p>
+<ol type="1">
+<li><p><strong>加热率插值到界面</strong>（第 292-318 行）：对风暴尘埃和背景尘埃分别计算层间界面的加热率 <code>zdtlw1_lev(l+1)</code>、<code>zdtsw1_lev(l+1)</code>（风暴）和 <code>zdtlw_lev(l+1)</code>、<code>zdtsw_lev(l+1)</code>（背景）。 使用线性插值：<code>val_lev = (val_l * (zlay_l+1 - zlev_l+1) + val_l+1 * (zlev_l+1 - zlay_l)) / (zlay_l+1 - zlay_l)</code>。</p></li>
+<li><p><strong>环境温度递减率</strong>（第 322-326 行）： <code>zdtvert(l+1) = (T_lev(l+1) - T_lev(l)) / (zlay_l+1 - zlay_l)</code></p></li>
+<li><p><strong>额外加热 vs 绝热冷却平衡</strong>（第 332-340 行）：</p>
+<ul>
+<li>额外加热：<code>deltahr(l) = (zdtlw1_lev + zdtsw1_lev) - (zdtlw_lev + zdtsw_lev)</code></li>
+<li>垂直速度：<code>wrad(l) = -deltahr(l) / (g/cpp + max(zdtvert(l), -0.99*g/cpp))</code> 分母中 <code>g/cpp</code> 为干绝热递减率，<code>max</code> 防止环境递减率接近绝热时除零。</li>
+<li><strong>限幅</strong>：<code>wrad(l) = max(-wmax, min(wmax, wrad(l)))</code>，即 <code>|wrad| ≤ 10</code> m/s。</li>
+</ul></li>
+</ol>
+<h3 id="阶段-3垂直输运第-349-446-行">阶段 3：垂直输运（第 349-446 行）</h3>
+<p>对每列 <code>ig</code>，若 <code>storm(ig)</code> 为真：</p>
+<ol type="1">
+<li><p><strong>浓度混合比</strong>（第 352-359 行）：将风暴 fraction 内的示踪物浓度转换：</p>
+<pre class="text"><code>mr_stormdust_mass(l) = dust_mass(l) + stormdust_mass(l) / totstormfract(ig)</code></pre>
+<p>推断：<code>totstormfract</code> 为风暴占据的面积分数，此步将风暴区域内的浓度从平均浓度反推为风暴内部浓度。</p></li>
+<li><p><strong>子步时间步</strong>（第 367-378 行）：</p>
+<ul>
+<li>计算最大允许时间步 <code>dtmax</code>：<code>dtmax = min over layers of (Δzlev / (secu * |wrad|))</code>，限制每子步穿越 ≤ 1 层。</li>
+<li>子步数：<code>nsubtimestep = int(ptimestep / dtmax)</code></li>
+<li>子步长：<code>subtimestep = ptimestep / nsubtimestep</code></li>
+</ul></li>
+<li><p><strong>空气质量通量</strong>（第 380-383 行）：</p>
+<pre class="text"><code>w(l) = wrad(l) * pplev(l) / (r * ztlev(l)) * subtimestep</code></pre>
+<p>即静力学下 <code>w = ρ * v * Δt = (P / (rT)) * v * Δt</code>。</p></li>
+<li><p><strong>Van Leer 平流</strong>（第 396-404 行）：</p>
+<ul>
+<li>对 <code>mr_stormdust_mass</code> 和 <code>mr_stormdust_number</code> 分别调用本地 <code>van_leer</code> 子例程。</li>
+<li>循环 <code>nsubtimestep</code> 次。</li>
+</ul></li>
+<li><p><strong>混合比反解</strong>（第 411-431 行）：</p>
+<ul>
+<li><strong>常规情形</strong>（<code>mr_stormdust ≥ mr_dust</code>，第 416-420 行）：
+<pre class="text"><code>stormdust = totstormfract * (mr_stormdust - mr_dust)
+dust = mr_dust</code></pre></li>
+<li><strong>异常情形</strong>（<code>mr_stormdust &lt; mr_dust</code>，第 422-427 行）：
+<pre class="text"><code>dust = (1 - totstormfract) * mr_dust + totstormfract * mr_stormdust
+stormdust = 0</code></pre>
+推断：输运后风暴浓度低于背景，说明风暴"耗尽"，将风暴质量按比例合并回背景。</li>
+</ul></li>
+<li><p><strong>倾向计算</strong>（第 435-446 行）：</p>
+<pre class="text"><code>dqvl_stormdust = (zq_stormdust - pq_stormdust) / ptimestep
+dqvl_dust = (zq_dust - pq_dust) / ptimestep</code></pre></li>
+</ol>
+<h3 id="阶段-4脱轨第-449-482-行">阶段 4：脱轨（第 449-482 行）</h3>
+<ol type="1">
+<li><p><strong>脱轨系数</strong>（第 453-471 行）：</p>
+<ul>
+<li>若 <code>|wrad| &lt; wmin</code>（0.25 m/s）或 <code>dust_mass &gt; 10000 * stormdust_mass</code>：<code>detrain = 1.</code>（完全脱轨）</li>
+<li>若 <code>wmin ≤ |wrad| ≤ wmax</code>：二次多项式
+<pre class="text"><code>detrain = coeff_detrainment * ((1-coefmin)/(wmin-wmax)² * (|wrad|-wmax)² + coefmin)</code></pre></li>
+<li>若 <code>|wrad| &gt; wmax</code>：<code>detrain = coefmin</code>（最小脱轨，保持高速上升）</li>
+</ul></li>
+<li><p><strong>脱轨倾向</strong>（第 475-482 行）：</p>
+<pre class="text"><code>dqdet_stormdust = -detrain * stormdust_mass / ptimestep</code></pre></li>
+</ol>
+<h3 id="阶段-5最终倾向第-484-498-行">阶段 5：最终倾向（第 484-498 行）</h3>
+<p>对每列每层：</p>
+<pre class="text"><code>pdqrds(stormdust) = dqdet_stormdust + dqvl_stormdust
+pdqrds(dust) = -dqdet_stormdust + dqvl_dust</code></pre>
+<p>即 <code>stormdust</code> 减少（脱轨 + 输运），<code>dust</code> 增加（脱轨贡献，输运也可能改变背景）。</p>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>subroutine rocketduststorm(..., pq, pdqrds, wrad, ...):
+
+  #--- 阶段 0: 初始化与风暴检测 ---
+  storm(:) = false
+  for ig=1..ngrid:
+    for l=1..nlayer:
+      if stormdust_mass(ig,l) &gt; dust_mass(ig,l) * 1e-4:
+        storm(ig) = true; break
+
+  #--- 阶段 1: 辐射传输 ---
+  call callradite(..., pq, ..., zdtlw1, zdtsw1, dsodust, dsords, dsotop, ...)
+
+  #--- 阶段 2: 垂直速度 ---
+  for ig where storm(ig):
+    for l=1..nlayer:
+      插值加热率到界面：zdtlw1_lev, zdtsw1_lev（风暴）；zdtlw_lev, zdtsw_lev（背景）
+      deltahr(l) = (zdtlw1_lev + zdtsw1_lev) - (zdtlw_lev + zdtsw_lev)
+      wrad(l) = -deltahr(l) / (g/cpp + max(zdtvert(l), -0.99*g/cpp))
+      wrad(l) = clamp(wrad, -wmax, wmax)
+
+  #--- 阶段 3: 垂直输运 ---
+  for ig where storm(ig):
+    mr_stormdust = dust + stormdust / totstormfract    # 风暴内部浓度
+    dtmax = min over layers of (Δz / (secu * |wrad|))  # 限制穿越层数
+    nsubtimestep = int(ptimestep / dtmax)
+    subtimestep = ptimestep / nsubtimestep
+    for tsub=1..nsubtimestep:
+      w(l) = wrad(l) * pplev(l) / (r * ztlev(l)) * subtimestep  # 空气质量通量
+      call van_leer(stormdust_mass, w, wq)
+      call van_leer(stormdust_number, w, wq)
+    # 反解混合比
+    if mr_stormdust ≥ mr_dust:
+      stormdust = totstormfract * (mr_stormdust - mr_dust)
+    else:
+      dust = (1-totstormfract)*mr_dust + totstormfract*mr_stormdust; stormdust=0
+    dqvl = (zq_after - pq_before) / ptimestep
+
+  #--- 阶段 4: 脱轨 ---
+  for ig, l:
+    if |wrad| &lt; wmin or dust &gt; 10000*stormdust:
+      detrain = 1
+    elif |wrad| ∈ [wmin, wmax]:
+      detrain = coeff_detrainment * ((|wrad|-wmax)² * (1-coefmin)/(wmin-wmax)² + coefmin)
+    else:
+      detrain = coefmin
+    dqdet_stormdust = -detrain * stormdust / ptimestep
+
+  #--- 阶段 5: 最终倾向 ---
+  pdqrds(stormdust) = dqdet_stormdust + dqvl_stormdust
+  pdqrds(dust) = -dqdet_stormdust + dqvl_dust</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>尘埃循环</td>
+<td><code>physiq_mod.F:1379</code> 直接调用；产生的 <code>pdqrds</code> 倾向被加到主倾向 <code>pdq</code> 上（第 1397-1410 行），影响尘埃/风暴尘埃的质量与数浓度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>模块级变量 <code>dustliftday</code> 的跨模块共享</strong>：本模块分配但不填充，由 <code>compute_dtau_mod.F90</code> 计算，<code>physiq_mod.F</code> 消费。这是 Fortran 90 模块作为"共享状态容器"的典型模式。</li>
+<li><strong>本地 <code>van_leer</code> 与 <code>vlz_fi.F</code> 的复制</strong>（第 544 行注释明确）：本模块的 <code>van_leer</code> 是 <code>vlz_fi</code> 的简化版本（单列 vs 多列），但<strong>包含向上输运分支</strong>（第 601-641 行），而 <code>vlz_fi.F</code> 通过 <code>goto 99</code> 跳过了向上分支。推断原因：火箭式尘暴需要向上输运，而重力沉降只需向下。</li>
+<li><strong><code>goto</code> 控制流</strong>：<code>van_leer</code> 中保留了 <code>goto 77</code>（第 622、628 行）和 <code>goto 88</code>（第 662、667 行），与 <code>vlz_fi.F</code> 一致。</li>
+<li><strong>子步循环</strong>：为保持质量守恒，Van Leer 输运在多个子步内执行（第 396-404 行），子步数由最大垂直速度决定。</li>
+<li><strong><code>totstormfract</code> 的面积分数处理</strong>（第 355-358 行）：将格点平均浓度转换为风暴内部浓度，输运后再转换回格点平均。这是亚格点尺度参数化的标准做法。</li>
+<li><strong>脱轨系数的二次多项式</strong>（第 461-464 行）：在 <code>wmin</code> 和 <code>wmax</code> 之间平滑过渡，避免不连续。<code>coeff_detrainment</code> 为全局缩放因子。</li>
+<li><strong>注释掉的非负保护</strong>（第 500-525 行）：原计划防止负值，但被注释。推断：Van Leer 格式本身有非负保护（第 687-689 行），外层保护冗余。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><strong>风暴检测阈值 <code>1e-4</code></strong>（第 248 行）：<code>stormdust_mass &gt; dust_mass * 1e-4</code>。这是硬编码的经验阈值，重新实现时必须保留，否则可能误触发或漏触发风暴。</li>
+<li><strong>垂直速度公式</strong>（第 335-336 行）：<code>wrad = -deltahr / (g/cpp + max(zdtvert, -0.99*g/cpp))</code>。分母中的 <code>-0.99*g/cpp</code> 是关键保护：若环境递减率接近绝热，分母趋零，<code>max</code> 防止发散。重新实现时必须保留此数值保护。</li>
+<li><strong><code>totstormfract</code> 的面积分数转换</strong>（第 355-358 行及第 416-427 行）：风暴内部浓度 = 格点平均 / <code>totstormfract</code>；输运后反解时，若 <code>mr_stormdust &lt; mr_dust</code>，说明风暴"耗尽"，需特殊处理。重新实现时必须保留此逻辑分支。</li>
+<li><strong>子步时间步</strong>（第 367-378 行）：<code>dtmax = min over layers of (Δz / (secu * |wrad|))</code>，<code>secu=3</code> 为安全系数。重新实现时必须保留，否则单步穿越多层会导致 Van Leer 格式不稳定。</li>
+<li><strong>脱轨系数公式</strong>（第 461-464 行）：二次多项式 <code>(1-coefmin)/(wmin-wmax)² * (|wrad|-wmax)² + coefmin</code>。系数 <code>coeff_detrainment</code>（默认 0.02）为全局缩放，重新实现时需从 <code>callphys.def</code> 读取。</li>
+<li><strong><code>van_leer</code> 本地副本包含向上输运</strong>：与 <code>vlz_fi.F</code> 不同（后者 <code>goto 99</code> 跳过向上分支）。重新实现时若使用 <code>vlz_fi</code> 模块接口，需确认其支持向上输运（当前版本不支持，第 124 行 <code>goto 99</code>）。</li>
+<li><strong>复现风险</strong>：<code>dustliftday</code> 由 <code>compute_dtau_mod</code> 填充，本模块仅分配。若调用顺序错误（先 <code>rocketduststorm</code> 后 <code>compute_dtau</code>），<code>dustliftday</code> 未初始化，可能导致不确定行为。</li>
+<li><strong>复现风险</strong>：<code>IRtoVIScoef</code> 声明为 <code>inout</code> 但本例程未修改（第 86-87 行注释说明）。重新实现时可简化为 <code>in</code>，但需确认 <code>callradite</code> 接口兼容。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>待确认：<code>totstormfract</code> 的计算逻辑（来源未在本文件中追踪，推断由上游 <code>physiq_mod.F</code> 或更高层传入）。</li>
+<li>待确认：<code>dustliftday</code> 在 <code>physiq_mod.F</code> 中的具体消费方式（本文件仅分配，未追踪 <code>compute_dtau_mod</code> 的填充时序）。</li>
+<li>待确认：<code>van_leer</code> 本地副本与 <code>vlz_fi.F</code> 的版本差异（第 544 行注释说"copied"，但向上分支是否完全一致未逐行比对）。</li>
+<li>待确认：注释掉的非负保护（第 500-525 行）是否曾被启用，以及为何被注释（推断为冗余，但未找到历史记录）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="vlz_fi.html">vlz_fi.md</a>：本模块的 <code>van_leer</code> 从 <code>vlz_fi.F</code> 复制，但包含向上输运分支。</li>
+<li><a href="callsedim_mod.html">callsedim_mod.md</a>：背景尘埃的重力沉降，与本模块的火箭式尘暴垂直输运形成互补。</li>
+<li><a href="newsedim_mod.html">newsedim_mod.md</a>：单示踪物沉降核心，调用 <code>vlz_fi</code>（无向上输运）。</li>
+<li><a href="topmons_mod.html">topmons_mod.md</a>：山顶地形尘流输运，同样有独立 Van Leer 实现（TASK-0023 已完成）。</li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle.md</a>：尘埃循环主题页，本模块为其中的火箭式尘暴分支。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

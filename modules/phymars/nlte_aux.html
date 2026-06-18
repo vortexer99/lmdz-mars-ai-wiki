@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nlte_aux - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/nlte_aux.md</span>
+    </nav>
+    <article class="content">
+<h1 id="nlte_auxf">nlte_aux.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\nlte_aux.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>nlte_aux.F</code> 是 CO2 15 微米 NLTE 冷却快速方案的外部辅助例程集合。文件开头保留了 <code>MODULE nlte_aux_mod</code> / <code>CONTAINS</code> / <code>END MODULE nlte_aux_mod</code> 的注释行，但当前源码并没有启用 module 包装；下游通过外部函数和子程序名直接调用这些例程。</p>
+<p>本文件合并了旧 1-D NLTE 模型的若干文件片段，包括 Planck 函数、振动温度表初始化、温度/高度/多维查表插值、escape probability 归一化、LU 分解和矩阵/向量工具，以及历史谱线表 <code>hisfile</code> 的读取和广播。它服务于 <code>nlte_setup.F</code> 的表读取、<code>nlte_calc.F</code> 的 NLTE 辐射查表和等效线宽计算，以及 <code>nlte_tcool_mod.F</code> 的冷却时间尺度矩阵求解。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>planckdp</code></td>
+<td>function</td>
+<td style="text-align: right;">103</td>
+<td>用 <code>nlte_paramdef_h::gamma/ee</code> 计算给定温度和波数的 Planck 项。</td>
+</tr>
+<tr>
+<td><code>leetvt</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">118</td>
+<td>把 <code>ty/zy/zl</code> 表转换并插值到各同位素振动温度数组。</td>
+</tr>
+<tr>
+<td><code>initial</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">155</td>
+<td>清零 <code>eqw/aa/cc/dd/ccbox/ddbox</code> 等 NLTE 累积工作数组。</td>
+</tr>
+<tr>
+<td><code>intershphunt</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">180</td>
+<td>按温度历史表插值 self Lorentz 与 Doppler 线宽数组。</td>
+</tr>
+<tr>
+<td><code>interstrhunt</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">235</td>
+<td>按温度历史表插值谱线强度。</td>
+</tr>
+<tr>
+<td><code>intzhunt</code> / <code>intzhunt_cts</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">322 / 354</td>
+<td>在高度网格上插值 CO2、压力、混合比、温度等状态量。</td>
+</tr>
+<tr>
+<td><code>we_clean</code></td>
+<td>real*8 function</td>
+<td style="text-align: right;">390</td>
+<td>组合 Lorentz/Doppler 近似计算 Voigt 等效线宽。</td>
+</tr>
+<tr>
+<td><code>mztf_correccion</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">466</td>
+<td>根据低层 LTE/非 LTE 连接修正柱量 <code>con</code>。</td>
+</tr>
+<tr>
+<td><code>mzescape_normaliz</code> / <code>mzescape_normaliz_02</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">526 / 573</td>
+<td>对 escape probability 光学厚度数组归一化。</td>
+</tr>
+<tr>
+<td><code>interdp_ESCTVCISO</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">624</td>
+<td>读取/插值 ESC/TVC/ISO 相关双精度表。</td>
+</tr>
+<tr>
+<td><code>hunt_cts</code> / <code>huntdp</code> / <code>hunt</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">664 / 733 / 793</td>
+<td>有序网格定位工具，供插值例程查找包围区间。</td>
+</tr>
+<tr>
+<td><code>interdp_limits</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">860</td>
+<td>带边界限制的一维双精度插值。</td>
+</tr>
+<tr>
+<td><code>interhunt*</code> / <code>interhuntlimits*</code></td>
+<td>subroutine group</td>
+<td style="text-align: right;">956-1592</td>
+<td>二维到五维查表插值及带限制版本。</td>
+</tr>
+<tr>
+<td><code>lubksb_dp</code> / <code>ludcmp_dp</code> / <code>LUdec</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1619 / 1660 / 1749</td>
+<td>LU 分解、回代和矩阵方程批量求解。</td>
+</tr>
+<tr>
+<td><code>unit</code> ... <code>zero2v</code></td>
+<td>subroutine group</td>
+<td style="text-align: right;">1797-2173</td>
+<td>单位矩阵、对角化、矩阵/向量乘加和清零工具。</td>
+</tr>
+<tr>
+<td><code>suaviza</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">2184</td>
+<td>对一维数组做可选平滑。</td>
+</tr>
+<tr>
+<td><code>mulmmf90</code> / <code>resmmf90</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">2266 / 2282</td>
+<td>矩阵乘法和残差矩阵计算。</td>
+</tr>
+<tr>
+<td><code>gethist_03</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">2299</td>
+<td>从已缓存的历史表数组恢复当前 <code>thist/no/sk1/xls1/xld1</code>。</td>
+</tr>
+<tr>
+<td><code>rhist_03</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">2332</td>
+<td>从 <code>hisfile</code> 读取历史谱线表，并在非 <code>MESOSCALE</code> 路径广播。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlte_paramdef_h</code></td>
+<td><code>nl</code>, <code>nzy</code>, <code>nhist</code>, <code>nbox_max</code>, <code>gamma</code>, <code>ee</code>, <code>nu</code> 等</td>
+<td>维度、谱线常数和辐射常数。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>nlte_commons_h</code></td>
+<td><code>zy</code>, <code>ty</code>, <code>zl</code>, <code>thist</code>, <code>no</code>, <code>sk1</code>, <code>xls1</code>, <code>xld1</code>, <code>hisfile</code> 等</td>
+<td>NLTE 查找表、工作数组、谱线历史表缓存和输入文件名。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code></td>
+<td>非 <code>MESOSCALE</code> 路径中限制历史表只由主进程读取。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td><code>bcast</code></td>
+<td>非 <code>MESOSCALE</code> 路径中广播历史表缓存到其他进程。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>huntdp</code></td>
+<td>本文件</td>
+<td><code>intershphunt</code>、<code>interstrhunt</code>、多组 <code>interhunt*</code></td>
+<td>在双精度有序网格中查找插值区间。</td>
+</tr>
+<tr>
+<td><code>hunt</code> / <code>hunt_cts</code></td>
+<td>本文件</td>
+<td>高度和 CTS 插值例程</td>
+<td>在单精度/CTS 网格中查找插值区间。</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部错误终止入口</td>
+<td>多处</td>
+<td>插值越界、Voigt 负值、奇异矩阵、平滑选项非法和 <code>nbox</code> 过大时终止。</td>
+</tr>
+<tr>
+<td><code>ludcmp_dp</code> / <code>lubksb_dp</code></td>
+<td>本文件</td>
+<td><code>LUdec</code></td>
+<td>分解矩阵并求解多右端线性系统。</td>
+</tr>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td><code>rhist_03</code></td>
+<td>广播由主进程读入的历史谱线表。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tp</code>, <code>xnu</code></td>
+<td><code>planckdp</code> 调用方</td>
+<td>scalar</td>
+<td>K / cm-1</td>
+<td>温度和波数。</td>
+</tr>
+<tr>
+<td><code>xtemp</code>, <code>thist</code>, <code>xls1</code>, <code>xld1</code>, <code>sk1</code></td>
+<td><code>nlte_calc.F</code> / <code>nlte_commons_h</code></td>
+<td>arrays</td>
+<td>K / 谱线表量</td>
+<td>温度历史表和谱线强度/线宽查表数据。</td>
+</tr>
+<tr>
+<td><code>h</code>, <code>zl</code>, <code>zy</code></td>
+<td><code>intzhunt*</code> 调用方 / <code>nlte_commons_h</code></td>
+<td>scalar + arrays</td>
+<td>高度坐标</td>
+<td>目标高度和 NLTE/GCM 高度网格。</td>
+</tr>
+<tr>
+<td><code>y</code>, <code>pl</code>, <code>xalsa</code>, <code>xalda</code></td>
+<td><code>we_clean</code> 调用方</td>
+<td>scalar</td>
+<td>路径量 / 压力 / 线宽</td>
+<td>等效线宽计算所需的吸收量、CO2 分压和 Lorentz/Doppler 线宽。</td>
+</tr>
+<tr>
+<td><code>hisfile</code></td>
+<td><code>nlte_commons_h</code></td>
+<td>string</td>
+<td>-</td>
+<td><code>rhist_03</code> 要读取的历史谱线表文件。</td>
+</tr>
+<tr>
+<td><code>xx</code>, <code>aa</code>, <code>bb</code>, <code>m</code>, <code>n</code></td>
+<td><code>LUdec</code> 调用方</td>
+<td>matrices / integers</td>
+<td>-</td>
+<td>线性系统系数矩阵、右端矩阵和维度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>planckdp</code></td>
+<td><code>nlte_tcool_mod.F</code></td>
+<td>real*8</td>
+<td>erg cm-2 sr-1 cm</td>
+<td>Planck 辐射项。</td>
+</tr>
+<tr>
+<td><code>alsa/alda</code>、<code>st/ts</code> 等插值结果</td>
+<td><code>nlte_calc.F</code></td>
+<td>arrays</td>
+<td>谱线表量</td>
+<td>NLTE cooling 查表后的线强、线宽和状态量。</td>
+</tr>
+<tr>
+<td><code>we_clean</code></td>
+<td><code>nlte_calc.F</code></td>
+<td>real*8</td>
+<td>等效线宽</td>
+<td>Voigt 近似后的等效宽度。</td>
+</tr>
+<tr>
+<td><code>taustar*</code></td>
+<td><code>nlte_calc.F</code></td>
+<td>arrays</td>
+<td>光学厚度相关</td>
+<td>escape probability 归一化后的光学厚度数组。</td>
+</tr>
+<tr>
+<td><code>thist/no/sk1/xls1/xld1</code></td>
+<td><code>nlte_commons_h</code></td>
+<td>arrays</td>
+<td>谱线表量</td>
+<td>当前历史表工作副本。</td>
+</tr>
+<tr>
+<td><code>mm_stored/nbox_stored/*_stored</code></td>
+<td><code>nlte_commons_h</code></td>
+<td>arrays</td>
+<td>谱线表量</td>
+<td><code>rhist_03</code> 从文件读入并缓存的历史表。</td>
+</tr>
+<tr>
+<td><code>bb</code></td>
+<td><code>LUdec</code> 调用方</td>
+<td>matrix</td>
+<td>-</td>
+<td>线性系统解矩阵。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>initial</code>、<code>leetvt</code>、<code>gethist_03</code>、<code>rhist_03</code> 等例程直接读写 <code>nlte_commons_h</code> 中的共享数组。</li>
+<li><code>rhist_03</code> 使用固定 Fortran unit <code>3</code> 打开 <code>hisfile</code>，读取后关闭；非 <code>MESOSCALE</code> 编译路径只让 <code>is_master</code> 进程做文件 I/O，再用 <code>bcast</code> 广播数组。</li>
+<li>多个插值例程在输入超出表范围时会写 <code>stdout</code> 警告或调用 <code>abort_physic</code>。<code>intershphunt</code> 对接近边界的温度做 0.01 K 容忍钳制，但真正越过查表边界仍可能终止。</li>
+<li><code>we_clean</code> 对 Voigt 组合项为负的情况调用 <code>abort_physic</code>，说明谱线数据或输入范围不再物理一致。</li>
+<li><code>ludcmp_dp</code> 在发现奇异矩阵时调用 <code>abort_physic("ludcmp_dp","singular matrix!",1)</code>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>nlte_setup.F</code> 初始化 NLTE 表文件名后，多次调用 <code>rhist_03(ihist)</code> 读取不同历史谱线表。非 <code>MESOSCALE</code> 并行路径由主进程读文件并广播缓存。</li>
+<li><code>nlte_calc.F</code> 进入具体 NLTE 冷却计算前调用 <code>gethist_03(ihist)</code>，把某个历史表缓存恢复为当前 <code>thist/no/sk1/xls1/xld1</code> 工作数组。</li>
+<li><code>intzhunt*</code>、<code>interstrhunt</code>、<code>intershphunt</code> 和多组 <code>interhunt*</code> 按高度、温度和其他表坐标查找包围区间，做线性或多维线性插值。</li>
+<li><code>we_clean</code> 用 Lorentz、Doppler 和 Voigt 近似把吸收路径量与线宽合成为等效宽度；若组合项不可开方则终止。</li>
+<li><code>mztf_correccion</code> 和 <code>mzescape_normaliz*</code> 修正柱量和 escape probability 光学厚度，供 <code>nlte_calc.F</code> 的多谱带/多同位素计算继续使用。</li>
+<li><code>nlte_tcool_mod.F</code> 使用 <code>planckdp</code> 计算边界/层内 Planck 项，并用 <code>LUdec</code> 解冷却时间尺度相关的线性系统；<code>suaviza</code> 对某些剖面做平滑。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>setup phase:
+  for each NLTE history table:
+    rhist_03(ihist)
+      if not MESOSCALE:
+        master opens hisfile on unit 3
+      read mm_stored, nbox_stored, thist_stored, no/sk1/xls1/xld1
+      if nbox_stored &gt; nbox_max:
+        abort
+      if not MESOSCALE:
+        broadcast cached arrays
+
+calculation phase:
+  gethist_03(ihist)
+    copy cached history table into current working arrays
+
+  for each target layer/box:
+    locate height and temperature intervals with hunt/huntdp
+    interpolate state, line strength, Lorentz width and Doppler width
+    compute equivalent width with we_clean
+    normalize escape probability arrays
+
+  for cooling-time linear systems:
+    build coefficient matrices
+    LUdec calls ludcmp_dp + lubksb_dp
+    return solved vectors/matrices to nlte_tcool_mod</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NLTE 15 微米 CO2 冷却</td>
+<td>为 <code>nlte_calc.F</code> 提供历史谱线表读取、温度/高度插值、等效线宽和 escape probability 工具。</td>
+</tr>
+<tr>
+<td>辐射计算</td>
+<td><code>nlte_tcool_mod.F</code> 使用 <code>planckdp</code> 和 <code>LUdec</code> 构造/求解冷却时间尺度中的辐射矩阵。</td>
+</tr>
+<tr>
+<td>并行运行</td>
+<td><code>rhist_03</code> 在非 <code>MESOSCALE</code> 路径中使用主进程读表和广播，避免每个进程重复读文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>文件保留固定格式 Fortran 和旧 1-D 模型来源注释，代码中混合 <code>c</code> 注释、<code>!</code> 注释、<code>@</code>/<code>&amp;</code> 续行和预处理条件。</li>
+<li>顶层 module 包装被注释掉，因此其他文件以 <code>external</code> 或隐式外部子程序方式引用本文件例程。</li>
+<li>查表例程很多，命名以 <code>hunt</code> / <code>interhunt</code> 组合维度和精度，复现时需要按调用方实参确认具体坐标含义。</li>
+<li><code>rhist_03</code> 的文件 I/O 依赖 <code>nlte_commons_h::hisfile</code> 已由上游设置；本文件不负责构造路径。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现 NLTE cooling 前必须先通过 <code>rhist_03</code> 读入对应历史表，否则 <code>gethist_03</code> 只能复制未初始化或旧缓存。</li>
+<li><code>nbox_stored(ihist)</code> 不能超过 <code>nlte_paramdef_h::nbox_max</code>。</li>
+<li>温度历史表插值对极小边界误差有容忍，但超出查表范围仍可能终止；输入温度网格需要与表范围一致。</li>
+<li><code>we_clean</code> 的 <code>y</code>、<code>pl</code>、<code>xalsa</code>、<code>xalda</code> 不能导致 Voigt 组合项为负；否则说明谱线参数或路径状态超出适用范围。</li>
+<li>非 <code>MESOSCALE</code> 并行复现时要保证 <code>mod_phys_lmdz_para</code> 和 <code>mod_phys_lmdz_transfert_para</code> 的广播语义可用。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>hisfile</code> 的实际文件名和数据来源由 <code>nlte_setup.F</code> / 运行时数据目录决定，本页只确认 <code>rhist_03</code> 的读取格式。</li>
+<li><code>mztf_correccion</code>、<code>mzescape_normaliz*</code> 中各硬编码谱带/同位素修正的物理来源需要结合 IAA/CSIC 旧模型文档确认。</li>
+<li>多组 <code>interhunt*</code> 例程的每个坐标变量物理含义需要在具体调用点逐一对应，不能仅凭例程名推断。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a></li>
+<li><a href="datafile_mod.html">datafile_mod</a></li>
+<li><a href="nirco2abs.html">nirco2abs</a></li>
+<li><a href="nlte_setup.html">nlte_setup.md</a>：负责 NLTE 表和参数初始化。</li>
+<li><a href="nlte_calc.html">nlte_calc.md</a>：负责查表并计算 NLTE 冷却。</li>
+<li><a href="nlte_tcool_mod.html">nlte_tcool_mod.md</a>：负责 NLTE cooling-time 相关矩阵计算。</li>
+<li><a href="nltecool.html">nltecool</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

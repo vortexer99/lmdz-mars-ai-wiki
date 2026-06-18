@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>improvedclouds_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/improvedclouds_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="improvedclouds_modf90">improvedclouds_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\improvedclouds_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>完整水冰云微物理核心模块。当 <code>microphys=.true.</code> 时由 <code>watercloud_mod</code> 调用，取代简化方案 <code>simpleclouds_mod</code>。实现：（1）尘埃 CCN 上的水冰异质成核（连续率→离散概率）；（2）冰晶质量增长/升华（阻力增长方案 + 隐式格式）；（3）冰完全升华时的尘核释放；（4）可选 HDO 同位素分馏；（5）自适应子时间步（<code>adapt_imicro</code>，本文件内）。CO2 云版 <code>improvedco2clouds_mod</code> 即基于本文件改编。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>improvedclouds_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>水冰云完整微物理模块</td>
+</tr>
+<tr>
+<td><code>improvedclouds</code></td>
+<td>subroutine</td>
+<td>9</td>
+<td>成核、冰增长/升华、尘核释放主例程</td>
+</tr>
+<tr>
+<td><code>adapt_imicro</code></td>
+<td>subroutine</td>
+<td>469</td>
+<td>按可凝结量幂律计算子时间步细分数 <code>zimicro</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>updaterad</code></td>
+<td><code>updaterice_micro</code>, <code>updaterccn</code></td>
+<td>由冰/CCN 质量数浓度反演冰粒半径、尘核半径</td>
+<td></td>
+</tr>
+<tr>
+<td><code>watersat_mod</code></td>
+<td><code>watersat</code></td>
+<td>水汽饱和混合比（Murphy &amp; Koop 2005）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>rho_ice</code>, <code>nuice_sed</code>, <code>igcm_h2o_vap</code>, <code>igcm_h2o_ice</code>, <code>igcm_dust_mass</code>, <code>igcm_dust_number</code>, <code>igcm_ccn_mass</code>, <code>igcm_ccn_number</code>, <code>igcm_hdo_vap</code>, <code>igcm_hdo_ice</code>, <code>qparentmin</code></td>
+<td>tracer 索引、冰密度、分布方差源、HDO 母体下限</td>
+<td></td>
+</tr>
+<tr>
+<td><code>conc_mod</code></td>
+<td><code>mmean</code></td>
+<td>平均摩尔质量（算水汽分压）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code>, <code>cpp</code></td>
+<td>圆周率、定压比热</td>
+<td></td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>nbin_cld</code>, <code>rad_cld</code>, <code>mteta</code>, <code>kbz</code>, <code>nav</code>, <code>rgp</code></td>
+<td>尺度 bin 数/半径网格、接触参数、玻尔兹曼/阿伏伽德罗常数、气体常数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>mco2</code>, <code>vo1</code>, <code>mh2o</code>, <code>mhdo</code>, <code>molco2</code>, <code>molhdo</code>, <code>To</code></td>
+<td>分子质量、水分子体积、分子直径、参考温度 273.15 K</td>
+<td></td>
+</tr>
+<tr>
+<td><code>nuclea_mod</code></td>
+<td><code>nuclea</code></td>
+<td>水冰异质成核率（按 bin）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sig_h2o_mod</code></td>
+<td><code>sig_h2o</code></td>
+<td>水冰表面张力（温度函数，算平衡饱和 <code>seq</code>）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>growthrate_mod</code></td>
+<td><code>growthrate</code></td>
+<td>冰晶增长阻力 <code>res</code> 和水汽扩散系数 <code>Dv</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>write_output_mod</code></td>
+<td><code>write_output</code></td>
+<td>诊断输出</td>
+<td></td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>activice</code>, <code>scavenging</code>, <code>cloud_adapt_ts</code>, <code>hdo</code>, <code>hdofrac</code></td>
+<td>运行时开关：辐射活性冰/尘埃清除/自适应子步/HDO/HDO 分馏</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>watersat</code></td>
+<td><code>watersat_mod</code></td>
+<td>行 237, 253</td>
+<td>算饱和混合比 <code>zqsat</code>；行 237 全网格一次（<code>max(1.,zt)</code> 保护），行 253 子步内单点</td>
+</tr>
+<tr>
+<td><code>adapt_imicro</code></td>
+<td>本文件</td>
+<td>行 248, 443</td>
+<td>自适应子时间步细分数（<code>cloud_adapt_ts=.true.</code> 时）</td>
+</tr>
+<tr>
+<td><code>updaterccn</code></td>
+<td><code>updaterad</code></td>
+<td>行 274</td>
+<td>由尘埃质量/数浓度反演尘核半径 <code>rdust</code></td>
+</tr>
+<tr>
+<td><code>nuclea</code></td>
+<td><code>nuclea_mod</code></td>
+<td>行 294</td>
+<td>各 bin 异质成核率 <code>rate</code>（接触参数 <code>mteta</code>）</td>
+</tr>
+<tr>
+<td><code>updaterice_micro</code></td>
+<td><code>updaterad</code></td>
+<td>行 318</td>
+<td>由冰/CCN 反演冰粒平均半径 <code>rice</code> 和云密度 <code>rhocloud</code></td>
+</tr>
+<tr>
+<td><code>sig_h2o</code></td>
+<td><code>sig_h2o_mod</code></td>
+<td>行 324</td>
+<td>水冰表面张力 → 开尔文项 <code>seq</code></td>
+</tr>
+<tr>
+<td><code>growthrate</code></td>
+<td><code>growthrate_mod</code></td>
+<td>行 327</td>
+<td>冰晶增长阻力 <code>res</code> 和扩散系数 <code>Dv</code></td>
+</tr>
+<tr>
+<td><code>write_output</code></td>
+<td><code>write_output_mod</code></td>
+<td>行 453-454</td>
+<td>输出 <code>zpotcond</code>、<code>count_micro</code> 诊断</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code>, <code>nlay</code></td>
+<td>watercloud</td>
+<td>INT</td>
+<td>-</td>
+<td>格点数、层数</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>watercloud</td>
+<td>REAL</td>
+<td>s</td>
+<td>物理时间步（<strong>整步</strong>，非微步）</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td>watercloud</td>
+<td>REAL (ngrid,nlay)</td>
+<td>Pa</td>
+<td>层中气压</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td>watercloud</td>
+<td>REAL (ngrid,nlay)</td>
+<td>K</td>
+<td>层中温度</td>
+</tr>
+<tr>
+<td><code>pdt</code></td>
+<td>watercloud</td>
+<td>REAL (ngrid,nlay)</td>
+<td>K/s</td>
+<td>温度倾向（之前过程）</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td>watercloud</td>
+<td>REAL (ngrid,nlay,nq)</td>
+<td>kg/kg</td>
+<td>tracer 混合比</td>
+</tr>
+<tr>
+<td><code>pdq</code></td>
+<td>watercloud</td>
+<td>REAL (ngrid,nlay,nq)</td>
+<td>kg/kg/s</td>
+<td>tracer 倾向（之前过程）</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>watercloud</td>
+<td>INT</td>
+<td>-</td>
+<td>tracer 数量</td>
+</tr>
+<tr>
+<td><code>tauscaling</code></td>
+<td>watercloud</td>
+<td>REAL (ngrid)</td>
+<td>-</td>
+<td>尘埃量绝对/相对转换因子（来自 aeropacity 光学厚度）</td>
+</tr>
+<tr>
+<td><code>imicro</code></td>
+<td>watercloud</td>
+<td>INT</td>
+<td>-</td>
+<td>子时间步默认细分数（<code>cloud_adapt_ts=.false.</code> 时直接用）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zq</code></td>
+<td>watercloud</td>
+<td>REAL (ngrid,nlay,nq)</td>
+<td>kg/kg</td>
+<td>微物理后 tracer 绝对值（含 h2o_vap/ice、dust、ccn、可选 hdo）</td>
+</tr>
+<tr>
+<td><code>zt</code></td>
+<td>watercloud</td>
+<td>REAL (ngrid,nlay)</td>
+<td>K</td>
+<td>微物理后温度（含潜热反馈）</td>
+</tr>
+</tbody>
+</table>
+<p>注：输出为微物理后的<strong>绝对值</strong>（已加上之前倾向并经子步积分），由 <code>watercloud_mod</code> 转回倾向供后续沉降/输送使用。</p>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>SAVE + THREADPRIVATE</strong>：<code>firstcall</code>（初始化标志）、<code>rb_cld</code>（尺度 bin 对数边界）、<code>sigma_ice</code>（冰/CCN 分布方差）、<code>test_flag</code>（调试开关）。</li>
+<li><strong>写 module 变量</strong>：<code>vo1</code>（水分子体积，行 182）、<code>rad_cld</code>（半径网格，行 148-152）——这两个来自 <code>microphys_h</code>，在 firstcall 内填充。<code>rad_cld</code> 在 firstcall 内被本例程写入，属跨例程共享状态。</li>
+<li><strong>firstcall</strong>（行 130-192）：构造尺度网格、写 <code>vo1</code>、<code>sigma_ice</code>，并 <code>write(*,*)</code> 打印 bin 信息。</li>
+<li><strong>诊断输出</strong>：<code>write_output</code> 写 <code>zpotcond</code>、<code>count_micro</code>；<code>test_flag=.true.</code> 时额外打印成核格点占比。</li>
+<li><strong>无文件读取</strong>（与 CO2 版的 <code>Meteo_flux_Plane.dat</code> 不同——本文件无流星体通量源）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><p><strong>firstcall 初始化</strong>（行 130-192）：</p>
+<ul>
+<li>体积比 <code>vrat_cld = exp(log(rmax/rmin)/(nbin_cld-1)*3)</code>，构造对数等比半径网格 <code>rad_cld</code> 与边界 <code>rb_cld</code>（行 143-161）。</li>
+<li><code>rb_cld(:) = log(rb_cld(:))</code>——存对数值供后续 <code>derf</code> 直接用（行 174）。</li>
+<li><code>vo1 = mh2o/rho_ice</code>（水分子体积），<code>sigma_ice = sqrt(log(1+nuice_sed))</code>。</li>
+</ul></li>
+<li><p><strong>初始化倾向合并</strong>（行 197-229）：<code>zq = (上游 tracer) + pdq*ptimestep</code>（dust 仅 <code>scavenging</code> 时加；ccn、h2o 总是加；hdo 仅 <code>hdo</code> 时加）；<code>zt = pt + pdt*ptimestep</code>；<code>subpdtcloud=0</code>；微小值钳到 <code>1e-30</code>。</p></li>
+<li><p><strong>算饱和</strong>（行 234-238）：<code>dev2 = 1/(sqrt(2)*sigma_ice)</code>；<code>watersat</code> 全网格算 <code>zqsat</code>；<code>zpotcond = h2o_vap - zqsat</code>（可凝结量，供自适应子步）。</p></li>
+<li><p><strong>主循环</strong>（行 245-450，对每个 <code>l</code>、<code>ig</code>）：</p>
+<ul>
+<li><strong>自适应子步</strong>（行 248）：<code>cloud_adapt_ts</code> 时 <code>adapt_imicro</code> 按 <code>zpotcond</code> 定 <code>zimicro</code>。</li>
+<li><strong>子步 while 循环</strong>（行 252-448，直到 <code>ending_ts</code>）：
+<ul>
+<li>单点重算 <code>zqsat</code>、水汽分压 <code>ph2o = h2o_vap*(mmean/18)*pplay</code>、饱和比 <code>satu</code>、<code>microtimestep = ptimestep/zimicro</code>（行 253-258）。</li>
+<li>保存 <code>zq0</code>；若 <code>spenttime+microtimestep &gt;= ptimestep</code> 则截断为剩余时间并置末步（行 264-268）。</li>
+<li><strong>成核</strong>（<code>satu &gt;= 1</code>，行 273-309）：<code>updaterccn</code> 算 <code>rdust</code>；尘埃 log-normal 经 <code>derf</code> 展开为 binned <code>n_aer</code>/<code>m_aer</code>；<code>nuclea</code> 算 <code>rate</code>；<code>dN/dM = Σ aer*(exp(-rate*dt)-1)</code>（负值，即被激活转为冰核的量）；从 dust 减、向 ccn 加。</li>
+<li><strong>冰增长</strong>（<code>ccn_number*tauscaling &gt;= 1</code>，行 317-414）：<code>updaterice_micro</code> 算 <code>rice</code>；平衡饱和 <code>seq = exp(2*sig_h2o*mh2o/(rho_ice*rgp*T*rice))</code>（开尔文效应）；<code>growthrate</code> 算阻力 <code>res</code>；隐式格式 <code>dMice = (h2o_vap - seq*zqsat)/(res*zqsat/(cste*No*rice)+1)</code>，<code>cste=4*pi*rho_ice*dt</code>；钳到 <code>[-h2o_ice, h2o_vap]</code>；更新冰/汽；潜热 <code>lw = (2834.3 - 0.28*(T-To) - 0.004*(T-To)²)*1e3</code>，<code>subpdtcloud = dMice*lw/cpp/dt</code>（限幅 ±5/dt）。</li>
+<li><strong>HDO 分馏</strong>（<code>hdo</code>，行 359-393）：凝结时按 <code>alpha_c</code> 分馏系数算 <code>dMice_hdo</code>，升华时按冰相比例；钳幅后更新 hdo 汽/冰。</li>
+<li><strong>尘核释放</strong>（行 400-414）：<code>h2o_ice &lt;= 1e-28</code> 时汽吸收残冰、dust 吸收 ccn、ccn 归零（hdo 同理）。</li>
+<li><strong>温度更新</strong>（行 425-428）：<code>.not.activice</code> 时 <code>subpdtcloud=0</code>；<code>zt += subpdtcloud*microtimestep</code>。</li>
+<li><strong>自适应反馈</strong>（行 433-444）：累计 <code>dMicetot</code>，估 <code>zdq</code> 速率，重算 <code>zimicro</code>。</li>
+<li>累加 <code>spenttime</code>、<code>count_micro</code>。</li>
+</ul></li>
+</ul></li>
+<li><p><strong>诊断输出</strong>（行 452-465）。</p></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>improvedclouds(ngrid, nlay, ptimestep, ..., zt, zq):
+
+  if firstcall:
+    构造对数等比半径网格 rad_cld, rb_cld（存 log 值）
+    vo1 = mh2o/rho_ice
+    sigma_ice = sqrt(log(1+nuice_sed))
+
+  zq = 上游tracer + pdq*ptimestep   (dust 仅 scavenging; hdo 仅 hdo)
+  zt = pt + pdt*ptimestep
+  钳 zq &gt;= 1e-30
+
+  dev2 = 1/(sqrt(2)*sigma_ice)
+  zqsat = watersat(max(1,zt), pplay)
+  zpotcond = h2o_vap - zqsat
+
+  for l, ig:
+    if cloud_adapt_ts: zimicro = adapt_imicro(ptimestep, zpotcond)
+    spenttime = 0; ending_ts = false
+    while not ending_ts:
+      zqsat = watersat(zt, pplay)            // 单点
+      ph2o = h2o_vap*(mmean/18)*pplay
+      satu = h2o_vap/zqsat
+      microtimestep = ptimestep/zimicro
+      zq0 = zq
+      if spenttime+microtimestep &gt;= ptimestep:
+        microtimestep = ptimestep-spenttime; ending_ts = true
+
+      // --- 成核 (satu &gt;= 1) ---
+      rdust = updaterccn(dust_mass, dust_number)
+      n_aer/m_aer = 尘埃 log-normal 经 derf 展开
+      rate = nuclea(ph2o, T, satu, n_aer)       // 接触参数 mteta
+      dN/dM = Σ aer*(exp(-rate*dt)-1)
+      dust += dM/tau; ccn -= dM/tau (数同理)
+
+      // --- 冰增长 (ccn_number*tau &gt;= 1) ---
+      rice = updaterice_micro(h2o_ice, ccn_mass, ccn_number)
+      seq = exp(2*sig_h2o(T)*mh2o/(rho_ice*rgp*T*rice))
+      res = growthrate(T, pplay, ph2o/satu, rice)
+      cste = 4*pi*rho_ice*microtimestep
+      dMice = (h2o_vap - seq*zqsat)/(res*zqsat/(cste*No*rice)+1)
+      dMice = clip(dMice, [-h2o_ice, h2o_vap])
+      h2o_ice += dMice; h2o_vap -= dMice
+      lw = (2834.3 - 0.28*(T-To) - 0.004*(T-To)^2)*1e3
+      subpdtcloud = clip(dMice*lw/cpp/dt, ±5/dt)
+
+      if hdo: dMice_hdo 按分馏系数/冰相比例, 更新 hdo
+
+      // --- 尘核释放 ---
+      if h2o_ice &lt;= 1e-28:
+        h2o_vap += h2o_ice; h2o_ice = 0
+        dust += ccn; ccn = 0  (hdo 同理)
+
+      if not activice: subpdtcloud = 0
+      zt += subpdtcloud*microtimestep
+      钳 zq &gt;= 1e-30
+      if cloud_adapt_ts: zimicro = adapt_imicro(ptimestep, |dMicetot/spenttime|)
+      spenttime += microtimestep</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>水循环 (water-cycle)</td>
+<td>完整云微物理：成核、冰增长/升华、尘核清除、HDO 分馏</td>
+</tr>
+<tr>
+<td><a href="../../themes/water-cycle.html">水循环主题页</a></td>
+<td>TASK-0010</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>自由格式 Fortran 90</strong>（.F90），但用 <code>REAL*8</code>/<code>DOUBLE PRECISION</code> 混合精度——成核相关量（<code>ph2o</code>、<code>satu</code>、<code>n_aer</code>、<code>m_aer</code>、<code>Mo</code>、<code>No</code> 等）用双精度，避免 <code>derf</code> 与 <code>exp(-rate*dt)</code> 的精度损失。</li>
+<li><strong><code>derf</code> 误差函数</strong>：声明为 <code>REAL*8 :: derf</code>（行 70），用于把 log-normal 分布积分到各 bin。</li>
+<li><strong>SAVE + THREADPRIVATE</strong>：<code>firstcall</code>、<code>rb_cld</code>、<code>sigma_ice</code>、<code>test_flag</code>——OpenMP 下每线程独立。</li>
+<li><strong>概率成核</strong>：<code>exp(-rate*microtimestep)-1</code> 把连续成核率转为该子步内被激活的份额（负号表示从可用气溶胶中扣除）。</li>
+<li><strong>隐式增长格式</strong>：<code>dMice</code> 解析解（行 335）避免显式格式的稳定性约束。</li>
+<li><strong>开尔文效应</strong>：<code>seq</code> 用 <code>sig_h2o(T)</code> 表面张力修正小冰粒的平衡饱和。</li>
+<li><strong>潜热限幅</strong>：<code>subpdtcloud*microtimestep</code> 限在 ±5 K（行 351-356），稳定数值。</li>
+<li><strong>自适应子步</strong>：<code>adapt_imicro</code> 用幂律 <code>zimicro = ceiling(coef*min(max(alpha*|potcond|^beta,5),7000))</code>，<code>coef = ptimestep/defstep</code>，<code>defstep = 88775*5/960 ≈ 462 s</code>（iphysiq=5 的 7.5 min）。</li>
+<li><strong>硬编码常数</strong>：bin 半径范围 <code>rmin_cld=0.1e-6</code>/<code>rmax_cld=10e-6</code>/<code>rbmin_cld=1e-10</code>/<code>rbmax_cld=1e-2</code>；潜热系数 2834.3/0.28/0.004；<code>adapt_imicro</code> 的 <code>alpha=1.88e5</code>/<code>beta=0.458</code>（高自转倾角值，代码内另有注释掉的保守值/当代火星值）。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>入口 <code>ptimestep</code> 是<strong>整物理步</strong>；子时间步在本例程内部经 <code>adapt_imicro</code>（或固定 <code>imicro</code>）细分——这与简化方案、以及 <code>watercloud_mod</code> ELSE 分支（外部子步循环）的关键区别。唯一调用点 <code>watercloud_mod.F:316</code>，仅 <code>microphys=.true.</code> 时进入。</li>
+<li><code>tauscaling</code> 把相对尘埃量转绝对量（成核用绝对量），增量再除回 <code>tauscaling</code> 转相对量写回 <code>zq</code>——成核/释放两侧都要除。</li>
+<li>平衡饱和 <code>seq</code> 用 <code>max(rice,1e-7)</code> 下限保护，防止极小冰粒导致 <code>seq</code> 非物理放大。</li>
+<li>隐式 <code>dMice</code> 分母 <code>res*zqsat/(cste*No*rice)+1</code>：<code>No = ccn_number*tauscaling + 1e-30</code> 防零除。</li>
+<li>HDO 分馏系数 <code>alpha = exp(16288/T² - 9.34e-2)</code>（行 367）；<code>alpha_c</code> 为含动力学修正的"真实"分馏系数（行 369），仅 <code>hdofrac=.true.</code> 时计算，否则 <code>alpha_c=1</code>。</li>
+<li>潜热 <code>lw</code> 为水冰升华潜热的温度依赖式（行 347），与 CO2 版 Azreg-Aïnou 多项式不同。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>microphys_h::mco2</code>、<code>molco2</code> 在 use 列表中（行 19），仅 HDO 分馏的 <code>Dv_hdo</code> 计算（行 365）使用 <code>molco2</code>、<code>mco2</code>——非 HDO 运行时为未使用依赖。</li>
+<li><code>seq</code> 公式中 <code>rgp</code>（J/mol/K）与 <code>mh2o</code>（kg/molecule? 还是 kg/mol）的单位匹配需核对 <code>microphys_h</code> 定义——推断：<code>mh2o</code> 此处应为摩尔质量量纲才能与 <code>rgp</code> 配平，但行 182 <code>vo1=mh2o/rho_ice</code> 又把 <code>mh2o</code> 当单分子质量用。待确认：<code>mh2o</code> 在两处是否同一量纲，或 <code>seq</code> 公式隐含单位换算。</li>
+<li><code>nuice_sed</code> 同时用于 <code>sigma_ice</code>（成核分布方差）与沉降——本文件只读不写。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li><code>adapt_imicro</code> 的幂律系数 <code>alpha</code>/<code>beta</code> 当前为"高自转倾角"标定值（行 490-491），当代火星模拟应核对是否需改用注释中的当代值（行 492-493），否则子步数偏差影响微物理积分精度。</li>
+<li>概率成核 <code>exp(-rate*dt)</code> 在 <code>microtimestep</code> 很大时（<code>cloud_adapt_ts=.false.</code> 且 <code>imicro</code> 小）可能高估单步激活量。</li>
+<li>潜热限幅 ±5 K/步是数值稳定措施，强凝结事件下会人为削弱温度反馈。</li>
+<li><code>derf</code> 为编译器内置/外部双精度误差函数，不同平台实现差异可能影响成核分布尾部。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="watercloud_mod.html">watercloud_mod — 水云主调度</a> - 唯一调用方（<code>microphys=.true.</code> 分支）</li>
+<li><a href="simpleclouds_mod.html">simpleclouds_mod — 简化水冰云方案</a> - <code>microphys=.false.</code> 时的替代方案</li>
+<li><a href="water-saturation-helpers.html">water-saturation-helpers — 水饱和与凝结温度</a> - <code>watersat</code></li>
+<li><a href="improvedco2clouds_mod.html">improvedco2clouds_mod — CO2 云微物理</a> - 基于本文件改编的 CO2 版</li>
+<li><a href="updaterad.html">updaterad — 冰粒/尘埃/CCN 半径更新</a> - <code>updaterice_micro</code>/<code>updaterccn</code> 半径反演</li>
+<li><a href="nuclea.html">nuclea.md</a>：水冰异质成核率。</li>
+<li><a href="growthrate.html">growthrate</a> - 冰晶增长阻力与水汽扩散系数</li>
+<li><a href="sig_h2o.html">sig_h2o.md</a>：水冰表面张力。</li>
+<li><a href="../../themes/water-cycle.html">水循环主题页</a>（TASK-0010）</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

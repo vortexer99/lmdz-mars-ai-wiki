@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vdifc-water-surface-exchange - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>routines/vdifc-water-surface-exchange.md</span>
+    </nav>
+    <article class="content">
+<h1 id="vdifc-水汽地表交换段">vdifc 水汽地表交换段</h1>
+<p>本页只追踪 <code>vdifc</code>（垂直湍流扩散例程）中 <code>h2o_vap</code> 与地表/地下冰交换的代码段：自适应子时间步、隐式三对角求解的地表边界条件、<code>watersat</code> 饱和约束、<code>soilwater</code> 吸附耦合、地下冰（SSI）通量，以及输出 <code>pdqsdif(igcm_h2o_ice)</code>/<code>dwatercap_dif</code>。不覆盖 <code>vdifc</code> 的动量/位温扩散、CO2 质量变化方案、尘埃抬升或 HDO 段。</p>
+<h2 id="所属文件">所属文件</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\vdifc_mod.F</code></pre>
+<p>源码 1530 行。本页核心段 <code>h2o_vap</code> 处理在行 959–1315；其前置的「非水汽示踪物」段（含 <code>h2o_ice</code> 地表通量注入）在行 900–957。</p>
+<h2 id="所属模块">所属模块</h2>
+<pre class="text"><code>vdifc_mod（SUBROUTINE vdifc / vdifc_mod 内）</code></pre>
+<h2 id="相关-use-与声明">相关 use 与声明</h2>
+<table>
+<thead>
+<tr>
+<th>行</th>
+<th>对象</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>19–22</td>
+<td><code>igcm_h2o_vap, igcm_h2o_ice, igcm_co2</code></td>
+<td>tracer 索引</td>
+</tr>
+<tr>
+<td>23–24</td>
+<td><code>watercaptag, frost_albedo_threshold, dryness, old_wsublimation_scheme</code></td>
+<td>永久冰盖标记、霜反照率阈值、地表干度、旧升华方案开关</td>
+</tr>
+<tr>
+<td>26</td>
+<td><code>watersat</code></td>
+<td>计算饱和混合比 <code>qsat(T,p)</code></td>
+</tr>
+<tr>
+<td>35</td>
+<td><code>To</code>（来自 <code>microphys_h</code>）</td>
+<td>三相点温度（潜热公式、融化封顶）</td>
+</tr>
+<tr>
+<td>36–37</td>
+<td><code>coef_ssdif, h2oice_depth, lag_layer, zdqsdif_ssi_tot</code>（<code>paleoclimate_mod</code>）</td>
+<td>地下冰扩散系数、冰埋深、滞后层开关、SSI 总通量诊断</td>
+</tr>
+<tr>
+<td>38</td>
+<td><code>adsorption_soil</code>（<code>comsoil_h</code>）</td>
+<td>是否启用完整吸附/解吸地下水模型</td>
+</tr>
+<tr>
+<td>44–47</td>
+<td><code>water, latentheat_surfwater</code>（<code>callkeys_mod</code>）</td>
+<td>水循环主开关、地表水潜热反馈开关</td>
+</tr>
+</tbody>
+</table>
+<p>段内关键局部变量（声明见行 145–251）：</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>za(ngrid,nlay)</code></td>
+<td><code>ρ·dz = (pplev(l)-pplev(l+1))/g</code>，层质量（行 326）</td>
+</tr>
+<tr>
+<td><code>zb0(ngrid,nlay)</code></td>
+<td>扩散系数基量；<code>zb0(:,1)=ptimestep·pplev(:,1)/(r·ptsrf_tmp)</code>（行 343），地表项</td>
+</tr>
+<tr>
+<td><code>zb,zc,zd,z1</code></td>
+<td>隐式三对角求解的工作数组（向下扫描系数）</td>
+</tr>
+<tr>
+<td><code>zq_tmp_vap(ngrid,nlay,nq)</code></td>
+<td>子时间步内的水汽工作副本</td>
+</tr>
+<tr>
+<td><code>zq1temp(ig)</code></td>
+<td>求解出的第 1 层（近地层）水汽混合比</td>
+</tr>
+<tr>
+<td><code>qsat(ig)</code></td>
+<td>地表温度下的饱和混合比</td>
+</tr>
+<tr>
+<td><code>zdqsdif_surf / zdqsdif_tot</code></td>
+<td>子时间步地表水汽通量（湍流 / 含地下贡献的总和）</td>
+</tr>
+<tr>
+<td><code>zqsurf(ig)</code></td>
+<td>该坡度的地表水冰储量（去坡度投影后，kg/m²）</td>
+</tr>
+<tr>
+<td><code>nsubtimestep(ig)</code></td>
+<td>自适应子步数（<code>make_tsub</code> 给出）</td>
+</tr>
+<tr>
+<td><code>dtmax=0.5</code></td>
+<td>子步温度判据（K，行 188）</td>
+</tr>
+<tr>
+<td><code>Tice, qsat_ssi, resist</code></td>
+<td>地下冰温度、其饱和混合比、通量衰减阻力系数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="控制条件与总体结构">控制条件与总体结构</h2>
+<p>整段在示踪物循环 <code>do iq=1,nq</code> 内，由 <code>if ((water).and.(iq.eq.igcm_h2o_vap))</code>（行 965）守卫，到行 1313 <code>END IF</code> 结束。内层是坡度循环 <code>DO islope=1,nslope</code>（行 967）与列循环 <code>DO ig=1,ngrid</code>（行 984），再套自适应子时间步循环 <code>DO tsub=1,nsubtimestep(ig)</code>（行 990）。</p>
+<pre class="text"><code>do iq: if water .and. iq==h2o_vap:
+  DO islope:
+    zqsurf = pqsurf(h2o_ice,islope)/cos(slope)      ! 去坡度投影
+    make_tsub -&gt; nsubtimestep                        ! 自适应子步数
+    saved_h2o_vap = zq(:,1,h2o_vap)
+    DO ig:
+      subtimestep = ptimestep/nsubtimestep(ig)
+      zq_tmp_vap = zq
+      DO tsub=1,nsubtimestep(ig):
+        构造 zb（地表项用 zcdv 或 zcdh，乘 dryness）
+        向下扫描 zc/zd（隐式三对角）
+        watersat -&gt; qsat(ztsrf)
+        zq1temp = zc(1) + zd(1)*qsat            ! 地表边界 = qsat
+        zdqsdif_surf = rho·dryness·zcd·(zq1temp-qsat)
+        zdqsdif_tot = zdqsdif_surf
+        [无霜判据] exchange = ...
+        if adsorption_soil: call soilwater(...) 改写 zq1temp/zdqsdif_tot
+        elif 无霜可升华超量: 钳制 + 可选地下冰&lt;-&gt;大气通量
+        [有霜+地下冰]: frost&lt;-&gt;ssi 通量
+        zq_tmp_vap(1,h2o_vap)=zq1temp
+        if latentheat_surfwater: zdtsrf = zdqsdif_tot·lh/pcapcal
+        向上回代 zq_tmp_vap(2..nlay)
+        zqsurf += zdqsdif_tot·subtimestep；钳到 &gt;=0（非 watercap）
+        累计 SSI/潜热诊断；冰存在时温度封顶 To
+      ENDDO tsub
+      pdtsrf = (ztsrf-ptsrf)/ptimestep
+      pdqsdif(h2o_ice,islope) = (zqsurf - pqsurf/cos)/ptimestep
+      if watercaptag .and. 超量升华: 走 dwatercap_dif，pdqsdif 钳到 -qsurf/dt
+      zq_slope_vap(...,islope)=zq_tmp_vap
+    ENDDO ig
+  ENDDO islope
+  zq(h2o_vap) = Σ_islope zq_slope_vap·subslope_dist      ! 坡度平均回大气
+  pdqsdif(h2o_ice,:) *= cos(slope)；dwatercap_dif *= cos(slope)  ! 回投影</code></pre>
+<h2 id="核心计算步骤">核心计算步骤</h2>
+<h3 id="1-去坡度投影与自适应子步行-970979">1. 去坡度投影与自适应子步（行 970–979）</h3>
+<p><code>zqsurf = pqsurf(igcm_h2o_ice,islope)/cos(pi·def_slope_mean(islope)/180)</code>，把坡度投影后的地表冰储量还原为单位真实面积上的量。<code>make_tsub</code>（定义在行 1445）按地表温度变化率估升华，子步数 <code>ntsub = ceiling(|ptimestep·dtsurf/dtmax|)</code>；只有在永久冰盖 <code>watercaptag</code> 或霜厚 <code>≥frost_albedo_threshold</code> 时才细分，否则 <code>ntsub=1</code>。目的是把地表水冰升华潜热释放分摊到足够小的步长，控制每步温度变化 ≤ <code>dtmax=0.5 K</code>。</p>
+<h3 id="2-隐式三对角向下扫描行-9921016">2. 隐式三对角向下扫描（行 992–1016）</h3>
+<p>地表交换系数 <code>zb(:,1)</code>：<code>old_wsublimation_scheme</code> 用动量整体系数 <code>zcdv</code>，否则用热整体系数 <code>zcdh</code>（行 994–1000），再乘地表干度 <code>dryness</code>（行 1001）。各层 <code>zb=zkh·zb0</code>。从顶层向下递推消元系数 <code>zc/zd</code>（标准 Thomas 算法前扫），到第 1 层得 <code>zc(1)</code>。</p>
+<h3 id="3-饱和地表边界条件行-10181028">3. 饱和地表边界条件（行 1018–1028）</h3>
+<p><code>call watersat(1,ztsrf,pplev(1),qsat)</code> 求地表温度下饱和混合比。地表边界取 <code>zq1temp = zc(1) + zd(1)·qsat</code>，即近地层水汽被拉向 <code>qsat</code>（地表是饱和源/汇）。湍流地表通量</p>
+<pre class="text"><code>zdqsdif_surf = rho · dryness · zcd · (zq1temp - qsat)</code></pre>
+<p>正值表示水汽向上（升华），负值表示向地表沉积（凝霜）。<code>zdqsdif_tot</code> 初始化为 <code>zdqsdif_surf</code>。</p>
+<h3 id="4-地下吸附耦合行-10351204三选一分支">4. 地下/吸附耦合（行 1035–1204，三选一分支）</h3>
+<ul>
+<li><strong>吸附模型（<code>adsorption_soil</code>，行 1051–1073）</strong>：调用 <code>soilwater</code>（见 <a href="../modules/phymars/soilwater.html">soilwater</a>），传入饱和约束、三对角系数、地表冰储量与孔隙冰，返回改写后的 <code>zq1temp_regolith</code>/<code>zdqsdif_regolith</code>。无 <code>watercaptag</code> 时：<code>exchange=true</code> 走纯地下吸附（<code>zq1temp</code> 取 regolith 解，<code>zdqsdif_tot=-zqsurf/subtimestep</code>），否则 <code>zdqsdif_tot = zdqsdif_surf + zdqsdif_regolith</code>。</li>
+<li><strong>无吸附、无霜超量升华（行 1083–1159）</strong>：当 <code>-zdqsdif_tot·subtimestep ≥ zqsurf</code>（要升华的超过现有霜），先把通量钳到 <code>-zqsurf/subtimestep</code>。若埋深 <code>h2oice_depth&gt;0</code> 且 <code>lag_layer</code>，引入滞后层阻力 <code>resist = h2oice_depth·zcd/coef_ssdif</code>，把地表系数缩放 <code>1/(1+resist)</code>，调用 <code>compute_Tice</code> 求冰温、<code>watersat</code> 求 <code>qsat_ssi</code>（再按 <code>ztsrf/Tice</code> 缩放），重解第 1 层并算地下冰→大气通量 <code>zdqsdif_ssi_atm</code>。</li>
+<li><strong>有霜 + 地下冰（行 1166–1204）</strong>：仍有霜（<code>watercaptag</code> 或 <code>zqsurf&gt;tol_frost</code>）时计算霜↔︎地下冰通量 <code>zdqsdif_ssi_frost = coef_ssdif/h2oice_depth·rho·dryness·(qsat-qsat_ssi)</code>，并从 <code>zdqsdif_tot</code> 中扣除；当扣除会使升华超量时再钳制。</li>
+</ul>
+<h3 id="5-子步水温预算行-12081248">5. 子步水/温预算（行 1208–1248）</h3>
+<p><code>zq_tmp_vap(1,h2o_vap)=zq1temp</code> 后，若 <code>latentheat_surfwater</code>：潜热 <code>lh=(2834.3-0.28(T-To)-0.004(T-To)²)·1e3</code>（升华焓，J/kg），地表温度倾向 <code>zdtsrf = zdqsdif_tot·lh/pcapcal</code>。向上回代得各层水汽。子步末更新 <code>ztsrf += (pdtsrf+zdtsrf)·subtimestep</code>、<code>zqsurf += zdqsdif_tot·subtimestep</code>，并把 <code>zqsurf</code> 钳到 ≥0（非 watercap）。冰仍存在时把温升封顶到 <code>To</code>（防止有冰却升温越过三相点，行 1243–1248）。</p>
+<h3 id="6-子步积分回主步行-12561311">6. 子步积分回主步（行 1256–1311）</h3>
+<p><code>pdtsrf = (ztsrf-ptsrf)/ptimestep</code>；地表水冰倾向</p>
+<pre class="text"><code>pdqsdif(ig,igcm_h2o_ice,islope) = (zqsurf - pqsurf(h2o_ice)/cos) / ptimestep</code></pre>
+<p><code>watercaptag</code> 且升华超过现有霜时，多出的部分计入 <code>dwatercap_dif</code>（永久冰盖储库消耗，&lt;0），并把 <code>pdqsdif(h2o_ice)</code> 钳到只消耗现有霜。坡度循环结束后，<code>zq(h2o_vap)</code> 用 <code>subslope_dist</code> 做坡度加权平均回到网格大气值（行 1290–1299），<code>pdqsdif(h2o_ice)</code> 和 <code>dwatercap_dif</code> 再乘 <code>cos(slope)</code> 回到坡度投影量（行 1301–1311）。</p>
+<h2 id="与非水汽示踪物段的关系行-900957">与「非水汽示踪物」段的关系（行 900–957）</h2>
+<p><code>h2o_vap</code> 之前，所有其他示踪物（含 <code>h2o_ice</code>）在行 900–957 处理。其中地表系数 <code>zb(:,1)=0</code>（行 906，无湍流地表通量），但 <code>h2o_ice</code>/<code>hdo_ice</code> 走特例：地表边界只做层间混合（行 924–932），普通示踪物则把抬升通量 <code>-pdqsdif_tmp(iq)</code> 作为地表源注入（行 937–939）。<code>pdqsdif(iq,islope)=pdqsdif_tmp(iq)·cos(slope)</code>（行 951）。注意：<code>h2o_ice</code> 的地表倾向真正的物理值是在后面的 <code>h2o_vap</code> 段算出并写入 <code>pdqsdif(igcm_h2o_ice,...)</code> 的——这里的循环条件 <code>(.not.water).or.(.not.iq==h2o_vap).or.(.not.iq==hdo_vap)</code>（行 901–902）逻辑上恒为真（见待确认），但 <code>h2o_vap</code> 自身在 <code>else</code> 体外、由行 965 的专段处理。</p>
+<h2 id="边界条件与保护逻辑">边界条件与保护逻辑</h2>
+<ul>
+<li>升华量不能超过现有地表霜：多处把 <code>zdqsdif_tot</code> 钳到 <code>-zqsurf/subtimestep</code>（行 1094、1150、1196）。</li>
+<li><code>zqsurf&lt;0</code> 时（非 watercap）置 0（行 1227–1229）。</li>
+<li>有冰时地表温度不得越过 <code>To</code>（行 1243–1248）。</li>
+<li><code>watercaptag</code> 永久冰盖：升华超量走 <code>dwatercap_dif</code>，地表霜倾向钳制（行 1273–1285）。</li>
+<li>坡度投影：进入用 <code>/cos</code>，输出用 <code>·cos</code>，保证 <code>pqsurf</code>/<code>pdqsdif</code> 始终是坡度投影量。</li>
+</ul>
+<h2 id="输入数据来源">输入数据来源</h2>
+<ul>
+<li><code>pqsurf(:,igcm_h2o_ice,:)</code>：地表水冰储库（按坡度），来自上游地表状态。</li>
+<li><code>ptsrf, pdtsrf</code>：地表温度及其倾向（被本段更新）。</li>
+<li><code>zcdv/zcdh</code>：整体气动力导度，前面 <code>vdif_cd</code> 算出（行 425–431）。</li>
+<li><code>ptsoil, qsoil</code>：土壤温度/土壤示踪物（吸附与地下冰用）。</li>
+<li><code>h2oice_depth, coef_ssdif</code>：来自古气候/地下冰模块 <code>paleoclimate_mod</code>。</li>
+<li>配置开关：<code>water</code>、<code>latentheat_surfwater</code>、<code>adsorption_soil</code>、<code>old_wsublimation_scheme</code>、<code>lag_layer</code>。</li>
+</ul>
+<h2 id="输出与副作用">输出与副作用</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdqsdif(ig,igcm_h2o_ice,islope)</code></td>
+<td>地表水冰升华/沉积倾向（kg/m²/s，坡度投影）</td>
+</tr>
+<tr>
+<td><code>dwatercap_dif(ig,islope)</code></td>
+<td>永久冰盖储库消耗倾向（&lt;0，坡度投影）</td>
+</tr>
+<tr>
+<td><code>pdtsrf(ig,islope)</code></td>
+<td>地表温度倾向（含水冰潜热反馈）</td>
+</tr>
+<tr>
+<td><code>zq(ig,:,igcm_h2o_vap)</code></td>
+<td>近地及各层水汽混合比（坡度平均后写回，供后续 <code>pdqdif</code> 在行 1436 算大气倾向）</td>
+</tr>
+<tr>
+<td><code>zdqsdif_ssi_tot(:, :)</code></td>
+<td>地下冰总交换通量诊断（<code>write_output 'flux_ssice'</code>，行 1400）</td>
+</tr>
+<tr>
+<td><code>surf_h2o_lh</code></td>
+<td>地表水潜热通量诊断</td>
+</tr>
+</tbody>
+</table>
+<p><code>zq</code> 更新后在行 1436 经 <code>pdqdif=(zq-(pq+pdqfi·dt))/dt</code> 转成大气水汽扩散倾向输出。</p>
+<h2 id="复现注意事项">复现注意事项</h2>
+<ul>
+<li>自适应子步只在有霜/永久冰盖处启用；无霜格点 <code>nsubtimestep=1</code>。复现潜热反馈时必须保留这一自适应细分，否则强升华格点温度会振荡。</li>
+<li>地表边界是「拉向 <code>qsat</code>」的隐式条件，不是固定通量；<code>dryness</code> 干度系数线性缩放地表水汽导度。</li>
+<li><code>old_wsublimation_scheme</code> 切换地表用动量导度 <code>zcdv</code> 还是热导度 <code>zcdh</code>，影响升华率，复现历史结果时需对齐该开关。</li>
+<li>三个地下/吸附分支互斥：<code>adsorption_soil</code> 优先；否则按有无霜、有无地下冰走 SSI 通量分支。<code>lag_layer</code> 关时退化为只有地表霜的经典方案。</li>
+<li>坡度投影必须成对（进 <code>/cos</code>、出 <code>·cos</code>），漏掉会导致按坡度面积的质量不守恒。</li>
+<li>潜热公式 <code>lh=(2834.3-0.28(T-To)-0.004(T-To)²)·1e3</code>（升华焓拟合，来源见行 164 注释 Montmessin et al. 2004）。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><strong>行 901–902 逻辑疑点</strong>：<code>if ((.not. water).or.(.not. iq.eq.igcm_h2o_vap).or.(.not. iq.eq.igcm_hdo_vap))</code> 用 <code>.or.</code> 连接三个否定条件，对任意 <code>iq</code> 恒为真（<code>iq</code> 不可能同时等于 <code>h2o_vap</code> 和 <code>hdo_vap</code>，故 <code>(.not. iq==h2o_vap)</code> 与 <code>(.not. iq==hdo_vap)</code> 至少一真）。<strong>复现风险</strong>：该守卫看似想「排除 h2o_vap/hdo_vap」，但实际不排除任何示踪物；不过 <code>h2o_vap</code> 的真正处理在行 965 专段，普通段对 <code>h2o_vap</code> 的计算结果随后被专段覆盖，推断无净效果。需对照上游版本确认是否为已知冗余/笔误（应为 <code>.and.</code> 串联）。</li>
+<li><code>soilwater</code> 的吸附/解吸内部解法、<code>pore_icefraction</code> 的更新细节超出本段范围，见 <a href="../modules/phymars/soilwater.html">soilwater</a>（TASK-0036）。</li>
+<li><code>compute_Tice</code>（行 1484）线性插值地下冰温的有效性，依赖 <code>mlayer</code> 土壤网格定义，本页不展开。</li>
+<li>HDO 段（行 1317+）依赖本段输出的 <code>saved_h2o_vap</code>/<code>qsat_tmp</code>，调用 <code>hdo_surfex</code>；属同位素分馏，不在本任务范围。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

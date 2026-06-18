@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>iostart - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/iostart.md</span>
+    </nav>
+    <article class="content">
+<h1 id="iostartf90">iostart.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\iostart.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>iostart.F90</code> 定义 <code>iostart</code> 模块，是 LMDZ.MARS 物理重启文件（<code>startfi.nc</code> 和 <code>restartfi.nc</code>）的 NetCDF I/O 核心模块。它提供读取初始场（<code>get_field</code>/<code>get_var</code>）和写入重启场（<code>put_field</code>/<code>put_var</code>）的统一接口，支持 1D/2D/3D/4D 数组的读写，并处理并行环境下的数据分发和重排。</p>
+<p>本模块是物理初始化（<code>phyetat0</code>）和重启输出（<code>phyredem</code>）的核心依赖，被 <code>soil_settings.F</code>、<code>phyetat0_mod.F90</code>、<code>phyredem.F90</code> 等文件调用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iostart</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装物理重启文件 NetCDF I/O 接口</td>
+</tr>
+<tr>
+<td><code>open_startphy</code></td>
+<td>subroutine</td>
+<td>53</td>
+<td>打开 <code>startfi.nc</code> 初始场文件</td>
+</tr>
+<tr>
+<td><code>close_startphy</code></td>
+<td>subroutine</td>
+<td>73</td>
+<td>关闭 <code>startfi.nc</code> 文件</td>
+</tr>
+<tr>
+<td><code>inquire_field</code></td>
+<td>function</td>
+<td>86</td>
+<td>检查字段是否存在于 <code>startfi.nc</code></td>
+</tr>
+<tr>
+<td><code>inquire_field_ndims</code></td>
+<td>function</td>
+<td>110</td>
+<td>查询字段的维度数</td>
+</tr>
+<tr>
+<td><code>inquire_dimension</code></td>
+<td>function</td>
+<td>138</td>
+<td>检查维度是否存在于 <code>startfi.nc</code></td>
+</tr>
+<tr>
+<td><code>inquire_dimension_length</code></td>
+<td>function</td>
+<td>161</td>
+<td>查询维度的长度</td>
+</tr>
+<tr>
+<td><code>get_field</code></td>
+<td>interface</td>
+<td>29</td>
+<td>从 <code>startfi.nc</code> 读取字段（1D/2D/3D）</td>
+</tr>
+<tr>
+<td><code>get_field_r1</code></td>
+<td>subroutine</td>
+<td>188</td>
+<td>读取 1D 表面场</td>
+</tr>
+<tr>
+<td><code>get_field_r2</code></td>
+<td>subroutine</td>
+<td>214</td>
+<td>读取 2D 水平-垂直场</td>
+</tr>
+<tr>
+<td><code>get_field_r3</code></td>
+<td>subroutine</td>
+<td>244</td>
+<td>读取 3D 场</td>
+</tr>
+<tr>
+<td><code>get_field_rgen</code></td>
+<td>subroutine</td>
+<td>274</td>
+<td>通用字段读取（含并行分发）</td>
+</tr>
+<tr>
+<td><code>get_var</code></td>
+<td>interface</td>
+<td>33</td>
+<td>从 <code>startfi.nc</code> 读取变量（标量/1D/2D/3D）</td>
+</tr>
+<tr>
+<td><code>get_var_r0</code></td>
+<td>subroutine</td>
+<td>351</td>
+<td>读取标量</td>
+</tr>
+<tr>
+<td><code>get_var_r1</code></td>
+<td>subroutine</td>
+<td>369</td>
+<td>读取 1D 向量</td>
+</tr>
+<tr>
+<td><code>get_var_r2</code></td>
+<td>subroutine</td>
+<td>384</td>
+<td>读取 2D 场</td>
+</tr>
+<tr>
+<td><code>get_var_r3</code></td>
+<td>subroutine</td>
+<td>399</td>
+<td>读取 3D 场</td>
+</tr>
+<tr>
+<td><code>get_var_rgen</code></td>
+<td>subroutine</td>
+<td>414</td>
+<td>通用变量读取</td>
+</tr>
+<tr>
+<td><code>open_restartphy</code></td>
+<td>subroutine</td>
+<td>462</td>
+<td>创建或打开 <code>restartfi.nc</code> 重启文件</td>
+</tr>
+<tr>
+<td><code>close_restartphy</code></td>
+<td>subroutine</td>
+<td>614</td>
+<td>关闭 <code>restartfi.nc</code> 文件</td>
+</tr>
+<tr>
+<td><code>put_field</code></td>
+<td>interface</td>
+<td>37</td>
+<td>向 <code>restartfi.nc</code> 写入字段（1D/2D/3D）</td>
+</tr>
+<tr>
+<td><code>put_field_r1</code></td>
+<td>subroutine</td>
+<td>626</td>
+<td>写入 1D 表面场</td>
+</tr>
+<tr>
+<td><code>put_field_r2</code></td>
+<td>subroutine</td>
+<td>643</td>
+<td>写入 2D 水平-垂直场</td>
+</tr>
+<tr>
+<td><code>put_field_r3</code></td>
+<td>subroutine</td>
+<td>660</td>
+<td>写入 3D 场</td>
+</tr>
+<tr>
+<td><code>put_field_rgen</code></td>
+<td>subroutine</td>
+<td>678</td>
+<td>通用字段写入（含并行收集和重排）</td>
+</tr>
+<tr>
+<td><code>put_var</code></td>
+<td>interface</td>
+<td>41</td>
+<td>向 <code>restartfi.nc</code> 写入变量（标量/1D/2D/3D/字符）</td>
+</tr>
+<tr>
+<td><code>put_var_r0</code></td>
+<td>subroutine</td>
+<td>972</td>
+<td>写入标量</td>
+</tr>
+<tr>
+<td><code>put_var_r1</code></td>
+<td>subroutine</td>
+<td>986</td>
+<td>写入 1D 向量</td>
+</tr>
+<tr>
+<td><code>put_var_r2</code></td>
+<td>subroutine</td>
+<td>997</td>
+<td>写入 2D 场</td>
+</tr>
+<tr>
+<td><code>put_var_r3</code></td>
+<td>subroutine</td>
+<td>1008</td>
+<td>写入 3D 场</td>
+</tr>
+<tr>
+<td><code>put_var_rgen</code></td>
+<td>subroutine</td>
+<td>1019</td>
+<td>通用变量写入</td>
+</tr>
+<tr>
+<td><code>put_var_c1</code></td>
+<td>subroutine</td>
+<td>1114</td>
+<td>写入字符向量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>netcdf</code></td>
+<td><code>NF90_OPEN</code>, <code>NF90_CREATE</code>, <code>NF90_GET_VAR</code>, <code>NF90_PUT_VAR</code>, 等</td>
+<td>NetCDF 库函数</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code>, <code>bcast</code>, <code>scatter</code>, <code>gather</code></td>
+<td>并行环境下的主进程判断和数据分发</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>klon_glo</code></td>
+<td>全局网格列数</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>dimphy</code></td>
+<td><code>klon</code>, <code>klev</code>, <code>klevp1</code></td>
+<td>本地物理网格维度</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>ind_cell_glo</code></td>
+<td>全局单元索引（用于重排）</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>nqmx</code></td>
+<td>tracer 数量</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>nsoilmx</code></td>
+<td>土壤层数</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comslope_mod</code></td>
+<td><code>nslope</code></td>
+<td>坡面数</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abort_physic</code></td>
+<td><code>abort</code></td>
+<td>多处</td>
+<td>错误中止</td>
+</tr>
+<tr>
+<td><code>NF90_*</code></td>
+<td><code>netcdf</code></td>
+<td>多处</td>
+<td>NetCDF 库函数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>filename</code></td>
+<td>调用方</td>
+<td>character</td>
+<td>-</td>
+<td>NetCDF 文件名</td>
+</tr>
+<tr>
+<td><code>field_name</code></td>
+<td>调用方</td>
+<td>character</td>
+<td>-</td>
+<td>字段名称</td>
+</tr>
+<tr>
+<td><code>var_name</code></td>
+<td>调用方</td>
+<td>character</td>
+<td>-</td>
+<td>变量名称</td>
+</tr>
+<tr>
+<td><code>field</code></td>
+<td>调用方</td>
+<td>real (1D/2D/3D)</td>
+<td>-</td>
+<td>待写入的字段数据</td>
+</tr>
+<tr>
+<td><code>var</code></td>
+<td>调用方</td>
+<td>real/character</td>
+<td>-</td>
+<td>待写入的变量数据</td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td>调用方</td>
+<td>character</td>
+<td>-</td>
+<td>变量标题属性</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>field</code></td>
+<td>调用方</td>
+<td>real (1D/2D/3D)</td>
+<td>-</td>
+<td>读取的字段数据</td>
+</tr>
+<tr>
+<td><code>var</code></td>
+<td>调用方</td>
+<td>real/character</td>
+<td>-</td>
+<td>读取的变量数据</td>
+</tr>
+<tr>
+<td><code>found</code></td>
+<td>调用方</td>
+<td>logical</td>
+<td>-</td>
+<td>字段/变量是否存在</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>模块级 <code>SAVE</code> 变量：
+<ul>
+<li><code>nid_start</code>：<code>startfi.nc</code> 文件标识符</li>
+<li><code>nid_restart</code>：<code>restartfi.nc</code> 文件标识符</li>
+<li><code>idim0</code>~<code>idim11</code>：<code>restartfi.nc</code> 维度标识符</li>
+<li><code>timeindex</code>：当前时间索引</li>
+<li><code>first_time1d</code>：1D 模式首次调用标记</li>
+</ul></li>
+<li>这些变量由主进程维护，通过 <code>bcast</code> 广播到所有进程。</li>
+<li><code>open_restartphy</code> 会创建或打开 <code>restartfi.nc</code> 文件，并定义维度。</li>
+<li><code>put_field_rgen</code> 和 <code>put_var_rgen</code> 会修改 <code>restartfi.nc</code> 文件内容。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><p><strong>文件打开</strong>：</p>
+<ul>
+<li><code>open_startphy</code>：主进程打开 <code>startfi.nc</code>，广播文件标识符</li>
+<li><code>open_restartphy</code>：首次调用时创建 <code>restartfi.nc</code> 并定义维度，后续调用直接打开</li>
+</ul></li>
+<li><p><strong>字段读取</strong> (<code>get_field</code>)：</p>
+<ul>
+<li>主进程从 <code>startfi.nc</code> 读取全局数据</li>
+<li>按 <code>ind_cell_glo</code> 重排列顺序</li>
+<li>通过 <code>scatter</code> 分发到各进程</li>
+</ul></li>
+<li><p><strong>字段写入</strong> (<code>put_field</code>)：</p>
+<ul>
+<li>各进程通过 <code>gather</code> 收集数据到主进程</li>
+<li>主进程按 <code>ind_cell_glo</code> 重排列顺序</li>
+<li>根据字段维度（1D/2D/3D）和时间依赖性选择 NetCDF 维度组合</li>
+<li>写入 <code>restartfi.nc</code></li>
+</ul></li>
+<li><p><strong>变量读取</strong> (<code>get_var</code>)：</p>
+<ul>
+<li>主进程从 <code>startfi.nc</code> 读取变量</li>
+<li>通过 <code>bcast</code> 广播到所有进程</li>
+</ul></li>
+<li><p><strong>变量写入</strong> (<code>put_var</code>)：</p>
+<ul>
+<li>主进程将变量写入 <code>restartfi.nc</code></li>
+<li>特殊处理 <code>Time</code> 变量（追加模式）</li>
+</ul></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>iostart:
+    nid_start, nid_restart: NetCDF file IDs
+    idim0..idim11: dimension IDs for restartfi.nc
+    timeindex: current time index
+
+    open_startphy(filename):
+        if is_master:
+            NF90_OPEN(filename, nid_start)
+        bcast(nid_start)
+
+    get_field(field_name, field):
+        if is_master:
+            NF90_GET_VAR(nid_start, field_name, field_glo)
+        reorder field_glo by ind_cell_glo
+        scatter(field_glo, field)
+
+    open_restartphy(filename):
+        if is_master:
+            if first_time:
+                NF90_CREATE(filename, nid_restart)
+                define dimensions (scalar, index, physical_points, ...)
+            else:
+                NF90_OPEN(filename, nid_restart)
+
+    put_field(field_name, field):
+        gather(field, field_glo)
+        if is_master:
+            reorder field_glo by ind_cell_glo
+            NF90_REDEF(nid_restart)
+            NF90_DEF_VAR(field_name, dimensions)
+            NF90_PUT_VAR(field_glo)
+
+    close_startphy():
+        if is_master:
+            NF90_CLOSE(nid_start)
+
+    close_restartphy():
+        if is_master:
+            NF90_CLOSE(nid_restart)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>物理初始化</td>
+<td><code>phyetat0</code> 调用 <code>open_startphy</code> 和 <code>get_field</code>/<code>get_var</code> 读取初始场</td>
+</tr>
+<tr>
+<td>物理重启输出</td>
+<td><code>phyredem</code> 调用 <code>open_restartphy</code> 和 <code>put_field</code>/<code>put_var</code> 写入重启场</td>
+</tr>
+<tr>
+<td>土壤初始化</td>
+<td><code>soil_settings</code> 调用 <code>get_field</code> 读取土壤参数</td>
+</tr>
+<tr>
+<td>并行计算</td>
+<td>所有 I/O 操作由主进程执行，通过 <code>bcast</code>/<code>scatter</code>/<code>gather</code> 分发数据</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>.F90</code> 自由格式模块，使用 Fortran 90 的 <code>INTERFACE</code> 和 <code>MODULE PROCEDURE</code> 实现泛型接口。</li>
+<li>使用 <code>PRIVATE</code>/<code>PUBLIC</code> 控制可见性，模块级变量默认私有。</li>
+<li>使用 <code>SAVE</code> 属性保存文件标识符和维度 ID。</li>
+<li>使用 <code>#ifdef NC_DOUBLE</code> 预处理指令选择 NetCDF 数据类型（<code>NF90_FLOAT</code> 或 <code>NF90_DOUBLE</code>）。</li>
+<li>特殊处理 1D 模式（<code>klon_glo==1</code>）的 <code>restartfi.nc</code> 创建。</li>
+<li>特殊处理 <code>tsoil</code>/<code>inertiesoil</code> 字段的 4D 写入（含坡面维度）。</li>
+<li><code>timeindex</code> 由 <code>put_var_rgen</code> 中的 <code>Time</code> 变量写入时自动更新。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须确保 <code>startfi.nc</code> 文件存在且包含所需字段。</li>
+<li>并行环境下，所有 I/O 由主进程执行，数据通过 MPI 通信分发。</li>
+<li><code>ind_cell_glo</code> 必须正确初始化，用于重排列顺序。</li>
+<li><code>restartfi.nc</code> 的维度定义必须与写入的数据匹配。</li>
+<li><code>timeindex</code> 在每次写入 <code>Time</code> 变量时自动递增。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>first_time1d</code> 的特殊处理逻辑（行 480-484）是否正确处理了 1D 模式的重启。</li>
+<li><code>put_field_rgen</code> 中 <code>tsoil</code>/<code>inertiesoil</code> 的 4D 写入（行 900-905）是否正确处理了坡面维度。</li>
+<li><code>#ifdef NC_DOUBLE</code> 的默认行为（<code>NF90_FLOAT</code>）是否适用于所有编译环境。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="phyetat0_mod.html">phyetat0_mod</a>：物理初始化，调用本模块读取 <code>startfi.nc</code> 初始场。</li>
+<li><a href="phyredem.html">phyredem</a>：物理重启输出，调用本模块写入 <code>startfi.nc</code> / <code>restartfi.nc</code>。</li>
+<li><a href="soil_settings.html">soil_settings</a>：土壤初始化设置，调用本模块读取土壤参数。</li>
+<li><a href="../../architecture/config-system.html">config-system</a>：配置系统，记录文件路径和参数。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

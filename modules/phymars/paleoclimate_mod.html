@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>paleoclimate_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/paleoclimate_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="paleoclimate_modf90">paleoclimate_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\paleoclimate_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>paleoclimate_mod.F90</code> 是古气候和 lag-layer 路径的共享状态模块。它本身不实现物理通量公式，而是集中保存 <code>conf_phys.F</code> 读取的古气候开关，以及按 <code>(ngrid, nslope)</code> 分配的地下 H2O/CO2 冰深度、地下水扩散系数和地下冰交互总通量缓存。后续初始化、重启读写、newstart 坡面重映射和 <code>vdifc</code> 水冰交换路径都通过这些 module 变量传递状态。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>paleoclimate_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>古气候共享状态模块</td>
+</tr>
+<tr>
+<td><code>paleoclimate</code></td>
+<td>logical module variable</td>
+<td>13</td>
+<td>是否启用古气候相关处理，由 <code>conf_phys.F</code> 读取</td>
+</tr>
+<tr>
+<td><code>lag_layer</code></td>
+<td>logical module variable</td>
+<td>14</td>
+<td>是否启用 lag-layer 路径，由 <code>conf_phys.F</code> 读取</td>
+</tr>
+<tr>
+<td><code>include_waterbuoyancy</code></td>
+<td>logical module variable</td>
+<td>15</td>
+<td>是否在水冰升华相关计算中考虑水汽浮力，由 <code>conf_phys.F</code> 读取</td>
+</tr>
+<tr>
+<td><code>h2oice_depth</code></td>
+<td>allocatable module array</td>
+<td>18</td>
+<td>最浅 H2O 冰层深度，维度 <code>(ngrid, nslope)</code>，单位 m</td>
+</tr>
+<tr>
+<td><code>co2ice_depth</code></td>
+<td>allocatable module array</td>
+<td>19</td>
+<td>最浅 CO2 冰层深度，维度 <code>(ngrid, nslope)</code>，单位 m</td>
+</tr>
+<tr>
+<td><code>zdqsdif_ssi_tot</code></td>
+<td>allocatable module array</td>
+<td>20</td>
+<td>地下冰交互总通量缓存，维度 <code>(ngrid, nslope)</code>，单位 kg/m^2/s</td>
+</tr>
+<tr>
+<td><code>coef_ssdif</code></td>
+<td>allocatable module array</td>
+<td>21</td>
+<td>地下水扩散系数，维度 <code>(ngrid, nslope)</code></td>
+</tr>
+<tr>
+<td><code>ini_paleoclimate</code></td>
+<td>subroutine</td>
+<td>28</td>
+<td>按 <code>ngrid, nslope</code> 分配四个古气候数组</td>
+</tr>
+<tr>
+<td><code>end_paleoclimate</code></td>
+<td>subroutine</td>
+<td>44</td>
+<td>释放已经分配的古气候数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>（无）</td>
+<td>-</td>
+<td>本文件没有 <code>use</code> 依赖</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>（无外部调用）</td>
+<td>-</td>
+<td>-</td>
+<td>本模块只分配/释放自身数组，不调用外部例程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>ini_paleoclimate</code> 调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>物理网格点数</td>
+</tr>
+<tr>
+<td><code>nslope</code></td>
+<td><code>ini_paleoclimate</code> 调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>次网格坡面数量</td>
+</tr>
+<tr>
+<td><code>paleoclimate</code></td>
+<td><code>conf_phys.F</code> 读取 <code>callphys.def</code></td>
+<td>logical</td>
+<td>-</td>
+<td>控制 paleoclimate 重启字段读写和相关路径</td>
+</tr>
+<tr>
+<td><code>lag_layer</code></td>
+<td><code>conf_phys.F</code> 读取 <code>callphys.def</code></td>
+<td>logical</td>
+<td>-</td>
+<td>控制 <code>vdifc</code> 中 lag-layer 阻力/通量路径</td>
+</tr>
+<tr>
+<td><code>include_waterbuoyancy</code></td>
+<td><code>conf_phys.F</code> 读取 <code>callphys.def</code></td>
+<td>logical</td>
+<td>-</td>
+<td>控制 PBL/交换系数中水汽浮力修正路径</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>h2oice_depth(ngrid,nslope)</code></td>
+<td><code>phyetat0_mod</code>、<code>vdifc_mod</code>、<code>phyredem</code>、<code>newstart.F</code></td>
+<td>real array</td>
+<td>m</td>
+<td>最浅 H2O 冰层深度；默认缺省值见 <code>phyetat0_mod</code></td>
+</tr>
+<tr>
+<td><code>co2ice_depth(ngrid,nslope)</code></td>
+<td><code>phyetat0_mod</code>、<code>phyredem</code>、<code>newstart.F</code></td>
+<td>real array</td>
+<td>m</td>
+<td>最浅 CO2 冰层深度</td>
+</tr>
+<tr>
+<td><code>coef_ssdif(ngrid,nslope)</code></td>
+<td><code>phyetat0_mod</code>、<code>vdifc_mod</code>、<code>phyredem</code>、<code>newstart.F</code></td>
+<td>real array</td>
+<td>-</td>
+<td>地下水扩散系数；缺省值由 <code>phyetat0_mod</code> 设为 <code>4.e-4</code></td>
+</tr>
+<tr>
+<td><code>zdqsdif_ssi_tot(ngrid,nslope)</code></td>
+<td><code>vdifc_mod</code>、诊断输出路径</td>
+<td>real array</td>
+<td>kg/m^2/s</td>
+<td><code>vdifc</code> 中累计的地下冰交互总通量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>三个 logical 开关和四个 allocatable 数组都声明为 <code>!$OMP THREADPRIVATE</code>，每个 OpenMP 线程持有独立副本。</li>
+<li><code>ini_paleoclimate</code> 只执行 <code>allocate</code>，不会给数组填充值；实际初始化依赖 <code>phyetat0_mod.F90</code> 的 restart 读取或缺省值路径，以及 1D/newstart 相关流程。</li>
+<li><code>end_paleoclimate</code> 对每个数组执行 <code>allocated(...)</code> 检查后释放，用于重新初始化不同网格/坡面尺寸之前清理旧形状。</li>
+<li><code>zdqsdif_ssi_tot</code> 在 <code>vdifc_mod.F</code> 中被清零并累计；本次看到的 restart 写出字段包括 <code>h2oice_depth</code>、<code>co2ice_depth</code>、<code>coef_ssdif</code>，不包括 <code>zdqsdif_ssi_tot</code>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>conf_phys.F</code> 读取 <code>lag_layer</code>、<code>paleoclimate</code>、<code>include_waterbuoyancy</code> 三个配置开关；其中 <code>include_waterbuoyancy</code> 为真但 <code>paleoclimate</code> 为假时会中止。</li>
+<li><code>phys_state_var_init_mod.F90</code> 在初始化物理状态变量时先调用 <code>end_paleoclimate</code>，再调用 <code>ini_paleoclimate(ngrid, nslope)</code> 分配数组。</li>
+<li><code>phyetat0_mod.F90</code> 在 <code>paleoclimate</code> 为真时从物理 start/restart 字段读取古气候数组；缺字段时给 <code>h2oice_depth/co2ice_depth</code> 等设置缺省值。</li>
+<li><code>vdifc_mod.F</code> 根据 <code>lag_layer</code>、<code>h2oice_depth</code> 和 <code>coef_ssdif</code> 计算地下冰相关阻力和水通量，并更新 <code>zdqsdif_ssi_tot</code>。</li>
+<li><code>phyredem.F90</code> 在 <code>paleoclimate</code> 为真时把持久 CO2 冰和古气候数组写入重启文件；<code>newstart.F</code> 在坡面数量改变时保存旧数组、重分配并重映射到新坡面布局。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>MODULE paleoclimate_mod
+  保存 paleoclimate、lag_layer、include_waterbuoyancy 三个线程私有开关
+  保存 h2oice_depth、co2ice_depth、zdqsdif_ssi_tot、coef_ssdif 四个线程私有数组
+
+SUBROUTINE ini_paleoclimate(ngrid, nslope)
+  allocate h2oice_depth(ngrid, nslope)
+  allocate co2ice_depth(ngrid, nslope)
+  allocate zdqsdif_ssi_tot(ngrid, nslope)
+  allocate coef_ssdif(ngrid, nslope)
+
+SUBROUTINE end_paleoclimate()
+  对每个数组：
+    if allocated then deallocate</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>古气候 / lag-layer</td>
+<td>保存 <code>paleoclimate</code>、<code>lag_layer</code> 开关和地下冰深度/扩散系数</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td><code>vdifc</code> 使用 <code>h2oice_depth</code>、<code>coef_ssdif</code> 和 <code>zdqsdif_ssi_tot</code> 计算地下冰与大气/霜之间的水交换</td>
+</tr>
+<tr>
+<td>CO2 循环</td>
+<td><code>co2ice_depth</code> 与 <code>perennial_co2ice</code> restart 路径一起描述古气候 CO2 冰状态</td>
+</tr>
+<tr>
+<td>边界层交换</td>
+<td><code>include_waterbuoyancy</code> 被 <code>pbl_parameters_mod</code> 和 <code>vdif_cd_mod</code> 用于水汽浮力修正路径</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>这是纯 module 状态容器，接口很小；文件级复现重点不在公式，而在生命周期和调用方初始化顺序。</li>
+<li>所有共享变量均 <code>THREADPRIVATE</code>，多线程运行时要保证每个线程都经过正确初始化/广播路径。</li>
+<li>分配例程没有防重复分配检查；调用方在重新分配前必须先走 <code>end_paleoclimate</code>。</li>
+</ul>
+<h2 id="已确认初始化与使用链">已确认初始化与使用链</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>conf_phys.F</code></td>
+<td>42-43, 433-465</td>
+<td>读取 <code>lag_layer</code>、<code>paleoclimate</code>、<code>include_waterbuoyancy</code>，并强制 <code>include_waterbuoyancy</code> 依赖 <code>paleoclimate</code></td>
+</tr>
+<tr>
+<td><code>phys_state_var_init_mod.F90</code></td>
+<td>65, 195-197</td>
+<td>调用 <code>end_paleoclimate</code> 和 <code>ini_paleoclimate(ngrid,nslope)</code></td>
+</tr>
+<tr>
+<td><code>phyetat0_mod.F90</code></td>
+<td>39, 902-953</td>
+<td>按 <code>paleoclimate</code> 读取或缺省初始化 <code>h2oice_depth</code>、<code>co2ice_depth</code>、<code>coef_ssdif</code></td>
+</tr>
+<tr>
+<td><code>phyredem.F90</code></td>
+<td>208-212, 258, 389-392</td>
+<td>按 <code>paleoclimate</code> 写出常年 CO2 冰和古气候地下冰 restart 字段</td>
+</tr>
+<tr>
+<td><code>vdifc_mod.F</code></td>
+<td>36-37, 315, 1090-1192, 1268, 1402-1407</td>
+<td>读取 lag-layer 状态并累计/输出地下冰交互通量</td>
+</tr>
+<tr>
+<td><code>dynphy_lonlat/phymars/newstart.F</code></td>
+<td>62-63, 1852-1901</td>
+<td>坡面数量变化时保存、重分配并重映射古气候数组</td>
+</tr>
+<tr>
+<td><code>pbl_parameters_mod.F90</code></td>
+<td>29, 204-208</td>
+<td>使用 <code>include_waterbuoyancy</code> 控制水汽浮力修正</td>
+</tr>
+<tr>
+<td><code>vdif_cd_mod.F90</code></td>
+<td>23, 171-176</td>
+<td>使用 <code>include_waterbuoyancy</code> 控制交换系数中的水汽浮力修正</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>ini_paleoclimate</code> 只分配不初始化；复现实验必须确认 <code>phyetat0_mod</code>、1D 初始化或 newstart 路径已经填好数组。</li>
+<li><code>h2oice_depth</code> 缺省可为 <code>-999.</code>，表示无地下冰；<code>coef_ssdif</code> 缺省值为 <code>4.e-4</code>，这些缺省来自 <code>phyetat0_mod.F90</code> 而不是本模块。</li>
+<li><code>include_waterbuoyancy</code> 不能单独启用；<code>conf_phys.F</code> 中明确要求它必须与 <code>paleoclimate</code> 同时使用。</li>
+<li>改变 <code>nslope</code> 或 <code>ngrid</code> 形状前必须先释放旧数组，否则重复 <code>allocate</code> 会失败。</li>
+<li><code>zdqsdif_ssi_tot</code> 是运行时通量累计缓存，不应当当成 restart 持久初值使用。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>phyredem.F90</code> 中古气候地下冰字段未带 <code>time</code> 实参写出，而读端传入 <code>indextime</code>；需按 <code>iostart</code> 维度分派确认 restart 文件实际形状。</li>
+<li>1D <code>testphys1d</code> 路径是否还有额外古气候数组初始化入口，本页仅按当前读取到的 GCM/newstart 路径记录。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="pbl_parameters_mod.html">pbl_parameters_mod</a></li>
+<li><a href="vdif_cd_mod.html">vdif_cd_mod</a></li>
+<li><a href="../../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a></li>
+<li><a href="phyetat0_mod.html">phyetat0_mod</a></li>
+<li><a href="phyredem.html">phyredem</a></li>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

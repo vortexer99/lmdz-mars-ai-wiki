@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>callkeys_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/callkeys_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="callkeys_modf90">callkeys_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\callkeys_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>callkeys_mod.F90</code> 定义 <code>callkeys_mod</code> 模块（第 1 行），集中保存物理包运行时开关、少量辐射/尘埃参数和水循环/CO2 云控制量。该文件本身没有子程序、函数、<code>use</code> 依赖或文件 I/O；它的职责是声明 <code>SAVE</code> 模块变量，并把几乎全部变量声明为 OpenMP <code>THREADPRIVATE</code>，供 <code>conf_phys.F</code>、restart/初始化路径和各物理过程模块读写。</p>
+<p>从源码看，<code>callkeys_mod</code> 不是默认值定义页。除 <code>integer,parameter :: swrtype=2</code>（第 109 行）外，其余变量只在本模块中声明存储；常见默认值和 <code>callphys.def</code> 覆盖路径在 <code>conf_phys.F</code> 中完成，例如 <code>conf_phys.F</code> 第 54-79 行导入本模块变量，第 201-203 行读取 <code>iaervar</code>，第 230-354 行读取核心物理开关，第 532-545 行读取尘埃注入参数，第 706-755 行读取水/CO2 云开关，第 1160-1186 行读取高层大气开关。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>物理包运行时开关与共享参数模块。</td>
+</tr>
+<tr>
+<td><code>startphy_file</code></td>
+<td>logical saved module variable</td>
+<td style="text-align: right;">5</td>
+<td>控制是否读取物理 start 文件路径；被 <code>phyetat0_mod</code> 等初始化路径读取。</td>
+</tr>
+<tr>
+<td><code>callrad, calldifv, calladj, callcond, callsoil</code></td>
+<td>logical saved module variables</td>
+<td style="text-align: right;">8</td>
+<td>主物理过程开关：辐射、垂直扩散、干对流调整、CO2 凝结、土壤。</td>
+</tr>
+<tr>
+<td><code>season, diurnal, calllott, calllott_nonoro</code></td>
+<td>logical saved module variables</td>
+<td style="text-align: right;">10</td>
+<td>季节/日变化、地形与非地形重力波相关开关。</td>
+</tr>
+<tr>
+<td><code>callnirco2, callnlte, callthermos, callconduct</code></td>
+<td>logical saved module variables</td>
+<td style="text-align: right;">12</td>
+<td>近红外 CO2、NLTE、热层和热传导路径开关。</td>
+</tr>
+<tr>
+<td><code>calleuv, callmolvis, callmoldiff, thermochem</code></td>
+<td>logical saved module variables</td>
+<td style="text-align: right;">14</td>
+<td>EUV、分子黏性、分子扩散和热层化学开关。</td>
+</tr>
+<tr>
+<td><code>calltherm, callrichsl, callslope, tituscap</code></td>
+<td>logical saved module variables</td>
+<td style="text-align: right;">16</td>
+<td>热羽流、近地层 Richardson/稳定度、坡面、Titus/TES 极冠覆盖开关。</td>
+</tr>
+<tr>
+<td><code>callyamada4, callatke, callemis, gwd_convective_source</code></td>
+<td>logical saved module variables</td>
+<td style="text-align: right;">18-20</td>
+<td>PBL/TKE、地表发射率反射项和重力波源相关开关。</td>
+</tr>
+<tr>
+<td><code>semi, fixed_euv_value, euveff, tke_heat_flux</code></td>
+<td>real saved module variables</td>
+<td style="text-align: right;">23-31</td>
+<td>半隐式辐射权重、EUV 强迫和 TKE 热通量参数。</td>
+</tr>
+<tr>
+<td><code>coeff_injection, ti_injection, tf_injection, coeff_detrainment, CLFfixval</code></td>
+<td>real saved module variables</td>
+<td style="text-align: right;">32-40</td>
+<td>尘埃注入时窗/系数、rocket dust 脱轨系数、固定云分数值。</td>
+</tr>
+<tr>
+<td><code>iaervar, iradia, ilwd, ilwb, ilwn, solvarmod, solvaryear, dustinjection</code></td>
+<td>integer saved module variables</td>
+<td style="text-align: right;">43-58</td>
+<td>尘埃场景选择、辐射调用/长波更新频率、太阳 EUV 变化模式和尘埃注入方案号。</td>
+</tr>
+<tr>
+<td><code>rayleigh, scavenging, rdstorm, topflows, dust_coagulation</code></td>
+<td>logical saved module variables</td>
+<td style="text-align: right;">60-68</td>
+<td>短波瑞利散射、水冰洗脱、rocket dust、山顶尘流和尘埃凝并开关。</td>
+</tr>
+<tr>
+<td><code>water, activice, microphys, supersat, sedimentation, CLFvarying</code></td>
+<td>logical saved module variables</td>
+<td style="text-align: right;">70-97</td>
+<td>水循环、水冰辐射活性、微物理、过饱和、沉降和水云次网格云分数开关。</td>
+</tr>
+<tr>
+<td><code>surfaceice_tifeedback, poreice_tifeedback, latentheat_surfwater</code></td>
+<td>logical saved module variables</td>
+<td style="text-align: right;">72-84</td>
+<td>地表/孔隙冰热惯量反馈和地表水潜热反馈开关。</td>
+</tr>
+<tr>
+<td><code>co2clouds, co2useh2o, meteo_flux, CLFvaryingCO2, satindexco2, activeco2ice, spantCO2</code></td>
+<td>logical/integer saved module variables</td>
+<td style="text-align: right;">87-93</td>
+<td>CO2 云、H2O-CCN 混入、流星尘核、CO2 云分数/饱和指数、辐射活性 CO2 冰和 CO2 时间跨度控制。</td>
+</tr>
+<tr>
+<td><code>hdo, hdofrac</code></td>
+<td>logical saved module variables</td>
+<td style="text-align: right;">99-101</td>
+<td>HDO 同位素及凝结分馏开关。</td>
+</tr>
+<tr>
+<td><code>photochem, nltemodel, nircorr</code></td>
+<td>logical/integer saved module variables</td>
+<td style="text-align: right;">103-107</td>
+<td>光化学、NLTE 模型选择和近红外修正模式。</td>
+</tr>
+<tr>
+<td><code>dustiropacity, dustrefir</code></td>
+<td>character/real saved module variables</td>
+<td style="text-align: right;">104-107</td>
+<td>尘埃红外不透明度配置字符串和尘埃红外参考波长。</td>
+</tr>
+<tr>
+<td><code>swrtype</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">109</td>
+<td>短波辐射方案选择常量；源码注释为 <code>1: Fouquart, 2: Toon</code>，本文件固定为 2。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<p>本文件没有 <code>use</code> 语句。</p>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>无</td>
+<td><code>callkeys_mod</code> 只声明共享变量，不依赖其他模块。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<p>本文件没有 <code>call</code> 语句，也没有定义可被调用的例程。</p>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>无</td>
+<td>无</td>
+<td>本模块只提供共享状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>callphys.def.*</code> 键值</td>
+<td><code>conf_phys.F</code> 通过 <code>getin_p</code> 写入</td>
+<td>scalar logical/integer/real/character</td>
+<td>混合</td>
+<td>运行时物理开关和参数来源；本文件不直接读取 def。</td>
+</tr>
+<tr>
+<td>restart / 初始化状态</td>
+<td><code>phyetat0_mod</code>、<code>phyredem</code>、物理初始化链</td>
+<td>saved module variables</td>
+<td>混合</td>
+<td>部分开关决定 start/restart 字段是否读取或写出。</td>
+</tr>
+<tr>
+<td>编译期常量 <code>swrtype=2</code></td>
+<td>本文件第 109 行</td>
+<td>integer parameter</td>
+<td>-</td>
+<td>默认短波辐射传输类型，当前源码固定为 Toon。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>模块变量</td>
+<td><code>physiq_mod.F</code>、<code>callradite_mod.F</code>、<code>vdifc_mod.F</code>、云/尘埃/CO2/高层大气模块</td>
+<td>saved scalars</td>
+<td>混合</td>
+<td>控制各物理分支是否执行以及关键参数取值。</td>
+</tr>
+<tr>
+<td><code>dustiropacity</code>, <code>dustrefir</code></td>
+<td><code>suaer</code>、辐射/尘埃路径</td>
+<td>character/real</td>
+<td>m 或配置字符串</td>
+<td>选择尘埃红外光学参考设置。</td>
+</tr>
+<tr>
+<td><code>iaervar</code>, <code>dustinjection</code>, <code>swrtype</code></td>
+<td><code>read_dust_scenario_mod</code>、<code>aeropacity_mod</code>、尘埃注入/缩放路径</td>
+<td>integer</td>
+<td>-</td>
+<td>选择尘埃场景文件、注入方案和短波方案修正。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本模块的核心副作用是提供全局可见的 <code>SAVE</code> 状态。多数变量紧跟 <code>!$OMP THREADPRIVATE(...)</code> 指令，使 OpenMP 线程各自持有一份配置状态。</li>
+<li><code>conf_phys.F</code> 是主要写入者：它从 <code>callphys.def</code> 风格配置读取并覆盖默认值，再写入这些模块变量。</li>
+<li>许多物理模块只读其中一小组变量，例如 <code>watercloud_mod.F</code> 读取 <code>activice/microphys/supersat/hdo/scavenging/CLFvarying</code>，<code>updatereffrad_mod.F</code> 读取 <code>water/activice/microphys/rdstorm/topflows/co2clouds/activeco2ice/co2useh2o</code>，<code>vdif_cd_mod.F90</code> 读取 <code>callrichsl/callatke</code>，<code>read_dust_scenario_mod.F90</code> 读取 <code>iaervar/dustinjection/swrtype</code>。</li>
+<li>复现风险：如果并行初始化路径没有在每个 OpenMP 线程上正确传播这些 <code>THREADPRIVATE</code> 值，后续物理分支可能在线程间不一致。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>声明 <code>callkeys_mod</code> 模块并启用 <code>IMPLICIT NONE</code>。</li>
+<li>按物理主题声明 <code>logical,save</code>、<code>real,save</code>、<code>integer,save</code> 和一个 <code>character(len=100),save</code> 状态变量。</li>
+<li>紧随变量声明为 OpenMP <code>THREADPRIVATE</code>，保证并行线程私有副本。</li>
+<li>在文件尾部定义唯一编译期常量 <code>swrtype=2</code>，注明短波方案 <code>1=Fouquart, 2=Toon</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>module callkeys_mod:
+    declare saved logical switches for physics branches
+    mark each switch group threadprivate
+
+    declare saved real/integer/character runtime parameters
+    mark each parameter group threadprivate
+
+    define swrtype = 2
+end module</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">辐射</a></td>
+<td><code>callrad</code>、<code>iradia</code>、<code>ilw*</code>、<code>rayleigh</code>、<code>swrtype</code>、<code>dustrefir</code>、<code>callnirco2</code>、<code>callnlte</code> 等控制辐射频率、短波方案、气溶胶光学和 NLTE/NIR 路径。</td>
+</tr>
+<tr>
+<td><a href="../../themes/dust-cycle.html">尘埃循环</a></td>
+<td><code>iaervar</code>、<code>dustinjection</code>、<code>coeff_injection</code>、<code>ti_injection</code>、<code>tf_injection</code>、<code>rdstorm</code>、<code>topflows</code>、<code>dust_coagulation</code> 等控制尘埃场景、注入、storm/top dust 和凝并路径。</td>
+</tr>
+<tr>
+<td><a href="../../themes/water-cycle.html">水循环</a></td>
+<td><code>water</code>、<code>activice</code>、<code>microphys</code>、<code>supersat</code>、<code>scavenging</code>、<code>CLFvarying</code>、<code>latentheat_surfwater</code>、<code>surfaceice_tifeedback</code>、<code>poreice_tifeedback</code> 等控制水汽/水冰、微物理、沉降洗脱和地表反馈路径。</td>
+</tr>
+<tr>
+<td><a href="../../themes/co2-cycle.html">CO2 循环</a></td>
+<td><code>callcond</code>、<code>co2clouds</code>、<code>co2useh2o</code>、<code>meteo_flux</code>、<code>CLFvaryingCO2</code>、<code>satindexco2</code>、<code>activeco2ice</code> 等控制 CO2 凝结、CO2 云微物理和 CO2 冰辐射路径。</td>
+</tr>
+<tr>
+<td>边界层 / 湍流 / 坡面</td>
+<td><code>calldifv</code>、<code>callrichsl</code>、<code>callyamada4</code>、<code>callatke</code>、<code>tke_heat_flux</code>、<code>callslope</code> 控制垂直扩散、稳定度函数、Yamada4/ATKE 和坡面路径。</td>
+</tr>
+<tr>
+<td>高层大气 / 热层</td>
+<td><code>callthermos</code>、<code>callconduct</code>、<code>calleuv</code>、<code>callmolvis</code>、<code>callmoldiff</code>、<code>thermochem</code> 控制热层传导、EUV、分子黏性/扩散和热层化学路径。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>这是纯状态模块，没有初始化例程；读者不能只看本文件判断运行默认值。</li>
+<li>变量按历史功能追加排列，而不是按严格子系统拆成多个模块；因此同一模块被辐射、尘埃、水、CO2、PBL、高层大气和 restart 路径共同使用。</li>
+<li>大量 <code>THREADPRIVATE</code> 指令是复现关键点。串行复现只需关注变量值；OpenMP 复现还要关注每个线程的变量副本何时被初始化。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现实验配置时，应同时记录 <code>callphys.def.*</code>、<code>conf_phys.F</code> 中的默认值/互斥检查，以及本模块的 <code>THREADPRIVATE</code> 状态。</li>
+<li><code>swrtype</code> 在当前源码中是 <code>parameter</code>，不是运行时 <code>getin_p</code> 开关；短波方案默认固定为 Toon，旧 Fouquart 路径依赖源码改动或历史分支。</li>
+<li><code>callkeys_mod</code> 只保存开关；具体数组维度、tracer 索引、辐射表和云微物理常数仍在各自模块中定义。</li>
+<li>若某个 downstream 页面说“来自 callkeys_mod”，应进一步查 <code>conf_phys.F</code> 或对应 def 样例确认默认值和合法组合。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>semi</code> 源码注释为 <code>! ?!?</code>，本文件无法说明其物理含义；需结合 <code>conf_phys.F</code> 和长波半隐式路径确认。</li>
+<li>除 <code>swrtype=2</code> 外，所有变量默认值不在本文件中定义；本页只记录声明位置和用途，不把 <code>conf_phys.F</code> 的默认值重写为本模块事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../themes/radiation.html">radiation 主题</a></li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle 主题</a></li>
+<li><a href="../../themes/water-cycle.html">water-cycle 主题</a></li>
+<li><a href="../../themes/co2-cycle.html">co2-cycle 主题</a></li>
+<li><a href="suaer.html">suaer</a> - 读取 <code>dustrefir</code> 作为尘埃类气溶胶红外参考波长。</li>
+<li><a href="updatereffrad_mod.html">updatereffrad_mod</a> - 读取水冰、CO2 冰、stormdust/topdust 分支开关。</li>
+<li><a href="read_dust_scenario_mod.html">read_dust_scenario_mod</a> - 读取 <code>iaervar</code>、<code>dustinjection</code> 和 <code>swrtype</code>。</li>
+<li><a href="compute_dtau_mod.html">compute_dtau_mod</a> - 读取尘埃注入时窗和系数。</li>
+<li><a href="vdif_cd_mod.html">vdif_cd_mod</a> - 读取 <code>callrichsl</code> 和 <code>callatke</code>。</li>
+<li><a href="conf_phys.html">conf_phys</a> - 主要写入本模块变量的配置入口，记录默认值、<code>getin_p</code> 读取路径和依赖校验。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

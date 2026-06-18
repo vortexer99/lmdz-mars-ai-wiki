@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>aeropacity_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/aeropacity_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="aeropacity_modf">aeropacity_mod.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\aeropacity_mod.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>该文件定义气溶胶不透明度（光学厚度）计算模块 <code>aeropacity_mod</code>，是辐射传输与尘埃/水冰/CO2 云之间的关键桥梁。模块导出一个例程 <code>aeropacity</code>，由辐射调用入口 <code>callradite</code>（行 430）在每个辐射时间步调用。</p>
+<p><code>aeropacity</code> 完成三件事：</p>
+<ol type="1">
+<li>按配置开关 <code>iaervar</code> 得到参考气压 <code>odpref</code>（610 Pa）处的“规定”尘埃柱可见光柱光学厚度 <code>tau_pref_scenario</code>（常数、Viking、MGS、Escalier 解析场景，或调用 <code>read_dust_scenario</code> 读取观测同化/合成场景）。</li>
+<li>对每一种气溶胶（background dust、submicron dust、stormdust、topdust、水冰、CO2 冰）逐层计算可见光光学厚度 <code>aerosol(ngrid,nlayer,naerkind)</code>，并产出 density-scaled opacity 诊断 <code>dsodust/dsords/dsotop</code>。</li>
+<li>调用 <code>compute_dustscaling</code> 得到把 GCM 尘埃缩放到场景的系数 <code>tauscaling/dust_rad_adjust</code>，并在 <code>freedust</code> 模式下由尘埃 tracer 反算 GCM 实际柱光学厚度 <code>tau_pref_gcm</code>。</li>
+</ol>
+<p>模块层还持有两个描述强制尘埃垂直分布的 <code>SAVE</code> 标量 <code>iddist</code> 和 <code>topdustref</code>，由 <code>conf_phys</code> 读取配置后写入。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>aeropacity_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>气溶胶光学厚度计算模块</td>
+</tr>
+<tr>
+<td><code>iddist</code></td>
+<td>integer module variable (SAVE 语义)</td>
+<td>5</td>
+<td>强制尘埃垂直分布类型标志：0=Pollack90，1=由 <code>topdustref</code> 设定顶高，2=Viking 场景，3=MGS 场景</td>
+</tr>
+<tr>
+<td><code>topdustref</code></td>
+<td>real module variable</td>
+<td>8</td>
+<td>尘埃层顶高度（km），仅当 <code>iddist=1</code> 时使用</td>
+</tr>
+<tr>
+<td><code>aeropacity</code></td>
+<td>subroutine</td>
+<td>11</td>
+<td>逐格点、逐层、逐气溶胶种类计算可见光光学厚度并产出 dso 诊断与缩放系数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td><code>getin_p</code></td>
+<td>从 <code>callphys.def</code> 读取 <code>tauvis</code>（firstcall），以及 DUSTSTORM 块的局地风暴参数</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>noms, igcm_h2o_ice, igcm_dust_mass, igcm_dust_submicron, rho_dust, rho_ice, nqdust, igcm_stormdust_mass, igcm_topdust_mass, igcm_co2_ice</code></td>
+<td>tracer 名称、关键 tracer 索引、尘埃/冰密度常数、尘埃 tracer 计数</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>latitude</code>（DUSTSTORM 下额外 <code>longitude</code>）</td>
+<td>格点纬度（rad），用于 MGS/Viking 顶高公式与场景纬度分布</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>comgeomfi_h</code></td>
+<td><code>sinlat</code></td>
+<td>格点纬度正弦，用于 Viking 顶高 <code>topdust0</code> 公式</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g, pi</code></td>
+<td>重力加速度（柱质量→光学厚度）与圆周率（度↔︎弧度换算）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>naerkind, name_iaer, iaerdust, tauvis, iaer_dust_conrath, iaer_dust_doubleq, iaer_dust_submicron, iaer_h2o_ice, iaer_stormdust_doubleq, iaer_topdust_doubleq</code></td>
+<td>气溶胶种类数、名称、尘埃散射体索引表、默认可见光厚度、各气溶胶种类索引常数</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td><code>odpref, freedust, reff_driven_IRtoVIS_scenario</code></td>
+<td>参考气压 610 Pa、自由尘埃模式开关、reff 驱动 IR→VIS 系数开关</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dust_scaling_mod</code></td>
+<td><code>compute_dustscaling</code></td>
+<td>计算并应用尘埃缩放系数 <code>tauscaling/dust_rad_adjust</code></td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>density_co2_ice_mod</code></td>
+<td><code>density_co2_ice</code></td>
+<td>按温度计算 CO2 冰密度（CO2 冰云光学厚度分母）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>alpha_hmons, contains_mons</code></td>
+<td>山顶尘流亚格点面积分数与“是否含山体”掩膜（topdust 路径）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>read_dust_scenario_mod</code></td>
+<td><code>read_dust_scenario</code></td>
+<td>读取观测同化/合成尘埃场景的 <code>tau_pref_scenario</code> 与 <code>IRtoVIScoef</code></td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>co2clouds, activeco2ice, water, activice, CLFvarying, CLFvaryingCO2, iaervar, rdstorm, topflows</code></td>
+<td>物理开关：CO2 云、活性 CO2 冰、水循环、活性水冰、亚格点云分数、尘暴场景选择、stormdust、topflows</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code>（DUSTSTORM）</td>
+<td><code>r3n_q, ref_r0, igcm_dust_number</code></td>
+<td>仅在编译宏 <code>DUSTSTORM</code> 下用于局地尘暴扰动</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin_p</code></td>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td>行 255（<code>tauvis</code>）；DUSTSTORM 块行 745–780</td>
+<td>读取配置键</td>
+</tr>
+<tr>
+<td><code>read_dust_scenario</code></td>
+<td><code>read_dust_scenario_mod</code></td>
+<td>行 314/318/323（section 1）和行 709/713/718（section 3 重算）</td>
+<td>由场景文件得到 <code>tau_pref_scenario</code> 和 <code>IRtoVIScoef</code></td>
+</tr>
+<tr>
+<td><code>density_co2_ice</code></td>
+<td><code>density_co2_ice_mod</code></td>
+<td>行 568（CO2 冰云分支，逐格点逐层）</td>
+<td>温度依赖 CO2 冰密度</td>
+</tr>
+<tr>
+<td><code>compute_dustscaling</code></td>
+<td><code>dust_scaling_mod</code></td>
+<td>行 865</td>
+<td>计算缩放系数并调整 <code>aerosol</code></td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>（phymars 公共中止例程）</td>
+<td>行 327（非法 <code>iaervar</code>）、行 925（freedust 下 <code>tau_pref_gcm&gt;50</code>）</td>
+<td>致命错误中止</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid, nlayer, nq</code></td>
+<td><code>callradite</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>水平格点数、垂直层数、tracer 数</td>
+</tr>
+<tr>
+<td><code>zday</code></td>
+<td><code>callradite</code></td>
+<td>real scalar</td>
+<td>sol</td>
+<td>自 Ls=0 起的火星日期（传给 <code>read_dust_scenario</code>）</td>
+</tr>
+<tr>
+<td><code>pplay(ngrid,nlayer)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>Pa</td>
+<td>层中点气压</td>
+</tr>
+<tr>
+<td><code>pplev(ngrid,nlayer+1)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>Pa</td>
+<td>层界面气压（柱质量 <code>(pplev_l - pplev_l+1)/g</code>）</td>
+</tr>
+<tr>
+<td><code>ls</code></td>
+<td><code>callradite</code></td>
+<td>real scalar</td>
+<td>rad</td>
+<td>太阳经度（场景纬度/季节分布）</td>
+</tr>
+<tr>
+<td><code>pq(ngrid,nlayer,nq)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>kg/kg</td>
+<td>tracer 质量混合比（读取各尘埃/冰 tracer 分量）</td>
+</tr>
+<tr>
+<td><code>pt(ngrid,nlayer)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>K</td>
+<td>温度（CO2 冰密度）</td>
+</tr>
+<tr>
+<td><code>QREFvis3d/QREFir3d(ngrid,nlayer,naerkind)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>-</td>
+<td>可见光/红外参考波长消光系数 Qext</td>
+</tr>
+<tr>
+<td><code>omegaREFir3d(ngrid,nlayer,naerkind)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>-</td>
+<td>红外参考波长单次散射反照率</td>
+</tr>
+<tr>
+<td><code>reffrad(ngrid,nlayer,naerkind)</code></td>
+<td><code>callradite</code></td>
+<td>real (INOUT)</td>
+<td>m</td>
+<td>气溶胶有效半径（光学厚度分母；DUSTSTORM 下可被改写）</td>
+</tr>
+<tr>
+<td><code>totstormfract(ngrid)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>-</td>
+<td>火箭尘暴亚格点面积分数（section 5 stormdust 归一化）</td>
+</tr>
+<tr>
+<td><code>totcloudfrac(ngrid)</code></td>
+<td><code>callradite</code></td>
+<td>real</td>
+<td>-</td>
+<td>总水冰云分数（<code>CLFvarying</code> 路径）</td>
+</tr>
+<tr>
+<td><code>clearatm, nohmons, clearsky</code></td>
+<td><code>callradite</code></td>
+<td>logical</td>
+<td>-</td>
+<td>分别控制是否排除 stormdust、topdust、水/CO2 冰云，用于多次调用拆分网格内/外贡献</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tau_pref_scenario(ngrid)</code></td>
+<td><code>callradite</code>→缩放与诊断</td>
+<td>real (OUT)</td>
+<td>-</td>
+<td>场景规定的 <code>odpref</code> 处尘埃柱可见光厚度</td>
+</tr>
+<tr>
+<td><code>tau_pref_gcm(ngrid)</code></td>
+<td><code>callradite</code>→诊断</td>
+<td>real (OUT)</td>
+<td>-</td>
+<td>GCM 实际尘埃柱可见光厚度（<code>freedust</code> 下由 tracer 反算，否则等于场景值）</td>
+</tr>
+<tr>
+<td><code>tau(ngrid,naerkind)</code></td>
+<td><code>callradite</code></td>
+<td>real (OUT)</td>
+<td>-</td>
+<td>每种气溶胶的柱总可见光光学厚度</td>
+</tr>
+<tr>
+<td><code>taucloudtes(ngrid)</code></td>
+<td><code>callradite</code></td>
+<td>real (OUT)</td>
+<td>-</td>
+<td>水冰云在红外参考波长用 Qabs 计算的不透明度（对标 TES）</td>
+</tr>
+<tr>
+<td><code>aerosol(ngrid,nlayer,naerkind)</code></td>
+<td><code>callradite</code>（辐射传输输入）</td>
+<td>real (OUT)</td>
+<td>-</td>
+<td>每层每种气溶胶可见光光学厚度</td>
+</tr>
+<tr>
+<td><code>dsodust/dsords/dsotop(ngrid,nlayer)</code></td>
+<td>诊断输出</td>
+<td>real (OUT)</td>
+<td>m²/kg 级</td>
+<td>background dust / stormdust / topdust 的 density-scaled opacity（红外，对标观测）</td>
+</tr>
+<tr>
+<td><code>tauscaling(ngrid)</code></td>
+<td><code>callradite</code>→后续物理</td>
+<td>real (OUT)</td>
+<td>-</td>
+<td>qdust/Ndust 缩放系数</td>
+</tr>
+<tr>
+<td><code>dust_rad_adjust(ngrid)</code></td>
+<td><code>callradite</code></td>
+<td>real (INOUT)</td>
+<td>-</td>
+<td>尘埃辐射调整系数</td>
+</tr>
+<tr>
+<td><code>IRtoVIScoef(ngrid)</code></td>
+<td><code>callradite</code>/<code>read_dust_scenario</code></td>
+<td>real (INOUT)</td>
+<td>-</td>
+<td>场景 IR(9.3µm) CDOD 到可见光的换算系数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>模块级 <code>SAVE</code> 标量 <code>iddist</code>、<code>topdustref</code> 由 <code>conf_phys</code>（<code>use aeropacity_mod, only: iddist, topdustref</code>）写入，本例程只读。</li>
+<li>例程内 <code>SAVE</code> + <code>THREADPRIVATE</code> 变量（行 174–189）：<code>cstdustlevel</code>、<code>firstcall</code>、<code>i_ice</code>、<code>i_co2ice</code>、<code>naerdust</code>。firstcall 时一次性识别尘埃散射体/尘埃 tracer、设定 <code>i_ice</code>/<code>i_co2ice</code>、读取 <code>tauvis</code>、按 <code>freedust.or.rdstorm</code> 决定 <code>cstdustlevel</code>。</li>
+<li>标准输出副作用：firstcall 打印各气溶胶 <code>Qext(vis)/Qext(IR)</code> 与 <code>Qext(IR)/Qabs(IR)</code> 典型廓线，以及 <code>i_ice</code>/<code>i_co2ice</code> 值。</li>
+<li><code>compute_dustscaling</code> 会就地修改 <code>aerosol</code>（缩放后）。</li>
+<li>致命中止：非法 <code>iaervar</code>，或 <code>freedust</code> 下未做场景缩放时 <code>tau_pref_gcm&gt;50</code> 触发 <code>abort_physic</code>。</li>
+<li>编译宏 <code>DUSTSTORM</code> 控制是否编入局地尘暴扰动块；该块还会就地修改 <code>pq(:,:,igcm_dust_mass/igcm_dust_number)</code> 和 <code>reffrad</code>，并改变 <code>firstcall</code> 关闭时机（见“写法特点”）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>初始化</strong>：<code>tau(1:ngrid,1:naerkind)=0</code>。</li>
+<li><strong>firstcall（行 197–268）</strong>：扫描 <code>name_iaer</code>，把名字以 <code>dust</code>/<code>storm</code>/<code>top</code> 开头的归为尘埃散射体（填 <code>naerdust</code>、<code>iaerdust</code>）；扫描 <code>noms</code> 把名字以 <code>dust</code> 开头的 tracer 填入 <code>nqdust</code>；若 <code>water.and.activice</code> 设 <code>i_ice=igcm_h2o_ice</code>；若 <code>co2clouds.and.activeco2ice</code> 设 <code>i_co2ice=igcm_co2_ice</code>；打印诊断廓线；<code>getin_p("tauvis")</code>；按 <code>freedust.or.rdstorm</code> 把 <code>cstdustlevel</code> 设为 1，否则设为 <code>cstdustlevel0=7</code>。非 DUSTSTORM 编译下此处即关闭 <code>firstcall</code>。</li>
+<li><strong>Section 1 — 场景柱厚度（行 270–328）</strong>：按 <code>iaervar</code> 分支得到 <code>tau_pref_scenario</code>：
+<ul>
+<li><code>=1</code> 常数 <code>max(tauvis,1e-9)</code>；</li>
+<li><code>=2</code> Viking 余弦季节循环；</li>
+<li><code>=3</code> MGS 纬度+季节 <code>tanh</code> 分布；</li>
+<li><code>=5</code> Escalier 阶梯（Ls 30°–150° 间降到 0.2）；</li>
+<li><code>6–8</code>、<code>24–37</code>、<code>4</code>/<code>124–126</code> 调 <code>read_dust_scenario</code>；</li>
+<li>否则 <code>abort_physic</code>。</li>
+</ul></li>
+<li><strong>Section 2 — 逐种气溶胶逐层光学厚度（行 330–701）</strong>：<code>SELECT CASE(name_iaer(iaer))</code>：
+<ul>
+<li><code>dust_conrath</code>：按 <code>iddist</code> 选顶高（const/Viking/MGS），用指数垂直缩放函数（<code>iddist&gt;=1</code>）或 Pollack90 分布（<code>iddist=0</code>）填 <code>aerosol</code>。</li>
+<li><code>dust_doubleq</code>：两矩方案。<code>l&lt;=cstdustlevel</code> 时用 <code>cstdustlevel</code> 层值“冻结”避免近地虚高；公式 <code>0.75*Qvis/(rho_dust*reffrad)*pq(dust_mass)*Δp/g</code>；同时算红外 <code>dsodust</code>；若 <code>reff_driven_IRtoVIS_scenario</code> 且 <code>clearatm.and.nohmons</code>，累加 IR 吸收/VIS 消光柱量算 <code>IRtoVIScoef=tauVISext/tauIRabs</code>。</li>
+<li><code>dust_submicron</code>：用 <code>igcm_dust_submicron</code>，同样的冻结层处理，仅 VIS。</li>
+<li><code>h2o_ice</code>：<code>clearsky</code> 时填 <code>1e-9</code>；否则用 <code>rho_ice</code> 与 <code>i_ice</code> 计算，累加 <code>taucloudvis/taucloudtes</code>；<code>CLFvarying</code> 时按 <code>max(totcloudfrac,0.01)</code> 还原亚格点云。</li>
+<li><code>co2_ice</code>：逐点调 <code>density_co2_ice(pt)</code> 得密度，用 <code>i_co2ice</code> 计算并累加 <code>taucloudco2vis/tes</code>；<code>CLFvaryingCO2</code> 时按 <code>totcloudco2frac</code> 还原。</li>
+<li><code>stormdust_doubleq</code>：<code>clearatm</code> 时填 <code>1e-25</code>（网格内无风暴部分），否则用 <code>igcm_stormdust_mass</code> 计算并产出 <code>dsords</code>。</li>
+<li><code>topdust_doubleq</code>：<code>nohmons</code> 时填 <code>1e-25</code>，否则用 <code>igcm_topdust_mass</code> 计算并产出 <code>dsotop</code>。</li>
+</ul></li>
+<li><strong>Section 3 重算（行 703–721）</strong>：若 <code>reff_driven_IRtoVIS_scenario</code>，在 <code>IRtoVIScoef</code> 更新后对 <code>iaervar</code> 6–8/24–36/4,124–126 再次调用 <code>read_dust_scenario</code>。</li>
+<li><strong>DUSTSTORM 块（行 723–860，仅宏开启）</strong>：firstcall 下汇总参考 <code>tau_pref_gcm</code>，交互读取局地尘暴参数，按 Spiga et al. 2013 公式逐层加尘埃扰动到 <code>pq</code> 并可改 <code>reffrad</code>，最后把 <code>tau_pref_gcm</code> 清零。</li>
+<li><strong>3.1 缩放（行 865）</strong>：<code>compute_dustscaling(...)</code> 计算 <code>tauscaling/dust_rad_adjust</code> 并就地缩放 <code>aerosol</code>。</li>
+<li><strong>3.2 GCM 柱厚度（行 872–932）</strong>：<code>freedust</code> 时清零后只对 <code>dust_doubleq/stormdust_doubleq/topdust_doubleq</code> 累加各自 tracer 贡献，乘 <code>odpref/pplev(:,1)</code>；若 <code>max(tau_pref_gcm)&gt;50</code> 则 <code>abort_physic</code>；非 <code>freedust</code> 时 <code>tau_pref_gcm=tau_pref_scenario</code>。</li>
+<li><strong>Section 4（行 937–943）</strong>：对每种气溶胶逐层累加得柱总 <code>tau</code>。</li>
+<li><strong>Section 5（行 957–983）</strong>：<code>rdstorm</code> 时把 <code>aerosol(stormdust)</code> 除以 <code>totstormfract</code>（折算到风暴面积内浓度）；<code>topflows</code> 时对 <code>contains_mons</code> 的格点把 <code>aerosol(topdust)</code> 除以 <code>alpha_hmons</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>tau = 0
+if firstcall:
+    识别尘埃散射体 iaerdust / 尘埃 tracer nqdust
+    设 i_ice, i_co2ice（依 water/activice, co2clouds/activeco2ice）
+    打印典型 Qext 廓线; getin tauvis
+    cstdustlevel = 1 if (freedust or rdstorm) else 7
+    (非 DUSTSTORM 编译) firstcall = false
+
+# 1. 场景柱光学厚度
+select iaervar:
+    1 -&gt; 常数; 2 -&gt; Viking; 3 -&gt; MGS; 5 -&gt; Escalier
+    6-8/24-37/4,124-126 -&gt; read_dust_scenario
+    else -&gt; abort_physic
+
+# 2. 每种气溶胶逐层光学厚度
+for iaer in 1..naerkind:
+    select name_iaer(iaer):
+        dust_conrath   -&gt; 按 iddist 顶高 + 指数/Pollack 垂直分布
+        dust_doubleq   -&gt; 0.75*Qvis/(rho_dust*reff)*pq(dust_mass)*Δp/g
+                          冻结 l&lt;=cstdustlevel; 算 dsodust; (可选) IRtoVIScoef
+        dust_submicron -&gt; 同上, 用 dust_submicron
+        h2o_ice        -&gt; clearsky?1e-9 : 用 rho_ice,i_ice; 累加 taucloudtes; CLFvarying 还原
+        co2_ice        -&gt; clearsky?1e-9 : density_co2_ice(pt); 累加 taucloudco2tes; CLFvaryingCO2 还原
+        stormdust      -&gt; clearatm?1e-25 : 用 stormdust_mass; 算 dsords
+        topdust        -&gt; nohmons?1e-25 : 用 topdust_mass; 算 dsotop
+
+# 3. reff 驱动场景重算（可选） + DUSTSTORM 扰动（宏）
+# 3.1 compute_dustscaling 缩放 aerosol
+# 3.2 freedust? 由 tracer 反算 tau_pref_gcm(&gt;50 则 abort) : = tau_pref_scenario
+# 4. tau = 逐层累加 aerosol
+# 5. rdstorm? aerosol(storm)/totstormfract; topflows? aerosol(top)/alpha_hmons</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>辐射</td>
+<td>为长短波辐射传输提供逐层每种气溶胶的可见光光学厚度 <code>aerosol</code> 与柱厚度 <code>tau</code>、<code>taucloudtes</code></td>
+</tr>
+<tr>
+<td>尘埃循环</td>
+<td>实现尘埃场景柱厚度、两矩尘埃/stormdust/topdust 光学厚度、density-scaled opacity 诊断，并经 <code>compute_dustscaling</code> 反馈缩放系数</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td>计算活性水冰云的光学厚度与 <code>taucloudtes</code>（<code>CLFvarying</code> 亚格点云还原）</td>
+</tr>
+<tr>
+<td>CO2 循环</td>
+<td>计算活性 CO2 冰云光学厚度（温度依赖密度 + <code>CLFvaryingCO2</code> 还原）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran（<code>.F</code>，第 6 列续行）。</li>
+<li><code>firstcall</code>、<code>cstdustlevel</code>、<code>i_ice</code>、<code>i_co2ice</code>、<code>naerdust</code> 为 <code>SAVE</code>+<code>THREADPRIVATE</code>。</li>
+<li>多处硬编码常数：参考波长几何因子 <code>0.75</code>、<code>cstdustlevel0=7</code>、Viking/MGS 顶高与季节系数、Escalier 阈值、CLF 下限 <code>0.01</code>、stormdust/topdust 占位值 <code>1e-25</code>、<code>tau_pref_gcm&gt;50</code> 健全性阈值。</li>
+<li>数值保护：<code>max(...,1e-9)</code>、<code>max(...,1e-3)</code>、<code>max(1E-20,...)</code> 等下限钳制。</li>
+<li><code>clearatm</code>/<code>nohmons</code>/<code>clearsky</code> 三个开关使本例程在 <code>callradite</code> 内可被多次调用，分别累计网格内/外、含/不含云的贡献。</li>
+<li><code>iddist</code>/<code>topdustref</code> 是模块级 <code>SAVE</code>，由 <code>conf_phys</code> 配置写入而非本例程内部设定。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>参考气压 <code>odpref=610 Pa</code>（来自 <code>dust_param_mod</code>）；柱质量恒用 <code>(pplev(l)-pplev(l+1))/g</code>。</li>
+<li>光学厚度核心公式（两矩尘埃/冰）：<code>0.75 * Qref / (rho * reffrad) * mmr * Δp / g</code>。</li>
+<li><code>cstdustlevel</code>：<code>freedust</code> 或 <code>rdstorm</code> 为 1（不冻结），否则为 7（前 7 层用第 7 层值冻结）。</li>
+<li><code>freedust=.true.</code> 时 <code>tau_pref_gcm</code> 由 tracer 反算且设 50 的健全性上限；<code>=.false.</code> 时直接等于场景值。</li>
+<li><code>iaervar</code> 决定场景来源；6–8/24–37/4/124–126 走 <code>read_dust_scenario</code>，需配套场景数据文件。</li>
+<li>stormdust/topdust 的最终 <code>aerosol</code> 在 section 5 分别除以 <code>totstormfract</code>/<code>alpha_hmons</code>，复现辐射传输输入时必须包含该折算。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>dust_conrath</code> 的 <code>iddist=0</code>（Pollack90）分支写的是 <code>aerosol(ig,l,1)</code>（硬编码索引 1）而非 <code>aerosol(ig,l,iaer)</code>（行 392）。推断：<code>dust_conrath</code> 在 <code>name_iaer</code> 中通常为第 1 种气溶胶，故 <code>iaer=1</code>；但此处与其它分支用 <code>iaer</code> 的写法不一致，复现非默认气溶胶排序时需留意。待确认：<code>iaer</code> 是否恒为 1。</li>
+<li><code>IRtoVIScoef</code> 仅在 <code>clearatm.and.nohmons</code>（即首次 RT 调用）时更新；其它调用沿用上次值。推断该设计是为只在一次调用里算系数，未在源码注释外进一步说明。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="calcstormfract_mod.html">calcstormfract_mod</a> — 产出 <code>totstormfract</code>，供本页 section 5 stormdust 折算</li>
+<li><a href="density_co2_ice.html">density_co2_ice</a> — CO2 冰云分支调用的温度依赖密度</li>
+<li><a href="rocketduststorm_mod.html">rocketduststorm_mod</a> — stormdust 垂直输运，共享 stormdust tracer 与场景</li>
+<li><a href="topmons_mod.html">topmons_mod</a> — topdust（山顶尘流）输运</li>
+<li><a href="updaterad.html">updaterad</a> — 反演 <code>reffrad</code>，本页光学厚度公式的分母来源之一</li>
+<li><a href="../../themes/radiation.html">radiation 主题</a>、<a href="../../themes/dust-cycle.html">dust-cycle 主题</a></li>
+<li><a href="callradite_mod.html">callradite_mod</a> - 本页的唯一调用方和辐射入口。</li>
+<li><a href="dust_scaling_mod.html">dust_scaling_mod.md</a>：<code>compute_dustscaling</code> 缩放实现。</li>
+<li><a href="dust_param_mod.html">dust_param_mod</a> — 提供 <code>odpref/freedust/reff_driven_IRtoVIS_scenario</code> 和尘埃缩放状态</li>
+<li><a href="read_dust_scenario_mod.html">read_dust_scenario_mod.md</a>：<code>read_dust_scenario</code> 场景读取。</li>
+<li><a href="conf_phys.html">conf_phys.md</a>：写入 <code>iddist/topdustref</code> 等物理开关默认值。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

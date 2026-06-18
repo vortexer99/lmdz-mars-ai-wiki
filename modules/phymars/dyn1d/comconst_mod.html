@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>comconst_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../../index.html">主页</a>
+        <a href="../../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../../libf-overview.html">模块</a>
+        <a href="../../../themes/index.html">主题</a>
+        <a href="../../../routines/index.html">例程</a>
+        <a href="../../../reference/file-index.html">文件索引</a>
+        <a href="../../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dyn1d/comconst_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dyn1dcomconst_modf90">dyn1d/comconst_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d\comconst_mod.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>dyn1d/comconst_mod.F90</code> 在当前源码树中不是独立实现，而是一行相对路径：</p>
+<pre class="text"><code>../../../../LMDZ.COMMON/libf/dyn3d_common/comconst_mod.F90</code></pre>
+<p>它把 1D <code>testphys1d</code> 编译路径中的 <code>comconst_mod</code> 模块解析到 <code>LMDZ.COMMON/libf/dyn3d_common/comconst_mod.F90</code>。目标文件定义公共动力核心常数和网格维度状态；这些状态主要服务 <code>dyn3d</code>、<code>dyn3dpar</code>、<code>dynphy_lonlat</code> 和公共动力例程。当前 <code>libf/phymars/dyn1d</code> 目录内没有发现直接 <code>use comconst_mod</code> 的 Fortran 文件，1D 初始化路径实际读取的是 <code>comcstfi_h</code>、<code>time_phylmdz_mod</code> 和 <code>planete_h</code> 等物理侧常量模块。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comconst_mod.F90</code></td>
+<td>path stub</td>
+<td>dyn1d line 1</td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3d_common/comconst_mod.F90</code>。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td>module</td>
+<td>common target line 1</td>
+<td>保存动力核心共享维度、时间步、行星常数、耗散和顶层 sponge 参数。</td>
+</tr>
+</tbody>
+</table>
+<p>目标模块只包含 <code>IMPLICIT NONE</code> 后的模块变量声明，没有子例程、函数、分配、初始化或文件 I/O。</p>
+<h2 id="模块状态清单">模块状态清单</h2>
+<table>
+<thead>
+<tr>
+<th>变量组</th>
+<th>符号</th>
+<th>源码含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>网格和层数</td>
+<td><code>im</code>, <code>jm</code>, <code>lllm</code>, <code>imp1</code>, <code>jmp1</code>, <code>lllmm1</code>, <code>lllmp1</code>, <code>lcl</code></td>
+<td>动力水平/垂直维度及派生维度。</td>
+</tr>
+<tr>
+<td>时间步长</td>
+<td><code>dtvr</code>, <code>dtphys</code>, <code>dtdiss</code>, <code>daysec</code></td>
+<td>动力、物理、耗散时间步和标准日秒数。</td>
+</tr>
+<tr>
+<td>行星/热力常数</td>
+<td><code>pi</code>, <code>rad</code>, <code>g</code>, <code>omeg</code>, <code>r</code>, <code>cpp</code>, <code>kappa</code>, <code>molmass</code></td>
+<td>圆周率、半径、重力、角速度、气体常数、定压比热、<code>r/cpp</code> 和大气摩尔质量。</td>
+</tr>
+<tr>
+<td>派生或控制标量</td>
+<td><code>cotot</code>, <code>unsim</code>, <code>daylen</code>, <code>year_day</code></td>
+<td>公共控制/派生标量；<code>unsim</code> 注释为 <code>1./iim</code>，<code>daylen</code> 为以标准日计的太阳日长度。</td>
+</tr>
+<tr>
+<td>耗散参数</td>
+<td><code>dissip_factz</code>, <code>dissip_zref</code>, <code>dissip_fac_mid</code>, <code>dissip_fac_up</code>, <code>dissip_deltaz</code>, <code>dissip_hdelta</code>, <code>dissip_pupstart</code></td>
+<td>Earth/other planets 动力耗散参数。</td>
+</tr>
+<tr>
+<td>顶层 sponge</td>
+<td><code>iflag_top_bound</code>, <code>ngroup</code>, <code>mode_top_bound</code>, <code>tau_top_bound</code></td>
+<td>顶边界 sponge 类型、极区经向分组、模式和特征时间倒数。</td>
+</tr>
+<tr>
+<td>Venus/巨行星扩展</td>
+<td><code>nu_venus</code>, <code>t0_venus</code>, <code>ihf</code></td>
+<td>Venus <code>Cp(T)</code> 系数和巨行星内禀热通量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="初始化和赋值路径">初始化和赋值路径</h2>
+<p>本文件本身不赋值。目标模块变量的公共赋值路径来自 <code>LMDZ.COMMON</code>：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>证据</th>
+<th>写入内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LMDZ.COMMON/libf/dyn3d_common/iniconst.F90</code></td>
+<td><code>USE comconst_mod, ONLY: im,jm,lllm,imp1,jmp1,lllmm1,lllmp1,...</code></td>
+<td>初始化网格维度、时间步和常数类状态。</td>
+</tr>
+<tr>
+<td><code>LMDZ.COMMON/libf/dyn3d_common/conf_planete.F90</code></td>
+<td><code>USE comconst_mod, ONLY: pi, g, molmass, kappa, cpp, omeg, rad, ...</code></td>
+<td>读取/设置行星常数。</td>
+</tr>
+<tr>
+<td><code>LMDZ.COMMON/libf/dyn3d_common/inidissip.F90</code></td>
+<td><code>USE comconst_mod, ONLY: dtvr,dtdiss,rad,pi,dissip_zref,dissip_deltaz,...</code></td>
+<td>写入或派生耗散配置。</td>
+</tr>
+<tr>
+<td><code>LMDZ.COMMON/libf/dyn3d/conf_gcm.F90</code> 和 <code>dyn3dpar/conf_gcm.F90</code></td>
+<td><code>USE comconst_mod, ONLY: dissip_factz,dissip_deltaz,dissip_zref,...</code></td>
+<td>配置耗散和顶层边界参数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="读取方和依赖关系">读取方和依赖关系</h2>
+<p><code>rg</code> 在 <code>LMDZ.COMMON/libf</code> 与 <code>LMDZ.MARS/libf/phymars</code> 中找到大量 <code>use comconst_mod</code>，代表这个模块是公共动力常数容器。典型读取方：</p>
+<table>
+<thead>
+<tr>
+<th>路径</th>
+<th>读取符号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dyn3d_common/dynetat0.F90</code>, <code>dynredem.F90</code></td>
+<td><code>daysec</code>, <code>dtvr</code>, <code>rad</code>, <code>omeg</code>, <code>g</code>, <code>cpp</code>, <code>kappa</code>, <code>pi</code></td>
+<td>动力 start/restart 状态读写。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common/exner_hyb_m.F90</code>, <code>exner_milieu_m.F90</code></td>
+<td><code>jmp1</code>, <code>kappa</code>, <code>cpp</code>, <code>r</code>, <code>pi</code></td>
+<td>Exner 函数和热力量计算。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common/disvert_noterre.F</code></td>
+<td><code>kappa</code></td>
+<td>非地球垂直离散构造。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common/inigeom.F</code></td>
+<td><code>rad</code>, <code>g</code>, <code>omeg</code>, <code>pi</code></td>
+<td>动力几何初始化。</td>
+</tr>
+<tr>
+<td><code>dyn3d/top_bound.F</code>, <code>dyn3dpar/top_bound_p.F</code></td>
+<td><code>iflag_top_bound</code>, <code>tau_top_bound</code>, <code>mode_top_bound</code></td>
+<td>顶层 sponge 参数读取。</td>
+</tr>
+<tr>
+<td><code>dynphy_lonlat/calfis.F</code>, <code>calfis_p.F</code></td>
+<td><code>daysec</code>, <code>dtvr</code>, <code>dtphys</code>, <code>kappa</code>, <code>cpp</code>, <code>g</code>, <code>rad</code>, <code>pi</code></td>
+<td>动力-物理接口中的时间和常数转换。</td>
+</tr>
+</tbody>
+</table>
+<p><code>libf/phymars/dyn1d/init_testphys1d_mod.F90</code> 不 <code>use comconst_mod</code>，而是写入 <code>comcstfi_h::rad/daysec/omeg/g/r/cpp</code> 和 <code>planete_h::year_day</code> 等物理侧状态；因此不要把 dyn1d 物理初始化的赋值直接归因到本模块。</p>
+<h2 id="副作用和-io">副作用和 I/O</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文件 I/O</td>
+<td>dyn1d stub 和目标模块都没有 I/O。</td>
+</tr>
+<tr>
+<td>分配/释放</td>
+<td>目标模块没有 <code>ALLOCATE</code> 或 <code>DEALLOCATE</code>。</td>
+</tr>
+<tr>
+<td>全局状态</td>
+<td>声明一组未初始化的模块变量；实际有效值依赖调用方先执行公共初始化。</td>
+</tr>
+<tr>
+<td>并行/线程</td>
+<td>目标模块没有 <code>THREADPRIVATE</code> 声明。并行路径由 <code>dyn3dpar</code> 调用方使用同一模块符号。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>构建 dyn1d 时必须让 <code>libf/phymars/dyn1d/comconst_mod.F90</code> 解析到公共目标文件，或者用等价 include/symlink 机制提供 <code>comconst_mod</code>。</li>
+<li>单独编译这个一行路径文件本身不是 Fortran 语法；它依赖构建系统或 checkout 机制把路径 stub 当作目标源文件引用。</li>
+<li>使用 <code>comconst_mod</code> 的动力例程必须先经过 <code>iniconst</code>、<code>conf_planete</code>、<code>conf_gcm</code> 或相关初始化路径填值，否则模块变量只是一组未赋值的共享状态。</li>
+<li>1D <code>testphys1d</code> 物理常量复现应优先查看 <code>comcstfi_h</code>、<code>time_phylmdz_mod</code>、<code>planete_h</code> 和后续 <code>init_testphys1d_mod.F90</code> 页面；本页只覆盖 dyn1d 中同名动力常数 stub。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 Windows 工作树把链接文件呈现为一行路径文本；在原始类 Unix 工作树中它可能是符号链接。</li>
+<li>dyn1d 构建目标是否实际编译到 <code>comconst_mod</code>，需要结合 makefile/构建脚本继续确认。</li>
+<li><code>cotot</code>、<code>lcl</code>、<code>daylen</code> 在当前 Mars 1D 编译路径中的实际用途未在 dyn1d 定向搜索中确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn1d/index.md</a> - dyn1d 子目录索引。</li>
+<li><a href="../comcstfi_h.html">comcstfi_h</a> - phymars 物理侧常数模块。</li>
+<li><a href="comvert_mod.html">comvert_mod.F90</a> - 垂直坐标公共状态 stub。</li>
+<li><a href="control_mod.html">control_mod.F90</a> - 动力控制公共状态 stub。</li>
+<li><a href="init_testphys1d_mod.html">init_testphys1d_mod.F90</a> - 1D 初始化主流程。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

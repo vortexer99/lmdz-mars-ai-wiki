@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>comslope_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/comslope_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="comslope_modf90">comslope_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\comslope_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>次网格坡面（subgrid slope）参数化共享状态模块。定义坡面统计分布、坡度边界、天空可视比例等共享变量，并提供初始化、释放和网格平均计算子程序。用于 Mars PCM 的次网格坡面微气候参数化方案。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comslope_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>次网格坡面参数化共享模块</td>
+</tr>
+<tr>
+<td><code>nslope</code></td>
+<td>module variable</td>
+<td>15</td>
+<td>坡面数量（统计 bin 数）</td>
+</tr>
+<tr>
+<td><code>iflat</code></td>
+<td>module variable</td>
+<td>16</td>
+<td>平坦坡面对应的 islope 索引</td>
+</tr>
+<tr>
+<td><code>def_slope</code></td>
+<td>module variable</td>
+<td>17</td>
+<td>坡面统计边界数组（度）</td>
+</tr>
+<tr>
+<td><code>def_slope_mean</code></td>
+<td>module variable</td>
+<td>18</td>
+<td>每个 bin 的平均坡度（度）</td>
+</tr>
+<tr>
+<td><code>sky_slope</code></td>
+<td>module variable</td>
+<td>19</td>
+<td>每个坡面可见天空比例</td>
+</tr>
+<tr>
+<td><code>subslope_dist</code></td>
+<td>module variable</td>
+<td>20</td>
+<td>坡面在网格中的分布比例</td>
+</tr>
+<tr>
+<td><code>major_slope</code></td>
+<td>module variable</td>
+<td>21</td>
+<td>占据网格大部分面积的次坡面索引</td>
+</tr>
+<tr>
+<td><code>ini_comslope_h</code></td>
+<td>subroutine</td>
+<td>28</td>
+<td>初始化分配坡面数组</td>
+</tr>
+<tr>
+<td><code>end_comslope_h</code></td>
+<td>subroutine</td>
+<td>45</td>
+<td>释放坡面数组</td>
+</tr>
+<tr>
+<td><code>compute_meshgridavg</code></td>
+<td>subroutine</td>
+<td>59</td>
+<td>计算坡面属性的网格平均值</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>圆周率常数（角度转弧度）</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>（无外部调用）</td>
+<td>—</td>
+<td>—</td>
+<td>本模块为共享状态容器，不调用外部例程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>物理网格点数量</td>
+</tr>
+<tr>
+<td><code>nslope_in</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>坡面 bin 数量（初始化参数）</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>tracer 数量</td>
+</tr>
+<tr>
+<td><code>albedo_slope(ngrid,2,nslope)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>—</td>
+<td>各坡面的反照率（2 波段）</td>
+</tr>
+<tr>
+<td><code>emis_slope(ngrid,nslope)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>—</td>
+<td>各坡面的发射率</td>
+</tr>
+<tr>
+<td><code>tsurf_slope(ngrid,nslope)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>K</td>
+<td>各坡面的地表温度</td>
+</tr>
+<tr>
+<td><code>qsurf_slope(ngrid,nq,nslope)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>kg/m² (sloped)</td>
+<td>各坡面的地表 tracer 含量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>albedo_meshavg(ngrid,2)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>—</td>
+<td>网格平均反照率</td>
+</tr>
+<tr>
+<td><code>emis_meshavg(ngrid)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>—</td>
+<td>网格平均发射率</td>
+</tr>
+<tr>
+<td><code>tsurf_meshavg(ngrid)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>K</td>
+<td>网格平均地表温度</td>
+</tr>
+<tr>
+<td><code>qsurf_meshavg(ngrid,nq)</code></td>
+<td>调用方</td>
+<td>real array</td>
+<td>kg/m² (flat)</td>
+<td>网格平均地表 tracer 含量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>Module 变量</strong>（全部 <code>save</code> + <code>!$OMP THREADPRIVATE</code>）：
+<ul>
+<li><code>nslope</code> — 坡面 bin 数量</li>
+<li><code>iflat</code> — 平坦坡面索引</li>
+<li><code>def_slope(nslope+1)</code> — 坡面边界数组（度）</li>
+<li><code>def_slope_mean(nslope)</code> — 每个 bin 的平均坡度（度）</li>
+<li><code>sky_slope(nslope)</code> — 每个坡面可见天空比例</li>
+<li><code>subslope_dist(ngrid,nslope)</code> — 坡面在网格中的分布比例</li>
+<li><code>major_slope(ngrid)</code> — 占据网格大部分的次坡面索引</li>
+</ul></li>
+<li><strong>OpenMP</strong>: 所有共享变量使用 <code>THREADPRIVATE</code>，每个线程独立副本</li>
+<li><strong>内存管理</strong>: <code>ini_comslope_h</code> 分配，<code>end_comslope_h</code> 释放</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><p><strong>初始化</strong>（<code>ini_comslope_h</code>，行 28-41）：</p>
+<ul>
+<li>接收 <code>ngrid</code> 和 <code>nslope_in</code></li>
+<li>分配 5 个数组：<code>def_slope</code>、<code>def_slope_mean</code>、<code>sky_slope</code>、<code>subslope_dist</code>、<code>major_slope</code></li>
+</ul></li>
+<li><p><strong>释放</strong>（<code>end_comslope_h</code>，行 45-55）：</p>
+<ul>
+<li>检查每个数组是否已分配，若已分配则释放</li>
+</ul></li>
+<li><p><strong>网格平均计算</strong>（<code>compute_meshgridavg</code>，行 59-105）：</p>
+<ul>
+<li><strong>快速路径</strong>（行 84-88）：若 <code>nslope==1</code>，直接赋值（无次网格）</li>
+<li><strong>一般路径</strong>（行 89-103）：
+<ul>
+<li>反照率：<code>albedo_meshavg += albedo_slope * subslope_dist</code></li>
+<li>tracer：<code>qsurf_meshavg += qsurf_slope * subslope_dist / cos(slope_angle)</code>（坡面→水平投影转换）</li>
+<li>发射率：<code>emis_meshavg += emis_slope * subslope_dist</code></li>
+<li>温度：<code>tsurf_meshavg += emis_slope * tsurf_slope^4 * subslope_dist</code>（Stefan-Boltzmann 加权）</li>
+<li>最终温度：<code>tsurf_meshavg = (tsurf_meshavg / emis_meshavg)^0.25</code></li>
+</ul></li>
+</ul></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>! 初始化
+SUBROUTINE ini_comslope_h(ngrid, nslope_in)
+  分配 def_slope(nslope_in+1)
+  分配 def_slope_mean(nslope_in)
+  分配 sky_slope(nslope_in)
+  分配 subslope_dist(ngrid, nslope_in)
+  分配 major_slope(ngrid)
+
+! 释放
+SUBROUTINE end_comslope_h
+  释放所有已分配数组
+
+! 网格平均
+SUBROUTINE compute_meshgridavg(ngrid, nq, albedo_slope, emis_slope, tsurf_slope, qsurf_slope, ...)
+  IF nslope == 1 THEN
+    直接赋值（无次网格）
+  ELSE
+    DO ig = 1, ngrid
+      DO islope = 1, nslope
+        albedo_meshavg += albedo_slope * subslope_dist
+        qsurf_meshavg += qsurf_slope * subslope_dist / cos(slope_angle)  ! 坡面→水平投影
+        emis_meshavg += emis_slope * subslope_dist
+        tsurf_meshavg += emis_slope * tsurf_slope^4 * subslope_dist  ! Stefan-Boltzmann 加权
+      END DO
+      tsurf_meshavg = (tsurf_meshavg / emis_meshavg)^0.25  ! 反推平均温度
+    END DO
+  END IF</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>水循环</td>
+<td>坡面微气候影响地表水冰交换（vdifc 调用）</td>
+</tr>
+<tr>
+<td>CO2 循环</td>
+<td>坡面温度影响 CO2 凝结/升华（co2condens 调用）</td>
+</tr>
+<tr>
+<td>辐射计算</td>
+<td>坡面反照率和发射率影响辐射收支</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>OpenMP 并行</strong>: 所有共享变量使用 <code>!$OMP THREADPRIVATE</code>，每个线程独立副本</li>
+<li><strong>SAVE 属性</strong>: 所有 module 变量使用 <code>save</code>，保持调用间状态</li>
+<li><strong>条件分配</strong>: <code>ini_comslope_h</code> 负责分配，<code>end_comslope_h</code> 负责释放</li>
+<li><strong>快速路径</strong>: <code>nslope==1</code> 时跳过加权平均，直接赋值</li>
+<li><strong>角度投影</strong>: tracer 使用 <code>cos(slope_angle)</code> 转换坡面→水平投影</li>
+<li><strong>Stefan-Boltzmann 加权</strong>: 温度平均使用 <code>T^4</code> 加权而非直接平均</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>def_slope</code> 长度为 <code>nslope+1</code>（边界），<code>def_slope_mean</code> 长度为 <code>nslope</code>（中心值）</li>
+<li><code>qsurf_slope</code> 单位为 <code>kg/m² sloped</code>，输出 <code>qsurf_meshavg</code> 单位为 <code>kg/m² flat</code>（需除以 <code>cos(slope)</code>）</li>
+<li>温度平均使用 Stefan-Boltzmann 加权（<code>T^4</code>），不是算术平均</li>
+<li>所有变量为 OpenMP THREADPRIVATE，多线程时每个线程独立</li>
+</ul>
+<h2 id="已确认初始化与使用链">已确认初始化与使用链</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phys_state_var_init_mod.F90</code></td>
+<td>行 64, 191-193</td>
+<td>使用 <code>ini_comslope_h</code> / <code>end_comslope_h</code>，按 <code>ngrid,nslope</code> 分配 <code>comslope_mod</code> 数组</td>
+</tr>
+<tr>
+<td><code>physiq_mod.F</code></td>
+<td>行 131-134, 628-634</td>
+<td><code>physiq</code> 引入坡面共享变量，并把 <code>def_slope</code>、<code>def_slope_mean</code>、<code>subslope_dist</code> 传给 <code>phyetat0</code> 读取初始状态</td>
+</tr>
+<tr>
+<td><code>phyetat0_mod.F90</code></td>
+<td>行 153-185</td>
+<td>从 start 文件读取 <code>def_slope</code> 和 <code>subslope_dist</code>；无 start 文件且 <code>nslope==1</code> 时设默认值</td>
+</tr>
+<tr>
+<td><code>phyetat0_mod.F90</code></td>
+<td>行 192-203</td>
+<td>用相邻边界平均得到 <code>def_slope_mean</code>，并逐网格归一化 <code>subslope_dist</code></td>
+</tr>
+<tr>
+<td><code>phyetat0_mod.F90</code></td>
+<td>行 206-215</td>
+<td>选出每个网格占比最大的 <code>major_slope</code></td>
+</tr>
+<tr>
+<td><code>physiq_mod.F</code></td>
+<td>行 636-649</td>
+<td>用 <code>def_slope_mean</code> 计算 <code>sky_slope</code>，并选出绝对坡度最小的 <code>iflat</code></td>
+</tr>
+<tr>
+<td><code>physiq_mod.F</code></td>
+<td>行 857, 1617, 2567</td>
+<td>调用 <code>compute_meshgridavg</code> 把坡面态汇总到网格平均态</td>
+</tr>
+<tr>
+<td><code>physiq_mod.F</code></td>
+<td>行 1199-1282</td>
+<td>坡面辐射修正使用 <code>def_slope_mean</code> 和 <code>sky_slope</code></td>
+</tr>
+<tr>
+<td><code>vdifc_mod.F</code></td>
+<td>行 286-287, 437-454, 653, 684, 783</td>
+<td>使用 <code>major_slope</code> 选择主坡面温度、地表 tracer 与交换系数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>def_slope</code> 与 <code>subslope_dist</code> 写入 start 文件的上游生成路径（可能由 <code>newstart</code>/地形预处理流程产生）</li>
+<li>Lange et al. (2023) 论文是否已发表</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li>水循环主题页：<a href="../../themes/water-cycle.html">water-cycle</a></li>
+<li>vdifc 水汽地表交换段：<a href="../../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a></li>
+<li>CO2 循环主题页：<a href="../../themes/co2-cycle.html">co2-cycle</a></li>
+<li><a href="slope_mod.html">slope_mod.md</a>：坡面辐射几何/参数化。</li>
+<li><a href="phyetat0_mod.html">phyetat0_mod.md</a>：物理初始状态读取。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lwxn - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/lwxn.md</span>
+    </nav>
+    <article class="content">
+<h1 id="lwxnf">lwxn.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\lwxn.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>lwxn.F</code> 定义 <code>lwxn_mod</code> 模块，提供长波 LTE 辐射中的相邻层交换系数例程 <code>lwxn</code>。它由 <code>lwmain_mod.F</code> 在 <a href="lwxd.html">lwxd</a> 远距离层间交换之后、<a href="lwxb.html">lwxb</a> 边界交换之前调用，输入来自 <a href="lwu.html">lwu</a> 生成的 <code>co2_u/co2_up/aer_t</code>，输出写入 <code>yomlw_h::xi</code> 和 <code>yomlw_h::xi_ground</code>，供 <a href="lwflux.html">lwflux</a> 与 <a href="lwi.html">lwi</a> 后续读取。</p>
+<p>本例程覆盖 <code>jk</code> 与 <code>jk+1</code> 这类相邻真实大气层之间的交换。与 <code>lwxd</code> 的远距离四界面差分不同，<code>lwxn</code> 会把相邻两层分别拆成 <code>lwxn_ncouche</code> 个子层，在子层内部构造从下层到上层、从上层到下层的多条 CO2/气溶胶透过路径，再用加权积分得到整层相邻交换系数。底部相邻层还有一个额外的 <code>xi_ground</code> 修正项，用于 <a href="lwflux.html">lwflux</a> 对地面与第一层交换的处理。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lwxn_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>封装相邻层长波交换系数构造例程和子层参数。</td>
+</tr>
+<tr>
+<td><code>lwxn_linear</code></td>
+<td>module variable</td>
+<td style="text-align: right;">5</td>
+<td>控制子层权重使用线性均分还是指数分布；OpenMP <code>THREADPRIVATE</code>。</td>
+</tr>
+<tr>
+<td><code>lwxn_alphan</code></td>
+<td>module variable</td>
+<td style="text-align: right;">7</td>
+<td>非线性子层分布的指数因子；OpenMP <code>THREADPRIVATE</code>。</td>
+</tr>
+<tr>
+<td><code>lwxn_ncouche</code></td>
+<td>module variable</td>
+<td style="text-align: right;">9</td>
+<td>每个物理层拆分的子层数；OpenMP <code>THREADPRIVATE</code>。</td>
+</tr>
+<tr>
+<td><code>lwxn</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">15</td>
+<td>计算相邻层对 <code>jk,jk+1</code> 的净交换率，并写入 <code>xi</code> 与 <code>xi_ground</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>ndlo2</code>, <code>nuco2</code>, <code>ndlon</code>, <code>nflev</code></td>
+<td>提供输入数组和局部工作数组的水平、谱带和垂直维度上限。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>yomlw_h</code></td>
+<td><code>nlaylte</code>, <code>xi</code>, <code>xi_ground</code>, <code>xi_emis</code></td>
+<td>读取 LTE 长波有效层数，写入相邻层 <code>xi</code> 与底层修正 <code>xi_ground</code>，并读取 <a href="lwxd.html">lwxd</a> 保存的 <code>xi_emis</code>。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>lwtt_mod</code></td>
+<td><code>lwtt</code></td>
+<td>用 CO2 子路径 <code>zu/zup</code> 计算每个 CO2 谱带透过率。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lwtt</code></td>
+<td><code>lwtt_mod</code> / <code>lwtt.F</code></td>
+<td>241</td>
+<td>计算从下层子界面到两层公共界面的透过率。</td>
+</tr>
+<tr>
+<td><code>lwtt</code></td>
+<td><code>lwtt_mod</code> / <code>lwtt.F</code></td>
+<td>258</td>
+<td>计算从下层子界面穿过上层后的透过率。</td>
+</tr>
+<tr>
+<td><code>lwtt</code></td>
+<td><code>lwtt_mod</code> / <code>lwtt.F</code></td>
+<td>285</td>
+<td>计算从上层子界面到两层公共界面的透过率。</td>
+</tr>
+<tr>
+<td><code>lwtt</code></td>
+<td><code>lwtt_mod</code> / <code>lwtt.F</code></td>
+<td>302</td>
+<td>计算从上层子界面穿过下层后的透过率。</td>
+</tr>
+<tr>
+<td><code>exit</code></td>
+<td>Fortran runtime</td>
+<td>180</td>
+<td>当 <code>lwxn_ncouche</code> 大于本地硬上限 <code>nmax=50</code> 时终止运行。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ig0</code></td>
+<td><code>lwmain</code></td>
+<td><code>integer</code></td>
+<td>grid offset</td>
+<td>当前向量块在全局 <code>xi</code> / <code>xi_ground</code> 第一维中的偏移，写入时使用 <code>ig0+jl</code>。</td>
+</tr>
+<tr>
+<td><code>kdlon</code></td>
+<td><code>lwmain</code></td>
+<td><code>integer</code></td>
+<td>column</td>
+<td>当前向量块内有效水平列数，循环范围为 <code>1:kdlon</code>。</td>
+</tr>
+<tr>
+<td><code>kflev</code></td>
+<td><code>lwmain</code></td>
+<td><code>integer</code></td>
+<td>layer</td>
+<td>接口数组垂直层数参数；主要相邻层循环使用 <code>yomlw_h::nlaylte</code>。</td>
+</tr>
+<tr>
+<td><code>dp</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(ndlo2,kflev)</code></td>
+<td>Pa</td>
+<td>每层压力厚度；用于按两相邻层厚度加权合成相邻层交换率。</td>
+</tr>
+<tr>
+<td><code>aer_t</code></td>
+<td><a href="lwu.html">lwu</a></td>
+<td><code>real(ndlo2,nuco2,kflev+1)</code></td>
+<td>-</td>
+<td>CO2 谱带上的累计气溶胶吸收透过率。</td>
+</tr>
+<tr>
+<td><code>co2_u</code></td>
+<td><a href="lwu.html">lwu</a></td>
+<td><code>real(ndlo2,nuco2,kflev+1)</code></td>
+<td>吸收路径</td>
+<td>自模型顶向下累计的 CO2 吸收量。</td>
+</tr>
+<tr>
+<td><code>co2_up</code></td>
+<td><a href="lwu.html">lwu</a></td>
+<td><code>real(ndlo2,nuco2,kflev+1)</code></td>
+<td>压力缩放吸收路径</td>
+<td>带压力效应的累计 CO2 吸收量。</td>
+</tr>
+<tr>
+<td><code>lwxn_linear</code></td>
+<td><code>conf_phys.F</code> / <code>radia.def</code></td>
+<td>module logical</td>
+<td>-</td>
+<td>默认 <code>.true.</code>；为真时每个子层 <code>cn=1/lwxn_ncouche</code>。</td>
+</tr>
+<tr>
+<td><code>lwxn_ncouche</code></td>
+<td><code>conf_phys.F</code> / <code>radia.def</code></td>
+<td>module integer</td>
+<td>sublayer count</td>
+<td>默认 <code>3</code>；源码本地硬上限 <code>nmax=50</code>。</td>
+</tr>
+<tr>
+<td><code>lwxn_alphan</code></td>
+<td><code>conf_phys.F</code> / <code>radia.def</code></td>
+<td>module real</td>
+<td>-</td>
+<td>默认 <code>0.4</code>；仅在 <code>lwxn_linear=.false.</code> 时用于指数分布子层权重。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xi(ig0+jl,ja,jk,jk+1)</code> 与互易项</td>
+<td><code>yomlw_h</code>，后续由 <a href="lwflux.html">lwflux</a> / <a href="lwi.html">lwi</a> 读取</td>
+<td>shared array</td>
+<td>-</td>
+<td>第 <code>jk</code> 层与第 <code>jk+1</code> 层之间的 CO2 带相邻层净交换系数。</td>
+</tr>
+<tr>
+<td><code>xi_ground(ig0+jl,ja)</code></td>
+<td><code>yomlw_h</code>，后续由 <a href="lwflux.html">lwflux</a> 读取</td>
+<td>shared array</td>
+<td>-</td>
+<td>底层相邻交换的地面特殊修正系数，只在 <code>jk=1</code> 分支写入。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p><code>lwxn</code> 的持久副作用是写 <code>yomlw_h::xi</code> 的相邻层条目和 <code>yomlw_h::xi_ground</code>。它还读取 <code>yomlw_h::xi_emis</code>，把 <a href="lwxd.html">lwxd</a> 保存的邻近反射缓存加到相邻层 <code>xi</code> 中；按当前 <code>lwxd.F</code> 字面实现，该缓存通常为 0，因为相邻反射公式被注释。</p>
+<p>模块变量 <code>lwxn_linear/lwxn_alphan/lwxn_ncouche</code> 是 <code>SAVE</code> 且 <code>THREADPRIVATE</code>，由 <code>conf_phys.F</code> 初始化和广播。默认值为 <code>lwxn_linear=.true.</code>、<code>lwxn_ncouche=3</code>、<code>lwxn_alphan=0.4</code>；如果运行目录存在 <code>radia.def</code>，<code>conf_phys.F</code> 会依序读取并覆盖这些值。若 <code>lwxn_ncouche &gt; 50</code>，本例程打印错误并 <code>call exit(1)</code>。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>为第 <code>lwxn_ncouche+1</code> 个子界面初始化零 CO2 路径和单位气溶胶透过率，作为每层内部的公共边界。</li>
+<li>根据 <code>lwxn_linear</code> 生成子层权重 <code>cn</code> 和几何/压力加权位置 <code>cb</code>。线性分布时 <code>cn=1/lwxn_ncouche</code>，<code>cb=(lwxn_ncouche-nlmd+0.5)/lwxn_ncouche</code>；非线性分布时使用 <code>lwxn_alphan</code> 的几何级数。</li>
+<li>若 <code>lwxn_ncouche</code> 超过 <code>nmax=50</code>，立即终止，避免局部数组越界。</li>
+<li>对每个相邻层对 <code>jk=1:nlaylte-1</code>，先从累计量差分得到下层 <code>i</code> 与上层 <code>j</code> 的整层 CO2 路径、压力缩放路径和气溶胶透过率。</li>
+<li>按 <code>cn</code> 把两层各自拆成子层：CO2 路径线性分配，气溶胶透过率用整层透过率的 <code>cn</code> 次幂分配。</li>
+<li>对下层每个子界面 <code>ni</code>，先构造从该界面到公共界面的路径并调用 <code>lwtt</code>，保存到 <code>trans(ni,lwxn_ncouche+1)</code>；再加上整层上层路径，保存到 <code>trans(ni,1)</code>。</li>
+<li>对上层每个子界面 <code>nj</code>，对称地构造从该界面到公共界面的路径 <code>trans(lwxn_ncouche+1,nj)</code>，再加上整层下层路径得到 <code>trans(1,nj)</code>。</li>
+<li>用两组子层透过率差分合成 <code>ksi(jk)</code>。下层贡献乘 <code>cb(ni)*dp(jk)*2/(dp(jk)+dp(jk+1))</code>，上层贡献乘 <code>cb(nj)*dp(jk+1)*2/(dp(jk)+dp(jk+1))</code>。</li>
+<li>写入 <code>xi(jk,jk+1)=ksi+xi_emis(jk)</code>，并显式写入互易项 <code>xi(jk+1,jk)</code>。</li>
+<li>当 <code>jk=1</code> 时，额外累加 <code>xi_ground</code>：对下层子层的界面透过率差 <code>trans(ni+1,common)-trans(ni,common)</code> 乘 <code>2*cb(ni)</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if lwxn_linear:
+  for sublayer nlmd:
+    cn = 1 / lwxn_ncouche
+    cb = (lwxn_ncouche - nlmd + 0.5) / lwxn_ncouche
+else:
+  for nlmd below last:
+    cn = (1 - lwxn_alphan) * lwxn_alphan**(nlmd-1)
+    cb = 0.5 * (1 + lwxn_alphan) * lwxn_alphan**(nlmd-1)
+  last cn = lwxn_alphan**(lwxn_ncouche-1)
+  last cb = 0.5 * lwxn_alphan**(lwxn_ncouche-1)
+
+if lwxn_ncouche &gt; 50:
+  stop with error
+
+for jk = 1 to nlaylte-1:
+  layer_i = boundary jk to jk+1
+  layer_j = boundary jk+1 to jk+2
+
+  split layer_i and layer_j into lwxn_ncouche sublayers
+
+  for each lower-layer subinterface ni:
+    trans(ni,common) = lwtt(path from ni to common) * aerosol_path
+    trans(ni,top_of_j) = lwtt(path from ni through layer_j) * aerosol_path
+
+  for each upper-layer subinterface nj:
+    trans(common,nj) = lwtt(path from nj to common) * aerosol_path
+    trans(bottom_of_i,nj) = lwtt(path from nj through layer_i) * aerosol_path
+
+  ksi = weighted lower-side transmission differences
+      + weighted upper-side transmission differences
+
+  xi(jk,jk+1) = ksi + xi_emis(jk)
+  xi(jk+1,jk) = xi(jk,jk+1)
+
+  if jk == 1:
+    xi_ground = weighted lower-layer-to-common transmission differences</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">辐射计算</a></td>
+<td>在长波 LTE 主流程中补全相邻真实层之间的净交换率 <code>xi</code>，与 <a href="lwxd.html">lwxd</a> 的远距离项和 <a href="lwxb.html">lwxb</a> 的边界项共同供通量和半隐式冷却率步骤读取。</td>
+</tr>
+<tr>
+<td><a href="index.html">phymars 核心物理模块目录</a></td>
+<td>属于 <code>libf\phymars</code> 长波辐射辅助文件组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 文件；模块变量与子例程在同一模块内，三个配置变量均为 <code>SAVE</code> + OpenMP <code>THREADPRIVATE</code>。</li>
+<li><code>kflev</code> 用于接口数组形状，实际相邻层循环由 <code>yomlw_h::nlaylte</code> 控制。</li>
+<li>子层数有运行时配置入口，但本地数组硬上限固定为 50。</li>
+<li>气溶胶透过率按 <code>zt_aer_layer**cn</code> 分配到子层，CO2 路径按 <code>cn</code> 线性分配。</li>
+<li><code>xi_ground</code> 只在 <code>jk=1</code> 分支清零并写入；其他相邻层不触碰该数组。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>conf_phys.F</code> 必须先初始化并广播 <code>lwxn_linear/lwxn_ncouche/lwxn_alphan</code>；如果使用 <code>radia.def</code> 覆盖，文件顺序必须与源码读取顺序一致。</li>
+<li><code>lwxn_ncouche</code> 不能超过 50，否则源码会 <code>call exit(1)</code>。</li>
+<li><code>lwxn_ncouche</code> 也不能为 0；源码没有显式防护，线性分支会出现除零。</li>
+<li><code>dp(jk)+dp(jk+1)</code> 不能为 0 或异常小；相邻交换权重直接除以这个和。</li>
+<li><a href="lwu.html">lwu</a> 生成的 <code>aer_t</code> 必须保持正值，因为 <code>lwxn</code> 会做比值并取 <code>**cn</code>；当前上游 <code>1e-30</code> 下限保护是复现稳定性的前提。</li>
+<li><code>xi_emis</code> 的邻近反射缓存来自 <a href="lwxd.html">lwxd</a>。当前源码字面通常为 0；如果实验结果预期包含邻近层表面反射项，需要先核对 <code>lwxd.F</code> 中被注释的相邻反射公式。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>lwxn_alphan</code> 在默认 <code>lwxn_linear=.true.</code> 时不会参与计算；页面只记录源码行为，未确认非线性子层分布在当前标准运行中的使用频率。</li>
+<li><code>xi_ground</code> 的物理命名与后续 <a href="lwflux.html">lwflux</a> 地面第一层修正项一致，但本页未进一步推导该近似与原始辐射方案文献之间的对应关系。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../themes/radiation.html">radiation</a></li>
+<li><a href="index.html">phymars/index</a></li>
+<li><a href="lwu.html">lwu</a></li>
+<li><a href="lwtt.html">lwtt</a></li>
+<li><a href="lwxd.html">lwxd</a></li>
+<li><a href="lwxb.html">lwxb</a></li>
+<li><a href="lwflux.html">lwflux</a></li>
+<li><a href="lwi.html">lwi</a></li>
+<li><a href="lwmain_mod.html">lwmain_mod</a> - 长波 LTE 主调度入口，按 <code>ilwn</code> 调用本例程刷新相邻层交换率。</li>
+<li><a href="yomlw_h.html">yomlw_h.md</a>：长波辐射共享参数。</li>
+<li><a href="conf_phys.html">conf_phys.md</a>：物理配置读取和默认值。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

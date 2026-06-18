@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>paramfoto_compact - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/paramfoto_compact.md</span>
+    </nav>
+    <article class="content">
+<h1 id="paramfoto_compactf">paramfoto_compact.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\paramfoto_compact.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>paramfoto_compact.F</code> 定义 <code>paramfoto_compact_mod</code>，是热层 C/O/H/O3/N/ion 化学的紧凑积分模块。主例程 <code>paramfoto_compact</code> 由 <a href="chemthermos.html">chemthermos</a> 在 <code>jthermcalc_e107</code> 计算完光吸收率后调用；它逐层读取 <code>rm(nlayer,nesptherm)</code> 数密度，计算光解/电离率、反应速率、寿命和平衡标志，再用隐式格式和光化学平衡近似更新 <code>lswitch:nlayer</code> 的化学物种。</p>
+<p>同一模块还暴露 <code>phdisrate</code>，供 <code>photochemistry_mod.F90</code> 在离子光化学路径中直接把 <code>jthermcalc_e107</code> 的 <code>jfotsout</code> 转成 <code>param_v4_h::jion</code>，再映射到 <code>v_phot</code> 的离子反应速率。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>paramfoto_compact_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1-5122</td>
+<td>热层光化学/离子化学积分模块</td>
+</tr>
+<tr>
+<td><code>paramfoto_compact</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">9-647</td>
+<td>对单个水平列的热层化学数密度矩阵执行时间积分，并写回 <code>rm</code></td>
+</tr>
+<tr>
+<td><code>implicito</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">653-699</td>
+<td>用 <code>(c+P*dt)/(1+L*dt)</code> 做单物种隐式更新，负值时 <code>stop</code>，低于 <code>1.d-30</code> 时抬底</td>
+</tr>
+<tr>
+<td><code>ionsec_nplus</code> / <code>ionsec_n2plus</code> / <code>ionsec_oplus</code> / <code>ionsec_coplus</code> / <code>ionsec_co2plus</code> / <code>ionsec_o2plus</code></td>
+<td>function</td>
+<td style="text-align: right;">704-1142</td>
+<td>按太阳天顶角和高度多项式估算二次电离增强系数</td>
+</tr>
+<tr>
+<td><code>phdisrate</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1150-1349</td>
+<td>由 <code>jfotsout</code>、<code>fluxtop</code> 和 <code>efdis*/efion*</code> 生成 <code>jdistot</code>、<code>jdistot_b</code>、<code>jion</code></td>
+</tr>
+<tr>
+<td><code>getch</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1356-1989</td>
+<td>从 <code>rcoef(61,3)</code> 计算 <code>ch2..ch87</code> 反应速率，含电子温度插值</td>
+</tr>
+<tr>
+<td><code>lifetimes</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1996-2686</td>
+<td>计算各反应寿命 <code>tau*</code>、最短寿命 <code>tmin*</code>，并初设 <code>*_eq</code> 平衡标志</td>
+</tr>
+<tr>
+<td><code>timemarching</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">2693-2865</td>
+<td>由外部时间步和最短寿命选择内部 <code>deltat</code>，并撤销不满足平衡条件的 <code>*_eq</code> 标志</td>
+</tr>
+<tr>
+<td><code>prodsandlosses</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">2872-4074</td>
+<td>清零并填充 <code>P*</code>/<code>L*</code> 反应矩阵与 <code>*tot</code> 总源汇</td>
+</tr>
+<tr>
+<td><code>EF_oscilacion</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">4082-5027</td>
+<td>对处于光化学平衡的物种重算代数平衡值，并做振荡修正</td>
+</tr>
+<tr>
+<td><code>avg</code> / <code>dif</code> / <code>cociente</code></td>
+<td>function</td>
+<td style="text-align: right;">5030-5120</td>
+<td>辅助平均、差值和比值保护；<code>cociente</code> 对负输入或不定零比值会报错/停止</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iono_h</code></td>
+<td>全模块</td>
+<td>读写 <code>*_eq</code> 平衡标志和 <code>tau*</code> 寿命数组；主例程、<code>lifetimes</code>、<code>timemarching</code> 直接使用</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>param_v4_h</code></td>
+<td>主例程全模块；<code>phdisrate</code> 使用 <code>ninter,nabs,jfotsout,fluxtop,jion,jdistot,jdistot_b,efdis*,efion*</code>；<code>getch</code> 使用 <code>rcoef,ch*</code>；其他例程使用 <code>P*</code>,<code>L*</code>,<code>tmin*</code> 等</td>
+<td>承载热层光吸收、电离/解离效率、反应速率、源汇矩阵、寿命和总源汇共享状态</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th style="text-align: right;">调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phdisrate</code></td>
+<td>本文件</td>
+<td style="text-align: right;">191</td>
+<td>按当前层 <code>i</code> 计算光解/电离速率</td>
+</tr>
+<tr>
+<td><code>getch</code></td>
+<td>本文件</td>
+<td style="text-align: right;">202</td>
+<td>计算当前层的 <code>ch2..ch87</code> 速率常数</td>
+</tr>
+<tr>
+<td><code>lifetimes</code></td>
+<td>本文件</td>
+<td style="text-align: right;">205-212</td>
+<td>依据光化学项和反应速率计算寿命和平衡标志</td>
+</tr>
+<tr>
+<td><code>timemarching</code></td>
+<td>本文件</td>
+<td style="text-align: right;">229-230</td>
+<td>选内部化学步长并校验平衡近似</td>
+</tr>
+<tr>
+<td><code>prodsandlosses</code></td>
+<td>本文件</td>
+<td style="text-align: right;">308-319</td>
+<td>填充当前层所有物种的源汇矩阵和总源汇</td>
+</tr>
+<tr>
+<td><code>implicito</code></td>
+<td>本文件</td>
+<td style="text-align: right;">327-432</td>
+<td>对非平衡物种执行隐式时间推进</td>
+</tr>
+<tr>
+<td><code>EF_oscilacion</code></td>
+<td>本文件</td>
+<td style="text-align: right;">437-469</td>
+<td>对平衡物种做代数平衡和振荡控制</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ig</code></td>
+<td><code>chemthermos</code> 或 <code>photochemistry_mod</code> 当前列</td>
+<td><code>integer</code></td>
+<td>网格索引</td>
+<td>主要用于错误输出和下游接口</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>调用方</td>
+<td><code>integer</code></td>
+<td>层</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>chemthermod</code></td>
+<td><code>chemthermos</code></td>
+<td><code>integer</code></td>
+<td>无</td>
+<td>0: C/O/H；1: 加 O3；2: 加 N；3: 加离子</td>
+</tr>
+<tr>
+<td><code>lswitch</code></td>
+<td><code>chemthermos</code></td>
+<td><code>integer</code></td>
+<td>层索引</td>
+<td>主例程只积分 <code>nlayer</code> 到 <code>lswitch</code></td>
+</tr>
+<tr>
+<td><code>tx(nlayer)</code></td>
+<td><code>chemthermos</code></td>
+<td><code>real</code></td>
+<td>K</td>
+<td>中性温度，转为 <code>tx8</code> 计算反应速率</td>
+</tr>
+<tr>
+<td><code>timestep</code></td>
+<td><code>chemthermos</code></td>
+<td><code>real</code></td>
+<td>s（按调用链推断）</td>
+<td>外部物理时间步，内部会按寿命细分</td>
+</tr>
+<tr>
+<td><code>zenit</code></td>
+<td><code>chemthermos</code> / <code>photochemistry_mod</code></td>
+<td><code>real</code></td>
+<td>度（按源码 <code>&gt;140</code> 日夜判断推断）</td>
+<td>控制白天/夜间光化学和二次电离高度多项式</td>
+</tr>
+<tr>
+<td><code>zx(nlayer)</code></td>
+<td>调用方</td>
+<td><code>real</code></td>
+<td>km（按 <code>getch</code>/二次电离函数变量名推断）</td>
+<td>高度，用于电子温度插值和二次电离函数</td>
+</tr>
+<tr>
+<td><code>rm(nlayer,nesptherm)</code></td>
+<td><code>chemthermos</code></td>
+<td><code>real*8</code></td>
+<td>数密度</td>
+<td>输入/输出热层物种数密度矩阵</td>
+</tr>
+<tr>
+<td><code>jfotsout</code>、<code>fluxtop</code>、<code>efdis*</code>、<code>efion*</code></td>
+<td><code>param_v4_h</code>，由 <code>jthermcalc_e107</code> 和 <a href="param_read_e107.html">param_read_e107</a> 填充</td>
+<td>module arrays</td>
+<td>光化学率相关</td>
+<td><code>phdisrate</code> 的光解/电离输入</td>
+</tr>
+<tr>
+<td><code>rcoef(61,3)</code></td>
+<td><code>param_v4_h</code>，由 <a href="chemthermos_readini.html">chemthermos_readini</a> 填充</td>
+<td><code>real*8</code></td>
+<td>Arrhenius 参数</td>
+<td><code>getch</code> 计算 61 个热层反应速率</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rm(i,*)</code></td>
+<td>返回 <a href="chemthermos.html">chemthermos</a> 后写回 <code>zycol</code></td>
+<td><code>real*8(nlayer,nesptherm)</code></td>
+<td>数密度</td>
+<td><code>lswitch:nlayer</code> 更新后的 C/O/H/O3/N/ion 物种</td>
+</tr>
+<tr>
+<td><code>jdistot</code> / <code>jdistot_b</code> / <code>jion</code></td>
+<td><code>param_v4_h</code>，本文件和 <code>photochemistry_mod</code> 消费</td>
+<td>arrays</td>
+<td>s^-1（推断）</td>
+<td>光解、分支光解和电离通道率</td>
+</tr>
+<tr>
+<td><code>ch2..ch87</code></td>
+<td><code>param_v4_h</code></td>
+<td>scalar rates</td>
+<td>依反应阶数</td>
+<td>化学反应速率常数</td>
+</tr>
+<tr>
+<td><code>tau*</code>、<code>tmin*</code>、<code>*_eq</code></td>
+<td><code>iono_h</code> / <code>param_v4_h</code></td>
+<td>arrays</td>
+<td>s / 标志</td>
+<td>寿命、最短寿命和是否用平衡近似</td>
+</tr>
+<tr>
+<td><code>P*</code>,<code>L*</code>,<code>*tot</code></td>
+<td><code>param_v4_h</code></td>
+<td>arrays</td>
+<td>数密度源汇</td>
+<td>各物种逐反应源汇矩阵与总源汇；<code>chemthermos</code> 后续读取 <code>Pno</code>、<code>Po2</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>大量读写 <code>param_v4_h</code> 和 <code>iono_h</code> 的 module 变量；这些变量是热层化学各子例程之间的主要状态传递机制。</li>
+<li><code>phdisrate</code> 在夜间条件 <code>zenit &gt; 140.</code> 下清零当前层 <code>jion/jdistot/jdistot_b</code> 后立即返回。</li>
+<li><code>getch</code> 每层重置 <code>ch*</code>，<code>rcoef(1..33)</code> 用中性温度 <code>tcte</code>，多数离子/电子反应 <code>rcoef(34..61)</code> 用按高度插值的 <code>t_elect</code>；<code>ch74/ch76</code> 仍用 <code>tcte</code>。</li>
+<li><code>implicito</code>、<code>cociente</code> 等辅助例程遇到负浓度、负源汇或未定义比值时直接 <code>write(*,*)</code> 并 <code>stop</code>，不是可恢复错误。</li>
+<li><code>prodsandlosses</code> 声明了 <code>logical,save :: firstcall=.true.</code> 并 <code>THREADPRIVATE</code>，但相关 <code>if(firstcall)</code> 块被注释，实际每次调用都会清零矩阵。</li>
+<li>离子化学开启时，主例程用离子电荷和重新计算电子数密度，而不是保留 <code>implicito</code> 给出的 <code>electxoutput_timemarching</code>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>主例程把外部 <code>timestep</code> 转为 <code>real*8</code>，从顶层 <code>nlayer</code> 向下循环到 <code>lswitch</code>。</li>
+<li>按硬编码物种槽位把 <code>rm(i,*)</code> 拆成局部数密度；<code>chemthermod&gt;=1</code> 加 O3，<code>&gt;=2</code> 加 N/N2/NO/N2D/NO2，<code>==3</code> 加 10 个离子和电子。</li>
+<li>调 <code>phdisrate</code>：从 <code>jfotsout(inter,species,i)</code>、<code>fluxtop(inter)</code> 和分支效率计算 <code>jdistot/jdistot_b/jion</code>，再复制为双精度局部数组。</li>
+<li>调 <code>getch</code>：用 <code>rcoef</code> 和温度生成 <code>ch2..ch87</code>。</li>
+<li>调 <code>lifetimes</code> 与 <code>timemarching</code>：计算 <code>tau*</code>、<code>tmin*</code>、最短寿命物种、平衡物种数，并得到内部 <code>deltat</code>。当 <code>H+/(O+H+H2)</code> 过高时，<code>fmargin1</code> 从 5 增大到最高 50，用于稳定 H/O 离子交换。</li>
+<li>把外部时间步分成 <code>numpasos=int(timefrac_sec/deltat)</code> 个内部步，并用 <code>alfa_laststep</code> 处理最后一个分数步。</li>
+<li>每个内部步先调 <code>prodsandlosses</code> 填充源汇，再对非平衡物种调用 <code>implicito</code>，对平衡物种调用 <code>EF_oscilacion</code>。</li>
+<li>离子化学开启时，用正离子总和强制电子数密度满足整体电中性。</li>
+<li>最后一个内部步把增量乘 <code>alfa_laststep</code> 得到 <code>*xnew</code>，所有负值抬到 <code>1.e-30</code>。</li>
+<li>把更新后的 <code>*xnew</code> 写回 <code>rm(i,*)</code>，供 <code>chemthermos</code> 转回 mole fraction。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>paramfoto_compact(args):
+  for i = nlayer down to lswitch:
+    load rm(i, species slots) into local double variables
+    call phdisrate(...) to fill jdistot/jdistot_b/jion for layer i
+    copy photo rates to double local arrays
+    call getch(...) to fill ch2..ch87
+    call lifetimes(...) to compute tau/tmin and initial *_eq flags
+    choose fmargin1, then call timemarching(...) to get deltat
+
+    for each internal paso:
+      carry previous outputs into inputs
+      call prodsandlosses(...) to build P/L matrices
+      use implicito for all species not in photochemical equilibrium
+      call EF_oscilacion for species marked *_eq=&#39;Y&#39;
+      if ion chemistry: replace electron output by positive-ion sum
+      on last paso, apply alfa_laststep and floor at 1.e-30
+
+    write final values back to rm(i, species slots)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热层化学</td>
+<td><a href="chemthermos.html">chemthermos</a> 的核心化学积分器，更新热层 C/O/H/O3/N/ion 数密度</td>
+</tr>
+<tr>
+<td>热层光化学 / E107</td>
+<td>消费 <code>jthermcalc_e107</code> 的光吸收率和 <a href="param_read_e107.html">param_read_e107</a> 载入的分支效率</td>
+</tr>
+<tr>
+<td>离子光化学</td>
+<td><code>photochemistry_mod.F90</code> 直接调用 <code>phdisrate</code>，把 <code>jion</code> 映射到离子光化学 <code>v_phot</code></td>
+</tr>
+<tr>
+<td>反应速率配置</td>
+<td>消费 <a href="../../reference/reaction-rates.html">reaction-rates</a> 中的 <code>chemthermos_reactionrates.def</code> 61 个 <code>rcoef</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 <code>.F</code> 文件，模块内包含 10 多个内部例程和多段长源汇表。</li>
+<li>物种槽位 <code>i_co2..i_elec</code> 在本文件内硬编码，源码注释要求与 <code>chemthermos.F90</code>、<code>jthermcalc*</code>、<code>euvheat.F</code>、<code>hrtherm.F</code> 同步。</li>
+<li><code>chemthermod</code> 不是简单开关，而是同时控制输入物种、光化学通道、反应网络、寿命计算和平衡修正。</li>
+<li>平衡标志用字符 <code>'Y'/'N'</code>，在 <code>lifetimes</code> 中初设，在 <code>timemarching</code> 中按寿命条件撤销，在主积分中决定走 <code>implicito</code> 还是 <code>EF_oscilacion</code>。</li>
+<li>二次电离函数以高度多项式返回百分比式增强，超过 100 或小于 0 时置 0；低于约 80 km 多数函数也置 0。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现前必须先初始化 <code>param_v4_h</code> 和 <code>iono_h</code> 数组；当前热层路径由 <code>physiq_mod</code> 的 <code>callthermos</code> 初始化分支分配并调用 <a href="param_read_e107.html">param_read_e107</a>。</li>
+<li><code>rm</code> 的列顺序必须严格匹配本文件第 111-138 行和 <a href="chemthermos.html">chemthermos</a> 的 <code>i_co2..i_elec</code>。</li>
+<li><code>jthermcalc_e107</code> 必须先填好 <code>jfotsout</code>，否则 <code>phdisrate</code> 的 <code>jdistot/jion</code> 没有有效来源。</li>
+<li><code>chemthermos_reactionrates.def</code> 必须由 <a href="chemthermos_readini.html">chemthermos_readini</a> 读入到 <code>rcoef</code>；不要用外部库的更新反应常数替换，除非明确要改变历史结果。</li>
+<li>夜间 <code>zenit &gt; 140.</code> 时光解和电离项会被清零，但热化学反应仍可通过 <code>getch/prodsandlosses</code> 参与。</li>
+<li>数值复现必须保留 <code>1.d-30</code>/<code>1.e-30</code> 浓度和寿命保护，以及直接 <code>stop</code> 的错误行为。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>phdisrate</code> 第 1260 行把 O2 第二电离通道累加到 <code>jion(2,1,2)</code>，同段其他通道都使用当前层 <code>i</code>。这可能是层索引笔误；复现时应按源码字面行为执行，物理意图需开发者确认。</li>
+<li><code>getch</code> 中电子温度使用 Hanson et al. 1977 近似，<code>iono_h::temp_elect</code> 也存在电子温度函数；本文件没有调用后者，两套电子温度路径的设计分工需确认。</li>
+<li><code>prodsandlosses</code> 中 <code>firstcall</code>/<code>THREADPRIVATE</code> 保留但初始化门控被注释，是否为历史优化遗留待确认。</li>
+<li><a href="photochemistry_mod.html">photochemistry_mod</a> 已核验：<code>photochemistry</code> 在线离子路径调用 <code>phdisrate(ig,nlayer,2,sza,ilay)</code> 并把 <code>jion</code> 映射为 18 个 photoionization 通道；固定 <code>chemthermod=2</code> 是否覆盖全部所需离子通道仍待开发者确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="chemthermos.html">chemthermos</a>：主调用方，构造 <code>rm</code> 并调用本模块做热层化学积分。</li>
+<li><a href="param_read_e107.html">param_read_e107</a>：载入 <code>phdisrate</code> 使用的 E107 光化学表和分支比。</li>
+<li><a href="chemthermos_readini.html">chemthermos_readini</a>：读取 <code>getch</code> 消费的 61 个 <code>rcoef</code>。</li>
+<li><a href="../../reference/reaction-rates.html">reaction-rates</a>：<code>rcoef</code> 与 <code>ch2..ch87</code> 对照表。</li>
+<li><a href="iono_h.html">iono_h</a>：保存本模块使用的 <code>*_eq</code> 标志和 <code>tau*</code> 寿命数组。</li>
+<li><a href="param_v4_h.html">param_v4_h</a>：共享热层参数、光吸收/电离缓存、反应速率和产损数组。</li>
+<li><a href="photochemistry_mod.html">photochemistry_mod</a>：说明 <code>phdisrate</code> 在统一光化学路径中的消费方式。</li>
+<li><a href="jthermcalc_e107_mod.html">jthermcalc_e107_mod.F</a>：上游 <code>jfotsout</code> 的生成逻辑。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

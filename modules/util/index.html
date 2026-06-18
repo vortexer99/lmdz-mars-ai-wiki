@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>index - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/index.md</span>
+    </nav>
+    <article class="content">
+<h1 id="util-后处理工具目录">util 后处理工具目录</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util</code></pre>
+<h2 id="职责">职责</h2>
+<p><code>util</code> 存放一组离线工具程序，用于处理 LMDZ.MARS GCM 产生的 NetCDF 输出，例如 <code>diagfi.nc</code>、<code>stats.nc</code>、<code>concat.nc</code>、<code>Xhistins.nc</code>、<code>startfi.nc</code> 和 <code>start_archive.nc</code>。这些工具不参与 GCM 主积分，而是在模拟完成后完成拼接、坐标重映射、观测抽样、垂直坐标转换、列积分、诊断变量生成和初始场格式转换。</p>
+<p>源码依据：<code>util/README</code> 明确说明本目录包含处理 LMD Mars GCM 输出文件的 utilities，并指出一个工具的输出通常还可以继续交给另一个工具处理。</p>
+<p>跨工具串联顺序见 <a href="../../themes/util-toolchain.html">util-toolchain 主题</a>。</p>
+<h2 id="目录内容">目录内容</h2>
+<table>
+<thead>
+<tr>
+<th>子目录/文件</th>
+<th>类型</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>compile</code></td>
+<td>shell 脚本</td>
+<td>编译多数 <code>.F90</code> 工具，需用户配置 <code>NETCDF_HOME</code>、编译器和编译选项。<code>aeroptical</code> 会额外编译 <code>aeropt_mod.F90</code>。</td>
+</tr>
+<tr>
+<td><a href="concatnc.html"><code>concatnc.F90</code></a> / <code>concatnc.def</code></td>
+<td>程序 + 输入样例</td>
+<td>拼接连续 GCM 输出，生成 <code>concat.nc</code>，可选择变量并控制 <code>sol</code>/<code>ls</code>/<code>adls</code> 时间轴。</td>
+</tr>
+<tr>
+<td><a href="zrecast.html"><code>zrecast.F90</code></a> / <code>zrecast.*.def</code></td>
+<td>程序 + 输入样例</td>
+<td>把混合垂直坐标输出转换到压力、areoid 高度、本地地表高度或距行星中心半径坐标。</td>
+</tr>
+<tr>
+<td><a href="localtime.html"><code>localtime.F90</code></a> / <code>localtime.def</code></td>
+<td>程序 + 输入样例</td>
+<td>将变量重分布到指定本地时刻，输出 <code>*_LT.nc</code>。</td>
+</tr>
+<tr>
+<td><a href="lslin.html"><code>lslin.F90</code></a> / <code>lslin.def</code></td>
+<td>程序 + 输入样例</td>
+<td>将时间轴插值或平均到线性的太阳经度 <code>Ls</code> 坐标，可用于 GrADS 或观测分箱比较。</td>
+</tr>
+<tr>
+<td><a href="solzenangle.html"><code>solzenangle.F90</code></a> / <code>solzenangle.def</code></td>
+<td>程序 + 输入样例</td>
+<td>按指定太阳天顶角反解晨侧/昏侧本地真太阳时，并将 3D/4D 变量插值到该几何条件。</td>
+</tr>
+<tr>
+<td><a href="hrecast.html"><code>hrecast.F90</code></a> / <code>hrecast.def</code></td>
+<td>程序 + 输入样例</td>
+<td>用格盒面积交叠权重将输出场重分配到新的规则经纬度水平网格。</td>
+</tr>
+<tr>
+<td><a href="extract.html"><code>extract.F90</code></a> / <code>extract.*.def</code></td>
+<td>程序 + 输入样例</td>
+<td>从已 <code>zrecast</code> 的文件中按点或廓线抽取四维变量，输出 ASCII <code>.dat</code>。</td>
+</tr>
+<tr>
+<td><a href="aeroptical.html"><code>aeroptical.F90</code></a> / <a href="aeropt_mod.html"><code>aeropt_mod.F90</code></a> / <code>aeroptical.def</code></td>
+<td>程序 + 模块 + 输入样例</td>
+<td>基于气溶胶质量混合比、有效半径、空气密度和光学性质表计算气溶胶消光/吸收不透明度。</td>
+</tr>
+<tr>
+<td><a href="gencol.html"><code>gencol.F90</code></a> / <code>gencol.def</code></td>
+<td>程序 + 输入样例</td>
+<td>根据质量混合比、体积混合比或浓度计算柱密度，输出 <code>*_col.nc</code>。</td>
+</tr>
+<tr>
+<td><a href="check_co2cycle.html"><code>check_co2cycle.F90</code></a> / <code>check_co2cycle.def</code></td>
+<td>程序 + 输入样例</td>
+<td>将 GCM 地表压力插值到 Viking 1/2 和 InSight 位置，计算 CO2 冰等效压力，并做日平均与谐波重建。</td>
+</tr>
+<tr>
+<td><a href="extractcolumnfor1D.html"><code>extractcolumnfor1D.F90</code></a></td>
+<td>命令行程序</td>
+<td>从 3D/4D 输出的指定经纬度与时间索引抽取垂直列，生成 <code>profile_*</code> 文件供 <code>testphys1d</code> 使用。</td>
+</tr>
+<tr>
+<td><a href="expandstartfi.html"><code>expandstartfi.F90</code></a></td>
+<td>命令行程序</td>
+<td>将 <code>startfi.nc</code> 的 <code>physical_points</code> 一维物理列展开到经纬度网格，便于可视化。</td>
+</tr>
+<tr>
+<td><a href="streamfunction.html"><code>streamfunction.F90</code></a></td>
+<td>程序</td>
+<td>从 <code>diagfi</code>、<code>stats</code> 或 <code>concat</code> 类文件计算全时段平均的纬向流函数、角动量和纬向平均风/温度/密度诊断。</td>
+</tr>
+<tr>
+<td><a href="simu_MCS.html"><code>simu_MCS.F90</code></a> / <code>simu_MCS.def</code></td>
+<td>程序 + 输入样例</td>
+<td>将 GCM 场按 MRO/MCS 观测网格和分箱方式抽样，用于与 MCS 温度、尘埃、水冰廓线比较。</td>
+</tr>
+<tr>
+<td><code>startarchive2icosa/</code></td>
+<td>子目录</td>
+<td>将 LMDZ <code>start_archive.nc</code> 转成 <code>icosa_lmdz.exe</code> 可用的 <code>start_icosa.nc</code> 与 <code>startfi.nc</code>。见 <a href="startarchive2icosa.html">startarchive2icosa</a>。</td>
+</tr>
+<tr>
+<td><a href="fit_Iceinertia_MONSicedepth.html"><code>xvik/fit_Iceinertia_MONSicedepth.F</code></a></td>
+<td>子目录程序</td>
+<td>基于四组 xvik 输出和 VL1 压力曲线拟合冰热惯量、冰深系数和总 CO2 inventory。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与其他目录的关系">与其他目录的关系</h2>
+<table>
+<thead>
+<tr>
+<th>相关目录</th>
+<th>关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars</code></td>
+<td><code>phymars</code> 运行产生诊断输出；<code>util</code> 读取这些 NetCDF 文件进行离线分析。</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\deftank</code></td>
+<td><code>deftank</code> 中的运行脚本和配置决定输出变量、垂直坐标和示踪剂；这些设置直接影响 <code>util</code> 能否找到所需变量。</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\datadir</code></td>
+<td><code>aeroptical</code> 需要气溶胶光学性质 ASCII 表，示例输入把这些文件放在 datadir 类目录。</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\startfiles</code></td>
+<td><code>expandstartfi</code> 和 <code>startarchive2icosa</code> 处理物理初始场或 archive 初始场。</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars</code></td>
+<td><code>start2archive</code>、<code>start_archive</code> 类输出可作为 <code>startarchive2icosa</code> 的输入。</td>
+</tr>
+</tbody>
+</table>
+<p>推断：<code>util</code> 是连接“模式输出”和“科学诊断/观测比较/新初始场”的离线层；它不改变模式物理过程本身，但会决定后续图像、观测对比和再启动文件的坐标与变量契约。</p>
+<h2 id="关键文件">关键文件</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>README</code></td>
+<td>提供工具职责、输入输出文件名、典型命令和可串联关系，是目录级说明的主要文档依据。</td>
+</tr>
+<tr>
+<td><code>compile</code></td>
+<td>说明所有主工具的编译前提：NetCDF Fortran 库、编译器、库路径和运行时 <code>LD_LIBRARY_PATH</code>。</td>
+</tr>
+<tr>
+<td><a href="zrecast.html"><code>zrecast.F90</code></a></td>
+<td>README 明确称其对可发表科学图像是必要步骤；源码中也列出压力、高度、地表高度和半径坐标四类输出。</td>
+</tr>
+<tr>
+<td><a href="concatnc.html"><code>concatnc.F90</code></a></td>
+<td>后处理链常见第一步，把多段 <code>diagfi</code>、<code>concat</code> 或 <code>stats</code> 类文件按 <code>Time</code> 维拼成 <code>concat.nc</code>。</td>
+</tr>
+<tr>
+<td><code>localtime.F90</code> / <code>solzenangle.F90</code> / <code>simu_MCS.F90</code></td>
+<td>负责把模型输出变换到观测相关采样坐标。</td>
+</tr>
+<tr>
+<td><a href="aeroptical.html"><code>aeroptical.F90</code></a> / <a href="aeropt_mod.html"><code>aeropt_mod.F90</code></a></td>
+<td>将模式示踪剂、有效半径和外部光学表转换成可比较的不透明度变量。</td>
+</tr>
+<tr>
+<td><code>startarchive2icosa/README</code></td>
+<td>说明从 <code>start_archive.nc</code> 到 DYNAMICO/ICOSA 初始文件的完整流程和硬编码风险。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="典型流程">典型流程</h2>
+<p>主题级串联见 <a href="../../themes/util-toolchain.html">util-toolchain</a>；本节保留目录页中的源码近邻说明。</p>
+<h3 id="1-常规输出整理链">1. 常规输出整理链</h3>
+<ol type="1">
+<li>GCM 输出多个 <code>diagfi*.nc</code> 或 <code>stats*.nc</code>。</li>
+<li>用 <code>concatnc.e &lt; concatnc.def</code> 拼接变量与时间轴，生成 <code>concat.nc</code>。</li>
+<li>对需要垂直物理坐标的变量运行 <code>zrecast.e &lt; zrecast.auto.def</code> 或 <code>zrecast.e &lt; zrecast.manual.def</code>。</li>
+<li>视分析目标继续运行：
+<ul>
+<li><a href="localtime.html"><code>localtime.e &lt; localtime.def</code></a>：统一到固定本地时；</li>
+<li><a href="lslin.html"><code>lslin.e &lt; lslin.def</code></a>：统一到线性 <code>Ls</code>；</li>
+<li><a href="solzenangle.html"><code>solzenangle.e &lt; solzenangle.def</code></a>：统一到指定太阳天顶角；</li>
+<li><code>extract.e &lt; extract.points.def</code> 或 <code>extract.e &lt; extract.profile.def</code>：抽点或抽廓线，见 <a href="extract.html">extract.F90</a>。</li>
+</ul></li>
+</ol>
+<p>源码依据：<code>util/README</code> 给出的示例命令包括 <code>concatnc.e &lt; concatnc.def</code>、<code>zrecast.e &lt; zrecast.def</code> 和 <code>extract.e &lt; extract.points.def</code>。</p>
+<h3 id="2-观测比较链">2. 观测比较链</h3>
+<ol type="1">
+<li>对 Viking/InSight 地表压力比较，使用 <a href="check_co2cycle.html"><code>check_co2cycle.e &lt; check_co2cycle.def</code></a> 读取 <code>diagfi.nc</code>、<code>concat.nc</code> 或 <code>Xhistins.nc</code>，输出站点压力、全球 CO2 库存、日平均和谐波重建文件。</li>
+<li>对 MCS 比较，使用 <code>simu_MCS.e &lt; simu_MCS.def</code> 读取 GCM 文件和 MCS 分箱文件。源码注释说明它按 MCS 的经纬度、高度、<code>Ls</code>、昼夜与本地时分箱抽样 GCM 变量。</li>
+<li>对任意观测点或廓线比较，先 <code>zrecast</code> 到压力或几何高度坐标，再用 <code>extract</code> 在 <code>lon lat alt Ls LT</code> 上插值。</li>
+</ol>
+<p>复现风险：这些比较链依赖输入文件坐标、时间覆盖和变量命名。<code>simu_MCS.F90</code> 的开头注释明确要求 GCM 文件覆盖完整观测时段，并且与 MCS 文件使用同类高度坐标。</p>
+<h3 id="3-气溶胶与柱量诊断链">3. 气溶胶与柱量诊断链</h3>
+<ol type="1">
+<li><a href="aeroptical.html"><code>aeroptical.e &lt; aeroptical.def</code></a> 读取 GCM 文件中的气溶胶质量混合比、有效半径和 <code>rho</code>，再读取光学性质 ASCII 表，生成 <code>*_OPAext.nc</code> 或 <code>*_OPAabs.nc</code>。</li>
+<li>如果需要柱积分光学厚度，在 <code>aeroptical.def</code> 中选择 <code>yes</code>。</li>
+<li><a href="gencol.html"><code>gencol.e &lt; gencol.def</code></a> 可对质量混合比、体积混合比或浓度变量计算柱密度，输出 <code>*_col.nc</code>。</li>
+</ol>
+<p>源码依据：<a href="aeroptical.html"><code>aeroptical.F90</code></a> 使用 <code>use aeropt_mod</code>，<a href="aeropt_mod.html"><code>aeropt_mod.F90</code></a> 的 <code>read_optpropfile</code> 从 ASCII 光学性质文件读入 <code>wvl</code>、<code>radiusdyn</code>、<code>Qext</code>、<code>omeg</code>。</p>
+<h3 id="4-初始场与-1d-输入链">4. 初始场与 1D 输入链</h3>
+<ol type="1">
+<li><a href="expandstartfi.html"><code>expandstartfi.e [infile.nc] [outfile.nc]</code></a> 将 <code>startfi.nc</code> 的物理列展开成经纬度网格，主要用于绘图检查。</li>
+<li><a href="extractcolumnfor1D.html"><code>extractcolumnfor1D.e -i # -j # -l # -v list infile</code></a> 从 3D/4D 输出抽取某个水平格点和时刻的变量廓线，生成 <code>profile_*</code> 文件。</li>
+<li><code>startarchive2icosa/</code> 读取 <code>start_archive_nc4.nc</code>、<code>start_icosa_ref.nc</code>、<code>startphy_icosa_ref.nc</code>、<code>surface_nc4.nc</code> 和 <code>iodef.xml</code>，输出 <code>start_icosa_prefinalize.nc</code> 与 <code>startfi_prefinalize.nc</code>，再由 <code>icosa_finalize.bash</code> 生成 <code>start_icosa.nc</code> 和 <code>startfi.nc</code>。</li>
+</ol>
+<p>待确认：<a href="extractcolumnfor1D.html"><code>extractcolumnfor1D</code></a> 生成的 <code>profile_*</code> 与 <code>testphys1d</code> 配置字段之间的完整映射尚需结合 dyn1d 页面追踪。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>编译前必须按本机环境修改 <code>util/compile</code>：<code>NETCDF_HOME</code>、<code>COMPILER</code>、<code>COMPILER_OPTIONS</code> 和运行时库路径都不是自动探测的。</li>
+<li>多数工具可交互回答问题，也可用同名 <code>.def</code> 文件重定向标准输入；自动化复现时应保留实际使用的 <code>.def</code>。</li>
+<li><code>zrecast</code> 需要输入文件中有 <code>ps</code>、<code>temp</code>、<code>aps/bps</code> 或 <code>sigma</code>，并需要 <code>phisinit</code>；若输入文件没有，源码说明会尝试从 <code>diagfi.nc</code> 或 <code>phisinit.nc</code> 查找。</li>
+<li><code>zrecast</code> 对变量名前缀有特殊规则：README 和源码注释说明 <code>rho*</code>、<code>num_*</code> 一类变量应在 log-space 中垂直插值。</li>
+<li><a href="aeroptical.html"><code>aeroptical</code></a> 要求输入中存在气溶胶质量混合比、有效半径或用户给定的固定有效半径、空气密度 <code>rho</code>，以及外部光学性质表。</li>
+<li><a href="gencol.html"><code>gencol</code></a> 对体积混合比转柱量时需要大气分子量；源码显示无法读取或计算局地分子量时会使用 <code>rgp/Rmean</code> 常数平均分子量。</li>
+<li><code>startarchive2icosa</code> 当前带有硬编码文件名和路径假设；README 明确标注该脚本仍在开发中，需要按本机环境谨慎修改。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>lslin.F90</code> 页面中应进一步核实 <code>Ls_Linear.e</code>、<code>lslin.e</code>、文件名拼写和实际可执行名之间的历史差异。</li>
+<li><a href="fit_Iceinertia_MONSicedepth.html"><code>fit_Iceinertia_MONSicedepth</code></a> 已确认硬编码读取 <code>xpsol1N/xprestotN</code>，与当前 <a href="../dynphy_lonlat/xvik.html"><code>xvik.F</code></a> 页面记录的 <code>ps_VL*_yearN/prestot_yearN</code> 命名不一致；复现时需确认历史输出命名或转换脚本。</li>
+<li><code>startarchive2icosa</code> 的 XIOS/MPI 编译链与现代环境兼容性需要实机验证。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

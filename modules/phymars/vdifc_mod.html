@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vdifc_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/vdifc_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="vdifc_modf">vdifc_mod.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\vdifc_mod.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars
+MODULE vdifc_mod</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>vdifc_mod.F</code> 是 <code>phymars</code> 物理包的垂直扩散主模块。主例程 <code>vdifc</code> 在 <code>physiq_mod.F</code> 中由 <code>calldifv</code> 分支调用，接收当前累计的动力、热力和 tracer 物理倾向，把它们先加到工作态，再用隐式垂直扩散求解动量、热量和 tracer 的新增倾向。</p>
+<p>这个文件不是单纯的湍流 K 系数例程。它把地表层交换系数、PBL K 系数方案、地表能量平衡、CO2 凝结质量变化、尘埃地表注入、H2O 地表/地下交换、HDO 同位素通量、坡面投影和诊断输出放在同一条时间步流程里。因此它是边界层、地表、尘埃循环和水循环之间的强耦合入口。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vdifc_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>垂直扩散主模块</td>
+</tr>
+<tr>
+<td><code>vdifc</code></td>
+<td>subroutine</td>
+<td>7-1441</td>
+<td>计算 U/V/位温或焓/tracer 的垂直扩散倾向，更新地表温度倾向、地表 tracer 通量和若干诊断</td>
+</tr>
+<tr>
+<td><code>make_tsub</code></td>
+<td>subroutine</td>
+<td>1445-1479</td>
+<td>根据地表温度倾向和地表冰量为水汽交换选择自适应子时间步数</td>
+</tr>
+<tr>
+<td><code>compute_Tice</code></td>
+<td>subroutine</td>
+<td>1484-1529</td>
+<td>按地下冰深度在土壤温度剖面中线性插值得到地下冰温度</td>
+</tr>
+</tbody>
+</table>
+<h3 id="save--threadprivate-状态">SAVE / THREADPRIVATE 状态</h3>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>firstcall</code></td>
+<td><code>LOGICAL,SAVE</code>, <code>THREADPRIVATE</code></td>
+<td>139-141</td>
+<td>控制首次进入 <code>vdifc</code> 时初始化 CO2 凝结常数和 CO2 tracer 索引</td>
+</tr>
+<tr>
+<td><code>acond</code>, <code>bcond</code></td>
+<td><code>REAL,SAVE</code>, <code>THREADPRIVATE</code></td>
+<td>148-150</td>
+<td>CO2 凝结温度公式常数</td>
+</tr>
+<tr>
+<td><code>ccond</code></td>
+<td><code>REAL,SAVE</code>, <code>THREADPRIVATE</code></td>
+<td>202-204</td>
+<td>CO2 质量变化方案中温度倾向到凝结质量的系数</td>
+</tr>
+<tr>
+<td><code>ico2</code></td>
+<td><code>INTEGER,SAVE</code>, <code>THREADPRIVATE</code></td>
+<td>209-215</td>
+<td><code>noms(iq)=="co2"</code> 时记录 CO2 gas tracer 索引</td>
+</tr>
+<tr>
+<td><code>m_co2</code>, <code>m_noco2</code>, <code>A</code>, <code>B</code></td>
+<td><code>REAL,SAVE</code>, <code>THREADPRIVATE</code></td>
+<td>211-215</td>
+<td>CO2 和非凝结气体平均分子量换算常数</td>
+</tr>
+</tbody>
+</table>
+<p>本文件没有定义 common block。除上述 <code>SAVE</code> 状态外，主要共享状态来自 <code>use</code> 的模块变量，例如 <code>ustar/tstar</code>、<code>zdqsdif_ssi_tot</code> 和 tracer 索引。</p>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>noms</code>, <code>igcm_*</code>, <code>alpha_lift</code></td>
+<td>查找 CO2 tracer；索引 dust/H2O/HDO/stormdust tracer；按 <code>alpha_lift</code> 生成尘埃注入通量</td>
+<td></td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>watercaptag</code>, <code>frost_albedo_threshold</code>, <code>dryness</code>, <code>old_wsublimation_scheme</code></td>
+<td>水冰地表交换、永久冰盖、水汽导度干度缩放和旧升华方案开关</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>cpp</code>, <code>r</code>, <code>rcp</code>, <code>g</code>, <code>pi</code></td>
+<td>热容、气体常数、重力、坡面投影等公式</td>
+<td></td>
+</tr>
+<tr>
+<td><code>watersat_mod</code></td>
+<td><code>watersat</code></td>
+<td>H2O/HDO 路径计算饱和混合比</td>
+<td></td>
+</tr>
+<tr>
+<td><code>turb_mod</code></td>
+<td><code>turb_resolved</code>, <code>ustar</code>, <code>tstar</code></td>
+<td>判断是否跳过 CO2 凝结迭代；写出近地层摩擦速度和温度尺度</td>
+<td></td>
+</tr>
+<tr>
+<td><code>compute_dtau_mod</code></td>
+<td><code>ti_injection_sol</code>, <code>tf_injection_sol</code></td>
+<td><code>dustinjection=1</code> 时限制尘埃注入的本地时窗口</td>
+<td></td>
+</tr>
+<tr>
+<td><code>hdo_surfex_mod</code></td>
+<td><code>hdo_surfex</code></td>
+<td>HDO 地表-大气通量计算</td>
+<td></td>
+</tr>
+<tr>
+<td><code>dust_param_mod</code></td>
+<td><code>doubleq</code>, <code>submicron</code>, <code>lifting</code></td>
+<td>控制尘埃 tracer 组合和是否启用风起尘/注入</td>
+<td></td>
+</tr>
+<tr>
+<td><code>write_output_mod</code></td>
+<td><code>write_output</code></td>
+<td>写出水潜热和地下冰交换诊断</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comslope_mod</code></td>
+<td><code>nslope</code>, <code>def_slope_mean</code>, <code>subslope_dist</code>, <code>major_slope</code>, <code>iflat</code></td>
+<td>坡面数量、坡面投影、坡面权重和主坡面选择</td>
+<td></td>
+</tr>
+<tr>
+<td><code>microphys_h</code></td>
+<td><code>To</code></td>
+<td>水冰潜热公式和有冰地表温度封顶</td>
+<td></td>
+</tr>
+<tr>
+<td><code>paleoclimate_mod</code></td>
+<td><code>coef_ssdif</code>, <code>h2oice_depth</code>, <code>lag_layer</code>, <code>zdqsdif_ssi_tot</code></td>
+<td>lag-layer 地下冰交换、地下冰深度和诊断缓存</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>layer</code>, <code>mlayer</code>, <code>adsorption_soil</code></td>
+<td>地下层网格和是否调用 <code>soilwater</code>；<code>compute_Tice</code> 使用 <code>mlayer</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>vdif_cd_mod</code></td>
+<td><code>vdif_cd</code></td>
+<td>地表层 Cd/Ch 交换系数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>vdif_kc_mod</code></td>
+<td><code>vdif_kc</code></td>
+<td>fallback PBL K 系数方案</td>
+<td></td>
+</tr>
+<tr>
+<td><code>yamada4_mod</code></td>
+<td><code>yamada4</code></td>
+<td><code>callyamada4</code> 路径的 Mellor-Yamada K 系数方案</td>
+<td></td>
+</tr>
+<tr>
+<td><code>lmdz_call_atke</code></td>
+<td><code>call_atke</code></td>
+<td><code>callatke</code> 路径的 ATKE K 系数方案</td>
+<td></td>
+</tr>
+<tr>
+<td><code>dust_windstress_lift_mod</code></td>
+<td><code>dust_windstress_lift</code></td>
+<td>默认风应力起尘通量计算</td>
+<td></td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>callcond</code>, <code>callrichsl</code>, <code>callyamada4</code>, <code>callatke</code>, <code>tke_heat_flux</code>, <code>water</code>, <code>hdo</code>, <code>co2clouds</code>, <code>rdstorm</code>, <code>dustinjection</code>, <code>latentheat_surfwater</code></td>
+<td>控制 CO2 凝结、地表层、PBL、热通量、水循环、HDO、尘埃注入和水潜热路径</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vdif_cd</code></td>
+<td><code>vdif_cd_mod.F90</code></td>
+<td>416-419, 579-582</td>
+<td>先用原始风算地表交换系数和 <code>ustar/tstar</code>，再用摩擦后风重算起尘/升华使用的 Cd/Ch</td>
+</tr>
+<tr>
+<td><code>yamada4</code></td>
+<td><code>yamada4.F</code></td>
+<td>462-464</td>
+<td><code>callyamada4=.true.</code> 时计算 <code>zkv/zkh/zkq</code></td>
+</tr>
+<tr>
+<td><code>call_atke</code></td>
+<td><code>lmdz_call_atke.F90</code></td>
+<td>467-470</td>
+<td><code>callatke=.true.</code> 时计算 ATKE 的 <code>zkv/zkh</code></td>
+</tr>
+<tr>
+<td><code>vdif_kc</code></td>
+<td><code>vdif_kc.F</code></td>
+<td>475-477</td>
+<td>非 Yamada4、非 ATKE 时计算 fallback <code>zkv/zkh</code></td>
+</tr>
+<tr>
+<td><code>dust_windstress_lift</code></td>
+<td><code>dust_windstress_lift.F90</code></td>
+<td>881-883</td>
+<td>默认风应力起尘，返回 <code>pdqsdif_tmp</code></td>
+</tr>
+<tr>
+<td><code>make_tsub</code></td>
+<td>本文件</td>
+<td>977-979</td>
+<td>为 H2O 地表交换分配子时间步</td>
+</tr>
+<tr>
+<td><code>watersat</code></td>
+<td><code>watersat_mod.F90</code></td>
+<td>1018, 1118, 1180, 1347</td>
+<td>计算地表/地下冰温度下的 H2O 饱和混合比</td>
+</tr>
+<tr>
+<td><code>soilwater</code></td>
+<td><code>soilwater.F90</code></td>
+<td>1052-1060</td>
+<td><code>adsorption_soil</code> 时求解地下水汽、吸附水和地下冰交换</td>
+</tr>
+<tr>
+<td><code>compute_Tice</code></td>
+<td>本文件</td>
+<td>1113-1116, 1175-1178</td>
+<td>对 lag-layer 地下冰温度插值</td>
+</tr>
+<tr>
+<td><code>hdo_surfex</code></td>
+<td><code>hdo_surfex_mod.F</code></td>
+<td>1350-1355</td>
+<td>基于 H2O 通量和分馏公式计算 HDO 地表通量</td>
+</tr>
+<tr>
+<td><code>write_output</code></td>
+<td><code>write_output_mod.F90</code></td>
+<td>1388-1407</td>
+<td>写出 <code>surf_h2o_lh</code>、SSI 通量和坡面 SSI 通量</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部物理错误处理</td>
+<td>1515-1516</td>
+<td><code>compute_Tice</code> 发现地下冰低于最后土壤层时中止</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code>, <code>nlay</code>, <code>nsoil</code>, <code>nq</code>, <code>nqsoil</code></td>
+<td>调用方 <code>physiq</code></td>
+<td>integer</td>
+<td>-</td>
+<td>水平格点、垂直层、土壤层、大气 tracer 和土壤 tracer 数</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>s</td>
+<td>当前物理时间步</td>
+</tr>
+<tr>
+<td><code>pplay</code>, <code>pplev</code></td>
+<td>大气网格</td>
+<td>real <code>(ngrid,nlay/nlay+1)</code></td>
+<td>Pa</td>
+<td>层中心和层界面压力</td>
+</tr>
+<tr>
+<td><code>pzlay</code>, <code>pzlev</code></td>
+<td>大气网格</td>
+<td>real <code>(ngrid,nlay/nlay+1)</code></td>
+<td>m</td>
+<td>层中心和层界面高度</td>
+</tr>
+<tr>
+<td><code>pu</code>, <code>pv</code>, <code>ph</code>, <code>pq</code></td>
+<td>当前物理态</td>
+<td>real</td>
+<td>m/s, K 或 J-like, kg/kg</td>
+<td>风、热力变量和 tracer 混合比</td>
+</tr>
+<tr>
+<td><code>pdufi</code>, <code>pdvfi</code>, <code>pdhfi</code>, <code>pdqfi</code></td>
+<td>前序物理过程</td>
+<td>real</td>
+<td>每秒倾向</td>
+<td>进入垂直扩散前已经累计的物理倾向</td>
+</tr>
+<tr>
+<td><code>ptsrf</code>, <code>ptsoil</code>, <code>pemis</code>, <code>pcapcal</code>, <code>pfluxsrf</code></td>
+<td>地表/土壤/辐射-土壤耦合</td>
+<td>real</td>
+<td>K, W/m2 等</td>
+<td>地表温度、土壤温度、发射率、热容量和地表通量</td>
+</tr>
+<tr>
+<td><code>pqsurf</code>, <code>qsoil</code>, <code>watercap</code></td>
+<td>地表和地下 tracer 储库</td>
+<td>real</td>
+<td>kg/m2 或 soil tracer 单位</td>
+<td>地表 tracer、地下水相关 tracer 和永久冰盖储量</td>
+</tr>
+<tr>
+<td><code>ppopsk</code></td>
+<td>热力换算</td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>-</td>
+<td>Exner 因子，用于位温/温度换算</td>
+</tr>
+<tr>
+<td><code>pcondicea_co2microp</code></td>
+<td>CO2 云微物理</td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>kg/kg/s</td>
+<td>CO2 微物理凝结倾向；当前 <code>co2clouds</code> 分支中被置零路径覆盖</td>
+</tr>
+<tr>
+<td><code>pz0</code></td>
+<td>地表参数</td>
+<td>real <code>(ngrid)</code></td>
+<td>m</td>
+<td>粗糙度长度</td>
+</tr>
+<tr>
+<td><code>wstar</code>, <code>hfmax</code></td>
+<td>边界层/热羽流上下文</td>
+<td>real <code>(ngrid)</code></td>
+<td>m/s 等</td>
+<td>子网格 gustiness/对流速度尺度；<code>hfmax</code> 在本文件中未见实际使用</td>
+</tr>
+<tr>
+<td><code>dustliftday</code>, <code>local_time</code></td>
+<td>尘埃注入调度</td>
+<td>real <code>(ngrid)</code></td>
+<td>kg/m2/s 或 sol fraction</td>
+<td><code>dustinjection=1</code> 时的日注入量和本地时间窗判断</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdudif</code>, <code>pdvdif</code></td>
+<td><code>physiq</code> 累加到全局倾向</td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>m/s2</td>
+<td>垂直扩散导致的 U/V 倾向</td>
+</tr>
+<tr>
+<td><code>pdhdif</code></td>
+<td><code>physiq</code></td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>热力变量每秒倾向</td>
+<td>热力变量垂直扩散倾向，含 CO2 凝结质量变化修正</td>
+</tr>
+<tr>
+<td><code>pdtsrf</code></td>
+<td><code>physiq</code> / 地表更新</td>
+<td>real <code>(ngrid,nslope)</code></td>
+<td>K/s</td>
+<td>地表温度倾向，水潜热路径可再次修正</td>
+</tr>
+<tr>
+<td><code>pdqdif</code></td>
+<td><code>physiq</code></td>
+<td>real <code>(ngrid,nlay,nq)</code></td>
+<td>kg/kg/s</td>
+<td>大气 tracer 垂直扩散倾向</td>
+</tr>
+<tr>
+<td><code>pdqsdif</code></td>
+<td><code>physiq</code> / 地表 tracer 更新</td>
+<td>real <code>(ngrid,nq,nslope)</code></td>
+<td>kg/m2/s</td>
+<td>地表 tracer 通量/储量倾向；尘埃、H2O ice、HDO ice 等在此输出</td>
+</tr>
+<tr>
+<td><code>pq2</code></td>
+<td>湍流共享状态</td>
+<td>real <code>(ngrid,nlay+1)</code></td>
+<td>m2/s2</td>
+<td>PBL 方案更新后的 TKE 速度尺度平方</td>
+</tr>
+<tr>
+<td><code>sensibFlux</code></td>
+<td><code>physiq</code>/诊断</td>
+<td>real <code>(ngrid)</code></td>
+<td>W/m2</td>
+<td>大气到地表的感热通量</td>
+</tr>
+<tr>
+<td><code>pore_icefraction</code></td>
+<td>地下水路径</td>
+<td>real <code>(ngrid,nsoil,nslope)</code></td>
+<td>-</td>
+<td><code>soilwater</code> 返回的孔隙冰饱和度</td>
+</tr>
+<tr>
+<td><code>dwatercap_dif</code></td>
+<td><code>physiq</code> / watercap 更新</td>
+<td>real <code>(ngrid,nslope)</code></td>
+<td>kg/m2/s</td>
+<td>永久水冰盖储量变化倾向</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>firstcall</code> 首次进入时打印 CO2 凝结常数，并扫描 <code>noms(iq)</code> 找 <code>co2</code> tracer。后续调用复用 <code>ico2/m_co2/m_noco2/A/B/acond/bcond/ccond</code>。</li>
+<li><code>ustar</code>、<code>tstar</code> 来自 <code>turb_mod</code>，在两次 <code>vdif_cd</code> 之后被重置并写入当前步近地层摩擦速度和温度尺度。</li>
+<li><code>pq2</code> 是 <code>intent(inout)</code>，由 <code>yamada4</code>、<code>call_atke</code> 或 <code>vdif_kc</code> 更新，供后续时间步和其他湍流路径使用。</li>
+<li><code>qsoil</code> 是 <code>intent(inout)</code>，仅在 <code>adsorption_soil</code> 路径由 <code>soilwater</code> 修改地下水汽/冰/吸附水状态。</li>
+<li><code>zdqsdif_ssi_tot</code> 来自 <code>paleoclimate_mod</code>，每次 <code>vdifc</code> 开头清零，水汽路径累计地下冰与大气/霜的总通量，随后写诊断。</li>
+<li><code>write_output</code> 写出 <code>surf_h2o_lh</code>、<code>zdqsdif_ssi_frost_tot</code>、<code>zdqsdif_ssi_atm_tot</code>、<code>flux_ssice</code> 和每个坡面的 <code>flux_ssice_slopeNN</code>。</li>
+<li>本文件不读写 restart 文件；restart 相关状态由调用链中的物理状态初始化/写出模块处理。</li>
+</ul>
+<h2 id="初始化--firstcall--restart--diagnostic-行为">初始化 / firstcall / restart / diagnostic 行为</h2>
+<ol type="1">
+<li><code>firstcall</code> 段在行 255-283 执行一次：设置 CO2 凝结公式常数，打印参数，扫描 tracer 名称并为 CO2 gas 建立平均分子量换算系数。</li>
+<li>每个时间步行 296-317 清零所有输出倾向和水/地下冰诊断缓存，避免沿用上一步工作数组。</li>
+<li>行 350-388 根据 <code>callcond</code> 和 <code>ico2</code> 计算 CO2 体积分数与凝结温度；未启用或无 CO2 tracer 时采用 <code>vmr_co2=0.95</code>。</li>
+<li>本文件没有直接 restart 读写，但会修改 <code>pq2</code>、<code>qsoil</code> 和 <code>zdqsdif_ssi_tot</code> 等可能由其他模块初始化或诊断的共享状态。</li>
+<li>诊断输出集中在行 1388-1407，只输出水潜热和地下冰交换相关字段；HDO flux 诊断在源码中保留为注释。</li>
+</ol>
+<h2 id="核心流程">核心流程</h2>
+<h3 id="1-准备主坡面状态和隐式系数">1. 准备主坡面状态和隐式系数</h3>
+<p>行 285-288 从 <code>major_slope(ig)</code> 取主坡面的 <code>ptsrf_tmp</code> 和 <code>pqsurf_tmp</code>，供大气主列扩散、起尘和 K 系数路径使用。行 324-344 构造两类隐式系数：<code>za=(pplev(l)-pplev(l+1))/g</code> 表示层空气质量，<code>zb0</code> 是后续把 K 系数或地表导度转为隐式三对角系数的基量。地表层 <code>zb0(:,1)=ptimestep*pplev(:,1)/(r*ptsrf_tmp)</code>。</p>
+<h3 id="2-把前序物理倾向加入工作态">2. 把前序物理倾向加入工作态</h3>
+<p>行 395-405 计算</p>
+<pre class="text"><code>zu = pu + pdufi*dt
+zv = pv + pdvfi*dt
+zh = ph + pdhfi*dt
+zq = pq + pdqfi*dt</code></pre>
+<p>后面求出的 <code>pd*dif</code> 都是相对于这个“已含前序物理过程”的工作态再增加的垂直扩散倾向。</p>
+<h3 id="3-地表交换系数和-pbl-k-系数">3. 地表交换系数和 PBL K 系数</h3>
+<p>第一次 <code>vdif_cd</code> 在行 416-419 用原始风 <code>pu/pv</code> 计算各坡面 <code>zcdv_true/zcdh_true</code>。随后行 423-456 根据 <code>callrichsl</code> 是否包含 gustiness 修正，得到实际地表动量/热量导度 <code>zcdv/zcdh</code>，并写 <code>ustar/tstar</code>。</p>
+<p>行 461-479 三选一计算垂直 K 系数：</p>
+<ul>
+<li><code>callyamada4</code>：调用 <code>yamada4</code>，输出 <code>zkv/zkh/zkq</code>。</li>
+<li><code>callatke</code>：调用 <code>call_atke</code>，输出 <code>zkv/zkh</code>，并把第 <code>nlay+1</code> 层界面复制为第 <code>nlay</code> 值。</li>
+<li>否则：调用 <code>vdif_kc</code>，按传统 PBL K 系数方案更新 <code>pq2/zkv/zkh</code>。</li>
+</ul>
+<p>行 480-488 是 1D <code>doubleq</code> 保护：<code>ngrid==1</code> 时内部层 <code>zkh/zkv</code> 下限设为 <code>80</code>。</p>
+<h3 id="4-动量-uv-隐式扩散">4. 动量 U/V 隐式扩散</h3>
+<p>行 503-529 解 U，行 544-567 解 V。两者都使用同一 Thomas 算法样式：先从顶层向下递推 <code>zc/zd</code>，再从地表向上回代。地表边界使用 <code>zb(:,1)=zcdv_tmp*zb0(:,1)</code>，内部层使用 <code>zb(:,2:nlay)=zkv(:,2:nlay)*zb0(:,2:nlay)</code>。求解后 <code>zu/zv</code> 已包含摩擦后的风廓线。</p>
+<p>行 579-619 随后用摩擦后的 <code>zu/zv</code> 第二次调用 <code>vdif_cd</code>。源码注释说明这套风用于起尘和升华，因此尘埃和水汽通量使用的是已经受地表摩擦影响的近地风背景。</p>
+<h3 id="5-热力变量地表能量平衡和-co2-凝结">5. 热力变量、地表能量平衡和 CO2 凝结</h3>
+<p>行 637-777 用 <code>zkh/zcdh</code> 对热力变量做隐式扩散，并把大气第一层和地表能量平衡联立。地表温度解包括：</p>
+<ul>
+<li>地表热容量 <code>pcapcal*ptsrf</code>；</li>
+<li>湍流热通量项 <code>cpp*zb(1)*zc(1)</code>；</li>
+<li>线性化 Planck 辐射项 <code>zdplanck*ptsrf</code>，除非 <code>tke_heat_flux</code> 非零；</li>
+<li>土壤/辐射传入的 <code>pfluxsrf*ptimestep</code>。</li>
+</ul>
+<p>如果 <code>callcond</code> 且非 <code>turb_resolved</code>，行 666-681 会判断是否有层低于 CO2 凝结位温，必要时把 <code>llnt(ig)</code> 设为 300。行 698-771 在收敛循环中更新 <code>zhs/zt</code>，并在 <code>co2clouds=.false.</code> 时根据 <code>zt&lt;ztcond</code> 计算 <code>pdtc/zcondicea/dmice</code>。若 <code>co2clouds=.true.</code>，源码当前把 <code>zcondicea/dmice/pdtc</code> 置零。</p>
+<p>多坡面情况下，行 779-801 对非主坡面只重算地表温度倾向 <code>pdtsrf(ig,islope)</code>，大气热力廓线仍来自主坡面隐式解。</p>
+<h3 id="6-尘埃和普通-tracer">6. 尘埃和普通 tracer</h3>
+<p>行 808-889 先计算近地密度 <code>rho=zb0(:,1)/ptimestep</code>，再按 <code>lifting/doubleq/submicron/dustinjection/rdstorm</code> 选择地表尘埃通量：</p>
+<ul>
+<li><code>lifting=.false.</code> 时 <code>pdqsdif_tmp=0</code>。</li>
+<li><code>doubleq</code> 或 <code>submicron</code> 的旧路径直接用 <code>-alpha_lift(...)</code> 或 <code>-dustliftday*alpha_lift(...)</code> 生成 mass/number/submicron/stormdust 通量。</li>
+<li><code>dustinjection=1</code> 还要求 <code>local_time</code> 在 <code>ti_injection_sol</code> 与 <code>tf_injection_sol</code> 之间；CO2 地表冰 <code>pqsurf_tmp(:,igcm_co2)&gt;=1</code> 时不抬升。</li>
+<li>默认路径调用 <code>dust_windstress_lift</code>，由风应力阈值方案计算 <code>pdqsdif_tmp</code>。</li>
+</ul>
+<p>行 900-957 对“非水汽”tracer 做隐式垂直混合。普通 tracer 在地表层加入 <code>(-pdqsdif_tmp)*ptimestep</code>，并把 <code>pdqsdif_tmp*cos(slope)</code> 写入每个坡面的 <code>pdqsdif</code>。<code>h2o_ice</code> 和 <code>hdo_ice</code> 在这里走无地表注入的特例；真正的 H2O 地表冰增减由后面的 <code>h2o_vap</code> 专段覆盖。</p>
+<h3 id="7-h2o-地表地下和坡面交换">7. H2O 地表、地下和坡面交换</h3>
+<p>行 959-1315 是 H2O 水汽专段，已有更细的 section 页：<a href="../../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a>。主文件页保留复现主线：</p>
+<ol type="1">
+<li>每个坡面先把 <code>pqsurf(h2o_ice)</code> 和 <code>watercap</code> 除以 <code>cos(slope)</code>，转成真实坡面面积上的储量。</li>
+<li><code>make_tsub</code> 根据 <code>pdtsrf</code>、地表冰量、<code>watercaptag</code> 和 <code>dtmax=0.5 K</code> 选择子时间步数。</li>
+<li>每个子步用 <code>zcdv</code> 或 <code>zcdh</code> 作为地表导度，并乘 <code>dryness</code>，对水汽做隐式扩散，地表边界拉向 <code>watersat(ztsrf,pplev(:,1))</code> 的 <code>qsat</code>。</li>
+<li><code>adsorption_soil</code> 时调用 <code>soilwater</code>，把地下水汽、吸附水、地下冰与大气边界条件耦合；否则在 <code>lag_layer</code> 和 <code>h2oice_depth&gt;0</code> 时走地下冰-大气或地下冰-霜通量。</li>
+<li><code>latentheat_surfwater</code> 时用源码中的水冰升华潜热公式修正 <code>pdtsrf</code>；有冰时温度上升被封顶到 <code>To</code>。</li>
+<li>子步结束后写 <code>pdqsdif(h2o_ice,islope)</code>、<code>dwatercap_dif</code>、<code>zdqsdif_ssi_atm_tot/frost_tot/ssi_tot</code>，再把坡面水汽廓线按 <code>subslope_dist</code> 平均回大气主列。</li>
+</ol>
+<p>这个段落是地表/水循环核心耦合点：它同时改变地表水冰、永久水冰盖、地下水相关 tracer、近地水汽、地表温度倾向和地下冰诊断通量。</p>
+<h3 id="8-hdo-地表交换">8. HDO 地表交换</h3>
+<p>行 1317-1380 在 <code>hdo</code> 且 <code>iq==igcm_hdo_vap</code> 时执行。它先对 HDO vapor 建立与普通 tracer 类似的垂直混合系数，再逐坡面调用 <code>hdo_surfex</code>。调用输入包括 H2O 专段保存的 <code>saved_h2o_vap</code>、更新后地表温度的 <code>qsat_tmp</code>、H2O/HDO 地表通量数组以及 <code>dwatercap_dif</code>。<code>hdo_surfex</code> 返回坡面 <code>hdoflux</code>，随后按 <code>subslope_dist</code> 平均成 <code>hdoflux_meshavg</code> 并作为地表通量边界条件更新 HDO vapor 廓线。</p>
+<h3 id="9-诊断和最终倾向">9. 诊断和最终倾向</h3>
+<p>行 1388-1407 写水潜热和地下冰交换诊断。行 1424-1439 把工作态差分成输出倾向：</p>
+<pre class="text"><code>pdudif = (zu - (pu+pdufi*dt))/dt
+pdvdif = (zv - (pv+pdvfi*dt))/dt
+pdhdif = (zhs - (ph+pdhfi*dt + latcond*dmice/cpp/ppopsk))/dt
+pdqdif = (zq - (pq+pdqfi*dt))/dt</code></pre>
+<p><code>physiq_mod.F</code> 的调用点随后把这些倾向累加到全局物理倾向，并把 <code>dwatercap_dif</code> 加到 <code>dwatercap</code>。</p>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>vdifc:
+  if firstcall:
+    initialize CO2 condensation constants
+    find co2 tracer index in noms(:)
+
+  select major-slope surface state
+  zero all output tendencies and water/SSI diagnostics
+  build za and zb0 implicit-diffusion coefficients
+  compute CO2 vmr and condensation temperature if callcond
+
+  zu,zv,zh,zq = state + incoming physical tendencies * dt
+
+  call vdif_cd with original pu,pv
+  derive zcdv/zcdh, ustar/tstar on major slope
+  choose PBL K path:
+    if callyamada4: call yamada4
+    else if callatke: call call_atke
+    else: call vdif_kc
+  if doubleq and 1D: enforce zkv/zkh &gt;= 80 inside the column
+
+  solve implicit U diffusion using zkv and surface zcdv
+  solve implicit V diffusion using zkv and surface zcdv
+
+  call vdif_cd again with friction-modified zu,zv
+  recompute conductances for lifting and sublimation
+
+  solve implicit thermal diffusion plus surface energy balance
+  if callcond: iterate CO2 condensation mass correction unless co2clouds path zeros it
+  solve non-major slope surface temperature tendencies
+
+  if lifting:
+    compute dust/stormdust/submicron surface flux by configured branch
+  else:
+    dust flux = 0
+
+  for each tracer:
+    if normal tracer branch:
+      solve implicit tracer diffusion
+      apply dust-like surface source except h2o_ice/hdo_ice special cases
+      write pdqsdif across slopes
+
+    if water and tracer is h2o_vap:
+      for each slope and grid point:
+        choose H2O subtimestep count with make_tsub
+        for each subtimestep:
+          solve vapor diffusion with qsat surface boundary
+          optionally call soilwater
+          optionally compute lag-layer SSI atmosphere/frost fluxes
+          apply latent-heat surface temperature feedback
+          update vapor profile, surface ice and SSI diagnostics
+        integrate pdtsrf, pdqsdif(h2o_ice), dwatercap_dif
+      average slope vapor profiles back to grid-cell atmosphere
+
+    if hdo and tracer is hdo_vap:
+      call hdo_surfex per slope
+      solve HDO vapor diffusion with mesh-averaged HDO surface flux
+
+  write water/SSI diagnostics
+  convert final zu,zv,zhs,zq work states to pdudif,pdvdif,pdhdif,pdqdif</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>边界层 / 湍流扩散</td>
+<td>调用 <code>vdif_cd</code>、<code>yamada4</code>、<code>call_atke</code> 或 <code>vdif_kc</code>，并用隐式三对角解更新风、热力和 tracer 垂直廓线</td>
+</tr>
+<tr>
+<td>地表能量收支</td>
+<td>联立第一层大气热通量、地表热容量、辐射线性化和土壤/地表通量，输出 <code>pdtsrf</code> 与 <code>sensibFlux</code></td>
+</tr>
+<tr>
+<td>尘埃循环</td>
+<td>根据 <code>lifting/dustinjection/rdstorm/doubleq/submicron</code> 和 CO2 冰覆盖条件生成 dust/stormdust/submicron 地表注入通量</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td>处理 H2O vapor 与地表霜、永久冰盖、地下吸附水、地下冰和坡面之间的交换，并输出地表水冰和 watercap 倾向</td>
+</tr>
+<tr>
+<td>HDO 同位素循环</td>
+<td>在 H2O 通量之后调用 <code>hdo_surfex</code>，把同位素分馏后的 HDO 地表通量并入垂直扩散</td>
+</tr>
+<tr>
+<td>CO2 循环</td>
+<td>计算 CO2 凝结温度和热力质量变化项；当前 <code>co2clouds</code> 分支中凝结质量项被置零</td>
+</tr>
+<tr>
+<td>坡面物理</td>
+<td>使用 <code>major_slope</code> 作为大气主列耦合坡面，水冰通量逐坡面计算并通过 <code>subslope_dist</code> 平均回主列</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran，主例程很长，靠注释编号组织流程；复现时更适合按执行段拆分而不是按变量声明阅读。</li>
+<li>隐式扩散反复使用同一组 <code>za/zb/zc/zd</code> 工作数组；每个物理量在进入求解前都会重设地表或内部层的 <code>zb</code>。</li>
+<li><code>vdif_cd</code> 调用两次：第一次服务于 K 系数和初始地表层诊断，第二次用摩擦后风服务于起尘和升华。</li>
+<li>水汽段使用自适应子时间步，并在坡面真实面积和水平投影面积之间来回转换；这对质量收支很关键。</li>
+<li><code>firstcall</code>、<code>SAVE</code>、<code>THREADPRIVATE</code> 只用于 CO2 凝结常数和 tracer 索引缓存，不用于水/尘埃状态累积。</li>
+<li><code>pdqsdif</code> 的符号约定需按源码使用：尘埃注入路径使用负的 <code>alpha_lift</code> 或 <code>dustliftday*alpha_lift</code> 写入，H2O ice 倾向由 <code>zqsurf</code> 的差分得到。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>先把前序物理倾向加到 <code>zu/zv/zh/zq</code>，最后再相对同一工作基准差分输出；不要直接相对原始 <code>pu/pv/ph/pq</code> 计算扩散倾向。</li>
+<li><code>major_slope</code> 决定大气主列的热力和 K 系数上下文；水冰和地表温度仍逐坡面处理。</li>
+<li>动量和热量扩散使用不同地表导度：动量用 <code>zcdv</code>，热量/水汽新方案多处用 <code>zcdh</code>。</li>
+<li><code>callyamada4</code>、<code>callatke</code>、fallback <code>vdif_kc</code> 是互斥路径；<code>doubleq &amp;&amp; ngrid==1</code> 的 <code>80</code> 下限在三种路径之后统一施加。</li>
+<li>H2O 水汽地表交换必须保留 <code>make_tsub</code> 子步、<code>dryness</code> 缩放、<code>old_wsublimation_scheme</code> 的 <code>zcdv/zcdh</code> 选择、<code>watercaptag</code> 的 watercap 透支逻辑和坡面 <code>cos</code> 投影。</li>
+<li><code>adsorption_soil</code> 与非吸附 lag-layer 地下冰路径是不同实现；不要同时套用两套地下通量公式。</li>
+<li><code>hdo_surfex</code> 必须在 H2O 专段之后执行，因为它依赖 <code>saved_h2o_vap</code>、更新后的 <code>qsat_tmp</code>、H2O 通量和 <code>dwatercap_dif</code>。</li>
+<li>诊断 <code>zdqsdif_ssi_tot</code> 每步开头清零，只有当前步水汽段累计值；它不是 restart 累积量。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>行 900-902 的普通 tracer 守卫写成 <code>(.not.water).or.(.not.iq.eq.igcm_h2o_vap).or.(.not.iq.eq.igcm_hdo_vap)</code>。由于一个 <code>iq</code> 不可能同时等于 H2O vapor 和 HDO vapor，这个条件按字面几乎恒真。已有 <a href="../../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a> 标为复现风险；本页按源码行为记录，是否应为 <code>.and.</code> 需对照上游版本确认。</li>
+<li><code>co2clouds=.true.</code> 分支行 763-768 将 <code>zcondicea/dmice/pdtc</code> 置零，注释中保留了 <code>pcondicea_co2microp</code> 的使用痕迹；该路径的物理意图需结合 CO2 云主流程确认。</li>
+<li><code>hfmax</code> 作为 <code>vdifc</code> 入参声明但本文件未见实际使用；是否为历史接口保留待确认。</li>
+<li><code>compute_Tice</code> 中 <code>indexice</code> 是 integer，但行 1503 赋值 <code>0.</code>；Fortran 会转换为 0，是否为笔误不影响当前源码字面复现。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="physiq_mod.html">physiq_mod</a> - <code>physiq</code> 中 <code>calldifv</code> 调用 <code>vdifc</code> 并累加输出倾向。</li>
+<li><a href="vdif_cd_mod.html">vdif_cd_mod</a> - 地表层 Cd/Ch 交换系数。</li>
+<li><a href="vdif_kc.html">vdif_kc</a> - fallback K 系数方案。</li>
+<li><a href="yamada4.html">yamada4</a> - Mellor-Yamada K 系数路径。</li>
+<li><a href="lmdz_call_atke.html">lmdz_call_atke</a> - ATKE K 系数路径。</li>
+<li><a href="dust_windstress_lift.html">dust_windstress_lift</a> - 风应力起尘默认路径。</li>
+<li><a href="soilwater.html">soilwater</a> - 地下水汽/吸附水/地下冰求解器。</li>
+<li><a href="hdo_surfex_mod.html">hdo_surfex_mod</a> - HDO 地表-大气通量。</li>
+<li><a href="paleoclimate_mod.html">paleoclimate_mod</a> - lag-layer 地下冰共享状态。</li>
+<li><a href="../../routines/vdifc-water-surface-exchange.html">vdifc-water-surface-exchange</a> - H2O 地表交换段细页。</li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle</a>, <a href="../../themes/water-cycle.html">water-cycle</a>, <a href="../../themes/radiation.html">radiation</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

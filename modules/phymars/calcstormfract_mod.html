@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>calcstormfract_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/calcstormfract_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="calcstormfract_modf90">calcstormfract_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\calcstormfract_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>该文件定义火箭式尘暴（rocket dust storm）亚格点面积分数计算模块。它只提供一个例程 <code>calcstormfract</code>：从每个水平格点的 <code>stormdust_mass</code> 垂直廓线中取第 2 层到顶层的最大绝对质量混合比，用参考质量混合比 <code>5.e-4</code> 归一化，再把结果限制在 <code>[1.e-2, 0.6]</code>。输出 <code>totstormfract(ngrid)</code> 表示每个网格中被风暴尘埃占据的面积分数。</p>
+<p><code>physiq</code> 在辐射计算前、且 <code>rdstorm</code> 开启时调用本例程。后续 <code>callradite</code> / <code>aeropacity</code> / <code>rocketduststorm</code> 使用 <code>totstormfract</code> 把格点平均 stormdust 转换为风暴内部浓度或风暴内部光学厚度。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>calcstormfract_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>火箭式尘暴面积分数计算模块</td>
+</tr>
+<tr>
+<td><code>calcstormfract</code></td>
+<td>subroutine</td>
+<td>20</td>
+<td>根据 <code>stormdust_mass</code> 垂直廓线计算 <code>totstormfract</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_stormdust_mass</code></td>
+<td>定位 <code>pq(:,:,igcm_stormdust_mass)</code> 风暴尘埃质量混合比 tracer</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>本例程只使用 Fortran intrinsic：<code>maxval</code>、<code>abs</code>、<code>max</code>、<code>min</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方 <code>physiq</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>水平格点数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>调用方 <code>physiq</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>调用方 <code>physiq</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>tracer 数；本例程只用于声明 <code>pq</code> 维度</td>
+</tr>
+<tr>
+<td><code>pq(ngrid,nlayer,nq)</code></td>
+<td>调用方 <code>physiq</code></td>
+<td>real array</td>
+<td>kg/kg</td>
+<td>advected tracer 场；本例程只读取 <code>igcm_stormdust_mass</code> 分量</td>
+</tr>
+<tr>
+<td><code>igcm_stormdust_mass</code></td>
+<td><code>tracer_mod</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td><code>stormdust_mass</code> tracer 索引</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>totstormfract(ngrid)</code></td>
+<td><code>physiq</code>、<code>callradite</code>、<code>rocketduststorm</code>、<code>aeropacity</code></td>
+<td>real array</td>
+<td>-</td>
+<td>网格中火箭式尘暴占据的面积分数，限制在 0.01 到 0.6</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>只读 <code>tracer_mod</code> 中的 <code>igcm_stormdust_mass</code>。</li>
+<li>不写 module 变量、common block、文件或日志。</li>
+<li>无 <code>SAVE</code>、无 <code>THREADPRIVATE</code>、无 firstcall 初始化。</li>
+<li>无显式错误处理；若 <code>nlayer &lt; 2</code>，切片 <code>pq(ig,2:nlayer,...)</code> 不具备正常物理含义。复现 1 层测试时需额外确认。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>设置三个硬编码参数：
+<ul>
+<li><code>mmr_ref = 5.e-4</code>：参考质量混合比，源码注释说明对应 <code>tau=10</code> 的 OMEGA 本地尘暴。</li>
+<li><code>fracmax = 0.6</code>：最大风暴面积分数。</li>
+<li><code>fracmin = 1.e-2</code>：最小风暴面积分数。</li>
+</ul></li>
+<li>对每个水平格点 <code>ig</code>：
+<ul>
+<li>读取 <code>pq(ig,2:nlayer,igcm_stormdust_mass)</code>，即跳过第 1 层，从第 2 层到顶层取风暴尘埃质量混合比。</li>
+<li>取该垂直切片的最大值，再取绝对值：<code>abs(maxval(...))</code>。</li>
+<li>除以 <code>mmr_ref</code> 得到未限制的面积分数。</li>
+<li>先用 <code>max(..., fracmin)</code> 施加下限 0.01。</li>
+<li>再用 <code>min(..., fracmax)</code> 施加上限 0.6。</li>
+</ul></li>
+</ol>
+<p>源码行 56 的注释写有 <code>why from 2nd layer?</code>，说明跳过第 1 层的理由在源码内未解释。</p>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>calcstormfract(ngrid, nlayer, nq, pq, totstormfract):
+    mmr_ref = 5.e-4
+    fracmin = 1.e-2
+    fracmax = 0.6
+
+    for ig in 1..ngrid:
+        storm_mmr = abs(maxval(pq[ig, 2:nlayer, igcm_stormdust_mass]))
+        fraction = storm_mmr / mmr_ref
+        fraction = max(fraction, fracmin)
+        fraction = min(fraction, fracmax)
+        totstormfract[ig] = fraction</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>尘埃循环</td>
+<td>为火箭式尘暴分支提供亚格点面积分数</td>
+</tr>
+<tr>
+<td>辐射</td>
+<td><code>aeropacity</code> 用 <code>totstormfract</code> 把 stormdust 光学厚度换算为风暴区域内部光学厚度</td>
+</tr>
+<tr>
+<td>火箭式尘暴输运</td>
+<td><code>rocketduststorm</code> 用 <code>totstormfract</code> 在格点平均浓度和风暴内部浓度之间转换</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>.F90</code> 后缀但代码排版保留固定格式风格缩进。</li>
+<li>纯函数式辅助例程，无分配、无 I/O、无诊断。</li>
+<li><code>nq</code> 只用于 <code>pq</code> 形状声明，例程主体不直接读取。</li>
+<li><code>totstormfract</code> 永远至少为 <code>0.01</code>，即没有 stormdust 的格点也不会返回 0；这是为了后续除以 <code>totstormfract</code> 时避免除零。</li>
+<li><code>totstormfract</code> 最大为 <code>0.6</code>，对应最多 60% 网格面积被风暴尘埃占据。</li>
+<li>第 1 层被排除在 <code>maxval</code> 之外，源码只留下疑问注释，未说明物理理由。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须使用 <code>stormdust_mass</code>，不是 <code>stormdust_number</code> 或背景 <code>dust_mass</code>。</li>
+<li>垂直范围按源码为 <code>2:nlayer</code>；不要改成 <code>1:nlayer</code>，除非另有物理依据。</li>
+<li>下限和上限顺序为先 <code>max(fracmin)</code> 再 <code>min(fracmax)</code>。</li>
+<li>低 stormdust 或无 stormdust 时返回 <code>0.01</code>，会影响 <code>aeropacity</code> 中 <code>aerosol(...stormdust...)/totstormfract</code> 以及 <code>rocketduststorm</code> 中 <code>stormdust/totstormfract</code>。</li>
+<li><code>abs(maxval(...))</code> 只对最大值取绝对值；如果数组中全是负值，则结果是最接近 0 的负值取绝对值，而不是最大绝对值。正常 tracer 应非负，但复现异常输入时应按源码字面执行。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>为什么 <code>maxval</code> 跳过第 1 层（源码注释直接写 <code>why from 2nd layer?</code>）。</li>
+<li><code>abs(maxval(...))</code> 是否有意而不是 <code>maxval(abs(...))</code>；正常非负 tracer 下二者等价。</li>
+<li>1D 或测试配置若 <code>nlayer=1</code> 时该切片如何处理，当前源码没有保护。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="rocketduststorm_mod.html">rocketduststorm_mod</a>：火箭式尘暴垂直输运主模块，使用 <code>totstormfract</code> 做风暴内部浓度转换。</li>
+<li><a href="../../themes/dust-cycle.html">dust-cycle</a>：尘埃循环主题页。</li>
+<li><a href="dust_coagulation_mod.html">dust_coagulation_mod</a>：包含 <code>stormdust</code> 双矩 tracer 在凝并中的处理。</li>
+<li><a href="callsedim_mod.html">callsedim_mod</a>：包含 <code>stormdust</code> 沉降路径。</li>
+<li><a href="aeropacity_mod.html">aeropacity_mod</a>：在 section 5 中使用 <code>totstormfract</code> 把 stormdust 光学厚度折算到风暴面积内部浓度。</li>
+<li><a href="callradite_mod.html">callradite_mod.md</a>：辐射调度入口。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

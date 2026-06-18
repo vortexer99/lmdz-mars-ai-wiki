@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>fit_Iceinertia_MONSicedepth - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/fit_Iceinertia_MONSicedepth.md</span>
+    </nav>
+    <article class="content">
+<h1 id="fit_iceinertia_monsicedepthf">fit_Iceinertia_MONSicedepth.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util\xvik\fit_Iceinertia_MONSicedepth.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>util/xvik</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>fit_Iceinertia_MONSicedepth.F</code> 定义 Fortran 程序 <code>SUPERFIT</code>，是 <code>util/xvik</code> 下的 Viking Lander 1 压力拟合辅助程序。它读取四组 <code>xvik.F</code> 输出，分别代表冰深系数和冰热惯量的最小/最大组合；再用本目录的 <code>VL1</code> 观测曲线作为约束，暴力扫描北/南半球冰热惯量、北/南半球冰深系数和总 CO2 压力，寻找 VL1 压力均方差最小的组合。</p>
+<p>本文件是历史拟合脚本，不是通用 NetCDF 工具。源码顶部明确写有“THE FOLLOWING LINES MUST BE ADAPTED”，且数组长度、搜索步长、压力范围和文件命名都硬编码在源码或 <code>.def</code> 输入中。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SUPERFIT</code></td>
+<td>program</td>
+<td>1</td>
+<td>主程序：读取四组 xvik 输出和 <code>VL1</code>，扫描 CO2 cycle 参数并写出拟合结果。</td>
+</tr>
+<tr>
+<td><code>RUNAVE</code></td>
+<td>subroutine</td>
+<td>698</td>
+<td>对周期坐标上的数据做滑动平均。</td>
+</tr>
+<tr>
+<td><code>ls2sol</code></td>
+<td>subroutine</td>
+<td>753</td>
+<td>把 Ls 转换为 sol；用于读取 Ls-only xvik 输出时重建 sol 坐标。</td>
+</tr>
+<tr>
+<td><code>sol2ls</code></td>
+<td>subroutine</td>
+<td>798</td>
+<td>把 sol 转换为 Ls；用于最终 <code>pvlfit</code> 和 <code>xprestotfit</code> 输出。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="配套文件">配套文件</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>README</code></td>
+<td>说明本目录 5 个文件、编译脚本、输入样例和输出文件。</td>
+</tr>
+<tr>
+<td><code>compile_fit</code></td>
+<td>用 <code>gfortran fit_Iceinertia_MONSicedepth.F -o fit_Iceinertia_MONSicedepth.e</code> 编译。</td>
+</tr>
+<tr>
+<td><code>fit_Iceinertia_MONSicedepth.def</code></td>
+<td>标准输入样例，包含冰深/热惯量范围、四组 xvik 输出路径、年份、时间格式和 plot 模式。</td>
+</tr>
+<tr>
+<td><code>VL1</code></td>
+<td>669 行 Viking Lander 1 压力观测/谐波曲线，程序要求与可执行文件在同一目录。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>icedmin</code> / <code>icedmax</code></td>
+<td>stdin / <code>.def</code></td>
+<td>scalar</td>
+<td>coefficient</td>
+<td>冰深系数搜索下界/上界；示例为 <code>3.2e-4</code> 到 <code>1.3e-3</code>。</td>
+</tr>
+<tr>
+<td><code>iceimin</code> / <code>iceimax</code></td>
+<td>stdin / <code>.def</code></td>
+<td>scalar</td>
+<td>thermal inertia</td>
+<td>冰热惯量搜索下界/上界；示例为 <code>500</code> 到 <code>2000</code>。</td>
+</tr>
+<tr>
+<td><code>dset_DminImin</code></td>
+<td>stdin / <code>.def</code></td>
+<td>path</td>
+<td>-</td>
+<td>最小冰深 + 最小冰热惯量的 xvik 输出目录。</td>
+</tr>
+<tr>
+<td><code>dset_DminImax</code></td>
+<td>stdin / <code>.def</code></td>
+<td>path</td>
+<td>-</td>
+<td>最小冰深 + 最大冰热惯量的 xvik 输出目录。</td>
+</tr>
+<tr>
+<td><code>dset_DmaxImin</code></td>
+<td>stdin / <code>.def</code></td>
+<td>path</td>
+<td>-</td>
+<td>最大冰深 + 最小冰热惯量的 xvik 输出目录。</td>
+</tr>
+<tr>
+<td><code>dset_DmaxImax</code></td>
+<td>stdin / <code>.def</code></td>
+<td>path</td>
+<td>-</td>
+<td>最大冰深 + 最大冰热惯量的 xvik 输出目录。</td>
+</tr>
+<tr>
+<td><code>year_xvik</code></td>
+<td>stdin / <code>.def</code></td>
+<td>integer</td>
+<td>-</td>
+<td>追加到 <code>xpsol1N</code> 和 <code>xprestotN</code> 文件名的年份编号。</td>
+</tr>
+<tr>
+<td><code>time_unit</code></td>
+<td>stdin / <code>.def</code></td>
+<td>1/2/3</td>
+<td>-</td>
+<td>xvik 文件列格式：1=sol，2=Ls，3=sol+Ls。</td>
+</tr>
+<tr>
+<td><code>plot_test</code></td>
+<td>stdin / <code>.def</code></td>
+<td>1/2</td>
+<td>-</td>
+<td><code>minimization.txt</code> 输出切片：1 写 <code>COST(DN,DS)</code>，2 写 <code>COST(IN,IS)</code>。</td>
+</tr>
+<tr>
+<td><code>xpsol1N</code></td>
+<td>四组 xvik 输出目录</td>
+<td>text table</td>
+<td>Pa</td>
+<td>VL1 站点模拟压力；列格式由 <code>time_unit</code> 决定。</td>
+</tr>
+<tr>
+<td><code>xprestotN</code></td>
+<td>四组 xvik 输出目录</td>
+<td>text table</td>
+<td>Pa</td>
+<td><code>patm, pcapn, pcaps</code>；列格式由 <code>time_unit</code> 决定。</td>
+</tr>
+<tr>
+<td><code>VL1</code></td>
+<td>当前工作目录</td>
+<td>669 行 text table</td>
+<td>sol, Ls, Pa</td>
+<td>VL1 观测压力曲线。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="硬编码参数">硬编码参数</h2>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>源码值</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngcm</code></td>
+<td>8028</td>
+<td>每组 xvik 原始记录数；注释保留 10704 和 2672 的替代值。</td>
+</tr>
+<tr>
+<td><code>nvl1</code> / <code>nsol</code></td>
+<td>669 / 669</td>
+<td>VL1 观测长度和每日平滑输出长度。</td>
+</tr>
+<tr>
+<td><code>refrun</code></td>
+<td>1</td>
+<td>以第一组 <code>Dmin/Imin</code> 作为线性化参考。</td>
+</tr>
+<tr>
+<td><code>maxiceidiff</code></td>
+<td>3000</td>
+<td>允许南北冰热惯量差异的上限。</td>
+</tr>
+<tr>
+<td><code>deltaicei</code></td>
+<td>20</td>
+<td>冰热惯量扫描步长。</td>
+</tr>
+<tr>
+<td><code>maxiceddiff</code></td>
+<td><code>30.e-4</code></td>
+<td>允许南北冰深系数差异的上限。</td>
+</tr>
+<tr>
+<td><code>deltaiced</code></td>
+<td><code>0.5e-4</code></td>
+<td>冰深系数扫描步长。</td>
+</tr>
+<tr>
+<td><code>pmin/pmax/deltap</code></td>
+<td><code>690/720/1.0</code></td>
+<td>总 CO2 压力扫描范围和步长。</td>
+</tr>
+<tr>
+<td>平滑窗口</td>
+<td>20 sol、60 sol</td>
+<td>原始压力用 20 sol 运行平均；敏感度导数再用 60 sol 平滑。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>minimization.txt</code></td>
+<td>当前工作目录</td>
+<td>text table</td>
+<td>每个切片上的最小 RMS、对应另一组参数和总压力；格式由 <code>plot_test</code> 决定。</td>
+</tr>
+<tr>
+<td>stdout</td>
+<td>终端</td>
+<td>text</td>
+<td>最优 <code>Ptot/In/IS/Dn/DS</code> 和 RMS。</td>
+</tr>
+<tr>
+<td><code>pvlfit</code></td>
+<td>当前工作目录</td>
+<td>669 行 text table</td>
+<td>最优参数下的合成 VL1 压力：<code>sol, Ls, pvl1_fit</code>。</td>
+</tr>
+<tr>
+<td><code>xprestotfit</code></td>
+<td>当前工作目录</td>
+<td>669 行 text table</td>
+<td>最优参数下的 CO2 库存分解：<code>sol, Ls, patm, pcapn, pcaps, pfit</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>读搜索范围和四组输出目录</strong>：从 stdin 读取冰深系数、冰热惯量范围、四个 xvik 输出目录、年份、时间列格式和 <code>plot_test</code>。</li>
+<li><strong>构造四个实验角点</strong>：
+<ul>
+<li>run 1: <code>Dmin/Imin</code></li>
+<li>run 2: <code>Dmin/Imax</code></li>
+<li>run 3: <code>Dmax/Imin</code></li>
+<li>run 4: <code>Dmax/Imax</code></li>
+</ul></li>
+<li><strong>打开 xvik 输出文件</strong>：按 <code>write(filename1,'(a6,i1)') 'xpsol1',year_xvik</code> 和 <code>write(filename2,'(a8,i1)') 'xprestot',year_xvik</code> 构造文件名。</li>
+<li><strong>读观测和模拟数据</strong>：
+<ul>
+<li><code>VL1</code> 提供 <code>solvl, lsvl, pvl_obs</code>。</li>
+<li><code>xpsol1N</code> 读入四组 <code>pvl_gcm</code>。</li>
+<li><code>xprestotN</code> 读入四组 <code>patm, pcapn, pcaps</code>。</li>
+<li>若 <code>time_unit=2</code>，调用 <code>ls2sol</code> 把 Ls 转为 sol。</li>
+</ul></li>
+<li><strong>总 CO2 压力一致性检查</strong>：每组 run 在首个时间点定义 <code>ptot</code>，后续若 <code>patm+pcapn+pcaps</code> 偏离超过 3 Pa 则打印警告。</li>
+<li><strong>平滑到每日 sol 网格</strong>：<code>RUNAVE</code> 用周期 669 sol 和 20 sol 窗口把四组 VL1 压力、<code>patm</code>、<code>pcapn</code>、<code>pcaps</code> 平滑到 <code>sol=1..669</code>。</li>
+<li><strong>估计敏感度导数</strong>：
+<ul>
+<li><code>dpdicein/dpdiceis</code> 由 run 1-2 与 3-4 差分估计北/南 CO2 cap 对冰热惯量的敏感度。</li>
+<li><code>dpden/dpdes</code> 由 run 1-3 与 2-4 差分估计北/南 CO2 cap 对冰深系数的敏感度。</li>
+<li><code>alphavl1</code> 是四组 <code>pvl_sm/patm_sm</code> 的平均。</li>
+<li>四条导数再用 60 sol 窗口平滑。</li>
+</ul></li>
+<li><strong>暴力扫描最优参数</strong>：
+<ul>
+<li><code>plot_test=1</code> 时外层扫描 <code>DN,DS</code>，内层扫描 <code>IN,IS,Ptot</code>，输出适合画 <code>COST(DN,DS)</code> 的表。</li>
+<li><code>plot_test=2</code> 时外层扫描 <code>IN,IS</code>，内层扫描 <code>DN,DS,Ptot</code>，输出适合画 <code>COST(IN,IS)</code> 的表。</li>
+<li>每个候选点用线性化公式构造 <code>pcapn_new/pcaps_new</code>，并限制为非负。</li>
+<li>VL1 压力预测为 <code>alphavl1*(ptry-pcapn_new-pcaps_new)</code>。</li>
+<li>cost 是 669 个 sol 上观测和预测压力差平方和。</li>
+</ul></li>
+<li><strong>写最优合成曲线</strong>：用最优参数重新生成 <code>pvlfit</code> 和 <code>xprestotfit</code>，并调用 <code>sol2ls</code> 输出 Ls。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>read icedmin, icedmax, iceimin, iceimax
+read four xvik output directories, year_xvik, time_unit, plot_test
+assign run1..run4 to D/I corner combinations
+open xpsol1N and xprestotN in each directory
+read VL1 observed pressure curve
+for n in 1..ngcm:
+  read four simulated VL1 pressure series
+  read four patm/pcapn/pcaps series
+  convert Ls to sol if needed
+  check total CO2 pressure consistency
+smooth pvl, patm, pcapn, pcaps to 669-sol grid
+compute sensitivity derivatives to ice inertia and ice depth
+smooth derivatives with 60-sol window
+for each allowed DN, DS, IN, IS, Ptot:
+  construct pcapn_new and pcaps_new from reference run and sensitivities
+  pvl1 = alphavl1 * (Ptot - pcapn_new - pcaps_new)
+  cost = sum((VL1_obs - pvl1)^2)
+  update global best fit and plot-slice best fit
+write minimization.txt
+write pvlfit and xprestotfit for best fit</code></pre>
+<h2 id="与-xvikf-的关系">与 xvik.F 的关系</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>源码事实</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>预期上游</td>
+<td>本程序的提示、README 和 <code>.def</code> 都说输入来自 <code>xvik.F</code> 输出。</td>
+</tr>
+<tr>
+<td>当前文件名</td>
+<td>本程序硬编码读取 <code>xpsol1N</code> 和 <code>xprestotN</code>。</td>
+</tr>
+<tr>
+<td>已有 xvik 页面记录</td>
+<td><a href="../dynphy_lonlat/xvik.html">xvik.F</a> 页面记录当前源码输出 <code>ps_VL1_yearN</code>、<code>ps_VL2_yearN</code>、<code>ps_INS_yearN</code> 和 <code>prestot_yearN</code>。</td>
+</tr>
+<tr>
+<td>兼容性风险</td>
+<td><code>xpsol1N/xprestotN</code> 与当前 <code>xvik.F</code> 页面记录的命名不一致，可能是历史分支或需重命名/预处理。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>编译用 <code>util/xvik/compile_fit</code>，不会链接 NetCDF；本程序只读写 ASCII 文本。</li>
+<li>运行目录必须能读取 <code>VL1</code>，否则 <code>open(30,file='VL1')</code> 没有显式 <code>iostat</code> 检查，会在后续 read 路径失败。</li>
+<li>四个 xvik 输出目录必须分别代表 <code>Dmin/Imin</code>、<code>Dmin/Imax</code>、<code>Dmax/Imin</code>、<code>Dmax/Imax</code>。</li>
+<li><code>year_xvik</code> 只按一位整数拼入文件名；多位年份编号会被格式截断或不匹配。</li>
+<li><code>ngcm=8028</code> 必须与输入 xvik 文件行数一致，不一致会读错或提前 EOF。</li>
+<li><code>plot_test</code> 只接受 1 或 2；其他值会停止。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>xpsol1N/xprestotN</code> 与当前 <code>xvik.F</code> 输出 <code>ps_VL*_yearN/prestot_yearN</code> 的历史对应关系。</li>
+<li><code>fit</code> 逻辑里仍有“cap albedo”旧注释，但当前实际扫描的是冰热惯量、冰深系数和总压力；是否保留 albedo 拟合路径需查历史版本。</li>
+<li><code>fonc</code>、<code>fonc2n</code>、<code>fonc2s</code> 当前都是恒等函数，旧注释中的指数/log 变换是否仍有科学用途需确认。</li>
+<li><code>VL1</code> 文件第三列是压力曲线；README 称其为 VL1 surface pressure harmonics，但实际文件内容需结合生成流程确认。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li>硬编码数组长度和搜索步长需要针对每组数据手工修改。</li>
+<li><code>RUNAVE</code> 内部 <code>xx(nbig)</code> 使用 <code>99999999</code> 个 real，内存占用约数百 MB。</li>
+<li><code>minimization.txt</code>、<code>pvlfit</code>、<code>xprestotfit</code> 会覆盖同名文件。</li>
+<li>搜索是五重循环，步长变小会显著增加运行时间。</li>
+<li>输入文件打开大多有 <code>iostat</code> 检查，但 <code>VL1</code> 没有显式打开失败检查。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">util/index.md</a> - util 后处理工具总览。</li>
+<li><a href="../dynphy_lonlat/xvik.html">xvik.F</a> - Viking/InSight 压力后处理程序和上游输出说明。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

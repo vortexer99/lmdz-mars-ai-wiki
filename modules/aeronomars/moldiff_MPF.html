@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>moldiff_MPF - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/moldiff_MPF.md</span>
+    </nav>
+    <article class="content">
+<h1 id="moldiff_mpff90">moldiff_MPF.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\moldiff_MPF.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>moldiff_MPF_mod</code> 是 LMDZ.MARS 的<strong>当前默认</strong>（<code>moldiff_scheme==2</code>）分子扩散模块，在 <code>Pdiff=15 Pa</code> 以上热层区域求解动态数量（最多 16 种）中性物种的分子扩散。它基于 <strong>Modified Pass Flow (MPF)</strong> 方法（Parshev et al. 1987，2023 年 6 月 JYC 更新），逐物种独立求解含分子扩散、涡旋扩散和热扩散的隐式一维垂直输运方程，并在顶部用 Jeans 逃逸处理 H/H₂/D 逃逸通量。与 <code>moldiff_red</code>（legacy scheme）的主要区别是：可选柱质量修正器（<code>call_mass_fixer_moldiff_MPF</code>）和 MPF 算法框架。由 <code>thermosphere_mod.F</code> 在 <code>callmoldiff</code> 且 <code>moldiff_scheme==2</code> 时调用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>moldiff_MPF_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>包装 MPF 分子扩散主例程和 ~22 个内部辅助例程</td>
+</tr>
+<tr>
+<td><code>moldiff_MPF</code></td>
+<td>subroutine</td>
+<td>12–876</td>
+<td>16 物种 MPF 分子扩散求解器</td>
+</tr>
+<tr>
+<td><code>tridagbloc</code></td>
+<td>subroutine</td>
+<td>885–981</td>
+<td>块三对角 Thomas 算法求解器（LU 分解）</td>
+</tr>
+<tr>
+<td><code>tridag</code></td>
+<td>subroutine</td>
+<td>983–1004</td>
+<td>标准三对角 Thomas 算法求解器</td>
+</tr>
+<tr>
+<td><code>LUBKSB</code></td>
+<td>subroutine</td>
+<td>1010–1043</td>
+<td>LU 分解回代（Numerical Recipes）</td>
+</tr>
+<tr>
+<td><code>LUDCMP</code></td>
+<td>subroutine</td>
+<td>1049–1129</td>
+<td>LU 分解 + 部分主元选取（Numerical Recipes，<code>NMAX=100</code>）</td>
+</tr>
+<tr>
+<td><code>TMNEW</code></td>
+<td>subroutine</td>
+<td>1131–1149</td>
+<td>前向推算温度（已定义但主例程内联，未调用）</td>
+</tr>
+<tr>
+<td><code>QMNEW</code></td>
+<td>subroutine</td>
+<td>1151–1168</td>
+<td>前向推算混合比（已定义但主例程内联，未调用）</td>
+</tr>
+<tr>
+<td><code>HSCALE</code></td>
+<td>subroutine</td>
+<td>1170–1184</td>
+<td>对数气压标高</td>
+</tr>
+<tr>
+<td><code>MMOY</code></td>
+<td>subroutine</td>
+<td>1186–1201</td>
+<td>平均分子质量</td>
+</tr>
+<tr>
+<td><code>DMMOY</code></td>
+<td>subroutine</td>
+<td>1203–1215</td>
+<td>平均分子质量垂直梯度（3 点差分）</td>
+</tr>
+<tr>
+<td><code>ZVERT</code></td>
+<td>subroutine</td>
+<td>1217–1246</td>
+<td>静力方程积分求高度</td>
+</tr>
+<tr>
+<td><code>RHOTOT</code></td>
+<td>subroutine</td>
+<td>1248–1266</td>
+<td>总质量密度和分密度</td>
+</tr>
+<tr>
+<td><code>UPPER_RESOL</code></td>
+<td>subroutine</td>
+<td>1268–1357</td>
+<td>GCM 网格→等间距高度网格重插</td>
+</tr>
+<tr>
+<td><code>CORRMASS</code></td>
+<td>subroutine</td>
+<td>1359–1370</td>
+<td>质量修正因子</td>
+</tr>
+<tr>
+<td><code>DCOEFF</code></td>
+<td>subroutine</td>
+<td>1373–1400</td>
+<td>Wilke 多组分扩散系数</td>
+</tr>
+<tr>
+<td><code>HSCALEREAL</code></td>
+<td>subroutine</td>
+<td>1402–1429</td>
+<td>物种密度标高</td>
+</tr>
+<tr>
+<td><code>VELVERT</code></td>
+<td>subroutine</td>
+<td>1431–1460</td>
+<td>扩散垂直速度</td>
+</tr>
+<tr>
+<td><code>TIMEDIFF</code></td>
+<td>subroutine</td>
+<td>1462–1474</td>
+<td>扩散时间尺度</td>
+</tr>
+<tr>
+<td><code>DIFFPARAM</code></td>
+<td>subroutine</td>
+<td>1477–1503</td>
+<td>无量纲扩散方程系数</td>
+</tr>
+<tr>
+<td><code>SEQUENCY</code></td>
+<td>subroutine</td>
+<td>1506–1524</td>
+<td>α/β 递推序列</td>
+</tr>
+<tr>
+<td><code>Checkmass</code></td>
+<td>subroutine</td>
+<td>1526–1539</td>
+<td>质量守恒诊断（高度网格）</td>
+</tr>
+<tr>
+<td><code>Checkmass2</code></td>
+<td>subroutine</td>
+<td>1541–1561</td>
+<td>质量守恒诊断（气压网格）</td>
+</tr>
+<tr>
+<td><code>GCMGRID_P</code></td>
+<td>subroutine</td>
+<td>1563–1662</td>
+<td>高度网格→GCM 气压网格回插（用于质量估计）</td>
+</tr>
+<tr>
+<td><code>GCMGRID_P2</code></td>
+<td>subroutine</td>
+<td>1664–1778</td>
+<td>高度网格→GCM 气压网格回插（最终，含 FacMass）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="扩散物种列表listediffnb16">扩散物种列表（<code>ListeDiffNb=16</code>）</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">本地索引</th>
+<th>ListeDiff 名</th>
+<th>物种</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td><code>co2</code></td>
+<td>CO₂</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td><code>o</code></td>
+<td>O</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td><code>n2</code></td>
+<td>N₂</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td><code>ar</code></td>
+<td>Ar</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td><code>co</code></td>
+<td>CO</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td><code>h2</code></td>
+<td>H₂</td>
+<td>Jeans 逃逸 + 质量修正器补偿</td>
+</tr>
+<tr>
+<td style="text-align: right;">7</td>
+<td><code>h</code></td>
+<td>H</td>
+<td>Jeans 逃逸</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td><code>d2</code></td>
+<td>D₂</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">9</td>
+<td><code>hd</code></td>
+<td>HD</td>
+<td>热扩散 <code>alphaT=-0.25</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">10</td>
+<td><code>d</code></td>
+<td>D</td>
+<td>Jeans 逃逸</td>
+</tr>
+<tr>
+<td style="text-align: right;">11</td>
+<td><code>o2</code></td>
+<td>O₂</td>
+<td>质量修正器补偿 O</td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td><code>h2o_vap</code></td>
+<td>H₂O</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">13</td>
+<td><code>o3</code></td>
+<td>O₃</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">14</td>
+<td><code>n</code></td>
+<td>N</td>
+<td>质量修正器补偿</td>
+</tr>
+<tr>
+<td style="text-align: right;">15</td>
+<td><code>he</code></td>
+<td>He</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td><code>hdo_vap</code></td>
+<td>HDO</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="模块级参数">模块级参数</h3>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th>值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Pdiff</code></td>
+<td>real*8, parameter</td>
+<td>15.</td>
+<td>扩散计算的气压阈值 (Pa)</td>
+</tr>
+<tr>
+<td><code>tdiffmin</code></td>
+<td>real*8, parameter</td>
+<td>5d0</td>
+<td>最小扩散时间步 (s)</td>
+</tr>
+<tr>
+<td><code>dzres</code></td>
+<td>real*8, parameter</td>
+<td>2d0</td>
+<td>扩散网格分辨率 (km)</td>
+</tr>
+<tr>
+<td><code>call_mass_fixer_moldiff_MPF</code></td>
+<td>logical, save</td>
+<td><code>.false.</code></td>
+<td>质量修正器开关；由 <code>conf_phys.F</code> 通过 <code>getin_p</code> 读取</td>
+</tr>
+</tbody>
+</table>
+<h3 id="共享状态save--omp-threadprivate">共享状态（SAVE + OMP THREADPRIVATE）</h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>i_h/i_h2/i_d/i_hd</code></td>
+<td>integer, save</td>
+<td>逃逸物种在扩散列表中的索引（初始化 1000 表示不存在）</td>
+</tr>
+<tr>
+<td><code>il0</code></td>
+<td>integer, save</td>
+<td>扩散起始垂直索引（<code>pplay &gt; Pdiff</code> 之上第一层）</td>
+</tr>
+<tr>
+<td><code>il1</code></td>
+<td>integer, save</td>
+<td>质量修正缩放起始索引（<code>pplay &gt; 1 Pa</code> 之上第一层）</td>
+</tr>
+<tr>
+<td><code>ncompdiff</code></td>
+<td>integer, save</td>
+<td>实际扩散物种数</td>
+</tr>
+<tr>
+<td><code>gcmind(:)</code></td>
+<td>integer, allocatable, save</td>
+<td>本地索引→GCM tracer 索引映射</td>
+</tr>
+<tr>
+<td><code>masscorrfac(:)</code></td>
+<td>real*8, allocatable, save</td>
+<td>各物种质量修正因子</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td>logical, save</td>
+<td>首次调用标志</td>
+</tr>
+<tr>
+<td><code>dij(:,:)</code></td>
+<td>real, allocatable, save</td>
+<td>二元扩散系数矩阵</td>
+</tr>
+<tr>
+<td><code>step</code></td>
+<td>real, save</td>
+<td>调用计数器</td>
+</tr>
+</tbody>
+</table>
+<h2 id="use-依赖">use 依赖</h2>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>引用符号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>noms</code>, <code>mmol</code></td>
+<td>tracer 名称和摩尔质量</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>cell_area</code></td>
+<td>网格面积（计算逃逸通量 s⁻¹）</td>
+</tr>
+<tr>
+<td><code>planetwide_mod</code></td>
+<td><code>planetwide_sumval</code></td>
+<td>全行星求和（非 <code>MESOSCALE</code>，逃逸通量汇总）</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code>, <code>bcast</code></td>
+<td>并行通信（<code>il0</code>/<code>il1</code> 广播）</td>
+</tr>
+<tr>
+<td><code>moldiffcoeff_red_mod</code></td>
+<td><code>moldiffcoeff_red</code></td>
+<td>二元扩散系数矩阵 <code>dij</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="call-调用">call 调用</h2>
+<table>
+<thead>
+<tr>
+<th>被调例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>moldiffcoeff_red</code></td>
+<td><code>moldiffcoeff_red_mod</code></td>
+<td>238</td>
+<td>firstcall 时获取 <code>dij</code> 扩散系数矩阵</td>
+</tr>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_para</code></td>
+<td>232–233</td>
+<td>广播 <code>il0</code>/<code>il1</code></td>
+</tr>
+<tr>
+<td><code>planetwide_sumval</code></td>
+<td><code>planetwide_mod</code></td>
+<td>868–870</td>
+<td>逃逸通量全行星求和</td>
+</tr>
+<tr>
+<td><code>ludcmp</code></td>
+<td>本文件</td>
+<td>tridagbloc 内</td>
+<td>LU 分解块三对角矩阵</td>
+</tr>
+<tr>
+<td><code>lubksb</code></td>
+<td>本文件</td>
+<td>tridagbloc 内</td>
+<td>LU 回代</td>
+</tr>
+</tbody>
+</table>
+<h2 id="moldiff_mpf-参数表"><code>moldiff_MPF</code> 参数表</h2>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>方向</th>
+<th>维度</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>in</td>
+<td>scalar</td>
+<td>大气柱数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>in</td>
+<td>scalar</td>
+<td>大气层数</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>in</td>
+<td>scalar</td>
+<td>平流 tracer 数</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td>in</td>
+<td><code>(ngrid, nlayer)</code></td>
+<td>层中心气压 (Pa)</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td>in</td>
+<td><code>(ngrid, nlayer+1)</code></td>
+<td>层界面气压 (Pa)</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td>in</td>
+<td><code>(ngrid, nlayer)</code></td>
+<td>温度 (K)</td>
+</tr>
+<tr>
+<td><code>pdt</code></td>
+<td>in</td>
+<td><code>(ngrid, nlayer)</code></td>
+<td>温度倾向 (K/s)</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td>in</td>
+<td><code>(ngrid, nlayer, nq)</code></td>
+<td>tracer 质量混合比 (kg/kg)</td>
+</tr>
+<tr>
+<td><code>pdq</code></td>
+<td>in</td>
+<td><code>(ngrid, nlayer, nq)</code></td>
+<td>tracer 倾向 (kg/kg/s)</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>in</td>
+<td>scalar</td>
+<td>物理时步 (s)</td>
+</tr>
+<tr>
+<td><code>pdqdiff</code></td>
+<td>out</td>
+<td><code>(ngrid, nlayer, nq)</code></td>
+<td>分子扩散 tracer 倾向 (kg/kg/s)</td>
+</tr>
+<tr>
+<td><code>PhiEscH</code></td>
+<td>out</td>
+<td>scalar</td>
+<td>H 全行星逃逸通量 (s⁻¹)</td>
+</tr>
+<tr>
+<td><code>PhiEscH2</code></td>
+<td>out</td>
+<td>scalar</td>
+<td>H₂ 全行星逃逸通量 (s⁻¹)</td>
+</tr>
+<tr>
+<td><code>PhiEscD</code></td>
+<td>out</td>
+<td>scalar</td>
+<td>D 全行星逃逸通量 (s⁻¹)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>call_mass_fixer_moldiff_MPF</code> 为 module 级 <code>SAVE</code> 变量，由 <code>conf_phys.F</code>（第 1258–1264 行）通过 <code>getin_p("call_mass_fixer_moldiff_MPF", ...)</code> 读取。</li>
+<li><code>firstcall</code> 翻转后 <code>dij</code>、<code>gcmind</code> 和可选 <code>masscorrfac</code> 被 <code>SAVE</code> 缓存，后续调用跳过初始化。</li>
+<li>所有 SAVE 变量均有 <code>!$OMP THREADPRIVATE</code> 声明，支持 OpenMP 并行。</li>
+<li>每次 firstcall 打印 <code>'specie X diffused in moldiff_MPF'</code> 和 <code>'number of diffused species: N'</code>。</li>
+<li>非 <code>MESOSCALE</code> 编译时，调用 <code>planetwide_sumval</code> 对逃逸通量做全行星求和。</li>
+<li><code>MESOSCALE</code> 编译时，打印 <code>"no planetwide in MESOSCALE"</code> 并跳过求和。</li>
+<li><code>Zmax &gt; 4000 km</code> 或 NaN 时 <code>stop</code>。</li>
+<li><code>GCMGRID_P2</code> 中的外推循环设 <code>compteur &gt;= 100000</code> 上限防无限循环。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="firstcall-初始化第-150267-行">firstcall 初始化（第 150–267 行）</h3>
+<ol type="1">
+<li>构造 16 物种 <code>ListeDiff</code> 列表，逐 tracer 按 <code>noms</code> 名匹配，统计实际存在的 <code>ncompdiff</code> 种。</li>
+<li>记录 <code>i_h/i_h2/i_d/i_hd</code> 在扩散列表中的位置（默认 1000 表示不存在）。</li>
+<li>master 上找 <code>il0</code>（<code>pplay &gt; 15 Pa</code> 之上第一层）和可选 <code>il1</code>（<code>pplay &gt; 1 Pa</code> 之上第一层），再 <code>bcast</code>。</li>
+<li>调用 <code>moldiffcoeff_red(dij, indic_diff, gcmind, ncompdiff)</code> 获取二元扩散系数矩阵。</li>
+<li>分配所有 SAVE 工作数组（<code>qq/qnew/qint/FacMass/rhoK/rhokinit</code> 和可选质量修正数组 <code>Mtot1-3/Mhi1-2</code>）。</li>
+</ol>
+<h3 id="逐列求解第-297865-行do-ig1ngrid">逐列求解（第 297–865 行，<code>do ig=1,ngrid</code>）</h3>
+<ol type="1">
+<li><strong>前向推算</strong>（第 304–323 行）：<code>tt = pt + pdt·dt</code>（NaN 检查）；<code>qq = pq + pdq·dt</code>（<code>max(1d-30)</code> 钳位）。</li>
+<li><strong>大气结构</strong>（第 327–344 行）：<code>HSCALE</code> 气压标高、<code>MMOY</code> 平均分子质量、<code>DMMOY</code> 梯度、<code>ZVERT</code> 静力高度、<code>RHOTOT</code> 密度。</li>
+<li><strong>质量守恒前测</strong>（第 352–369 行，仅 <code>call_mass_fixer</code>）：柱积分质量 <code>Mtot1</code> 和 1 Pa 以上质量 <code>Mhi1</code>。</li>
+<li><strong>安全检查</strong>（第 377–384 行）：<code>Zmax &gt; 4000 km</code> 则 <code>stop</code>。</li>
+<li><strong>高度网格构造</strong>（第 390–415 行）：<code>nlraf = (Zmax-Zmin)/dzres + 1</code>（最少 40 层），<code>UPPER_RESOL</code> 将 GCM 气压层插值到等间距高度网格（<code>Rrafk</code> 用幂律插值保持正性）。</li>
+<li><strong>涡旋扩散</strong>（第 422–426 行）：Krasnopolsky 2002 方案 <code>K = K0·sqrt(T·T_TOA·kB/P)</code>，<code>K0=1.2e11</code>。</li>
+<li><strong>质量修正因子</strong>（第 430–435 行）：<code>GCMGRID_P</code> 回插→<code>CORRMASS</code> 得 <code>FacMass = qq/qint</code>。</li>
+<li><strong>Jeans 逃逸速度</strong>（第 487–501 行）：对 H/H₂/D，<code>wi = Uthermal/(2√π)·exp(-Λ)·(Λ+1)</code>；热扩散系数 <code>alphaT=-0.25</code>（H/H₂/D/HD）。</li>
+<li><strong>扩散系数和时间步</strong>（第 513–541 行）：逐物种 <code>DCOEFF</code>（Wilke 多组分公式）、<code>HSCALEREAL</code>、<code>VELVERT</code>（含热扩散项）、<code>TIMEDIFF</code>。最终 <code>tdiff = ptimestep/5</code>，<code>ntime = ptimestep/tdiff = 5</code>。</li>
+<li><strong>时间循环</strong>（第 552–678 行，<code>do istep=1,ntime</code>）：
+<ul>
+<li>逐物种非无量纲化：<code>H0 = kT₀/(m·g)</code>，<code>D0 = Draf(TOA)</code>，<code>Time0 = H0²/D0</code>。</li>
+<li><code>DIFFPARAM</code>：构造 <code>delta/ksi/eps/zeta/prod/loss</code> 含温度梯度和热扩散。</li>
+<li><code>SEQUENCY</code>：从顶到底递推 <code>alpha/beta</code>。</li>
+<li>从底到顶正向求解 <code>Xtri(l)</code> 得新密度分布。</li>
+<li>NaN/负值检查（CO₂ 负值 <code>stop</code>）。</li>
+<li>更新 <code>Rrafk</code>、总密度、混合比、气压。</li>
+</ul></li>
+<li><strong>回插到 GCM 网格</strong>（第 693–694 行）：<code>GCMGRID_P2</code> 含 <code>FacMass</code> 修正。</li>
+<li><strong>逃逸通量</strong>（第 702–706 行）：<code>Phiaux(ig) = wi·Nrafk(nlraf)·cell_area(ig)</code>。</li>
+<li><strong>质量修正器</strong>（第 724–806 行，仅 <code>call_mass_fixer</code>）：
+<ul>
+<li>柱积分 <code>Mtot2/Mhi2</code>（扩散后）。</li>
+<li>非 H/N/O 物种：<code>masscorrfac = (Mtot1 - Mhi2)/(Mtot2 - Mhi2)</code>，缩放 <code>il1</code> 以下混合比。</li>
+<li>O 损失 → 补偿 O₂（<code>masscorrfac1</code>）；H → H₂；N → N₂。</li>
+</ul></li>
+<li><strong>写倾向</strong>（第 816–848 行）：
+<ul>
+<li><code>call_mass_fixer</code>：非 CO₂ 物种 <code>pdqdiff = (qnew-qq)/ptimestep</code>，CO₂ 倾向 = <code>-Σ(其他)</code>。</li>
+<li>传统：所有物种直接 <code>pdqdiff = (qnew-qq)/ptimestep</code>。</li>
+</ul></li>
+</ol>
+<h3 id="全行星逃逸通量汇总第-867873-行">全行星逃逸通量汇总（第 867–873 行）</h3>
+<p>非 <code>MESOSCALE</code>：<code>planetwide_sumval(PhiauxH, PhiEscH)</code> 等。<code>MESOSCALE</code> 跳过。</p>
+<h2 id="伪代码">伪代码</h2>
+<pre><code>moldiff_MPF(ngrid, nlayer, nq, ..., pdqdiff, PhiEscH, PhiEscH2, PhiEscD):
+    if firstcall:
+        build ListeDiff(16), match present species → ncompdiff
+        find i_h, i_h2, i_d, i_hd
+        find il0 (P &gt; 15 Pa boundary), il1 (P &gt; 1 Pa boundary)
+        moldiffcoeff_red(dij)
+        allocate SAVE arrays
+        firstcall = .false.
+
+    PhiEscH = PhiEscH2 = PhiEscD = 0
+
+    for ig = 1, ngrid:
+        tt = pt + pdt * dt                        # forward temperature
+        qq = pq + pdq * dt                        # forward mixing ratios, clip ≥ 1e-30
+        HSCALE, MMOY, DMMOY, ZVERT, RHOTOT        # atmospheric structure
+        if mass_fixer: Mtot1, Mhi1                 # pre-diffusion column mass
+        nlraf = max(40, (Zmax-Zmin)/dzres+1)       # refined altitude grid
+        UPPER_RESOL → Praf/Traf/Qraf/Zraf/...      # interpolate to equal-dz grid
+        Kraf = K0 * sqrt(T*T_TOA*kB/P)             # eddy diffusion (Krasnopolsky 2002)
+        GCMGRID_P + CORRMASS → FacMass             # mass correction factors
+
+        for nn = 1, ncompdiff:
+            DCOEFF (Wilke), HSCALEREAL, VELVERT, TIMEDIFF
+        tdiff = ptimestep / 5; ntime = 5
+
+        for istep = 1, ntime:
+            for nn = 1, ncompdiff:
+                non-dimensionalize (H0, D0, Time0)
+                DIFFPARAM → delta/ksi/eps/zeta/prod/loss
+                SEQUENCY → alpha/beta (top-down recurrence)
+                Xtri = forward solve (bottom-up)     # new density profile
+                update Rrafk(l,nn) = rho0 * Xtri(l)
+            update Rraf, Qraf, Mraf, Praf
+
+        GCMGRID_P2 → qnew (back to GCM pressure grid, with FacMass)
+        PhiauxH/H2/D(ig) = wi * Nrafk(nlraf) * cell_area(ig)
+
+        if mass_fixer:
+            Mtot2, Mhi2                             # post-diffusion column mass
+            scale qnew(1:il1) for non-H/N/O species  # column mass conservation
+            compensate O2/H2/N2 below 1 Pa for O/H/N losses
+            pdqdiff(non-CO2) = (qnew-qq)/dt
+            pdqdiff(CO2) = -sum(other tendencies)    # ensure total = 0
+        else:
+            pdqdiff = (qnew-qq)/dt for all species
+
+    if not MESOSCALE:
+        planetwide_sumval(PhiauxH/H2/D → PhiEscH/H2/D)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热层分子扩散（MPF 方案）</td>
+<td><code>thermosphere_mod</code> 在 <code>callmoldiff</code> 且 <code>moldiff_scheme==2</code>（默认）时调用，输出 <code>zdqmoldiff</code> 倾向和 H/H₂/D 逃逸通量</td>
+</tr>
+<tr>
+<td>高层大气逃逸</td>
+<td>Jeans 逃逸公式计算 H/H₂/D 的 TOA 逃逸通量，非 MESOSCALE 时全行星求和</td>
+</tr>
+<tr>
+<td>质量守恒修正</td>
+<td>可选 <code>call_mass_fixer_moldiff_MPF</code> 对扩散后的柱质量做缩放修正，用 CO₂ 补偿总倾向</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 F90（<code>&amp;</code> 续行），但部分内部辅助例程使用固定格式风格。</li>
+<li>大量 SAVE + OMP THREADPRIVATE 工作数组，避免每次调用重新分配。</li>
+<li>扩散物种数动态（按 <code>noms</code> 名匹配），而非像 <code>moldiff.F</code> 那样固定 14 种。</li>
+<li>使用 <code>moldiffcoeff_red</code>（简化变体）而非 <code>moldiffcoeff</code>（原版），<code>gcmind</code> 由本文件构造后传入。</li>
+<li><code>tdiff = ptimestep/5</code> 硬编码（第 541 行），前面计算的物理扩散时间 <code>Tdiff</code> 被覆盖。注释保留多种 <code>K0</code> 备选值（<code>6e10</code> 到 <code>1.2e12</code>）。</li>
+<li>涡旋扩散 <code>K0=1.2e11</code>（第 282 行），注释中保留 Krasnopolsky 2002 原始值和其他测试值。</li>
+<li><code>TMNEW</code> 和 <code>QMNEW</code> 定义但未调用——主例程内联了等价逻辑。</li>
+<li><code>tridagbloc</code> 和 <code>tridag</code> 定义但主例程未调用——MPF 方案使用 <code>SEQUENCY</code> 递推 + 显式前向求解替代了三对角直接求解。</li>
+<li><code>GCMGRID_P</code> 和 <code>GCMGRID_P2</code> 功能相似，但 <code>P2</code> 版本额外应用 <code>FacMass</code> 并在 <code>call_mass_fixer</code> 路径中按 <code>sum(qq(il,:))</code> 归一化。</li>
+<li>外推区使用气压标高指数衰减逐层推进（<code>do while (pnew2 &gt;= pp(il))</code>），设 100000 次上限防无限循环。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>conf_phys.F</code> 读取 <code>call_mass_fixer_moldiff_MPF</code>（默认 <code>.false.</code>）。设为 <code>.true.</code> 启用质量修正器。</li>
+<li><code>thermosphere_mod.F</code> 通过 <code>moldiff_scheme</code>（默认 2）选择本文件。<code>callmoldiff</code> 须为 <code>.true.</code>（由 deftank 配置设定）。</li>
+<li>需要 <code>tracer_mod</code> 中存在 ListeDiff 中的物种名（如 'co2','h2','h','d','hd' 等）才能正确设置 <code>i_h/i_h2/i_d/i_hd</code>。缺失不影响扩散计算，仅跳过逃逸通量。</li>
+<li><code>moldiffcoeff_red</code> 要求 <code>noms</code> 中存在 'h2'/'h'/'o'（由 <code>moldiffcoeff_red</code> 内部查找）；缺失会导致 <code>mmol</code> 越界。</li>
+<li><code>cell_area</code> 来自 <code>geometry_mod</code>，用于逃逸通量面积加权。</li>
+<li>非 <code>MESOSCALE</code> 编译时依赖 <code>planetwide_mod::planetwide_sumval</code>。</li>
+</ul>
+<h2 id="调用关系">调用关系</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>位置</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>thermosphere_mod.F</code></td>
+<td>第 114 行</td>
+<td><code>moldiff_scheme==2</code>（默认）时调用 <code>moldiff_MPF</code></td>
+</tr>
+<tr>
+<td><code>conf_phys.F</code></td>
+<td>第 53/1258 行</td>
+<td>仅读取 <code>call_mass_fixer_moldiff_MPF</code> 标志，不调用主例程</td>
+</tr>
+</tbody>
+</table>
+<h3 id="deftank-配置">deftank 配置</h3>
+<table>
+<thead>
+<tr>
+<th>deftank 配置</th>
+<th><code>callmoldiff</code></th>
+<th><code>moldiff_scheme</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MCD5</td>
+<td><code>.true.</code></td>
+<td>未设（默认 2 → MPF，即本文件）</td>
+</tr>
+<tr>
+<td>MCD6</td>
+<td><code>.true.</code></td>
+<td>1（legacy <code>moldiff_red</code>）</td>
+</tr>
+<tr>
+<td>GCM5/GCM6</td>
+<td><code>.false.</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与-moldifffmoldiff_red-的区别">与 <code>moldiff.F</code>/<code>moldiff_red</code> 的区别</h2>
+<table>
+<thead>
+<tr>
+<th>特征</th>
+<th><code>moldiff.F</code>（legacy）</th>
+<th><code>moldiff_red.F90</code></th>
+<th><code>moldiff_MPF.F90</code>（本文件）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>物种数</td>
+<td>固定 14</td>
+<td>动态 <code>ncompdiff</code></td>
+<td>动态 <code>ncompdiff</code>（最多 16）</td>
+</tr>
+<tr>
+<td>扩散系数</td>
+<td><code>moldiffcoeff</code>（固定 14）</td>
+<td><code>moldiffcoeff_red</code></td>
+<td><code>moldiffcoeff_red</code></td>
+</tr>
+<tr>
+<td>算法</td>
+<td>Dickinson &amp; Ridley 1972 α 矩阵 + LU 求逆</td>
+<td>二元 <code>dij</code> 简化公式逐物种隐式三对角求解</td>
+<td>MPF (Parshev et al. 1987)：逐物种独立 SEQUENCY 递推</td>
+</tr>
+<tr>
+<td>H/H₂ 逃逸</td>
+<td>Jeans (Hunten 1973)</td>
+<td>含 D 逃逸</td>
+<td>含 D + HD 热扩散 <code>alphaT</code></td>
+</tr>
+<tr>
+<td>质量守恒</td>
+<td>O 反算</td>
+<td>O 反算</td>
+<td>可选柱质量修正器 + CO₂ 补偿</td>
+</tr>
+<tr>
+<td>涡旋扩散</td>
+<td>无</td>
+<td>待确认</td>
+<td>Krasnopolsky 2002 <code>K0=1.2e11</code></td>
+</tr>
+<tr>
+<td>时间步</td>
+<td>单次求解</td>
+<td>待确认</td>
+<td><code>ptimestep/5</code>，5 子步</td>
+</tr>
+<tr>
+<td>活跃状态</td>
+<td>死代码</td>
+<td><code>moldiff_scheme==1</code></td>
+<td><code>moldiff_scheme==2</code>（默认）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="待确认">待确认</h2>
+<ol type="1">
+<li><code>tdiff = ptimestep/5</code> 硬编码（第 541 行）覆盖了前面计算的物理扩散时间 <code>Tdiff</code>，是否有物理依据或仅为数值稳定性。</li>
+<li><code>K0=1.2e11</code> 值相对 Krasnopolsky 2002 原文的适用范围——注释中列出 <code>6e10</code> 到 <code>1.2e12</code> 多个备选值，最终选择依据。</li>
+<li><code>tridagbloc</code>（块三对角求解器）和 <code>tridag</code>（标准三对角求解器）已定义但主例程未调用——是否为 MPF 重构前的遗留代码。</li>
+<li><code>TMNEW</code>/<code>QMNEW</code> 已定义但未调用——同上，主例程内联了等价逻辑。</li>
+<li><code>GCMGRID_P2</code> 中 <code>call_mass_fixer</code> 分支用 <code>sum(qq(il,:))</code> 归一化（第 1720 行），与传统分支的 <code>rhoknew/rhonew</code> 不同——其物理含义是否为补偿非扩散 tracer 的质量份额。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览，本文件在其"分子扩散"分类下。</li>
+<li><a href="moldiff.html">moldiff</a>：原版（legacy）14 物种分子扩散模块（死代码），含 α 矩阵 + LU 求逆方法对比。</li>
+<li><a href="moldiffcoeff_red.html">moldiffcoeff_red</a>：简化扩散系数例程，由本文件 firstcall 调用。</li>
+<li><a href="moldiffcoeff.html">moldiffcoeff</a>：原版扩散系数例程，供 <code>moldiff.F</code> 使用。</li>
+<li><a href="../phymars/tracer_mod.html">tracer_mod</a>：提供 <code>noms</code>/<code>mmol</code>。</li>
+<li><a href="../phymars/comgeomfi_h.html">geometry_mod</a>：提供 <code>cell_area</code>（网格面积）。</li>
+<li><a href="../phymars/planetwide_mod.html">planetwide_mod</a>：提供 <code>planetwide_sumval</code>（全行星求和）。</li>
+<li><a href="conduction.html">conduction</a>：热层分子热传导，与分子扩散共同影响热层温度/成分剖面。</li>
+<li><a href="molvis.html">molvis</a>：热层分子黏性速度扩散，与分子扩散并列为热层三大输运过程。</li>
+<li><a href="../phymars/conf_phys.html">conf_phys</a>：读取 <code>call_mass_fixer_moldiff_MPF</code> 标志。</li>
+<li><a href="moldiff_red.html">moldiff_red.F90</a>：legacy scheme 变体。</li>
+<li><a href="thermosphere_mod.html">thermosphere_mod</a>：热层物理过程总调度，本文件调用方。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

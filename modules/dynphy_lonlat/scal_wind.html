@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>scal_wind - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/scal_wind.md</span>
+    </nav>
+    <article class="content">
+<h1 id="scal_windf">scal_wind.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\scal_wind.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>scal_wind</code> 是 lon-lat 动力网格上的风场位置转换辅助例程。它把位于标量/源位置的水平风数组 <code>xus</code>、<code>xvs</code> 通过相邻格点平均，转换到 u/v 风点位置 <code>xu</code>、<code>xv</code>。当前唯一源码调用点是 <code>lect_start_archive.F</code>：读取并垂直、水平插值 <code>uold/vold</code> 后，调用 <code>scal_wind(us,vs,unat,vnat)</code>，再用 <code>cu/cv</code> 转成协变风 <code>ucov/vcov</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>scal_wind</code></td>
+<td>subroutine</td>
+<td>1</td>
+<td>把 <code>xus/xvs</code> 平均到 u/v 风点位置，输出 <code>xu/xv</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<p>无 <code>USE</code> 模块依赖。</p>
+<h2 id="include-依赖">INCLUDE 依赖</h2>
+<table>
+<thead>
+<tr>
+<th>include 文件</th>
+<th>行号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimensions.h</code></td>
+<td>15</td>
+<td>提供 <code>iim/jjm/llm</code> 等网格维度</td>
+</tr>
+<tr>
+<td><code>paramet.h</code></td>
+<td>16</td>
+<td>提供派生维度 <code>iip1/jjp1</code> 等</td>
+</tr>
+<tr>
+<td><code>comgeom.h</code></td>
+<td>17</td>
+<td>当前例程内未直接引用其中变量；推断为历史/接口一致性依赖</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<p>无外部 <code>CALL</code>。本例程只做数组平均和周期边界赋值。</p>
+<h2 id="调用方">调用方</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>调用位置</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lect_start_archive.F</code></td>
+<td>行 1563</td>
+<td>start_archive 读取阶段，把插值后的 <code>us/vs</code> 转到自然风点 <code>unat/vnat</code>，随后乘 <code>cu/cv</code> 得 <code>ucov/vcov</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xus</code></td>
+<td>参数</td>
+<td><code>real(iip1,jjp1,llm)</code></td>
+<td>与风速一致</td>
+<td>待转换的纬向风场，定义在输入网格位置</td>
+</tr>
+<tr>
+<td><code>xvs</code></td>
+<td>参数</td>
+<td><code>real(iip1,jjp1,llm)</code></td>
+<td>与风速一致</td>
+<td>待转换的经向风场，定义在输入网格位置</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xu</code></td>
+<td>参数</td>
+<td><code>real(iip1,jjp1,llm)</code></td>
+<td>与 <code>xus</code> 相同</td>
+<td>平均到 u 风点位置后的纬向风</td>
+</tr>
+<tr>
+<td><code>xv</code></td>
+<td>参数</td>
+<td><code>real(iip1,jjm,llm)</code></td>
+<td>与 <code>xvs</code> 相同</td>
+<td>平均到 v 风点位置后的经向风</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>不读写 module 变量或 common block。</li>
+<li>不做文件 I/O、日志输出或错误中止。</li>
+<li>输出数组 <code>xu/xv</code> 被完全重写；<code>xus/xvs</code> 只读。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>对每个垂直层 <code>l=1..llm</code>、纬向行 <code>j=1..jjp1</code>：
+<ul>
+<li>对 <code>i=1..iim</code>，计算 <code>xu(i,j,l)=0.5*(xus(i,j,l)+xus(i+1,j,l))</code>。</li>
+<li>设置周期边界 <code>xu(iip1,j,l)=xu(1,j,l)</code>。</li>
+</ul></li>
+<li>对每个垂直层 <code>l=1..llm</code>、经向行 <code>j=1..jjm</code>、经向列 <code>i=1..iip1</code>：
+<ul>
+<li>计算 <code>xv(i,j,l)=0.5*(xvs(i,j,l)+xvs(i,j+1,l))</code>。</li>
+</ul></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>for l in 1..llm:
+  for j in 1..jjp1:
+    for i in 1..iim:
+      xu(i,j,l) = 0.5 * (xus(i,j,l) + xus(i+1,j,l))
+    xu(iip1,j,l) = xu(1,j,l)
+
+for l in 1..llm:
+  for j in 1..jjm:
+    for i in 1..iip1:
+      xv(i,j,l) = 0.5 * (xvs(i,j,l) + xvs(i,j+1,l))</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>start_archive 初始场读取</td>
+<td><code>lect_start_archive</code> 读取风场并插值后，用 <code>scal_wind</code> 生成自然风点风速，再转成协变风</td>
+</tr>
+<tr>
+<td>动力-物理初始化</td>
+<td>为 <code>newstart</code> 初始化出来的 <code>ucov/vcov</code> 风场提供网格位置转换步骤</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran，使用 <code>#include</code> 引入网格维度。</li>
+<li>无 <code>INTENT</code> 标注，接口语义需从赋值方向判断：<code>xus/xvs</code> 只读，<code>xu/xv</code> 写入。</li>
+<li>纬向风 <code>xu</code> 显式设置经向周期边界；经向风 <code>xv</code> 不设置 <code>j=jjp1</code> 行，因为维度为 <code>jjm</code>。</li>
+<li><code>comgeom.h</code> 被 include 但本例程未直接引用其变量，可能是历史保留。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>xus</code> 的第一维必须至少包含 <code>iip1=iim+1</code>，因为计算 <code>xu(i)</code> 会读取 <code>xus(i+1)</code>。</li>
+<li><code>xvs</code> 的第二维必须至少包含 <code>jjp1=jjm+1</code>，因为计算 <code>xv(j)</code> 会读取 <code>xvs(j+1)</code>。</li>
+<li>调用方在 <code>lect_start_archive</code> 中随后执行 <code>ucov=unat*cu</code>、<code>vcov=vnat*cv</code>；<code>scal_wind</code> 本身不做 metric 系数缩放。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>comgeom.h</code> 在本例程中的实际必要性待确认；源码中未直接使用其变量。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="lect_start_archive.html">lect_start_archive</a> — 当前唯一调用方。</li>
+<li><a href="wind_scal.html">wind_scal</a> — 反向/相关风场缩放例程，从 u/v 自然风位置平均回标量格点。</li>
+<li><a href="newstart.html">newstart</a> — 间接消费 <code>lect_start_archive</code> 输出的 <code>ucov/vcov</code> 并写入 <code>restart.nc</code>。</li>
+<li><a href="index.html">dynphy_lonlat/index</a> — 所属目录概览。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>leapfrog_nogcm - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/leapfrog_nogcm.md</span>
+    </nav>
+    <article class="content">
+<h1 id="leapfrog_nogcmf">leapfrog_nogcm.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\leapfrog_nogcm.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>独立物理模式（nogcm）的时间积分主循环。在没有完整 GCM 动力核心的情况下，实现 Matsuno forward/backward + leapfrog 时间步进方案，并用牛顿松弛 + 水平混合替代动力过程，模拟气压、温度和 CO₂ 示踪剂的全局重分布。该例程是 <code>nogcm.F90</code> 的核心驱动。</p>
+<p>作者：P. Le Van / L. Fairhead / F. Hourdin。SVN <code>$Id: leapfrog.F 1446 2010-10-22$</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>leapfrog_nogcm</code></td>
+<td>subroutine</td>
+<td>6</td>
+<td>独立物理模式时间积分主循环</td>
+</tr>
+<tr>
+<td><code>globaverage2d</code></td>
+<td>function</td>
+<td>1021</td>
+<td>全局面积加权二维平均（内部辅助函数）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IOIPSL</code></td>
+<td>—</td>
+<td>NetCDF 输出接口（<code>#ifdef CPP_IOIPSL</code> 条件编译）</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>infotrac</code></td>
+<td><code>nqtot</code>, <code>ok_iso_verif</code>, <code>tname</code></td>
+<td>示踪剂总数、同位素校验开关、示踪剂名称</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>write_field</code></td>
+<td><code>writefield</code></td>
+<td>场写入辅助</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>control_mod</code></td>
+<td><code>planet_type</code>, <code>nday</code>, <code>day_step</code>, <code>iperiod</code>, <code>iphysiq</code>, <code>less1day</code>, <code>fractday</code>, <code>ndynstep</code>, <code>iconser</code>, <code>dissip_period</code>, <code>offline</code>, <code>ip_ebil_dyn</code>, <code>ok_dynzon</code>, <code>periodav</code>, <code>ok_dyn_ave</code>, <code>iecri</code>, <code>ok_dyn_ins</code>, <code>output_grads_dyn</code></td>
+<td>运行控制参数</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>exner_hyb_m</code></td>
+<td><code>exner_hyb</code></td>
+<td>混合坐标 Exner 函数</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>exner_milieu_m</code></td>
+<td><code>exner_milieu</code></td>
+<td>中间层 Exner 函数</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>cpdet_mod</code></td>
+<td><code>cpdet</code>, <code>tpot2t</code>, <code>t2tpot</code></td>
+<td>温度相关 Cp(T) 适配</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>comuforc_h</code></td>
+<td>全模块</td>
+<td>强迫场公共块</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>comvert_mod</code></td>
+<td><code>ap</code>, <code>bp</code>, <code>pressure_exner</code>, <code>presnivs</code>, <code>aps</code>, <code>bps</code>, <code>pseudoalt</code>, <code>preff</code>, <code>scaleheight</code></td>
+<td>垂直坐标系数与参数</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>daysec</code>, <code>dtvr</code>, <code>dtphys</code>, <code>dtdiss</code>, <code>cpp</code>, <code>ihf</code>, <code>iflag_top_bound</code>, <code>pi</code>, <code>kappa</code>, <code>r</code></td>
+<td>物理常数与时间步长</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td><code>iflag_phys</code>, <code>ok_guide</code>, <code>forward</code>, <code>leapf</code>, <code>apphys</code>, <code>statcl</code>, <code>conser</code>, <code>purmats</code>, <code>tidal</code>, <code>ok_strato</code></td>
+<td>逻辑控制开关</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>temps_mod</code></td>
+<td><code>jD_ref</code>, <code>jH_ref</code>, <code>itaufin</code>, <code>day_ini</code>, <code>day_ref</code>, <code>start_time</code>, <code>dt</code></td>
+<td>时间与日期</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pression</code></td>
+<td>外部</td>
+<td>303, 464, 584, 635</td>
+<td>从混合坐标系数和 ps 计算层间气压</td>
+</tr>
+<tr>
+<td><code>exner_hyb</code> / <code>exner_milieu</code></td>
+<td><code>exner_hyb_m</code> / <code>exner_milieu_m</code></td>
+<td>305-308, 466-469, 637-641</td>
+<td>计算 Exner 函数（按 <code>pressure_exner</code> 分支）</td>
+</tr>
+<tr>
+<td><code>geopot</code></td>
+<td>外部</td>
+<td>472, 809, 843, 953, 978</td>
+<td>从位温 + Exner 计算位势</td>
+</tr>
+<tr>
+<td><code>globaverage2d</code></td>
+<td>内部函数</td>
+<td>337, 599, 656, 688, 699, 732, 746-747</td>
+<td>全局面积加权二维平均</td>
+</tr>
+<tr>
+<td><code>calfis</code></td>
+<td>外部</td>
+<td>549-553</td>
+<td>物理倾向计算入口</td>
+</tr>
+<tr>
+<td><code>addfi</code></td>
+<td>外部</td>
+<td>571-573</td>
+<td>将物理倾向加到动力变量</td>
+</tr>
+<tr>
+<td><code>massdair</code></td>
+<td>外部</td>
+<td>585, 636</td>
+<td>从气压计算空气质量</td>
+</tr>
+<tr>
+<td><code>diagedyn</code></td>
+<td>外部</td>
+<td>518-520</td>
+<td>动力诊断（仅 Earth，<code>ip_ebil_dyn &gt;= 1</code>）</td>
+</tr>
+<tr>
+<td><code>writehist</code></td>
+<td>IOIPSL</td>
+<td>852, 988</td>
+<td>写入历史文件</td>
+</tr>
+<tr>
+<td><code>writedynav</code></td>
+<td>IOIPSL</td>
+<td>822-823, 966-967</td>
+<td>写入动力平均文件</td>
+</tr>
+<tr>
+<td><code>bilan_dyn</code></td>
+<td>IOIPSL</td>
+<td>815-817, 959-961</td>
+<td>动力收支诊断</td>
+</tr>
+<tr>
+<td><code>dynredem1</code></td>
+<td>外部</td>
+<td>870-871, 1000-1001</td>
+<td>写入 restart 文件</td>
+</tr>
+<tr>
+<td><code>abort_gcm</code></td>
+<td>外部</td>
+<td>321, 795, 935</td>
+<td>中止/正常终止模拟</td>
+</tr>
+<tr>
+<td><code>check_isotopes_seq</code></td>
+<td>外部</td>
+<td>830, 915, 941</td>
+<td>同位素序列校验（<code>ok_iso_verif</code>）</td>
+</tr>
+<tr>
+<td><code>tpot2t</code></td>
+<td><code>cpdet_mod</code></td>
+<td>841, 976</td>
+<td>位温→温度转换（Cp(T) 适配）</td>
+</tr>
+<tr>
+<td><code>scopy</code></td>
+<td>BLAS</td>
+<td>371-375</td>
+<td>数组复制（保存前一步变量）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ucov</code></td>
+<td>INOUT</td>
+<td><code>real(ip1jmp1, llm)</code></td>
+<td>m/s</td>
+<td>纬向协变风</td>
+</tr>
+<tr>
+<td><code>vcov</code></td>
+<td>INOUT</td>
+<td><code>real(ip1jm, llm)</code></td>
+<td>m/s</td>
+<td>经向协变风</td>
+</tr>
+<tr>
+<td><code>teta</code></td>
+<td>INOUT</td>
+<td><code>real(ip1jmp1, llm)</code></td>
+<td>K</td>
+<td>位温</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td>INOUT</td>
+<td><code>real(ip1jmp1)</code></td>
+<td>Pa</td>
+<td>地表气压</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td>INOUT</td>
+<td><code>real(ip1jmp1, llm)</code></td>
+<td>kg</td>
+<td>空气质量</td>
+</tr>
+<tr>
+<td><code>phis</code></td>
+<td>INOUT</td>
+<td><code>real(ip1jmp1)</code></td>
+<td>m²/s²</td>
+<td>地表位势</td>
+</tr>
+<tr>
+<td><code>q</code></td>
+<td>INOUT</td>
+<td><code>real(ip1jmp1, llm, nqtot)</code></td>
+<td>—</td>
+<td>平流示踪剂</td>
+</tr>
+<tr>
+<td><code>time_0</code></td>
+<td>IN</td>
+<td><code>real</code></td>
+<td>—</td>
+<td>初始时间（未使用）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<p>所有输出通过 INOUT 参数回写：<code>ucov</code>/<code>vcov</code>/<code>teta</code>/<code>ps</code>/<code>masse</code>/<code>q</code> 在时间积分后被更新到最终状态。</p>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong><code>logic_mod</code> 变量</strong>：设置 <code>forward</code>/<code>leapf</code>/<code>apphys</code>/<code>statcl</code>/<code>conser</code>/<code>dt</code> 控制时间步进逻辑</li>
+<li><strong><code>temps_mod::itaufin</code></strong>：根据 <code>nday</code>/<code>ndynstep</code>/<code>less1day</code> 重新计算终止步</li>
+<li><strong><code>temps_mod::dt</code></strong>：在 forward 步设为 <code>dtvr</code>，leapfrog 步设为 <code>2*dtvr</code></li>
+<li><strong><code>comuforc_h</code></strong>：全模块 USE（读写强迫场公共块）</li>
+<li><strong><code>SAVE first</code></strong>：首次调用标记（用于 IOIPSL 初始化）</li>
+<li><strong><code>SAVE dissip_conservative</code></strong>：耗散守恒标记</li>
+<li><strong><code>SAVE igcm_co2</code></strong>：CO₂ 示踪剂索引</li>
+<li><strong>文件 I/O</strong>：写入 <code>restart.nc</code>（<code>dynredem1</code>）、历史文件（<code>writehist</code>）、动力平均文件（<code>writedynav</code>）</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>确定终止步</strong> <code>itaufin</code>：根据 <code>nday</code>（正=天数，负=步数）、<code>less1day</code>（分数天）、<code>ndynstep</code>（固定步数）计算</li>
+<li><strong>初始化倾向数组为零</strong>：<code>dudis</code>/<code>dvdis</code>/<code>dtetadis</code>/<code>dutop</code>/<code>dufi</code>/<code>dvfi</code>/<code>dtetafi</code>/<code>dqfi</code>/<code>dpfi</code></li>
+<li><strong>初始气压与 Exner</strong>：调用 <code>pression</code> + <code>exner_hyb</code>/<code>exner_milieu</code>，并验证 PK 单调递减</li>
+<li><strong>计算参考气压因子</strong> <code>kpd = exp(-phis/(R*200))</code> 和全局平均 <code>p00d = globaverage2d(kpd)</code></li>
+<li><strong>定位 CO₂ 示踪剂</strong>：遍历 <code>tname</code> 找到 <code>"co2"</code> 的索引 <code>igcm_co2</code></li>
+<li><strong>Matsuno Forward 步</strong>（label 1）：
+<ul>
+<li>保存前一步变量（<code>scopy</code> × 5）</li>
+<li>设 <code>forward=.TRUE.</code>, <code>leapf=.FALSE.</code>, <code>dt=dtvr</code></li>
+<li>动力倾向置零（nogcm 无动力核心）</li>
+<li>判断物理调用 <code>apphys</code>（按 <code>iphysiq</code> 频率）</li>
+</ul></li>
+<li><strong>物理调用分支</strong>（<code>apphys</code> 为真时）：
+<ul>
+<li>重新计算气压、Exner、位势</li>
+<li>调用 <code>calfis</code> 计算物理倾向</li>
+<li>调用 <code>addfi</code> 施加物理倾向</li>
+<li><strong>nogcm 特有</strong>：牛顿松弛气压 → <code>ps += (p0*kpd - ps) * (1 - exp(-dtphys/tau_ps))</code>，<code>tau_ps = 1s</code></li>
+<li><strong>nogcm 特有</strong>：位温修正 <code>teta *= (ps_new/ps_old)^kappa</code></li>
+<li><strong>nogcm 特有</strong>：CO₂ 垂直混合（质量加权柱平均替代垂直分布）</li>
+<li><strong>nogcm 特有</strong>：CO₂ 水平混合（牛顿松弛向全局平均，<code>tau_co2 = 10^5 s</code>）</li>
+<li><strong>nogcm 特有</strong>：温度水平混合（牛顿松弛，<code>tau_teta = 10^7 s</code>）</li>
+</ul></li>
+<li><strong>Matsuno Backward / Leapfrog 步</strong>（label 2）：
+<ul>
+<li>根据 <code>purmats</code> 选择纯 Matsuno 或 Matsuno+Leapfrog 方案</li>
+<li>Leapfrog 步 <code>dt = 2*dtvr</code></li>
+</ul></li>
+<li><strong>输出与 restart</strong>：
+<ul>
+<li>按 <code>iperiod</code> 频率写动力平均和诊断</li>
+<li>按 <code>iecri</code> 频率写历史文件</li>
+<li>终止时写 <code>restart.nc</code>（<code>dynredem1</code>）</li>
+</ul></li>
+<li><strong>时间步进控制</strong>：通过 <code>GO TO 1/2</code> 在 forward/backward/leapfrog 之间跳转</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>Compute itaufin from nday / ndynstep / less1day
+Zero all tendency arrays
+Compute initial pressure, Exner function; verify PK monotonicity
+Compute kpd = exp(-phis / (R*200)); p00d = global_average(kpd)
+Locate CO2 tracer index (igcm_co2)
+
+LOOP itau = 0 .. itaufin:
+    -- Matsuno Forward step --
+    Save current state (ucov, vcov, teta, masse, ps) → (...m1)
+    Set forward=.T., leapf=.F., dt=dtvr
+    Zero dynamic tendencies (nogcm has no dynamics)
+    IF physics due (apphys):
+        Recompute pressure, Exner, geopotential
+        CALL calfis → physical tendencies (dufi, dvfi, dtetafi, dqfi)
+        CALL addfi → apply tendencies
+        Newtonian relax ps toward p0*kpd (tau=1s)
+        Correct teta for ps change
+        Vertical-mix CO2 (column mass-weighted mean)
+        Horizontal-mix CO2 toward global mean (tau=1e5s)
+        Horizontal-mix teta toward global mean (tau=1e7s)
+
+    -- Matsuno Backward / Leapfrog step --
+    IF purmats: pure Matsuno (forward→backward→forward...)
+    ELSE: Matsuno forward+backward, then leapfrog (dt=2*dtvr)
+
+    IF output due: write history / averages / diagnostics
+    IF itau == itaufin: write restart.nc; stop</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>独立物理模式（nogcm）</td>
+<td>提供完整的时间积分循环，替代 GCM 动力核心</td>
+</tr>
+<tr>
+<td>CO₂ 循环（nogcm 近似）</td>
+<td>用牛顿松弛和水平混合近似动力输运</td>
+</tr>
+<tr>
+<td>初始场与 restart</td>
+<td>终止时写 <code>restart.nc</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>固定格式 Fortran 77/90 混合</strong>：<code>.F</code> 后缀，f77 风格列格式但包含 f90 <code>USE</code> 和 <code>!</code> 注释</li>
+<li><strong>GO TO 控制流</strong>：用 label 1（forward 步起点）和 label 2（backward/leapfrog 步起点）实现时间步进跳转</li>
+<li><strong><code>SAVE</code> + <code>DATA</code> 初始化</strong>：<code>first</code>/<code>dissip_conservative</code>/<code>igcm_co2</code>/<code>airetot</code>（<code>globaverage2d</code> 内）使用 SAVE 保持状态</li>
+<li><strong>条件编译</strong>：<code>#ifdef CPP_IOIPSL</code> 控制 IOIPSL I/O 功能；未定义时相关输出被跳过</li>
+<li><strong>nogcm 特有物理</strong>：用 3 个牛顿松弛时间尺度（<code>tau_ps=1s</code>/<code>tau_co2=10^5s</code>/<code>tau_teta=10^7s</code>）+ CO₂ 垂直混合替代完整动力核心</li>
+<li><strong><code>globaverage2d</code> 内部函数</strong>：面积加权全局平均，首次调用计算 <code>airetot</code> 并 SAVE</li>
+<li><strong><code>STOP</code> 语句</strong>（line 1015）：正常执行到末尾停止（<code>abort_gcm</code> 在非零错误码时才真正中止）</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>需要 <code>nogcm.F90</code> 提供初始化的动力变量场</li>
+<li>需要配置 <code>control_mod</code> 中的运行参数（<code>nday</code>/<code>iphysiq</code>/<code>iconser</code>/<code>purmats</code> 等）</li>
+<li>需要 <code>calfis</code> → <code>physiq</code> 物理参数化链可用</li>
+<li>CO₂ 示踪剂名为 <code>"co2"</code>（字符串匹配 <code>tname</code>）</li>
+<li>牛顿松弛常数硬编码在例程内：<code>tau_ps=1</code>, <code>tau_co2=1e5</code>, <code>tau_teta=1e7</code></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>comuforc_h</code> 全模块 USE 的具体读写变量待确认</li>
+<li><code>purmats</code> 纯 Matsuno 模式下的完整行为是否与 Leapfrog 分支一致待确认</li>
+<li><code>globaverage2d</code> 在极地格点（<code>j=1</code>, <code>j=jjp1</code>）的处理方式是否正确</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="nogcm.html">nogcm</a> — 唯一调用方，独立物理模式主程序</li>
+<li><a href="callphysiq_mod.html">callphysiq_mod</a> — GCM 模式下的物理调用接口（对比）</li>
+<li><a href="../phymars/dyn1d/control_mod.html">control_mod.md</a>：运行控制参数。</li>
+<li><a href="../phymars/dyn1d/comvert_mod.html">comvert_mod.md</a>：垂直坐标系数。</li>
+<li><a href="../../architecture/common-dependencies.html">common-dependencies</a> — <code>temps_mod</code> 时间与日期状态的 COMMON 边界。</li>
+<li><a href="index.html">dynphy_lonlat/index</a> — 所属目录概览</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

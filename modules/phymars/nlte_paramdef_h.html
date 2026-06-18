@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nlte_paramdef_h - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/nlte_paramdef_h.md</span>
+    </nav>
+    <article class="content">
+<h1 id="nlte_paramdef_hf90">nlte_paramdef_h.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\nlte_paramdef_h.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>nlte_paramdef_h.F90</code> 定义真实 Fortran module <code>nlte_paramdef_h</code>，集中保存 CO2 15 微米 NLTE 快速参数化使用的编译期参数。它不包含 <code>contains</code>、subroutine 或 function，也不读写运行时状态；它为 <a href="nlte_commons_h.html">nlte_commons_h</a> 的数组维度、<a href="nlte_aux.html">nlte_aux</a> 的 Planck/插值/历史谱线表工具、<a href="nlte_calc.html">nlte_calc</a> 的 Curtis matrix 和 escape probability 计算，以及 <code>nlte_tcool_mod.F</code> 的 cooling-time 主求解提供常数。</p>
+<p>这些参数来自旧 <code>mz1d.par</code>、<code>tcr_15um.h</code> 和 <code>bloque_dlvr11.f</code> 注释块。文件把旧模型的网格层数、谱带/同位素数量、历史谱线表尺寸、压力上下界、辐射常数、CO2 谱带中心波数和火星同位素混合比固定在 module parameter 中。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlte_paramdef_h</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>NLTE 15 微米 CO2 参数化的编译期参数模块。</td>
+</tr>
+<tr>
+<td><code>nztabul</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">12</td>
+<td><code>Tesc</code> 和 <code>VC</code> 等 ISO tabulation 的垂直表点数，当前为 79。</td>
+</tr>
+<tr>
+<td><code>nltot</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">16</td>
+<td>NLTE module 与 <code>Tstar110</code> 合并使用的总高度数，当前为 20。</td>
+</tr>
+<tr>
+<td><code>nl</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">19</td>
+<td>NLTE 主网格和 Curtis matrix 实际层数，当前为 12。</td>
+</tr>
+<tr>
+<td><code>nl2</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">20</td>
+<td><code>nl-2</code>，用于 <code>mmh2</code> 相关矩阵反演维度。</td>
+</tr>
+<tr>
+<td><code>nzy</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">22</td>
+<td>主网格 Curtis matrix 细网格点数，按 <code>(nl-1)*4+1</code> 计算。</td>
+</tr>
+<tr>
+<td><code>nl_cts</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">24</td>
+<td>cool-to-space / <code>Tstar110</code> 路径实际层数，按 <code>2+nltot-nl</code> 计算。</td>
+</tr>
+<tr>
+<td><code>nzy_cts</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">25</td>
+<td>CTS 透过率细网格点数，按 <code>(nl_cts-1)*4+1</code> 计算。</td>
+</tr>
+<tr>
+<td><code>nisot</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">29</td>
+<td>参与 15 微米 NLTE 计算的 CO2 同位素个数，当前为 4。</td>
+</tr>
+<tr>
+<td><code>nb</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">30</td>
+<td>包含的谱带数，当前为 41。</td>
+</tr>
+<tr>
+<td><code>nhist</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">32</td>
+<td>历史谱线表温度点数，当前为 36。</td>
+</tr>
+<tr>
+<td><code>nbox_max</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">35</td>
+<td>历史谱线 histogram box 最大数，当前为 4。</td>
+</tr>
+<tr>
+<td><code>itt_cza</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">40</td>
+<td>NLTE scheme 选择参数，当前为 13。</td>
+</tr>
+<tr>
+<td><code>Ptop_atm</code>, <code>Pbottom_atm</code></td>
+<td>real parameter</td>
+<td style="text-align: right;">42-43</td>
+<td>NLTE model 适用压力上、下边界，分别为 <code>3.e-10</code> 和 <code>2.e-5</code>。</td>
+</tr>
+<tr>
+<td><code>rf19</code>, <code>rf20</code>, <code>rf21a</code>, <code>rf21b</code>, <code>rf21c</code>, <code>rf33bc</code></td>
+<td>real*8 parameter</td>
+<td style="text-align: right;">45-46</td>
+<td>碰撞率缩放因子，当前均为 1。</td>
+</tr>
+<tr>
+<td><code>nu(nisot,8)</code></td>
+<td>real parameter</td>
+<td style="text-align: right;">50-57</td>
+<td>各同位素最多 8 个谱带/跃迁的中心波数表。</td>
+</tr>
+<tr>
+<td><code>nu12_0200</code>, <code>nu12_1000</code></td>
+<td>real parameter</td>
+<td style="text-align: right;">62-63</td>
+<td>121 热带合成使用的两个参考波数。</td>
+</tr>
+<tr>
+<td><code>indexisot(nisot)</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">65</td>
+<td>4 个 CO2 同位素的编码：26、28、36、27。</td>
+</tr>
+<tr>
+<td><code>vlight</code>, <code>ee</code>, <code>hplanck</code>, <code>gamma</code></td>
+<td>real*8 parameter</td>
+<td style="text-align: right;">68-71</td>
+<td>cgs 单位制下的光速、第二辐射常数、Planck 常数和 Planck 预因子。</td>
+</tr>
+<tr>
+<td><code>imr(nisot)</code></td>
+<td>real parameter</td>
+<td style="text-align: right;">75</td>
+<td>火星 CO2 同位素混合比，当前为 626/628/636/627 对应的 4 个权重。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>本文件只定义 parameter，不依赖其他 module。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>本文件没有可执行例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无运行时输入</td>
+<td>编译期源码常量</td>
+<td>parameter</td>
+<td>混合</td>
+<td>所有数值在源码中以 <code>parameter</code> 固定。</td>
+</tr>
+<tr>
+<td>旧模型参数块</td>
+<td>源文件注释标注的 <code>mz1d.par</code>、<code>tcr_15um.h</code>、<code>bloque_dlvr11.f</code></td>
+<td>文档/历史来源</td>
+<td>-</td>
+<td>说明这些参数从旧 NLTE 1-D 模型合并而来。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nl</code>, <code>nl_cts</code>, <code>nzy</code>, <code>nzy_cts</code>, <code>nb</code>, <code>nisot</code>, <code>nhist</code>, <code>nbox_max</code></td>
+<td><code>nlte_commons_h.F90</code>、<code>nlte_aux.F</code>、<code>nlte_calc.F</code>、<code>nlte_tcool_mod.F</code></td>
+<td>integer parameters</td>
+<td>-</td>
+<td>决定共享数组、历史表、主网格/CTS 网格和矩阵维度。</td>
+</tr>
+<tr>
+<td><code>Ptop_atm</code>, <code>Pbottom_atm</code></td>
+<td><code>nlte_tcool_mod.F</code></td>
+<td>real parameters</td>
+<td>pressure</td>
+<td>限定 NLTE model 的压力范围和边界定位。</td>
+</tr>
+<tr>
+<td><code>nu</code>, <code>nu12_0200</code>, <code>nu12_1000</code>, <code>ee</code>, <code>gamma</code>, <code>hplanck</code>, <code>vlight</code></td>
+<td><code>nlte_aux.F</code>、<code>nlte_calc.F</code>、<code>nlte_tcool_mod.F</code></td>
+<td>real / real*8 parameters</td>
+<td>cm-1、cgs 等</td>
+<td>Planck 项、谱带缩放和辐射能量计算常数。</td>
+</tr>
+<tr>
+<td><code>imr</code>, <code>indexisot</code></td>
+<td><code>nlte_setup.F</code>、<code>nlte_calc.F</code>、<code>nlte_tcool_mod.F</code></td>
+<td>arrays</td>
+<td>mixing ratio / isotope code</td>
+<td>同位素查表、谱带合成和速率计算使用的 CO2 同位素信息。</td>
+</tr>
+<tr>
+<td><code>rf19</code> ... <code>rf33bc</code></td>
+<td><code>nlte_setup.F::GETK_dlvr11</code></td>
+<td>real*8 parameters</td>
+<td>scaling factor</td>
+<td>碰撞率族的缩放因子。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本文件没有 <code>save</code> 变量、common block、I/O、诊断输出或运行时副作用。</li>
+<li>它的副作用是编译期耦合：修改任一维度参数会改变 <a href="nlte_commons_h.html">nlte_commons_h</a> 中数组形状，并影响 <code>nlte_aux.F</code>、<code>nlte_calc.F</code>、<code>nlte_tcool_mod.F</code> 的循环边界和矩阵尺寸。</li>
+<li><code>Ptop_atm/Pbottom_atm</code>、<code>itt_cza</code>、<code>nu*</code> 和 <code>imr</code> 是物理/配置常数；改变它们不会触发局部校验，必须同时核对下游公式和表文件是否匹配。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>编译器加载 <code>nlte_paramdef_h</code> 时，先固定 NLTE 主网格、CTS 网格、细网格和矩阵维度。</li>
+<li><a href="nlte_commons_h.html">nlte_commons_h</a> 用这些参数声明谱带、同位素、查表、主网格、CTS 网格和历史谱线缓存数组。</li>
+<li><code>nlte_setup.F</code> 读取 <code>nztabul/nb/nisot/indexisot</code> 以填充谱线表，并读取 <code>rf*</code>、<code>nu</code>、<code>ee</code> 计算碰撞率。</li>
+<li><a href="nlte_aux.html">nlte_aux</a> 用 <code>gamma/ee</code> 计算 Planck 辅助函数，用 <code>nl/nzy/nzy_cts/nhist/nbox_max</code> 控制插值和历史表读写。</li>
+<li><a href="nlte_calc.html">nlte_calc</a> 用 <code>nl/nzy/nl_cts/nzy_cts</code> 控制矩阵和 escape probability 的网格尺寸，用 <code>nu/nu12_0200/nu12_1000/imr/ee</code> 做谱带与同位素合成。</li>
+<li><code>nlte_tcool_mod.F</code> 用 <code>nl/nl2/nltot/nl_cts</code> 构造 cooling-time 方程，用 <code>Ptop_atm/Pbottom_atm</code> 定位适用压力范围，并用 <code>hplanck/vlight/ee/gamma/nu/imr</code> 计算辐射项。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>at compile time:
+  set NLTE dimensions:
+    nl = 12
+    nltot = 20
+    nl_cts = 2 + nltot - nl
+    nzy = (nl - 1) * 4 + 1
+    nzy_cts = (nl_cts - 1) * 4 + 1
+
+  set table sizes:
+    nztabul = 79
+    nb = 41
+    nisot = 4
+    nhist = 36
+    nbox_max = 4
+
+  set physical constants and CO2 spectral data:
+    pressure limits = Ptop_atm, Pbottom_atm
+    radiation constants = hplanck, vlight, ee, gamma
+    isotope band table = nu
+    isotope weights = imr
+
+downstream modules:
+  allocate arrays and loops from these parameters
+  read tables and solve NLTE matrices using matching dimensions</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NLTE 15 微米 CO2 冷却</td>
+<td>提供所有固定维度、压力范围、谱带中心波数、辐射常数和 CO2 同位素权重。</td>
+</tr>
+<tr>
+<td>辐射计算</td>
+<td><code>hplanck/vlight/ee/gamma/nu</code> 进入 Planck 项、谱带能量和冷却率计算。</td>
+</tr>
+<tr>
+<td>历史谱线表复现</td>
+<td><code>nhist/nbox_max/nb/nisot</code> 决定 <code>rhist_03</code> 读入和缓存历史谱线表的合法尺寸。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>文件是自由格式 Fortran 90 module，但保存了旧参数文件名注释，便于追溯参数来源。</li>
+<li><code>nu(nisot,8)</code> 通过 <code>reshape(..., shape(nu), order=[2,1])</code> 填表；复现时要保留这个 <code>order</code>，否则同位素和谱带轴会转置。</li>
+<li><code>nl_cts</code> 和 <code>nzy_cts</code> 不是硬编码常数，而由 <code>nltot</code> 与 <code>nl</code> 推导；改动 <code>nl</code> 会连锁改变 CTS 网格。</li>
+<li>cgs 辐射常数使用 <code>real*8</code>，但 <code>nu</code> 和 <code>imr</code> 是默认 <code>real</code>，下游混合精度由源文件字面类型决定。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>nbox_max=4</code> 必须覆盖历史谱线表中的 box 数；<code>nlte_aux.F::rhist_03</code> 会检查 <code>nbox_stored(ihist) &gt; nbox_max</code>。</li>
+<li><code>nb=41</code> 和 <code>nisot=4</code> 必须与 <code>nlte_setup.F</code> 读取的谱线/同位素表一致，尤其是 <code>indexisot=[26,28,36,27]</code>。</li>
+<li><code>Ptop_atm=3.e-10</code> 与 <code>Pbottom_atm=2.e-5</code> 是 NLTE 插值和边界定位的固定压力范围，运行剖面超出范围会影响 <code>nlte_tcool_mod.F</code> 的边界索引。</li>
+<li>修改 <code>nu12_0200</code> 或 <code>nu12_1000</code> 会影响 121 热带合成缩放，必须同步核对 <a href="nlte_calc.html">nlte_calc</a> 中 121 子带逻辑。</li>
+<li><code>rf19</code> ... <code>rf33bc</code> 当前全为 1；如用于调参，应记录与碰撞率来源文件的对应关系。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>itt_cza=13</code> 的完整方案枚举需要结合 <code>nlte_tcool_mod.F</code> 后续页面确认。</li>
+<li><code>Ptop_atm/Pbottom_atm</code> 的单位按源注释和下游压力变量推断为压力边界，但文件本身没有显式单位说明。</li>
+<li><code>rf19</code> ... <code>rf33bc</code> 的物理校准来源需要结合旧 IAA/CSIC 文档或 <code>nlte_setup.F::GETK_dlvr11</code> 的上游说明确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a></li>
+<li><a href="nlte_commons_h.html">nlte_commons_h</a></li>
+<li><a href="nlte_aux.html">nlte_aux</a></li>
+<li><a href="nlte_calc.html">nlte_calc</a></li>
+<li><a href="nlte_setup.html">nlte_setup.md</a>：使用本模块参数读取表并计算碰撞率。</li>
+<li><a href="nlte_tcool_mod.html">nlte_tcool_mod.md</a>：使用本模块参数构造 NLTE cooling-time 方程。</li>
+<li><a href="nltecool.html">nltecool</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

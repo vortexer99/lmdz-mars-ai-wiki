@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>readhead_NC - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/dynphy_lonlat/readhead_NC.md</span>
+    </nav>
+    <article class="content">
+<h1 id="readhead_ncf">readhead_NC.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\readhead_NC.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>readhead_NC.F</code> 定义 <code>readhead_NC</code>，用于从 NetCDF 诊断/初始状态文件读取动力网格头信息、火星常数、初始日、几何数组、地表位势和垂直坐标系数。它不创建文件，也不推进物理过程；主要职责是在 <code>xvik.F</code> 初始化物理前，把 NetCDF 文件中的 <code>controle</code>、经纬度、面积和 <code>aps/bps</code> 等静态状态装入动力公共模块与输出参数。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>readhead_NC</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1</td>
+<td>打开 NetCDF 文件，读取控制参数和网格静态场，设置 <code>day_ini/day0</code>、动力维度、火星常数、能量积分初值、几何数组、<code>phis</code>、<code>aps/bps</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comvert_mod</code></td>
+<td><code>aps,bps,preff</code></td>
+<td>接收垂直混合坐标系数，并硬编码设置参考压力 <code>preff=610.</code>。</td>
+<td><code>preff</code> 未使用 <code>tab_cntrl(18)</code>，源码注释说明该项不适用于 diagfi。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>im,jm,lllm,daysec,dtvr,rad,omeg,g,cpp,kappa,r,pi</code></td>
+<td>写入动力维度、时间步长、行星常数、气体常数；使用 <code>pi</code> 做度到弧度转换。</td>
+<td><code>cpp</code> 固定为 <code>744.499</code>，未从控制表读取。</td>
+</tr>
+<tr>
+<td><code>temps_mod</code></td>
+<td><code>day_ini</code></td>
+<td>从 <code>controle(4)</code> 接收初始日，并复制到输出参数 <code>day0</code>。</td>
+<td>无。</td>
+</tr>
+<tr>
+<td><code>ener_mod</code></td>
+<td><code>etot0,ptot0,ztot0,stot0,ang0</code></td>
+<td>从 <code>controle(12:16)</code> 接收初始能量/动量诊断量。</td>
+<td>这些量的物理单位需结合生成端确认。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="include-依赖">include 依赖</h2>
+<table>
+<thead>
+<tr>
+<th>include</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>netcdf.inc</code></td>
+<td>提供 <code>NF_OPEN</code>、<code>NF_INQ_VARID</code>、<code>NF_GET_VAR_*</code>、<code>NF_CLOSE</code>、<code>NF_NOERR</code>、<code>NF_NOWRITE</code> 等 NetCDF Fortran 接口常量和例程声明。</td>
+</tr>
+<tr>
+<td><code>dimensions.h</code></td>
+<td>提供编译期 <code>iim/jjm/llm</code> 等维度常量。</td>
+</tr>
+<tr>
+<td><code>paramet.h</code></td>
+<td>提供派生维度常量，例如 <code>ip1jmp1</code>。</td>
+</tr>
+<tr>
+<td><code>comgeom.h</code></td>
+<td>提供动力几何公共数组，例如 <code>rlonu</code>、<code>rlatv</code>、<code>aire</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NF_OPEN</code></td>
+<td>NetCDF Fortran API</td>
+<td><code>readhead_NC.F:45</code></td>
+<td>以只读方式打开 <code>fichnom</code>。</td>
+</tr>
+<tr>
+<td><code>NF_INQ_VARID</code></td>
+<td>NetCDF Fortran API</td>
+<td>多处</td>
+<td>查询 <code>controle</code>、<code>longitude</code>、<code>latitude</code>、<code>aire</code>、<code>phisinit</code>、<code>aps</code>、<code>bps</code> 的变量 ID。</td>
+</tr>
+<tr>
+<td><code>NF_GET_VAR_DOUBLE</code> / <code>NF_GET_VAR_REAL</code></td>
+<td>NetCDF Fortran API</td>
+<td>多处</td>
+<td>根据是否定义 <code>NC_DOUBLE</code> 读取双精度或单精度变量。</td>
+</tr>
+<tr>
+<td><code>abort</code></td>
+<td>外部例程</td>
+<td>多处错误分支</td>
+<td>NetCDF 打开、查询或读取失败时终止。</td>
+</tr>
+<tr>
+<td><code>NF_CLOSE</code></td>
+<td>NetCDF Fortran API</td>
+<td><code>readhead_NC.F:232</code></td>
+<td>关闭 NetCDF 文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用方">调用方</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xvik.F</code></td>
+<td><code>libf/dynphy_lonlat/phymars/xvik.F:229</code></td>
+<td>在处理每个 <code>diagfi</code> NetCDF 文件时，先调用 <code>readhead_NC(file//'.nc',day0,phis,constR)</code> 读取头信息，再调用 <code>conf_gcm</code>、<code>iniconst</code>、<code>inigeom</code> 初始化后续物理/几何状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fichnom</code></td>
+<td>调用方参数</td>
+<td><code>CHARACTER*(*)</code></td>
+<td>路径</td>
+<td>要打开的 NetCDF 文件名，<code>xvik</code> 传入 <code>file//'.nc'</code>。</td>
+</tr>
+<tr>
+<td>NetCDF <code>controle</code></td>
+<td><code>fichnom</code></td>
+<td><code>REAL tab_cntrl(100)</code></td>
+<td>混合</td>
+<td>控制参数表，位置 1-16 被读取到维度、时间、常数和能量变量。</td>
+</tr>
+<tr>
+<td>NetCDF <code>longitude</code></td>
+<td><code>fichnom</code></td>
+<td>写入 <code>rlonu(:)</code></td>
+<td>源文件中为度，例程内转弧度</td>
+<td>动力 u 经度坐标。</td>
+</tr>
+<tr>
+<td>NetCDF <code>latitude</code></td>
+<td><code>fichnom</code></td>
+<td>写入 <code>rlatv(:)</code></td>
+<td>源文件中为度，例程内转弧度</td>
+<td>动力 v 纬度坐标。</td>
+</tr>
+<tr>
+<td>NetCDF <code>aire</code></td>
+<td><code>fichnom</code></td>
+<td>写入 <code>aire(:)</code></td>
+<td>待确认</td>
+<td>网格单元面积。</td>
+</tr>
+<tr>
+<td>NetCDF <code>phisinit</code></td>
+<td><code>fichnom</code></td>
+<td>写入 <code>phis(ip1jmp1)</code></td>
+<td>待确认，通常为地表位势</td>
+<td>地表位势初始场。</td>
+</tr>
+<tr>
+<td>NetCDF <code>aps</code>、<code>bps</code></td>
+<td><code>fichnom</code></td>
+<td>写入 <code>aps(:)</code>、<code>bps(:)</code></td>
+<td>混合坐标系数</td>
+<td>垂直坐标系数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>day0</code></td>
+<td>调用方</td>
+<td><code>INTEGER</code></td>
+<td>model day</td>
+<td>复制自 <code>day_ini=tab_cntrl(4)</code>。</td>
+</tr>
+<tr>
+<td><code>phis</code></td>
+<td>调用方</td>
+<td><code>REAL(ip1jmp1)</code></td>
+<td>待确认</td>
+<td>从 NetCDF <code>phisinit</code> 读取的地表位势。</td>
+</tr>
+<tr>
+<td><code>constR</code></td>
+<td>调用方</td>
+<td><code>REAL</code></td>
+<td>J kg-1 K-1（推断）</td>
+<td>计算为 <code>kappa*cpp</code>，并同步写入 <code>comconst_mod::r</code>。</td>
+</tr>
+<tr>
+<td><code>im,jm,lllm</code></td>
+<td><code>comconst_mod</code></td>
+<td>标量</td>
+<td>grid count</td>
+<td>从 <code>controle(1:3)</code> 读取的水平/垂直维度。</td>
+</tr>
+<tr>
+<td><code>rad,omeg,g,kappa,daysec,dtvr</code></td>
+<td><code>comconst_mod</code></td>
+<td>标量</td>
+<td>混合</td>
+<td>从控制表读取的行星半径、角速度、重力、<code>kappa</code>、日长和动力时间步。</td>
+</tr>
+<tr>
+<td><code>cpp,preff,r</code></td>
+<td><code>comconst_mod</code> / <code>comvert_mod</code></td>
+<td>标量</td>
+<td>混合</td>
+<td><code>cpp=744.499</code>、<code>preff=610.</code>、<code>r=constR</code> 为例程内赋值。</td>
+</tr>
+<tr>
+<td><code>etot0,ptot0,ztot0,stot0,ang0</code></td>
+<td><code>ener_mod</code></td>
+<td>标量</td>
+<td>待确认</td>
+<td>初始能量、动量或守恒量诊断。</td>
+</tr>
+<tr>
+<td><code>rlonu,rlatv,aire,aps,bps</code></td>
+<td>common/module state</td>
+<td>数组</td>
+<td>混合</td>
+<td>动力几何和垂直坐标状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>读取 NetCDF 文件但不写文件；所有 NetCDF 失败分支打印错误信息并 <code>CALL abort</code>。</li>
+<li>若 <code>controle</code> 中的 <code>im/jm/lllm</code> 与编译期 <code>iim/jjm/llm</code> 不一致，打印格式化错误并 <code>STOP</code>。</li>
+<li>修改 <code>comconst_mod</code>、<code>temps_mod</code>、<code>ener_mod</code>、<code>comvert_mod</code> 和 <code>comgeom.h</code> 公共数组中的全局状态。</li>
+<li>将 <code>longitude</code>、<code>latitude</code> 从度转换为弧度后覆盖 <code>rlonu(:)</code>、<code>rlatv(:)</code>。</li>
+<li>打印 <code>preff</code>、<code>constR</code> 和 <code>aire</code> 的最小/最大值到标准输出。</li>
+<li><code>nbsrf</code>、<code>radpas</code>、<code>length/iq</code>、<code>str3</code> 中部分变量没有参与后续计算；其中 <code>length</code> 只用于定义控制表长度。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>以 <code>NF_NOWRITE</code> 打开 <code>fichnom</code>，失败则打印文件名并终止。</li>
+<li>查询并读取 NetCDF 变量 <code>controle</code> 到 <code>tab_cntrl(100)</code>；缺失或读取失败均终止。</li>
+<li>从 <code>tab_cntrl</code> 解包动力维度、初始日、火星半径、自转角速度、重力、<code>kappa</code>、日长、动力时间步和五个能量/动量诊断量。</li>
+<li>固定设置 <code>cpp=744.499</code>，固定设置 <code>preff=610.</code>，再令 <code>day0=day_ini</code>、<code>constR=kappa*cpp</code>、<code>r=constR</code>。</li>
+<li>检查运行文件维度 <code>im/jm/lllm</code> 是否等于编译维度 <code>iim/jjm/llm</code>；任一不一致即 <code>STOP</code>。</li>
+<li>查询并读取 <code>longitude</code> 到 <code>rlonu</code>，随后执行 <code>rlonu(:)=rlonu(:)*pi/180.</code>。</li>
+<li>查询并读取 <code>latitude</code> 到 <code>rlatv</code>，随后执行 <code>rlatv(:)=rlatv(:)*pi/180.</code>。</li>
+<li>查询并读取 <code>aire</code> 到公共几何数组，计算并打印 <code>MINVAL(aire)</code> 和 <code>MAXVAL(aire)</code>。</li>
+<li>查询并读取 <code>phisinit</code> 到输出数组 <code>phis</code>。</li>
+<li>查询并读取 <code>aps</code>、<code>bps</code> 到 <code>comvert_mod</code> 的垂直坐标数组。</li>
+<li>关闭 NetCDF 文件并返回。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>open fichnom as read-only NetCDF
+read controle into tab_cntrl
+
+im, jm, lllm = tab_cntrl(1:3)
+day_ini = tab_cntrl(4)
+rad, omeg, g = tab_cntrl(5:7)
+cpp = 744.499
+kappa = tab_cntrl(9)
+daysec, dtvr = tab_cntrl(10:11)
+etot0, ptot0, ztot0, stot0, ang0 = tab_cntrl(12:16)
+preff = 610.
+
+day0 = day_ini
+constR = kappa * cpp
+r = constR
+
+if im != iim or jm != jjm or lllm != llm:
+    print mismatch and stop
+
+read longitude into rlonu; convert degrees to radians
+read latitude into rlatv; convert degrees to radians
+read aire into aire; print min/max
+read phisinit into phis
+read aps into aps
+read bps into bps
+close file</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>dynphy_lonlat 初始状态/诊断文件读取</td>
+<td>为 <a href="xvik.html"><code>xvik</code></a> 的 diagfi NetCDF 后处理路径提供网格、控制参数和垂直坐标头信息。</td>
+</tr>
+<tr>
+<td>start_archive/NetCDF 头信息约定</td>
+<td>读取的 <code>controle</code>、<code>aps/bps</code>、经纬度和面积变量与 <a href="ini_archive.html"><code>ini_archive</code></a> 写入控制表/静态变量的约定相呼应，但本例程的直接调用方是 <a href="xvik.html"><code>xvik</code></a>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran，依赖 <code>#include</code> 和 <code>#ifdef NC_DOUBLE</code> 预处理。</li>
+<li><code>NC_DOUBLE</code> 控制 NetCDF 读取例程选择；未定义时使用 <code>NF_GET_VAR_REAL</code>。</li>
+<li><code>preff</code> 和 <code>cpp</code> 是硬编码火星值，不完全采用 <code>controle</code> 表。</li>
+<li>错误处理以 <code>CALL abort</code> 和少量 <code>STOP</code> 为主，没有把 NetCDF 错误码转换为详细文本。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>输入 NetCDF 必须包含 <code>controle</code>、<code>longitude</code>、<code>latitude</code>、<code>aire</code>、<code>phisinit</code>、<code>aps</code>、<code>bps</code>，否则例程会终止。</li>
+<li><code>controle(1:3)</code> 必须与编译期 <code>iim/jjm/llm</code> 一致；此例程不做重网格或垂直插值。</li>
+<li>调用后 <code>rlonu/rlatv</code> 已经是弧度；后续初始化不要再次按度解释。</li>
+<li><code>constR</code> 和 <code>comconst_mod::r</code> 来自 <code>kappa*744.499</code>，不是直接从文件读取。</li>
+<li><code>preff</code> 固定为 610 Pa；如果复现实验依赖控制表中的参考压，需要确认生成文件和读取端约定。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>tab_cntrl(12:16)</code> 对 <code>etot0/ptot0/ztot0/stot0/ang0</code> 的单位和后续消费路径需要结合动力框架确认。</li>
+<li><code>aire</code> 和 <code>phisinit</code> 的单位由写入端/文件约定决定；本文件只读取和转交。</li>
+<li><code>nbsrf</code>、<code>radpas</code>、<code>iq</code>、<code>str3</code> 等变量是否是旧 <code>readhead</code> 迁移残留。</li>
+<li><code>preff=610.</code> 与注释中 <code>tab_cntrl(18)</code> 的差异在 <code>xvik</code> 路径中同样表现为硬编码参考压；设计意图仍需结合垂直坐标模块确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dynphy_lonlat 目录</a></li>
+<li><a href="ini_archive.html">ini_archive</a></li>
+<li><a href="newstart.html">newstart</a></li>
+<li><a href="lect_start_archive.html">lect_start_archive</a></li>
+<li><a href="xvik.html">xvik</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

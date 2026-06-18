@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>perosat - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/perosat.md</span>
+    </nav>
+    <article class="content">
+<h1 id="perosatf">perosat.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\perosat.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>perosat.F</code> 定义 <code>perosat_mod</code>，提供 <code>perosat</code> 例程，用于在光化学计算后处理 H2O2 饱和与凝结。它按 Lindner (1988) 的饱和蒸气压公式在 <code>T&lt;=220 K</code> 时计算 H2O2 饱和摩尔分数；若某层超饱和，则把超出部分从高层向下一层转移，最底层仍超饱和的部分沉积到地表通量 <code>pdqscloud</code>，并把最终摩尔分数差转换为质量混合比 tendency <code>pdqcloud</code>。</p>
+<p>该例程由 <a href="calchim_mod.html">calchim_mod</a> 在逐列光化学后调用，输入 <code>zy</code> 是化学后 mole fraction，输出 <code>pdqcloud/dqscloud</code> 作为 H2O2 凝结倾向和地表通量。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>perosat_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1（<code>END MODULE</code> 153）</td>
+<td>H2O2 饱和/凝结后处理模块</td>
+</tr>
+<tr>
+<td><code>perosat</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7（<code>END SUBROUTINE</code> 151）</td>
+<td>对单个网格列 <code>ig</code> 处理 H2O2 饱和、向下层转移和地表沉积</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td>saved threadprivate logical</td>
+<td style="text-align: right;">62</td>
+<td>首次调用时检查 H2O2 tracer 索引，随后关闭检查</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_h2o2</code>, <code>mmol</code></td>
+<td>取得 H2O2 tracer 索引和分子量数组</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>conc_mod</code></td>
+<td><code>mmean</code></td>
+<td>用平均分子量把 mole fraction 差转换为 kg/kg/s</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code></td>
+<td>最底层超饱和量换算为地表质量通量</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abort_physic</code></td>
+<td>LMDZ 物理工具（未显式 use）</td>
+<td>77</td>
+<td>缺少 H2O2 tracer 时中止</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code>,<code>nlayer</code>,<code>nq</code></td>
+<td><code>calchim</code> 调用参数</td>
+<td>integer</td>
+<td>-</td>
+<td>网格列数、层数、tracer 数</td>
+</tr>
+<tr>
+<td><code>ig</code></td>
+<td><code>calchim</code> 逐列循环</td>
+<td>integer</td>
+<td>-</td>
+<td>当前处理的物理网格列</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>物理时间步</td>
+<td>real</td>
+<td>s</td>
+<td>tendency 换算分母</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td>调用方压力边界</td>
+<td>real <code>(ngrid,nlayer+1)</code></td>
+<td>Pa</td>
+<td>层界压力，用于按质量厚度向下转移超饱和 H2O2</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td>调用方层中压力</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>Pa</td>
+<td>计算饱和摩尔分数的分母</td>
+</tr>
+<tr>
+<td><code>zt</code></td>
+<td><code>calchim</code> 已更新温度列</td>
+<td>real <code>(nlayer)</code></td>
+<td>K</td>
+<td>H2O2 饱和蒸气压公式输入</td>
+</tr>
+<tr>
+<td><code>zy</code></td>
+<td>光化学后 mole fraction</td>
+<td>real <code>(nlayer,nq)</code></td>
+<td>mol/mol</td>
+<td>H2O2 当前摩尔分数</td>
+</tr>
+<tr>
+<td><code>igcm_h2o2</code>,<code>mmol</code>,<code>mmean</code>,<code>g</code></td>
+<td>共享模块</td>
+<td>mixed</td>
+<td>mixed</td>
+<td>tracer 索引、分子量、平均分子量和重力</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdqcloud</code></td>
+<td><code>calchim</code>/调用方</td>
+<td>real <code>(ngrid,nlayer,nq)</code></td>
+<td>kg/kg/s</td>
+<td>H2O2 凝结导致的大气 tracer tendency</td>
+</tr>
+<tr>
+<td><code>pdqscloud</code></td>
+<td><code>calchim</code>/调用方</td>
+<td>real <code>(ngrid,nq)</code></td>
+<td>kg/m2/s</td>
+<td>最底层超饱和 H2O2 沉积到地表的通量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>首次调用时读取 <code>igcm_h2o2</code>，若为 0 则打印错误并 <code>abort_physic("perosat","missing h2o2 tracer",1)</code>。</li>
+<li><code>firstcall</code> 是 <code>SAVE</code> 且 <code>THREADPRIVATE</code>，每个 OpenMP 线程各自执行一次 tracer 检查。</li>
+<li>只写当前列 <code>ig</code> 的 <code>pdqcloud(ig,:,igcm_h2o2)</code> 与 <code>pdqscloud(ig,igcm_h2o2)</code>；不清零其他 tracer 或其他网格列槽位。</li>
+<li>局部 <code>taucond(ngrid,nlayer)</code> 只计算诊断值，后续没有输出或使用。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>首次 tracer 检查</strong>：若 <code>igcm_h2o2==0</code>，说明配置中缺 H2O2 tracer，直接中止。</li>
+<li><strong>逐层计算饱和摩尔分数</strong>：对每层 <code>l</code>，先令 <code>zynew(l)=zy(l,igcm_h2o2)</code>；若 <code>zt(l)&lt;=220</code>，计算 <code>psat_hg=10**(11.98-3422/zt(l))</code>，转成 hPa 后除以 <code>pplay(ig,l)</code> 得到 <code>zysat(l)</code>；暖层则设 <code>zysat=1.e30</code>，等价于不凝结。</li>
+<li><strong>诊断凝结率</strong>：计算 <code>taucond=max((zy-zysat)*mmol/(mmean*ptimestep),0)</code>，但该数组不作为输出。</li>
+<li><strong>从高层向低层转移超饱和量</strong>：从 <code>nlayer</code> 到 2，若 <code>zynew(l)&gt;zysat(l)</code>，把超出量按相邻层压力厚度比加到 <code>zynew(l-1)</code>，并把本层截断到 <code>zysat(l)</code>。</li>
+<li><strong>处理底层沉积</strong>：若 <code>zynew(1)&gt;zysat(1)</code>，把超出量乘分子量和底层压差，再除以 <code>mmean*g*ptimestep</code>，写成地表通量 <code>pdqscloud(ig,igcm_h2o2)</code>；否则该通量为 0。</li>
+<li><strong>输出大气 tendency</strong>：逐层把 <code>(zynew-zy)*mmol/(mmean*ptimestep)</code> 写入 <code>pdqcloud(ig,l,igcm_h2o2)</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>perosat(..., ig, ptimestep, pplev, pplay, zt, zy, pdqcloud, pdqscloud):
+  if firstcall:
+    if igcm_h2o2 == 0: abort
+    firstcall = false
+
+  for l = 1..nlayer:
+    zynew(l) = zy(l,h2o2)
+    if zt(l) &lt;= 220:
+      psat_hg = 10**(11.98 - 3422/zt(l))
+      psat_hpa = psat_hg * 760 / 1013
+      zysat(l) = psat_hpa * 100 / pplay(ig,l)
+    else:
+      zysat(l) = 1e30
+
+  for l = nlayer downto 2:
+    if zynew(l) &gt; zysat(l):
+      excess = zynew(l) - zysat(l)
+      zynew(l-1) += excess * layer_mass(l) / layer_mass(l-1)
+      zynew(l) = zysat(l)
+
+  if zynew(1) &gt; zysat(1):
+    pdqscloud(ig,h2o2) = excess_bottom * mmol(h2o2) * dp_bottom / (mmean(ig,1)*g*ptimestep)
+    zynew(1) = zysat(1)
+  else:
+    pdqscloud(ig,h2o2) = 0
+
+  for l = 1..nlayer:
+    pdqcloud(ig,l,h2o2) = (zynew(l)-zy(l,h2o2))*mmol(h2o2)/(mmean(ig,l)*ptimestep)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>光化学后处理</td>
+<td><a href="calchim_mod.html">calchim_mod</a> 逐列调用 <code>perosat</code>，在光化学更新后处理 H2O2 超饱和</td>
+</tr>
+<tr>
+<td>H2O2 凝结/沉积</td>
+<td>计算 H2O2 饱和限制、大气 tendency 和地表沉积通量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 <code>.F</code>，注释为法语/英语混合。</li>
+<li>只处理 <code>igcm_h2o2</code> 一个 tracer；输出数组其他 tracer 槽位由调用方或其他流程负责。</li>
+<li>饱和公式只在 <code>T&lt;=220 K</code> 应用；暖层用 <code>1.e30</code> 抑制凝结。</li>
+<li><code>abort_physic</code> 未在本文件 use 列表显式声明，属于已有代码风格中的外部工具调用。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>H2O2 tracer 必须存在并由 <code>tracer_mod::igcm_h2o2</code> 标识；缺失会中止。</li>
+<li><code>zy</code> 是 mole fraction，而输出 <code>pdqcloud/pdqscloud</code> 是质量单位；换算依赖 <code>mmol(igcm_h2o2)</code>、<code>mmean(ig,l)</code>、<code>g</code> 和 <code>ptimestep</code>。</li>
+<li>超饱和转移顺序是从顶层向下，不能改成同时更新；每层沉降到下一层后会影响下一次底层判断。</li>
+<li><code>pdqcloud</code> 只写 H2O2 tracer；调用方若需要其他 tracer tendency 为 0，必须在外部初始化。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>taucond</code> 仅诊断计算但未输出；是否历史遗留待确认。</li>
+<li><code>psat_hpa = psat_hg*760./1013.</code> 的单位转换注释与常见 mmHg/hPa 换算方向需结合原文献确认；复现按源码字面执行。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="calchim_mod.html">calchim_mod</a>：调用方，光化学后调用 <code>perosat</code> 并接收 <code>dqcloud/dqscloud</code>。</li>
+<li><a href="../phymars/tracer_mod.html">tracer_mod</a>：提供 <code>igcm_h2o2</code> 和 <code>mmol</code>。</li>
+<li><a href="../phymars/conc_mod.html">conc_mod</a>：提供平均分子量 <code>mmean</code>。</li>
+<li><a href="index.html">aeronomars/index</a>：aeronomars 目录总览。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>libf-overview - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a class="active" href="libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/libf-overview.md</span>
+    </nav>
+    <article class="content">
+<h1 id="libf-核心源码目录">libf 核心源码目录</h1>
+<h2 id="路径">路径</h2>
+<pre><code>LMDZ.MARS\libf</code></pre>
+<h2 id="职责">职责</h2>
+<p>libf 是 LMDZ.MARS 的核心 Fortran 源码目录，包含火星大气物理过程的全部实现。该目录不包含完整的 GCM 动力核心，而是作为物理包供其他框架（如 LMDZ 动力框架）调用。</p>
+<p><strong>源码依据</strong>：<code>README</code> 说明 libf 包含 "Fortran source code of the Mars physics package"。</p>
+<h2 id="目录内容">目录内容</h2>
+<table>
+<thead>
+<tr>
+<th>子目录/文件</th>
+<th>类型</th>
+<th>作用</th>
+<th>文件数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phymars/</code></td>
+<td>目录</td>
+<td>核心物理模块：辐射、尘埃、水循环、CO2、云、边界层、重力波等</td>
+<td>164</td>
+</tr>
+<tr>
+<td><code>aeronomars/</code></td>
+<td>目录</td>
+<td>高层大气模块：光化学、热层、电离层、分子扩散</td>
+<td>32</td>
+</tr>
+<tr>
+<td><code>dynphy_lonlat/</code></td>
+<td>目录</td>
+<td>动力-物理耦合与初始化</td>
+<td>21 个文件（集中在 <code>phymars/</code> 子目录）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="子目录详解">子目录详解</h2>
+<h3 id="phymars---核心物理模块">phymars/ - 核心物理模块</h3>
+<p>包含火星大气物理过程的实现，是最重要的目录。按功能分类：</p>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>关键文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>主入口</strong></td>
+<td><code>physiq_mod.F</code></td>
+<td>物理过程主调度模块，入口例程 <code>physiq()</code></td>
+</tr>
+<tr>
+<td><strong>辐射</strong></td>
+<td><code>callradite_mod.F</code>, <code>lwmain_mod.F</code>, <code>swmain_mod.F</code></td>
+<td>短波和长波辐射计算</td>
+</tr>
+<tr>
+<td><strong>尘埃</strong></td>
+<td><code>dust_param_mod.F90</code>, <code>dust_scaling_mod.F90</code>, <code>dust_windstress_lift.F90</code>, <code>dustdevil.F90</code></td>
+<td>尘埃 lifting、传输、沉降</td>
+</tr>
+<tr>
+<td><strong>水循环</strong></td>
+<td><code>watercloud_mod.F</code>, <code>watersat_mod.F90</code>, <code>tcondwater.F90</code></td>
+<td>水蒸气、云、凝结</td>
+</tr>
+<tr>
+<td><strong>CO2 循环</strong></td>
+<td><code>co2condens_mod.F</code>, <code>co2sat.F</code>, <code>co2snow.F</code>, <code>co2cloud_mod.F90</code></td>
+<td>CO2 凝结、升华、云</td>
+</tr>
+<tr>
+<td><strong>光化学</strong></td>
+<td><code>calchim_mod.F90</code>, <code>photochemistry_mod.F90</code></td>
+<td>大气化学（可能通过 aeronomars 调用）</td>
+</tr>
+<tr>
+<td><strong>边界层/湍流</strong></td>
+<td><code>turb_mod.F90</code>, <code>lmdz_atke_turbulence_ini.F90</code>, <code>lmdz_call_atke.F90</code></td>
+<td>湍流混合、ATKE 方案</td>
+</tr>
+<tr>
+<td><strong>重力波</strong></td>
+<td><code>sugwd.F90</code>, <code>gwprofil_mod.F90</code>, <code>gwstress_mod.F90</code></td>
+<td>重力波拖曳</td>
+</tr>
+<tr>
+<td><strong>对流</strong></td>
+<td><code>convadj_mod.F</code>, <code>thermcell_main_mars.F90</code></td>
+<td>对流调整、热对流</td>
+</tr>
+<tr>
+<td><strong>示踪剂</strong></td>
+<td><code>tracer_mod.F90</code>, <code>initracer.F90</code></td>
+<td>示踪剂管理</td>
+</tr>
+<tr>
+<td><strong>初始化</strong></td>
+<td><code>phyetat0_mod.F90</code>, <code>phyredem.F90</code>, <code>phys_state_var_init_mod.F90</code></td>
+<td>物理状态初始化</td>
+</tr>
+<tr>
+<td><strong>输出</strong></td>
+<td><code>writediagfi.F</code>, <code>xios_output_mod.F90</code>, <code>write_output_mod.F90</code></td>
+<td>诊断输出</td>
+</tr>
+</tbody>
+</table>
+<h3 id="aeronomars---高层大气模块">aeronomars/ - 高层大气模块</h3>
+<p>处理 80km 以上高层大气物理过程：</p>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>关键文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>光化学</strong></td>
+<td><code>photochemistry_mod.F90</code>, <code>photolysis_mod.F90</code>, <code>photolysis_online.F</code></td>
+<td>光化学反应和光解</td>
+</tr>
+<tr>
+<td><strong>热层</strong></td>
+<td><code>nltecool_mod.F</code>, <code>nlte_calc.F</code>, <code>nlte_aux.F</code></td>
+<td>非局部热力学平衡（NLTE）冷却</td>
+</tr>
+<tr>
+<td><strong>电离层</strong></td>
+<td><code>iono_h.F90</code>, <code>euvheat.F90</code></td>
+<td>电离层加热、光电子</td>
+</tr>
+<tr>
+<td><strong>分子扩散</strong></td>
+<td><code>moldiff.F</code>, <code>moldiff_red.F</code>, <code>moldiffcoeff.F</code></td>
+<td>分子扩散</td>
+</tr>
+<tr>
+<td><strong>化学</strong></td>
+<td><code>chemthermos.F90</code>, <code>deposition.F</code></td>
+<td>化学和沉积过程</td>
+</tr>
+</tbody>
+</table>
+<h3 id="dynphy_lonlat---动力-物理耦合">dynphy_lonlat/ - 动力-物理耦合</h3>
+<p>负责物理过程与动力核心的耦合：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>callphysiq_mod.F90</code></td>
+<td>物理过程调用接口</td>
+</tr>
+<tr>
+<td><code>iniphysiq_mod.F90</code></td>
+<td>物理初始化</td>
+</tr>
+<tr>
+<td><code>ini_archive.F</code></td>
+<td>初始场处理</td>
+</tr>
+<tr>
+<td><code>defrun_new.F</code></td>
+<td>运行参数定义</td>
+</tr>
+<tr>
+<td><code>nogcm.F90</code></td>
+<td>独立物理模式（无 GCM 动力核心）</td>
+</tr>
+<tr>
+<td><code>leapfrog_noro1.F</code></td>
+<td>时间积分方案</td>
+</tr>
+<tr>
+<td><code>start2archive.F</code></td>
+<td>初始场格式转换</td>
+</tr>
+</tbody>
+</table>
+<p><strong>推断</strong>：<code>dynphy_lonlat</code> 中的代码负责将 <code>phymars</code> 中的物理过程与 lon-lat 网格的动力核心连接起来。</p>
+<h2 id="与其他目录的关系">与其他目录的关系</h2>
+<table>
+<thead>
+<tr>
+<th>相关目录</th>
+<th>关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>../deftank/</code></td>
+<td>提供配置文件，被 libf 中的参数读取模块使用</td>
+</tr>
+<tr>
+<td><code>../datadir/</code></td>
+<td>提供运行时查表数据（辐射数据、化学参数等）</td>
+</tr>
+<tr>
+<td><code>../util/</code></td>
+<td>处理 libf 产生的输出数据</td>
+</tr>
+</tbody>
+</table>
+<h2 id="关键文件">关键文件</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phymars/physiq_mod.F</code></td>
+<td>物理主入口，<code>physiq()</code> 是核心调度例程</td>
+</tr>
+<tr>
+<td><code>phymars/callradite_mod.F</code></td>
+<td>辐射计算入口</td>
+</tr>
+<tr>
+<td><code>phymars/watercloud_mod.F</code></td>
+<td>水云计算入口</td>
+</tr>
+<tr>
+<td><code>phymars/dust_param_mod.F90</code></td>
+<td>尘埃参数化入口</td>
+</tr>
+<tr>
+<td><code>phymars/tracer_mod.F90</code></td>
+<td>示踪剂系统</td>
+</tr>
+<tr>
+<td><code>aeronomars/photochemistry_mod.F90</code></td>
+<td>光化学模块</td>
+</tr>
+<tr>
+<td><code>aeronomars/nltecool_mod.F</code></td>
+<td>热层 NLTE 冷却</td>
+</tr>
+</tbody>
+</table>
+<h2 id="典型运行流程">典型运行流程</h2>
+<p>物理过程在主循环中被调用，基本流程：</p>
+<ol type="1">
+<li><p><strong>初始化阶段</strong>：</p>
+<ul>
+<li>读取配置参数</li>
+<li>初始化辐射数据</li>
+<li>初始化尘埃、水、CO2 等示踪剂</li>
+</ul></li>
+<li><p><strong>每时间步</strong>：</p>
+<ul>
+<li>调用 <code>physiq()</code> 主入口</li>
+<li>辐射计算 (<code>callradite</code>)</li>
+<li>尘埃 lifting 和传输</li>
+<li>水循环（凝结、蒸发、云形成）</li>
+<li>CO2 循环（凝结、升华）</li>
+<li>边界层/湍流混合</li>
+<li>重力波拖曳</li>
+<li>对流调整</li>
+<li>示踪剂输运</li>
+</ul></li>
+<li><p><strong>输出阶段</strong>：</p>
+<ul>
+<li>诊断变量输出</li>
+<li>XIOS NetCDF 输出</li>
+</ul></li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>需要外部动力框架（如 LMDZ 通用动力核心）提供时间步进和网格</li>
+<li>需要配置 <code>callphys.def</code> 开启/关闭各物理过程</li>
+<li>需要辐射数据文件（存在于 datadir 中）</li>
+<li>不同配置级别（GCM5/GCM6/MCD5/MCD6）对应不同的物理模块组合</li>
+</ul>
+<h2 id="细节入口">细节入口</h2>
+<p>本页只做 <code>libf/</code> 目录总览；调用链、耦合方式和配置开关已拆到更细页面维护：</p>
+<ul>
+<li>物理主调度见 <a href="phymars/physiq_mod.html">physiq_mod</a>，水循环和 CO2 循环的关键调用点见 <a href="../routines/physiq-water-cycle-callpoints.html">physiq-water-cycle-callpoints.md</a> 与 <a href="../routines/physiq-co2-cycle-callpoints.html">physiq-co2-cycle-callpoints.md</a>。</li>
+<li><code>dynphy_lonlat</code> 到 <code>phymars</code> 的 3D 耦合入口是 <code>call_physiq</code> 调用 <code>physiq</code>，初始化入口是 <code>iniphysiq</code>；对应页面见 <a href="dynphy_lonlat/callphysiq_mod.html">callphysiq_mod</a>、<a href="dynphy_lonlat/iniphysiq_mod.html">iniphysiq_mod</a>。</li>
+<li>1D 模式入口是 <code>testphys1d</code>，初始化由 <code>init_testphys1d</code> 完成，随后每步直接调用 <code>physiq</code>；对应页面见 <a href="phymars/dyn1d/testphys1d.html">testphys1d</a> 和 <a href="phymars/dyn1d/init_testphys1d_mod.html">init_testphys1d_mod</a>。</li>
+<li>配置读取和开关影响见 <a href="../architecture/config-system.html">config-system.md</a>、<a href="../architecture/co2-cycle-config.html">co2-cycle-config.md</a>、<a href="../architecture/water-cycle-config.html">water-cycle-config.md</a>、<a href="../architecture/testphys1d-config.html">testphys1d-config.md</a>。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

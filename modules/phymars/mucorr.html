@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mucorr - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/mucorr.md</span>
+    </nav>
+    <article class="content">
+<h1 id="mucorrf">mucorr.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\mucorr.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>mucorr.F</code> 定义 <code>mucorr_mod</code>，只提供 <code>mucorr</code> 一个例程。它在不显式计算日变化循环时，根据太阳赤纬和各格点纬度，计算日平均等效太阳入射角余弦 <code>pmu</code> 以及日照时间比例 <code>pfract</code>。当前源码树中，<code>physiq_mod.F</code> 在 <code>diurnal=.false.</code> 分支调用它，把输出写入共享太阳几何数组 <code>mu0/fract</code>，随后供辐射和相关地表/尘埃流程读取。</p>
+<p>本文件不 <code>use</code> 其他模块，也不调用其他自定义例程；核心依赖是 Fortran 内置三角函数、平方根和反正切。源码末尾还对 <code>pmu</code> 做一次“大气厚度/行星半径”球面修正，但活动代码使用硬编码常数 <code>1224.</code> 和 <code>35.</code>，而不是同一段中已计算但被注释掉的 <code>alph=phaut/prad</code> 公式。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mucorr_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装非日变化情形下的等效太阳角和日照比例计算。</td>
+</tr>
+<tr>
+<td><code>mucorr</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>对 <code>npts</code> 个格点由 <code>pdeclin/plat</code> 计算 <code>pmu/pfract</code>，并应用球面修正。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>-</td>
+<td>-</td>
+<td>本文件没有 <code>use</code> 依赖。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>本文件不调用其他自定义例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="上游调用点">上游调用点</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>源码位置</th>
+<th>调用条件</th>
+<th>传入 / 接收关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>physiq_mod.F</code></td>
+<td><code>libf/phymars/physiq_mod.F:67</code>, <code>1020-1021</code></td>
+<td><code>IF (diurnal) THEN</code> 调用 <code>solang</code>，否则调用 <code>mucorr</code>。</td>
+<td>传入 <code>ngrid, declin, latitude, 10000., rad</code>，输出写入 <code>mu0, fract</code>。</td>
+</tr>
+<tr>
+<td><code>nirco2abs.F</code></td>
+<td><code>libf/phymars/nirco2abs.F:203-205</code></td>
+<td>注释说明非日变化 NIR CO2 加热率因非线性，不直接使用 <code>physiq.F</code> 中 <code>mucorr</code> 给出的平均 <code>mu0</code>。</td>
+<td>该文件改用 20 个日内积分步反复调用 <code>solang</code>，不是 <code>mucorr</code> 的直接调用者。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>npts</code></td>
+<td>调用方</td>
+<td>integer scalar, intent(in)</td>
+<td>-</td>
+<td>待处理格点数。</td>
+</tr>
+<tr>
+<td><code>pdeclin</code></td>
+<td><code>physiq_mod.F</code> 中 <code>orbite</code> 输出的 <code>declin</code></td>
+<td>real scalar, intent(in)</td>
+<td>弧度</td>
+<td>太阳赤纬。</td>
+</tr>
+<tr>
+<td><code>plat(npts)</code></td>
+<td><code>physiq_mod.F</code> 传入的 <code>latitude</code></td>
+<td>real array, intent(in)</td>
+<td>弧度</td>
+<td>每个物理格点纬度。</td>
+</tr>
+<tr>
+<td><code>phaut</code></td>
+<td>调用方，当前为 <code>10000.</code></td>
+<td>real scalar, intent(in)</td>
+<td>源码未标注</td>
+<td>大气厚度；当前只进入 <code>alph=phaut/prad</code>，但活动修正公式未使用 <code>alph</code>。</td>
+</tr>
+<tr>
+<td><code>prad</code></td>
+<td>调用方，当前为 <code>rad</code></td>
+<td>real scalar, intent(in)</td>
+<td>与 <code>phaut</code> 一致</td>
+<td>行星半径；当前只进入未被活动公式使用的 <code>alph</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pmu(npts)</code></td>
+<td><code>physiq_mod.F</code> 的 <code>mu0</code></td>
+<td>real array, intent(out)</td>
+<td>-</td>
+<td>日平均等效太阳角余弦；末尾经球面修正后返回。</td>
+</tr>
+<tr>
+<td><code>pfract(npts)</code></td>
+<td><code>physiq_mod.F</code> 的 <code>fract</code></td>
+<td>real array, intent(out)</td>
+<td>-</td>
+<td>日照时间占一个 sol 的比例；当 <code>pmu</code> 被截断为 0 时也置为 0。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本文件没有 module 变量、<code>SAVE</code> 变量、common block、文件 I/O 或诊断输出。</li>
+<li><code>mucorr</code> 只通过 <code>intent(out)</code> 参数写出 <code>pmu/pfract</code>。</li>
+<li>上游 <code>physiq_mod.F</code> 把输出放入 <code>comsaison_h::mu0/fract</code> 后，下游短波辐射、NIR CO2 加热、坡面/尘埃相关流程会读取这些太阳几何量。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>计算 <code>pi</code>，把 <code>pdeclin</code> 记为 <code>z</code>，预先得到 <code>cz=cos(z)</code> 和 <code>sz=sin(z)</code>。</li>
+<li>对每个纬度点，计算 <code>sin(phi)</code>、<code>cos(phi)</code>、<code>tan(phi)</code>，其中 <code>cos(phi)</code> 小于等于 <code>1.e-9</code> 时被钳制到 <code>1.e-9</code>。</li>
+<li>由 <code>t=-tan(phi)*sin(declin)/cos(declin)</code> 和 <code>a=1-t*t</code> 推导日照半角 <code>tp</code>；当 <code>a&lt;0</code> 时先保留原始 <code>ap</code>，再把用于平方根的 <code>a</code> 钳制为 0。</li>
+<li>用 <code>pmu=(sin(phi)*sin(declin)*t)/pi + cos(phi)*cos(declin)*sin(t)/pi</code> 和 <code>pfract=t/pi</code> 计算日平均量。</li>
+<li>若原始 <code>ap&lt;0</code>，进入极昼/极夜分支，把 <code>pmu</code> 设为 <code>sin(phi)*sin(declin)</code>、<code>pfract</code> 设为 1。</li>
+<li>将非正 <code>pmu</code> 钳制为 0，再用 <code>pfract</code> 归一化 <code>pmu</code>；若归一化后 <code>pmu</code> 为 0，则把 <code>pfract</code> 也置为 0。</li>
+<li>计算 <code>alph=phaut/prad</code>，但活动修正公式对每个格点执行 <code>pmu=sqrt(1224.*pmu*pmu+1.)/35.</code>；基于 <code>alph</code> 的公式保留在注释中。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>mucorr(npts, declin, lat, pmu, pfract, phaut, prad):
+    pi = 4 * atan(1)
+    cz = cos(declin)
+    sz = sin(declin)
+
+    for each grid point j:
+        phi = lat[j]
+        cphi = max(cos(phi), 1.e-9)
+        sphi = sin(phi)
+        t = -(sphi / cphi) * sz / cz
+        a = 1 - t*t
+        ap = a
+
+        if t == 0:
+            daylight_half_angle = pi / 2
+        else:
+            daylight_half_angle = atan_branch(sqrt(max(a, 0)) / t)
+
+        pmu[j] = daily_mean_cosine(daylight_half_angle, sphi, sz, cphi, cz)
+        pfract[j] = daylight_half_angle / pi
+
+        if ap &lt; 0:
+            pmu[j] = sphi * sz
+            pfract[j] = 1
+
+        pmu[j] = max(pmu[j], 0)
+        pmu[j] = pmu[j] / pfract[j]
+        if pmu[j] == 0:
+            pfract[j] = 0
+
+    alph = phaut / prad
+    for each grid point j:
+        pmu[j] = sqrt(1224 * pmu[j]^2 + 1) / 35</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>太阳几何</td>
+<td>在 <code>physiq_mod.F</code> 非日变化分支中替代逐时刻 <code>solang</code>，给出日平均 <code>mu0/fract</code>。</td>
+</tr>
+<tr>
+<td>辐射调用链</td>
+<td><code>mu0/fract</code> 进入 <code>callradite</code>、NIR CO2 加热和若干地表辐射相关计算，是关闭日变化时的太阳入射几何来源。</td>
+</tr>
+<tr>
+<td>NIR CO2 吸收</td>
+<td><code>nirco2abs.F</code> 注释指出该过程对 <code>mu0</code> 非线性，因此非日变化时另做日内积分，而不是直接使用 <code>mucorr</code> 的平均 <code>mu0</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran <code>.F</code> 文件，但内容是一个 module 加一个 contained subroutine。</li>
+<li><code>tz</code> 局部变量声明后未在当前源码中使用。</li>
+<li><code>alph=phaut/prad</code> 被计算，但活动代码没有使用 <code>alph</code>；实际生效的是硬编码 <code>sqrt(1224.*pmu^2+1.)/35.</code>。</li>
+<li>极昼/极夜判断依赖 <code>ap=1-t*t</code> 的原始符号；后续用于平方根的 <code>a</code> 会被截断到非负。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>plat</code> 和 <code>pdeclin</code> 在源码中按弧度参与三角函数；不要按角度制复现。</li>
+<li><code>cphi</code> 有下限 <code>1.e-9</code>，但 <code>cz=cos(pdeclin)</code> 没有显式下限；移植时要保留源码行为，或把新增保护标为行为变更。</li>
+<li>活动球面修正必须使用硬编码 <code>1224.</code> 和 <code>35.</code>；注释中的 <code>alph</code> 公式不是当前运行路径。</li>
+<li><code>pmu</code> 先除以 <code>pfract</code>，之后才在 <code>pmu==0</code> 时把 <code>pfract</code> 置零；如果改写为先清零 <code>pfract</code>，会改变边界条件行为。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>源码没有注释 <code>1224.</code> 和 <code>35.</code> 的来源；从形式看它们替代了 <code>phaut/prad</code> 参数化修正，但本页只按源码事实记录，不推断常数物理来源。</li>
+<li><code>cos(pdeclin)=0</code> 附近的数值行为没有源码保护；需结合实际轨道参数范围确认是否可能触发极端分母。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars/index</a>：<code>phymars</code> 目录总览。</li>
+<li><a href="comsaison_h.html">comsaison_h</a>：<code>mu0/fract/local_time</code> 共享太阳几何数组。</li>
+<li><a href="nirco2abs.html">nirco2abs</a>：近红外 CO2 吸收；说明非日变化时单独日内积分太阳角。</li>
+<li><a href="../../themes/radiation.html">radiation</a>：辐射主题页，<code>mu0/fract</code> 是辐射入口参数之一。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

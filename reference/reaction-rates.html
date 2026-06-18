@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>reaction-rates - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="file-index.html">文件索引</a>
+        <a href="source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/reaction-rates.md</span>
+    </nav>
+    <article class="content">
+<h1 id="热层化学反应速率常数参考">热层化学反应速率常数参考</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\deftank\chemthermos_reactionrates.def</code></pre>
+<h2 id="类型">类型</h2>
+<p>参考数据——火星热层/电离层化学网络的温度依赖反应速率常数。</p>
+<h2 id="作用">作用</h2>
+<p>源码依据（<code>libf/aeronomars/chemthermos_readini.F:7-40</code>、<code>paramfoto_compact.F:1359-1892</code>）：本文件为 LMDZ.MARS 的<strong>热层气相化学网络</strong>提供 61 个双体反应的 Arrhenius 速率常数参数。这些参数驱动 <code>chemthermos</code> 模块（热层光化学 + 离子化学）计算中性气体、自由基、激发态原子与离子的源汇项。</p>
+<h2 id="文件结构">文件结构</h2>
+<h3 id="顶层结构源码依据chemthermos_readinif23-30">顶层结构（源码依据：<code>chemthermos_readini.F:23-30</code>）</h3>
+<pre class="text"><code>行 1:       文件头说明行（Fortran list-directed read 读取时被跳过）
+行 2-4:     反应 #1 (ch2)
+  行 2:     ! ch2: &lt;反应方程式&gt;              ← 跳过
+  行 3:     ! &lt;来源/文献&gt;                    ← 跳过
+  行 4:     &lt;rc1&gt;  &lt;rc2&gt;  &lt;rc3&gt;              ← 读入 rcoef(1,1:3)
+行 5-7:     反应 #2 (ch3)
+  ...
+行 3n-1..3n+1:  反应 #n
+  ...
+行 182-184: 反应 #61 (ch87)</code></pre>
+<p>共 <strong>61 个反应块 × 3 行/块 + 1 文件头 = 184 行</strong>（与 <code>wc -l</code> 实测一致）。</p>
+<h3 id="速率常数公式源码依据文件首行注释--paramfoto_compactf1505-1892">速率常数公式（源码依据：文件首行注释 + <code>paramfoto_compact.F:1505-1892</code>）</h3>
+<p>每个反应 <code>i</code>（Fortran 索引 <code>rcoef(i, 1:3)</code>）在中性温度 <code>T</code> (K) 或电子温度 <code>T_e</code> (K) 下的体积反应速率为：</p>
+<pre class="text"><code>k(T)  =  rcoef(i,1) * (T/300)^rcoef(i,2) * exp( rcoef(i,3) / T )</code></pre>
+<ul>
+<li><code>rcoef(i,1)</code> ≡ A：300 K 参考速率（单位依反应阶数而定：双体 cm³ s⁻¹；三体 cm⁶ s⁻¹；电子反应 cm³ s⁻¹）。</li>
+<li><code>rcoef(i,2)</code> ≡ B：温度指数（无量纲）。</li>
+<li><code>rcoef(i,3)</code> ≡ C：活化温度（K）；负值表示吸热反应。</li>
+</ul>
+<h2 id="读取位置">读取位置</h2>
+<table>
+<thead>
+<tr>
+<th>读取例程</th>
+<th>文件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>chemthermos_readini</code></td>
+<td><code>libf/aeronomars/chemthermos_readini.F:7-40</code></td>
+<td>用 Fortran list-directed <code>READ</code> 循环 61 次读入 <code>rcoef(i,1:3)</code>，存入 <a href="../modules/aeronomars/param_v4_h.html">param_v4_h</a> 模块（<code>rcoef(61,3)</code>，第 45 行；未显式 <code>THREADPRIVATE</code>）。文件缺失时调用 <code>abort_physic</code> 中止。见文件页 <a href="../modules/aeronomars/chemthermos_readini.html">chemthermos_readini</a>。</td>
+</tr>
+<tr>
+<td>（消费者）<a href="../modules/aeronomars/paramfoto_compact.html">paramfoto_compact</a></td>
+<td><code>libf/aeronomars/paramfoto_compact.F:1505-1892</code></td>
+<td>按索引取 <code>rcoef</code> 计算 <code>ch2..ch87</code> 各反应速率，分别以中性温度 <code>tcte</code> 或电子温度 <code>t_elect</code> 代入公式。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="关键反应速率表">关键反应速率表</h2>
+<p>下表列出本文件包含的全部 61 个反应。源码依据：<code>chemthermos_reactionrates.def</code> 全文 + <code>paramfoto_compact.F:1505-1892</code> 反应索引对应。</p>
+<blockquote>
+<p>说明：编号列 "rcoef(i)" 为本文件中按顺序出现的反应（即 <code>rcoef</code> 数组索引）。"化学编号"（ch2, ch3, ...）是源码中使用的变量名，<strong>不连续</strong>（如 ch1、ch6、ch8 等未出现）。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">rcoef(i)</th>
+<th>化学编号</th>
+<th>反应</th>
+<th>文献来源</th>
+<th style="text-align: right;">A (rcoef₁)</th>
+<th style="text-align: right;">B (rcoef₂)</th>
+<th style="text-align: right;">C (rcoef₃, K)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>ch2</td>
+<td>h + o2 + co2 → ho2 + co2</td>
+<td>JPL 2011 (低气压限) ×2.5</td>
+<td style="text-align: right;">1.1e-31</td>
+<td style="text-align: right;">-1.3</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>ch3</td>
+<td>o + ho2 → oh + o2</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">3.0e-11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">200</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>ch4</td>
+<td>co + oh → co2 + h</td>
+<td>JPL 2011 (低气压限)</td>
+<td style="text-align: right;">1.5e-13</td>
+<td style="text-align: right;">0.6</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>ch5</td>
+<td>ho2 + ho2 → h2o2 + o2</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">3.0e-13</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">460</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td>ch7</td>
+<td>oh + ho2 → h2o + o2</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">4.8e-11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">250</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>ch9</td>
+<td>o(1d) + h2o → 2oh</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">1.63e-10</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">60</td>
+</tr>
+<tr>
+<td style="text-align: right;">7</td>
+<td>ch10</td>
+<td>o + o + co2 → o2 + co2</td>
+<td>Tsang &amp; Hampson 1986</td>
+<td style="text-align: right;">1.3e-34</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">900</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>ch11</td>
+<td>o + oh → o2 + h</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">1.8e-11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">180</td>
+</tr>
+<tr>
+<td style="text-align: right;">9</td>
+<td>ch13</td>
+<td>h + ho2 → h2 + o2</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">6.9e-12</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">10</td>
+<td>ch14</td>
+<td>o(1d) + h2 → h + oh</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">1.2e-10</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">11</td>
+<td>ch15</td>
+<td>oh + h2 → h + h2o</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">2.8e-12</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">-1800</td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td>ch18</td>
+<td>oh + h2o2 → h2o + ho2</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">1.8e-12</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">13</td>
+<td>ch19</td>
+<td>o(1d) + co2 → o + co2</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">7.5e-11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">115</td>
+</tr>
+<tr>
+<td style="text-align: right;">14</td>
+<td>ch20</td>
+<td>o(1d) + o2 → o + o2</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">3.3e-11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">55</td>
+</tr>
+<tr>
+<td style="text-align: right;">15</td>
+<td>ch21</td>
+<td>o + o2 + co2 → o3 + co2</td>
+<td>JPL 2011 ×2.5</td>
+<td style="text-align: right;">1.5e-33</td>
+<td style="text-align: right;">-2.4</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td>ch22</td>
+<td>o3 + h → o2 + oh</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">1.4e-10</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">-470</td>
+</tr>
+<tr>
+<td style="text-align: right;">17</td>
+<td>ch23</td>
+<td>o3 + oh → ho2 + o2</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">1.7e-12</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">-940</td>
+</tr>
+<tr>
+<td style="text-align: right;">18</td>
+<td>ch24</td>
+<td>o3 + ho2 → oh + 2o2</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">1.0e-14</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">-490</td>
+</tr>
+<tr>
+<td style="text-align: right;">19</td>
+<td>ch30</td>
+<td>n + no → n2 + o</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">2.1e-11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">100</td>
+</tr>
+<tr>
+<td style="text-align: right;">20</td>
+<td>ch31</td>
+<td>n2 + o(1d) → n2 + o</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">2.15e-11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">110</td>
+</tr>
+<tr>
+<td style="text-align: right;">21</td>
+<td>ch32</td>
+<td>n + o2 → no + o</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">1.5e-11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">-3600</td>
+</tr>
+<tr>
+<td style="text-align: right;">22</td>
+<td>ch33</td>
+<td>n + oh → no + h</td>
+<td>Atkinson 1989 (IUPAC)</td>
+<td style="text-align: right;">3.8e-11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">85</td>
+</tr>
+<tr>
+<td style="text-align: right;">23</td>
+<td>ch34</td>
+<td>n + o3 → no + o2</td>
+<td>JPL 2011 (上限)</td>
+<td style="text-align: right;">1.0e-16</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">24</td>
+<td>ch35</td>
+<td>n + ho2 → no + oh</td>
+<td>Brune 1983 J. Phys. Chem.</td>
+<td style="text-align: right;">2.2e-11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">25</td>
+<td>ch36</td>
+<td>n(2d) + o → n + o</td>
+<td>Herron 1999</td>
+<td style="text-align: right;">3.3e-12</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">-260</td>
+</tr>
+<tr>
+<td style="text-align: right;">26</td>
+<td>ch37</td>
+<td>n(2d) + n2 → n + n2</td>
+<td>Herron 1999</td>
+<td style="text-align: right;">1.7e-14</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">27</td>
+<td>ch38</td>
+<td>n(2d) + co2 → no + co</td>
+<td>Herron 1999</td>
+<td style="text-align: right;">3.6e-13</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">28</td>
+<td>ch39</td>
+<td>no + ho2 → no2 + oh</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">3.3e-12</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">270</td>
+</tr>
+<tr>
+<td style="text-align: right;">29</td>
+<td>ch40</td>
+<td>o + no + co2 → no2 + co2</td>
+<td>2.5×JPL 2011 (低气压限)</td>
+<td style="text-align: right;">2.25e-31</td>
+<td style="text-align: right;">-1.5</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">30</td>
+<td>ch41</td>
+<td>o + no2 → no + o2</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">5.1e-12</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">210</td>
+</tr>
+<tr>
+<td style="text-align: right;">31</td>
+<td>ch42</td>
+<td>no + o3 → no2 + o2</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">3.0e-12</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">-1500</td>
+</tr>
+<tr>
+<td style="text-align: right;">32</td>
+<td>ch43</td>
+<td>h + no2 → no + oh</td>
+<td>JPL 2011</td>
+<td style="text-align: right;">4.0e-10</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">-340</td>
+</tr>
+<tr>
+<td style="text-align: right;">33</td>
+<td>ch45</td>
+<td>n + o → no</td>
+<td>Du &amp; Dalgarno JGR 1990</td>
+<td style="text-align: right;">2.8e-17</td>
+<td style="text-align: right;">-0.5</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">34</td>
+<td>ch46</td>
+<td>co2+ + o2 → o2+ + co2</td>
+<td>Aninich 1993</td>
+<td style="text-align: right;">5.5e-11</td>
+<td style="text-align: right;">-0.82</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">35</td>
+<td>ch47</td>
+<td>co2+ + o → o+ + co2</td>
+<td>UMIST</td>
+<td style="text-align: right;">9.6e-11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">36</td>
+<td>ch48</td>
+<td>co2+ + o → o2+ + co</td>
+<td>UMIST</td>
+<td style="text-align: right;">1.64e-10</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">37</td>
+<td>ch49</td>
+<td>o2+ + e- → o + o</td>
+<td>Alge 1983</td>
+<td style="text-align: right;">2.0e-7</td>
+<td style="text-align: right;">-0.7</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">38</td>
+<td>ch50</td>
+<td>o+ + co2 → o2+ + co</td>
+<td>UMIST</td>
+<td style="text-align: right;">9.4e-10</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">39</td>
+<td>ch55</td>
+<td>co2+ + e- → co + o</td>
+<td>UMIST</td>
+<td style="text-align: right;">3.8e-7</td>
+<td style="text-align: right;">-0.5</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">40</td>
+<td>ch56</td>
+<td>o+ + co2 → o2 + co+</td>
+<td>Kim 1989 (存疑)</td>
+<td style="text-align: right;">0.0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">41</td>
+<td>ch57</td>
+<td>co+ + co2 → co2+ + co</td>
+<td>UMIST</td>
+<td style="text-align: right;">1.0e-9</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">42</td>
+<td>ch58</td>
+<td>co+ + o → o+ + co</td>
+<td>UMIST</td>
+<td style="text-align: right;">1.4e-10</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">43</td>
+<td>ch59</td>
+<td>c+ + co2 → co+ + co</td>
+<td>UMIST</td>
+<td style="text-align: right;">1.1e-9</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">44</td>
+<td>ch62</td>
+<td>co2+ + no → no+ + co2</td>
+<td>UMIST</td>
+<td style="text-align: right;">1.2e-10</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">45</td>
+<td>ch63</td>
+<td>co2+ + n → no + co+</td>
+<td>Scott 1998</td>
+<td style="text-align: right;">3.4e-10</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">46</td>
+<td>ch64</td>
+<td>o2+ + no → no+ + o2</td>
+<td>Midey &amp; Viggiano 1999</td>
+<td style="text-align: right;">4.5e-10</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">47</td>
+<td>ch65</td>
+<td>o2+ + n2 → no+ + no</td>
+<td>Ferguson 1973 (Fox &amp; Sung 2001)</td>
+<td style="text-align: right;">1.0e-15</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">48</td>
+<td>ch66</td>
+<td>o2+ + n → no+ + o</td>
+<td>Scott 1998 (Fox &amp; Sung 2001)</td>
+<td style="text-align: right;">1.0e-10</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">49</td>
+<td>ch67</td>
+<td>o+ + n2 → no+ + n</td>
+<td>UMIST</td>
+<td style="text-align: right;">1.2e-12</td>
+<td style="text-align: right;">-0.45</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">50</td>
+<td>ch68</td>
+<td>n2+ + co2 → co2+ + n2</td>
+<td>Dotan 2000 (Fox &amp; Sung 2001)</td>
+<td style="text-align: right;">9.0e-10</td>
+<td style="text-align: right;">-0.23</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">51</td>
+<td>ch69</td>
+<td>n2+ + o(3p) → no+ + n</td>
+<td>Scott 1999 (Fox &amp; Sung 2001)</td>
+<td style="text-align: right;">1.33e-10</td>
+<td style="text-align: right;">-0.44</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">52</td>
+<td>ch70</td>
+<td>n2+ + co → n2 + co+</td>
+<td>UMIST</td>
+<td style="text-align: right;">7.4e-11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">53</td>
+<td>ch71</td>
+<td>n2+ + e- → n + n</td>
+<td>UMIST</td>
+<td style="text-align: right;">1.7e-7</td>
+<td style="text-align: right;">-0.3</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">54</td>
+<td>ch72</td>
+<td>n2+ + o(3p) → o+ + n2</td>
+<td>Scott 1999 (Fox &amp; Sung 2001)</td>
+<td style="text-align: right;">7.0e-12</td>
+<td style="text-align: right;">-0.23</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">55</td>
+<td>ch73</td>
+<td>co+ + h → h+ + co</td>
+<td>Scott 1997 (Fox &amp; Sung 2001)</td>
+<td style="text-align: right;">4.0e-10</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">56</td>
+<td>ch74</td>
+<td>o+ + h → h+ + o</td>
+<td>UMIST</td>
+<td style="text-align: right;">5.66e-10</td>
+<td style="text-align: right;">0.36</td>
+<td style="text-align: right;">8.6</td>
+</tr>
+<tr>
+<td style="text-align: right;">57</td>
+<td>ch75</td>
+<td>no+ + e- → n + o</td>
+<td>UMIST</td>
+<td style="text-align: right;">4.3e-7</td>
+<td style="text-align: right;">-0.37</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">58</td>
+<td>ch76</td>
+<td>h+ + o(3p) → o+ + h</td>
+<td>UMIST</td>
+<td style="text-align: right;">6.86e-10</td>
+<td style="text-align: right;">0.26</td>
+<td style="text-align: right;">-224.3</td>
+</tr>
+<tr>
+<td style="text-align: right;">59</td>
+<td>ch85</td>
+<td>n+ + co2 → co2+ + n</td>
+<td>UMIST</td>
+<td style="text-align: right;">7.5e-10</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">60</td>
+<td>ch86</td>
+<td>h2 + co2+ → h + hco2+</td>
+<td>UMIST</td>
+<td style="text-align: right;">9.5e-10</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">61</td>
+<td>ch87</td>
+<td>hco2+ + e- → co2 + h</td>
+<td>Krasnopolsky JGR 2002</td>
+<td style="text-align: right;">3.4e-7</td>
+<td style="text-align: right;">-0.5</td>
+<td style="text-align: right;">0</td>
+</tr>
+</tbody>
+</table>
+<h2 id="反应类别统计">反应类别统计</h2>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>编号范围</th>
+<th style="text-align: right;">数量</th>
+<th>温度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>中性-中性（含三体复合）</td>
+<td>ch2-ch45</td>
+<td style="text-align: right;">33</td>
+<td><code>tcte</code>（中性温度）</td>
+</tr>
+<tr>
+<td>离子-中性 / 离子-电子</td>
+<td>ch46-ch87</td>
+<td style="text-align: right;">28</td>
+<td><code>t_elect</code>（电子温度）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>温度选择准则</strong>（源码依据：<code>paramfoto_compact.F:1505-1892</code>）：</p>
+<ul>
+<li><code>rcoef(1..33)</code>（即 ch2..ch45）用 <code>tcte</code> 计算。</li>
+<li><code>rcoef(34..61)</code>（即 ch46..ch87）用 <code>t_elect</code> 计算——涉及电子或离子的反应。</li>
+</ul>
+<h2 id="特殊条目说明">特殊条目说明</h2>
+<table>
+<thead>
+<tr>
+<th>反应</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ch56</strong> (rcoef 40)</td>
+<td>速率常数 <code>A = 0</code>，即禁用此通道。源码注释 "Error in Kim et al., 1989??"，推断：原文献数据被质疑，暂时以 0 关闭此反应通道。</td>
+</tr>
+<tr>
+<td><strong>ch2</strong> (rcoef 1)</td>
+<td>三体复合 <code>h + o2 + co2</code>，系数为 JPL 2011 <strong>低气压限 ×2.5</strong>。</td>
+</tr>
+<tr>
+<td><strong>ch21</strong> (rcoef 15)</td>
+<td>三体反应 <code>o + o2 + co2</code>，同样 JPL 2011 ×2.5。</td>
+</tr>
+<tr>
+<td><strong>ch40</strong> (rcoef 29)</td>
+<td>三体反应 <code>o + no + co2</code>，JPL 2011 ×2.5。</td>
+</tr>
+<tr>
+<td>因子 2.5</td>
+<td>推断：为适配 CO₂ 为主的大气（第三体为 CO₂），对 JPL 地球空气低气压限做 2.5 倍修正。</td>
+</tr>
+<tr>
+<td><strong>ch22</strong> (rcoef 16)</td>
+<td>来源注释写为 "JPL 201"（截断）—— 推断应为 JPL 2011。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="被影响的计算流程">被影响的计算流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热层光化学</td>
+<td>ch2-ch45 决定中性光化学源汇项</td>
+</tr>
+<tr>
+<td>电离层</td>
+<td>ch46-ch87 决定离子密度分布（co2+, o2+, o+, no+, n2+, h+, hco2+, e-）</td>
+</tr>
+<tr>
+<td>高层大气温度</td>
+<td>化学加热依赖于反应速率</td>
+</tr>
+<tr>
+<td>逃逸通量（<code>PhiH</code>、<code>PhiH2</code>、<code>PhiD</code>）</td>
+<td>h 与 h2 的生成/损耗受 ch13/ch14/ch15/ch74 控制</td>
+</tr>
+<tr>
+<td>CO/CO₂/O/O₂/O₃ 光化学循环</td>
+<td>ch3/ch4/ch7/ch9/ch21 等构成核心催化循环</td>
+</tr>
+<tr>
+<td>NO 生成（中层-热层耦合）</td>
+<td>ch32/ch33/ch34/ch39/ch42/ch43</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要求">复现要求</h2>
+<ul>
+<li><strong>反应数严格为 61</strong>（源码依据：<code>chemthermos_readini.F:23</code> <code>do i=1,61</code>、<code>param_v4_h.F90:45</code> <code>rcoef(61,3)</code>）。任何增删都会导致数组越界或读入错误。</li>
+<li><strong>每反应严格占 3 行</strong>（跳过/跳过/读值）：不能插入额外空行或注释，否则后续所有反应的系数将错位。</li>
+<li><strong>速率公式符号约定</strong>：活化温度 <code>C</code> 以 <code>exp(C/T)</code> 形式出现（<strong>不是</strong> JPL 习惯的 <code>exp(-E_a/T)</code>）。因此吸热反应的 <code>C</code> 在本文件中为<strong>负值</strong>（如 ch15 C=-1800 K 表示 E_a/k ≈ 1800 K）。重新实现时必须保持此约定，否则会反转吸热/放热方向。</li>
+<li><strong>A 的单位</strong>：双体反应为 cm³ molecule⁻¹ s⁻¹，三体反应为 cm⁶ molecule⁻² s⁻¹。重新实现时必须确保与 <code>chemthermos</code> 模块中其他数密度的单位一致（推断为 CGS）。</li>
+<li><strong>温度选择分支</strong>：rcoef(1..33) 用 <code>tcte</code>，rcoef(34..61) 用 <code>t_elect</code>。若在重新实现时混淆此分支，离子反应的速率差可达数个数量级。</li>
+<li><strong>ch56 (rcoef 40) 的 A=0 必须保留</strong>：源码依赖此反应被"禁用"来规避 Kim 1989 文献数据的疑虑；若重新实现时用非零值，会与历史结果产生系统性偏差。</li>
+<li><strong>复现风险</strong>：本文件引用大量 JPL 2011 与 UMIST 数据，但<strong>未标注版本年份或检索日期</strong>。JPL 数据每 2-4 年更新（最新为 JPL 2019），重新实现时若采用更新后的推荐值，关键反应（如 ch2/ch3/ch4）可能与本文件不一致。</li>
+<li><strong>复现风险</strong>：部分反应来源为 "UMIST database"，<strong>未指明具体版本或反应编号</strong>——UMIST 2012 与 UMIST 2021 对同一反应速率的推荐值有时相差数倍。</li>
+<li><strong>复现风险</strong>：因子 ×2.5（ch2/ch21/ch40）的物理解释未在本文件明确给出，推断为 CO₂ 第三体效率修正。重新实现时需要查阅 JPL 2011 Evaluation 17 的 Table 4-1 或类似权威来源确认。</li>
+<li><strong>复现风险</strong>：ch6 (ch9, <code>o(1d)+h2o→2oh</code>, C=+60) 与 ch19 (ch19, <code>o(1d)+co2→o+co2</code>, C=+115) 的 C 为<strong>正值</strong>——表示随温度升高速率增加，与典型吸热反应规律相反；JPL 2011 对这两个反应的推荐形式为 <code>k = A + B·exp(-C/T)</code> 或 <code>A·(T/300)^B</code>（无 exp 项），本文件的 <code>exp(C/T)</code> 形式与原文献不完全一致，可能是拟合近似。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>ch6 (rcoef 6, <code>o(1d)+h2o→2oh</code>) 与 ch19 (<code>o(1d)+co2→o+co2</code>) 的 <code>exp(+C/T)</code> 形式是否为对 JPL 文献的拟合近似。</li>
+<li>ch22 来源 "JPL 201" 注释截断，应为 JPL 2011 还是其他年份版本。</li>
+<li>ch56 <code>A=0</code> 是否有更优的替代值——Kim 1989 数据是否已被后续实验修订。</li>
+<li>UMIST 数据具体版本（2006 / 2012 / 2021？）。</li>
+<li><code>rcoef(1..33)</code> 与 <code>rcoef(34..61)</code> 的温度分支切换是否在源码中有显式判断，还是通过 <code>chemthermos</code> 模块隐式实现（推断后者）。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

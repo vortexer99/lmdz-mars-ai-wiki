@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>localtime - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/localtime.md</span>
+    </nav>
+    <article class="content">
+<h1 id="localtimef90">localtime.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util\localtime.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>util</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>localtime.F90</code> 是 LMD Mars GCM 输出的本地时重排工具。它读取 <code>diagfi.nc</code>、<code>stats.nc</code>、<code>concat.nc</code> 一类 NetCDF 文件，把用户选择的 3D <code>(longitude,latitude,Time)</code> 或 4D <code>(longitude,latitude,altitude,Time)</code> 变量沿时间维插值到若干指定本地时刻，并输出 <code>input_LT.nc</code>。</p>
+<p>程序不改变水平网格或垂直坐标。核心变换是把每个经度上的 GCM 时间轴转换为本地时坐标：</p>
+<pre class="text"><code>lt_gcm(t) = time(t) + 0.5 * longitude / 180</code></pre>
+<p>即经度 360 度对应 1 sol，相邻本地时样本按 <code>lt_hour/24</code> 写入输出 <code>Time</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>localtime</code></td>
+<td>program</td>
+<td>1</td>
+<td>主程序：读取输入、变量列表和目标本地时，创建 <code>*_LT.nc</code> 并对变量做时间插值。</td>
+</tr>
+<tr>
+<td><code>initiate</code></td>
+<td>internal subroutine</td>
+<td>752</td>
+<td>创建输出 NetCDF 文件，定义坐标、<code>Time</code>、<code>GCM_layers</code> 和可选 <code>controle</code>。</td>
+</tr>
+<tr>
+<td><code>init2</code></td>
+<td>internal subroutine</td>
+<td>956</td>
+<td>复制可选 <code>aps/bps</code> hybrid 坐标和 <code>phisinit</code> 到输出文件。</td>
+</tr>
+<tr>
+<td><code>def_var</code></td>
+<td>internal subroutine</td>
+<td>1132</td>
+<td>定义输出变量并写入 <code>long_name</code>、<code>units</code> 属性。</td>
+</tr>
+<tr>
+<td><code>missing_value</code></td>
+<td>internal subroutine</td>
+<td>1181</td>
+<td>把输入变量的 <code>valid_range</code> 和 <code>missing_value</code> 属性写入输出变量。</td>
+</tr>
+<tr>
+<td><code>interpolf</code></td>
+<td>internal subroutine</td>
+<td>1259</td>
+<td>一维线性插值；若目标点不在已知坐标范围内或邻点缺测，则返回 <code>missing</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖">依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>include "netcdf.inc"</code></td>
+<td>使用旧式 NetCDF Fortran <code>NF_*</code> 接口。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NF_OPEN</code> / <code>NF_CLOSE</code></td>
+<td>NetCDF 库</td>
+<td>打开输入文件、关闭输入和输出文件。</td>
+</tr>
+<tr>
+<td><code>NF_INQ_NVARS</code> / <code>NF_INQ_VARNAME</code> / <code>NF_INQ_VARNDIMS</code></td>
+<td>NetCDF 库</td>
+<td>枚举变量、按变量名过滤坐标和静态字段、确认 3D/4D 变量。</td>
+</tr>
+<tr>
+<td><code>NF_INQ_DIMID</code> / <code>NF_INQ_VARID</code> / <code>NF_INQ_DIMLEN</code></td>
+<td>NetCDF 库</td>
+<td>读取坐标维度，兼容 <code>latitude/lat</code>、<code>longitude/lon</code>、<code>Time/time_counter</code>。</td>
+</tr>
+<tr>
+<td><code>NF_GET_VAR_REAL</code> / <code>NF_PUT_VARA_REAL</code></td>
+<td>NetCDF 库</td>
+<td>读取输入变量、写入插值后变量和输出时间轴。</td>
+</tr>
+<tr>
+<td><code>NF_GET_ATT_TEXT</code> / <code>NF_GET_ATT_REAL</code> / <code>NF_PUT_ATT_*</code></td>
+<td>NetCDF 库</td>
+<td>复制 <code>long_name/title</code>、<code>units</code>、<code>missing_value</code>、<code>valid_range</code> 等属性。</td>
+</tr>
+<tr>
+<td><code>initiate</code> / <code>init2</code> / <code>def_var</code> / <code>missing_value</code> / <code>interpolf</code></td>
+<td>本文件</td>
+<td>输出文件初始化、辅助字段复制、属性写入和线性插值。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入文件名</td>
+<td>stdin / <code>localtime.def</code></td>
+<td>NetCDF 文件名</td>
+<td>-</td>
+<td><code>diagfi.nc</code>、<code>stats.nc</code>、<code>concat.nc</code> 等。</td>
+</tr>
+<tr>
+<td>变量列表</td>
+<td>stdin / <code>localtime.def</code></td>
+<td><code>all</code> 或逐行变量名，空行结束</td>
+<td>-</td>
+<td>要重排到固定本地时的变量；3D 或 4D 才会处理。</td>
+</tr>
+<tr>
+<td><code>latitude</code> / <code>lat</code></td>
+<td>输入 NetCDF</td>
+<td>1D</td>
+<td>degrees_north</td>
+<td>纬度坐标。</td>
+</tr>
+<tr>
+<td><code>longitude</code> / <code>lon</code></td>
+<td>输入 NetCDF</td>
+<td>1D</td>
+<td>degrees_east</td>
+<td>经度坐标，用于本地时换算。</td>
+</tr>
+<tr>
+<td><code>altitude</code></td>
+<td>输入 NetCDF</td>
+<td>1D</td>
+<td>输入属性</td>
+<td>4D 变量垂直坐标，属性会复制。</td>
+</tr>
+<tr>
+<td><code>Time</code> / <code>time_counter</code></td>
+<td>输入 NetCDF</td>
+<td>1D</td>
+<td>sol 类时间</td>
+<td>输入时间轴；若属性说明为 Solar longitude，程序停止。</td>
+</tr>
+<tr>
+<td><code>GCM_layers</code></td>
+<td>输入 NetCDF</td>
+<td>维度</td>
+<td>-</td>
+<td>可选；存在时用于 <code>aps/bps</code> 长度，否则等于 <code>altlen</code>。</td>
+</tr>
+<tr>
+<td><code>controle</code></td>
+<td>输入 NetCDF</td>
+<td>1D</td>
+<td>-</td>
+<td>可选控制数组；存在时复制到输出。</td>
+</tr>
+<tr>
+<td><code>aps/bps</code></td>
+<td>输入 NetCDF</td>
+<td><code>GCM_layers</code></td>
+<td>-</td>
+<td>可选 hybrid 中层坐标；存在时复制到输出。</td>
+</tr>
+<tr>
+<td><code>phisinit</code></td>
+<td>输入 NetCDF</td>
+<td><code>(longitude,latitude)</code></td>
+<td>-</td>
+<td>可选地表位势；存在时复制到输出。</td>
+</tr>
+<tr>
+<td>目标本地时列表</td>
+<td>stdin / <code>localtime.def</code></td>
+<td><code>nhour</code> + <code>nhour</code> 个数值</td>
+<td>hour</td>
+<td>要输出的本地时刻，注释要求 <code>0&lt;t&lt;24</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>input_LT.nc</code></td>
+<td>磁盘 NetCDF</td>
+<td>文件</td>
+<td>-</td>
+<td>输入文件名去掉 <code>.nc</code> 后追加 <code>_LT.nc</code>。</td>
+</tr>
+<tr>
+<td><code>latitude</code> / <code>longitude</code> / <code>altitude</code></td>
+<td>输出 NetCDF</td>
+<td>1D</td>
+<td>输入或固定属性</td>
+<td>原坐标复制。</td>
+</tr>
+<tr>
+<td><code>Time</code></td>
+<td>输出 NetCDF</td>
+<td>unlimited</td>
+<td>stats 时为小时，否则为 sol + local hour/24</td>
+<td>目标本地时组合后的输出时间轴。</td>
+</tr>
+<tr>
+<td><code>GCM_layers</code> / <code>aps</code> / <code>bps</code> / <code>phisinit</code></td>
+<td>输出 NetCDF</td>
+<td>可选</td>
+<td>-</td>
+<td>从输入文件复制的辅助坐标和地形字段。</td>
+</tr>
+<tr>
+<td>用户选择变量</td>
+<td>输出 NetCDF</td>
+<td>3D 或 4D</td>
+<td>输入 <code>units</code></td>
+<td>插值到指定本地时后的变量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="副作用">副作用</h2>
+<ul>
+<li>使用 <code>NF_CLOBBER</code> 和 <code>NF_64BIT_OFFSET</code> 创建输出，同名 <code>_LT.nc</code> 会被覆盖。</li>
+<li>标准输入顺序严格依赖 <code>localtime.def</code>：文件名、变量列表、空行、目标本地时数量、目标本地时列表。</li>
+<li>所选变量整块读入内存，再整块写出；大文件会占用较高内存。</li>
+<li>缺少必要坐标、输入时间轴是 Solar longitude、NetCDF 读写失败时会 <code>stop</code>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>读输入文件与变量列表</strong>：先枚举所有变量，排除 <code>Time/controle/latitude/longitude/altitude/aps/bps/ap/bp/soildepth/cu/cv/aire/phisinit</code> 等 16 个不处理字段；用户可输入 <code>all</code> 或逐行变量名。</li>
+<li><strong>生成输出名</strong>：<code>filename=file(1:len_trim(file)-3)//"_LT.nc"</code>。</li>
+<li><strong>读取坐标和兼容名称</strong>：
+<ul>
+<li>纬度维度/变量可用 <code>latitude</code> 或 <code>lat</code>。</li>
+<li>经度维度/变量可用 <code>longitude</code> 或 <code>lon</code>。</li>
+<li>时间维度/变量可用 <code>Time</code> 或 <code>time_counter</code>。</li>
+<li><code>altitude</code> 是必需字段，属性 <code>long_name/units/positive</code> 会复制。</li>
+</ul></li>
+<li><strong>拒绝 Ls 时间轴</strong>：若 <code>Time</code> 的 <code>long_name</code> 或 <code>title</code> 包含 <code>Solar</code>，程序停止，因为本地时插值要求 sol 时间轴。</li>
+<li><strong>构造输出时间轴</strong>：
+<ul>
+<li>若输入 <code>timelen==12</code>、<code>time(1)==2</code>、<code>time(12)==24</code>，识别为 <code>stats</code> 文件，把输入时间从小时除以 24 映射到 0-1 sol，输出 <code>Time</code> 写为目标小时。</li>
+<li>否则按 <code>nsol=int(time(last))-int(time(first))</code>，对每个 sol 和每个目标小时生成 <code>lt_out = int(time(1))+k-1+lt_hour/24</code>。</li>
+<li>若只有 1 个 sol，追加一个周期性时间点参与插值。</li>
+</ul></li>
+<li><strong>创建输出文件并复制辅助字段</strong>：<code>initiate</code> 写坐标和 <code>Time</code>；<code>init2</code> 复制可选 <code>aps/bps/phisinit</code>。</li>
+<li><strong>逐变量插值</strong>：
+<ul>
+<li>只处理维度数不少于 3 的变量；<code>ndim==3</code> 按 <code>(lon,lat,time)</code>，<code>ndim==4</code> 按 <code>(lon,lat,alt,time)</code>。</li>
+<li>对每个经度构造 <code>lt_gcm=time+0.5*lon/180</code>。</li>
+<li>若目标本地时超出当前经度的输入本地时范围，则用前一天或后一天修正 <code>lt_outc</code>。</li>
+<li>对每个 <code>(lon,lat)</code> 或 <code>(lon,lat,alt)</code> 时间序列调用 <code>interpolf</code>。</li>
+</ul></li>
+<li><strong>写变量和属性</strong>：输出变量保留输入的 <code>long_name</code> 或 <code>title</code>、<code>units</code>；若输入有 <code>missing_value</code>，则调用 <code>missing_value</code> 写 <code>valid_range</code> 和 <code>missing_value</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>read input file name
+open input and list processable variables
+read selected variable names
+read lon, lat, alt, Time and optional controle/GCM_layers
+reject Time axis if it is Solar longitude
+read target local hours
+if stats-like file:
+  convert input hours to fractions of one sol
+  output Time = requested hours
+else:
+  build output Time = sol start + requested hour/24
+create infile_LT.nc and copy coords
+copy aps/bps and phisinit if present
+for each selected 3D/4D variable:
+  read full variable
+  for each longitude:
+    lt_gcm = time + 0.5*lon/180
+    wrap target times by +/- 1 sol if needed
+    interpolate each lat or lat-alt time series with interpolf
+  write interpolated variable and missing/valid_range attrs</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>util 后处理链</td>
+<td>常接在 <a href="concatnc.html">concatnc</a> 后，把多 sol 输出重排到固定本地时，便于日变化比较。</td>
+</tr>
+<tr>
+<td>观测比较链</td>
+<td>与 <a href="simu_MCS.html">simu_MCS</a>、<a href="extract.html">extract</a> 类工具类似，把 GCM 输出转换到观测或分析所需的时间采样。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>输入时间轴必须是 sol 时间，不可先用 <code>concatnc</code> 的 Ls 时间轴模式替换为 Solar longitude。</li>
+<li>目标本地时以小时输入；<code>localtime.def</code> 示例中先列变量 <code>tsurf</code>、<code>ps</code>，空行后输入 <code>2</code>、<code>2</code>、<code>14</code>。</li>
+<li>非 <code>stats</code> 文件的 <code>nsol</code> 由 <code>int(time(last))-int(time(first))</code> 得到；若时间覆盖不足或首尾不是预期 sol 边界，输出时刻数会受影响。</li>
+<li>对 3D/4D 变量以外的变量会跳过或不适合处理。</li>
+<li>插值遇到 <code>missing_value</code> 邻点时结果保持 missing；如果输入没有 <code>missing_value</code> 属性，<code>missing</code> 变量没有显式初始化，复现时应留意该路径。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>all</code> 分支按变量编号 <code>Nnotprocessed+1:nbvarfile</code> 推定可处理变量，但 <code>notprocessed</code> 数量只是命中的排除项数量，不保证这些变量在文件变量表中连续排在最前；在变量顺序不同的 NetCDF 文件中可能选入不该处理的字段。</li>
+<li>若输入没有 <code>missing_value</code> 属性，<code>missing</code> 的值未显式初始化；但 <code>interpolf</code> 仍用该值判断缺测，需确认编译器/运行时实际行为。</li>
+<li><code>Time</code> 输出属性固定为 <code>years since 0000-00-0 00:00:00</code>，但非 stats 分支写入的是 sol 加小时分数，stats 分支写入的是小时值；单位语义需确认。</li>
+<li>读取 <code>altitude</code> 的 <code>long_name</code> 失败时，源码转而从 <code>timevar</code> 读取 <code>title</code> 到 <code>long_name</code>，疑似变量名写错。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li><code>_LT.nc</code> 会覆盖同名文件。</li>
+<li>变量整块读写，内存随 <code>lon*lat*alt*time</code> 增长。</li>
+<li>输入经度若不符合模型常规经度定义，本地时换算 <code>0.5*lon/180</code> 的物理含义需检查。</li>
+<li>缺少 <code>aps/bps</code> 或 <code>phisinit</code> 不会阻止主变量输出，但输出辅助坐标会不完整。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">util/index.md</a> - util 后处理工具总览。</li>
+<li><a href="concatnc.html">concatnc.md</a> - 常见上游时间拼接工具。</li>
+<li><a href="extract.html">extract.md</a> - 点值/廓线抽取工具。</li>
+<li><a href="simu_MCS.html">simu_MCS.md</a> - MCS 观测模拟工具。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

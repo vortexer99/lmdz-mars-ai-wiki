@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>extract - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/extract.md</span>
+    </nav>
+    <article class="content">
+<h1 id="extractf90">extract.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util\extract.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>util</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>extract.F90</code> 是 LMD Mars GCM 输出的 ASCII 点值/廓线抽取工具。它读取经过 <a href="zrecast.html">zrecast</a> 处理的 <code>diagfi</code> 或 <code>concat</code> 类 NetCDF 文件，要求目标变量具有 <code>(longitude, latitude, altitude, Time)</code> 四维结构，然后按用户给定的经度、纬度、垂直坐标、太阳经度 Ls 和当地真太阳时 LT 做四维线性插值，输出 <code>infile_var.dat</code>。</p>
+<p>本文件是独立命令行 <code>program extract</code>，通过 stdin 或 <code>extract.points.def</code> / <code>extract.profile.def</code> 重定向输入运行。源码注释和 <code>util/README</code> 都说明它服务于两种模式：逐点抽取和固定经纬时刻的垂直廓线抽取。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>extract</code></td>
+<td>program</td>
+<td>1</td>
+<td>主程序：读 NetCDF 输入、变量名、模式和查询坐标，输出 ASCII 抽取结果。</td>
+</tr>
+<tr>
+<td><code>extraction</code></td>
+<td>subroutine</td>
+<td>406</td>
+<td>四维插值核心：定位 lon/lat/alt/time 包围索引，检查缺测，再按 time→alt→lat→lon 插值。</td>
+</tr>
+<tr>
+<td><code>ls2sol</code></td>
+<td>subroutine</td>
+<td>621</td>
+<td>将用户输入的太阳经度 Ls 换算为 sol，用于和 LT/longitude 合成 NetCDF <code>Time</code> 查询点。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>netcdf</code></td>
+<td>使用 Fortran 90 <code>nf90_*</code> 接口打开文件、查维度/变量、读取属性和四维场。</td>
+</tr>
+</tbody>
+</table>
+<p>无 LMDZ 运行时模块依赖。</p>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nf90_open</code></td>
+<td>NetCDF 库</td>
+<td>只读打开输入文件。</td>
+</tr>
+<tr>
+<td><code>nf90_inq_dimid</code> / <code>nf90_inquire_dimension</code></td>
+<td>NetCDF 库</td>
+<td>查 latitude、longitude、altitude、Time 维度和长度。</td>
+</tr>
+<tr>
+<td><code>nf90_inq_varid</code> / <code>nf90_inquire_variable</code></td>
+<td>NetCDF 库</td>
+<td>查目标变量 ID、维数和维度顺序。</td>
+</tr>
+<tr>
+<td><code>nf90_get_var</code></td>
+<td>NetCDF 库</td>
+<td>读取坐标数组和完整四维目标变量。</td>
+</tr>
+<tr>
+<td><code>nf90_get_att</code></td>
+<td>NetCDF 库</td>
+<td>读取 <code>altitude:units</code> 和目标变量 <code>missing_value</code>。</td>
+</tr>
+<tr>
+<td><code>ls2sol</code></td>
+<td>本文件</td>
+<td>把 Ls 转换为年内 sol。</td>
+</tr>
+<tr>
+<td><code>extraction</code></td>
+<td>本文件</td>
+<td>对一个查询点返回插值值或 <code>missing_value</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入文件名</td>
+<td>stdin / <code>.def</code></td>
+<td>NetCDF 文件</td>
+<td>-</td>
+<td>经过 <code>zrecast</code> 的 <code>diagfi</code>/<code>concat</code> 类文件。</td>
+</tr>
+<tr>
+<td><code>starttimeoffset</code></td>
+<td>stdin / <code>.def</code></td>
+<td>real</td>
+<td>sol</td>
+<td>输入文件 <code>Time=0</code> 相对 Ls=0 的 sol 偏移；读入后加到整个 <code>time(:)</code>。</td>
+</tr>
+<tr>
+<td><code>extract_mode</code></td>
+<td>stdin / <code>.def</code></td>
+<td>1 或 2</td>
+<td>-</td>
+<td>1=逐点抽取；2=垂直廓线抽取。</td>
+</tr>
+<tr>
+<td><code>varname</code></td>
+<td>stdin / <code>.def</code></td>
+<td>字符串</td>
+<td>-</td>
+<td>要抽取的四维变量名。</td>
+</tr>
+<tr>
+<td>查询点</td>
+<td>stdin / <code>.def</code></td>
+<td>模式 1: <code>lon lat alt Ls LT</code>；模式 2: 先 <code>lon lat Ls LT</code>，再逐行 <code>alt</code></td>
+<td>deg, deg, m/Pa, deg, hour</td>
+<td>插值目标坐标。</td>
+</tr>
+<tr>
+<td><code>longitude</code> / <code>latitude</code> / <code>altitude</code> / <code>Time</code></td>
+<td>输入 NetCDF</td>
+<td>1D 坐标</td>
+<td>随文件</td>
+<td>插值网格。</td>
+</tr>
+<tr>
+<td>目标变量</td>
+<td>输入 NetCDF</td>
+<td>REAL(lon,lat,alt,time)</td>
+<td>随变量</td>
+<td>被抽取的四维场。</td>
+</tr>
+<tr>
+<td><code>missing_value</code></td>
+<td>目标变量属性</td>
+<td>real</td>
+<td>随变量</td>
+<td>缺测输出值；任何包围角点缺测则返回它。</td>
+</tr>
+</tbody>
+</table>
+<p>示例 <code>extract.points.def</code>：</p>
+<pre class="text"><code>diagfi_P.nc
+0.0
+1
+temp
+-20 25 100 35 2</code></pre>
+<p>示例 <code>extract.profile.def</code>：</p>
+<pre class="text"><code>diagfi_S.nc
+0.0
+2
+temp
+100 25 10 0
+0
+500
+1000</code></pre>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>infile_var.dat</code></td>
+<td>磁盘 ASCII</td>
+<td>文本</td>
+<td>随变量</td>
+<td><code>outfile=输入文件去掉最后 .nc + "_" + varname + ".dat"</code>。</td>
+</tr>
+<tr>
+<td>模式 1 行</td>
+<td>输出文件</td>
+<td><code>lon lat alt Ls LT value</code></td>
+<td>混合</td>
+<td>每个输入查询点一个插值结果。</td>
+</tr>
+<tr>
+<td>模式 2 行</td>
+<td>输出文件</td>
+<td><code>alt value</code></td>
+<td>垂直坐标 + 变量单位</td>
+<td>固定 lon/lat/Ls/LT 下的垂直廓线。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>stdin 交互</strong>：所有运行参数从标准输入读取，<code>.def</code> 文件必须按源码读取顺序排列。</li>
+<li><strong>ASCII 文件副作用</strong>：使用 Fortran unit 42 打开输出文件；同名文件会被覆盖或重写，具体行为取决于编译器默认 <code>open</code> 状态。</li>
+<li><strong>整场读入内存</strong>：目标变量被完整读入 <code>field(lonlen,latlen,altlen,timelen)</code>，大文件会占用较多内存。</li>
+<li><strong>硬停止</strong>：缺维度、缺变量、变量不是四维、维度顺序不对、缺 <code>missing_value</code> 属性、非法坐标都会 <code>stop</code>。</li>
+<li><strong>插值例程的 SAVE 变量</strong>：<code>extraction</code> 声明 <code>prev_lon/lat/alt/sol</code> 和索引为 <code>SAVE</code>，但源码未在例程末尾更新 <code>prev_*</code>；因此当前行为近似每次重新定位索引，而不是有效缓存。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>读取输入文件和模式</strong>：打开 NetCDF；读 <code>starttimeoffset</code>、<code>extract_mode</code>、<code>varname</code>。模式只能是 1 或 2。</li>
+<li><strong>读取坐标</strong>：按固定名称读取 <code>latitude</code>、<code>longitude</code>、<code>Time</code>、<code>altitude</code>；随后执行 <code>time(:)=time(:)+starttimeoffset</code>。</li>
+<li><strong>判断垂直坐标类型</strong>：读取 <code>altitude</code> 的 <code>units</code> 属性；<code>Pa</code> 视为压力坐标 <code>alttype="p"</code>，<code>m</code> 视为几何高度/本地高度坐标 <code>alttype="z"</code>，其他单位直接停止。</li>
+<li><strong>读取目标变量</strong>：目标变量必须存在，必须是四维，且维度顺序严格等于 longitude、latitude、altitude、Time；读取完整四维场和 <code>missing_value</code> 属性。</li>
+<li><strong>创建输出文件</strong>：输出名由输入文件基本名和变量名拼接为 <code>*_var.dat</code>。</li>
+<li><strong>读取查询坐标</strong>：
+<ul>
+<li>模式 1：每行读 <code>lon lat alt Ls LT</code>。</li>
+<li>模式 2：先读固定 <code>lon lat Ls LT</code>，循环读多个 <code>alt</code>。</li>
+<li>经度允许 [-360,360]，随后规整到 [-180,180]；纬度必须 [-90,90]；Ls 必须 [0,360]；LT 必须 [0,24]。</li>
+</ul></li>
+<li><strong>Ls/LT 到 sol</strong>：<code>ls2sol(Ls,sol)</code> 得到年内 sol；再用 <code>sol=floor(sol)+(LT-lon/15)/24</code> 把当地时和经度折算到模型时间轴；超过 [0,669] 时加/减 669。</li>
+<li><strong>四维插值</strong>：
+<ul>
+<li>定位经纬度、垂直坐标、时间的下/上包围索引。压力坐标按大到小寻找，几何高度按小到大寻找。</li>
+<li>任一需要的 16 个角点等于 <code>missing_value</code> 时返回缺测。</li>
+<li>先沿时间线性插值，再沿垂直线性插值；当变量名为 <code>rho</code> 或 <code>pressure</code> 且高度坐标为 <code>z</code> 时，垂直方向对变量值取 log 插值。</li>
+<li>最后沿纬度和经度线性插值，返回 <code>value</code>。</li>
+</ul></li>
+<li><strong>写输出</strong>：模式 1 写 6 列，模式 2 写 2 列；空行或非法输入文本结束循环。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>program extract:
+  read infile, starttimeoffset, extract_mode, varname
+  open infile
+  read latitude, longitude, Time, altitude
+  time = time + starttimeoffset
+  alttype = &quot;p&quot; if altitude units == Pa else &quot;z&quot; if units == m
+  require target variable dims == (longitude, latitude, altitude, Time)
+  read field and missing_value
+  open output infile_var.dat
+
+  if mode 2:
+    read fixed lon, lat, Ls, LT
+  loop over input lines:
+    if mode 1: read lon, lat, alt, Ls, LT
+    if mode 2: read alt
+    validate ranges; normalize lon to [-180,180]
+    ls2sol(Ls, sol)
+    sol = floor(sol) + (LT - lon/15) / 24
+    wrap sol into current Martian year
+    extraction(...) -&gt; value
+    write output row
+
+subroutine extraction:
+  value = missing_value
+  find surrounding lon/lat/alt/time indexes
+  if outside alt/time range: return missing_value
+  if any of 16 corner values == missing_value: return missing_value
+  interpolate time -&gt; altitude -&gt; latitude -&gt; longitude</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>util 后处理链</td>
+<td>常接在 <a href="zrecast.html">zrecast</a> 后，对压力或高度坐标上的 GCM 输出抽点/抽廓线。</td>
+</tr>
+<tr>
+<td>观测或现场点比较</td>
+<td>把模型四维场按给定经纬度、Ls、当地时和高度/压力抽成 ASCII 表，便于和观测点位或剖面比较。</td>
+</tr>
+<tr>
+<td>一维输入准备辅助</td>
+<td>可抽取垂直廓线；更专用的 1D 列抽取见 <a href="extractcolumnfor1D.html">extractcolumnfor1D.F90</a>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>nf90 接口</strong>：不同于 <a href="concatnc.html">concatnc</a> 的 <code>NF_*</code> 旧接口，本文件使用 <code>use netcdf</code> 和 <code>nf90_*</code>。</li>
+<li><strong>严格变量契约</strong>：只接受 <code>(lon,lat,alt,time)</code> 四维变量；二维/三维变量不会被处理。</li>
+<li><strong>时间输入仍是 sol</strong>：用户输入 Ls/LT，但文件 <code>Time</code> 必须是 sol；源码注释明确这一要求。</li>
+<li><strong>垂直单位决定分支</strong>：仅识别 <code>Pa</code> 和 <code>m</code>，压力坐标和高度坐标的排序假设不同。</li>
+<li><strong>缺测传播保守</strong>：16 个角点任一缺测则整个查询点缺测，不做部分角点插值。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>输入文件应先用 <a href="zrecast.html">zrecast</a> 转成压力或高度坐标，否则 <code>altitude:units</code> 和垂直插值语义可能不对。</li>
+<li><code>starttimeoffset</code> 要让文件 <code>Time=0</code> 对齐到 Ls=0 后的 sol；示例文件用 <code>0.0</code>。</li>
+<li>查询经度最终被规整到 [-180,180]；输入 NetCDF 的 longitude 坐标也应采用兼容范围，否则索引定位可能失败。</li>
+<li>对 <code>rho</code> 和 <code>pressure</code> 在高度坐标下抽取时，垂直方向按 log(value) 插值；其他变量线性插值。</li>
+<li>输出没有表头；后处理脚本需要按模式自行解释列。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>extraction</code> 中 <code>prev_lon/prev_lat/prev_alt/prev_sol</code> 未被更新，注释暗示的缓存优化实际没有生效；这不改变结果，但影响性能预期。</li>
+<li>若 longitude 坐标使用 0..360 而查询经度被规整到负值，<code>ilon_inf</code> 可能保持非法初值；实际输入文件经度约定需运行前确认。</li>
+<li><code>missing_value</code> 属性是硬要求；若变量只提供 <code>_FillValue</code> 或其他缺测属性，程序会停止。</li>
+<li><code>sol</code> 包裹使用 669，而 <code>ls2sol</code> 内火星年是 668.6；边界 Ls/LT 查询可能存在小差异。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li>目标变量完整读入内存，大型四维输出可能内存占用明显。</li>
+<li><code>open(42,file=outfile,form="formatted")</code> 没有显式 <code>status</code>，重复运行的覆盖行为依赖编译器默认。</li>
+<li><code>missing_value</code> 逐值等号比较，若输入变量缺测约定经过数值转换，可能无法识别。</li>
+<li>对极点、边界经度/时间端点的查询可能触发上/下索引越界或返回缺测，应避免贴边抽取。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">util/index.md</a> - util 后处理工具总览。</li>
+<li><a href="zrecast.html">zrecast.md</a> - 本工具通常读取其输出的压力/高度坐标文件。</li>
+<li><a href="concatnc.html">concatnc.md</a> - 上游时间拼接工具。</li>
+<li><a href="simu_MCS.html">simu_MCS.md</a> - 更复杂的观测分箱抽样工具。</li>
+<li><a href="extractcolumnfor1D.html">extractcolumnfor1D.F90</a> - 1D 列抽取工具。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

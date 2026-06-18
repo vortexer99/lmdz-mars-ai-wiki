@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>yomlw_h - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/yomlw_h.md</span>
+    </nav>
+    <article class="content">
+<h1 id="yomlw_hf90">yomlw_h.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\yomlw_h.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>yomlw_h.F90</code> 定义模块 <code>yomlw_h</code>，是长波 LTE 辐射链的共享状态和系数表模块。它不直接计算通量或冷却率，而是保存 Planck 多项式系数 <code>xp</code>、CO2 吸收温度依赖系数 <code>at/bt</code>、Padé 透过率系数 <code>ga/gb</code>、Voigt 修正常数 <code>cst_voigt</code>、LTE 计算层数 <code>nlaylte</code>，以及长波净交换率缓存 <code>xi/xi_ground/xi_emis</code>。</p>
+<p>初始化由 <code>phys_state_var_init_mod</code> 调用 <code>end_yomlw_h</code> 后再调用 <code>ini_yomlw_h(ngrid)</code> 完成。<code>ini_yomlw_h</code> 依据 <code>dimradmars_mod::nuco2/nflev</code> 和传入的水平列数分配长波交换率数组，并把旧 <code>sulw.F</code> 中的固定系数移入 F90 模块状态。下游 <code>lwb/lwu/lwtt/lwflux/lwi/lwxd/lwxn/lwxb</code> 读取或写入这些表，短波和 NLTE 混合路径也读取 <code>nlaylte</code> 来限定 LTE 层范围。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>yomlw_h</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>长波辐射共享状态与系数表模块。</td>
+</tr>
+<tr>
+<td><code>at</code>, <code>bt</code></td>
+<td>saved real arrays</td>
+<td style="text-align: right;">6-7</td>
+<td>CO2 吸收量温度依赖修正系数，供 <code>lwu</code> 使用。</td>
+</tr>
+<tr>
+<td><code>tref</code></td>
+<td>saved real scalar</td>
+<td style="text-align: right;">8</td>
+<td>吸收温度依赖参考温度，默认 <code>200.0 K</code>。</td>
+</tr>
+<tr>
+<td><code>xp(6,nir)</code></td>
+<td>saved real array</td>
+<td style="text-align: right;">9</td>
+<td>每个红外谱带的 Planck 函数五次多项式系数，供 <code>lwb</code> 使用。</td>
+</tr>
+<tr>
+<td><code>tstand</code></td>
+<td>saved real scalar</td>
+<td style="text-align: right;">10</td>
+<td>Planck 多项式的参考温度，默认 <code>200.0 K</code>。</td>
+</tr>
+<tr>
+<td><code>ga</code>, <code>gb</code></td>
+<td>saved real arrays</td>
+<td style="text-align: right;">11-12</td>
+<td>CO2 长波透过率 Padé 近似的分子/分母系数，供 <code>lwtt</code> 使用。</td>
+</tr>
+<tr>
+<td><code>cst_voigt</code></td>
+<td>saved real array</td>
+<td style="text-align: right;">13</td>
+<td>Voigt 等效吸收量修正常数，供 <code>lwtt</code> 使用。</td>
+</tr>
+<tr>
+<td><code>gcp</code></td>
+<td>saved real scalar</td>
+<td style="text-align: right;">14</td>
+<td><code>g/cpp</code>，由 <code>callradite</code> 写入，供长波/短波辐射使用。</td>
+</tr>
+<tr>
+<td><code>nlaylte</code></td>
+<td>saved integer scalar</td>
+<td style="text-align: right;">20</td>
+<td>LTE 辐射计算层数，由 <code>nlthermeq</code> 写入。</td>
+</tr>
+<tr>
+<td><code>xi</code></td>
+<td>saved allocatable real array</td>
+<td style="text-align: right;">22</td>
+<td>CO2 15 微米带净交换率主缓存，维度为 <code>(ngrid,nuco2,0:nflev+1,0:nflev+1)</code>。</td>
+</tr>
+<tr>
+<td><code>xi_ground</code></td>
+<td>saved allocatable real array</td>
+<td style="text-align: right;">23</td>
+<td>地面相邻层交换修正缓存，维度为 <code>(ngrid,nuco2)</code>。</td>
+</tr>
+<tr>
+<td><code>xi_emis</code></td>
+<td>saved allocatable real array</td>
+<td style="text-align: right;">24</td>
+<td>发射/邻近层相关交换缓存，维度为 <code>(ngrid,nuco2,nflev-1)</code>。</td>
+</tr>
+<tr>
+<td><code>ini_yomlw_h</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">31</td>
+<td>分配交换率数组并初始化 Planck、吸收、Padé 和 Voigt 系数。</td>
+</tr>
+<tr>
+<td><code>end_yomlw_h</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">85</td>
+<td>释放 <code>xi/xi_ground/xi_emis</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>nir, nabsmx, npademx</code></td>
+<td>模块声明阶段确定 <code>xp/ga/gb/cst_voigt</code> 的谱带和系数维度。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>nuco2, nflev</code></td>
+<td><code>ini_yomlw_h</code> 内分配 CO2 谱带交换率数组和垂直层范围。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>本文件内部只做分配、释放和常数表赋值，不调用用户例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>phys_state_var_init_mod</code> 调用 <code>ini_yomlw_h</code> 的实参</td>
+<td>integer scalar</td>
+<td>grid columns</td>
+<td>当前物理网格水平列数，决定 <code>xi</code>、<code>xi_ground</code> 和 <code>xi_emis</code> 的第一维。</td>
+</tr>
+<tr>
+<td><code>nir</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>integer parameter</td>
+<td>spectral band count</td>
+<td>红外谱带数，决定 <code>xp</code> 第二维。</td>
+</tr>
+<tr>
+<td><code>nuco2</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>integer parameter</td>
+<td>CO2 band count</td>
+<td>CO2 15 微米带计算的谱带数，决定 <code>xi</code> 系列数组第二维。</td>
+</tr>
+<tr>
+<td><code>nflev</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>integer saved scalar</td>
+<td>vertical layers</td>
+<td>辐射有效层数，决定 <code>xi</code> 系列数组垂直维度。</td>
+</tr>
+<tr>
+<td><code>npademx</code>, <code>nabsmx</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>integer parameters</td>
+<td>coefficient dimensions</td>
+<td>Padé/吸收系数表的最大维度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xp</code></td>
+<td><code>lwb</code></td>
+<td><code>real(6,nir)</code></td>
+<td>Planck polynomial units</td>
+<td>红外谱带 Planck 函数多项式系数。</td>
+</tr>
+<tr>
+<td><code>at</code>, <code>bt</code>, <code>tref</code></td>
+<td><code>lwu</code></td>
+<td>real arrays/scalar</td>
+<td>mixed</td>
+<td>吸收量温度修正系数和参考温度。</td>
+</tr>
+<tr>
+<td><code>ga</code>, <code>gb</code>, <code>cst_voigt</code></td>
+<td><code>lwtt</code></td>
+<td>real arrays</td>
+<td>mixed</td>
+<td>CO2 透过率 Padé 近似和 Voigt 等效吸收量常数。</td>
+</tr>
+<tr>
+<td><code>xi</code></td>
+<td><code>lwxd/lwxn/lwxb</code> 写入，<code>lwflux/lwi/lwmain</code> 读取</td>
+<td><code>real(ngrid,nuco2,0:nflev+1,0:nflev+1)</code></td>
+<td>exchange-rate-like</td>
+<td>长波 CO2 净交换率矩阵缓存。</td>
+</tr>
+<tr>
+<td><code>xi_ground</code></td>
+<td><code>lwxn</code> 写入，<code>lwflux</code>/<code>lwxn</code> 路径读取</td>
+<td><code>real(ngrid,nuco2)</code></td>
+<td>exchange-rate-like</td>
+<td>地面相邻层交换修正。</td>
+</tr>
+<tr>
+<td><code>xi_emis</code></td>
+<td><code>lwxd</code> 写入，<code>lwxn</code> 读取</td>
+<td><code>real(ngrid,nuco2,nflev-1)</code></td>
+<td>exchange-rate-like</td>
+<td>近邻/发射相关交换修正缓存。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本模块变量全部是 <code>SAVE</code> 状态，并用两条 <code>!$OMP THREADPRIVATE</code> 声明保护：<code>at/bt/tref/xp/tstand/ga/gb/cst_voigt/gcp</code> 在第 16 行，<code>nlaylte/xi/xi_ground/xi_emis</code> 在第 26 行。</li>
+<li><code>ini_yomlw_h</code> 会无条件 <code>allocate</code> 三个数组；源码自身不先检查是否已分配，因此当前调用链在 <code>phys_state_var_init_mod</code> 第 148-149 行先 <code>end_yomlw_h</code> 再 <code>ini_yomlw_h(ngrid)</code>。</li>
+<li><code>ini_yomlw_h</code> 只显式清零 <code>xi</code>，没有清零 <code>xi_ground</code> 和 <code>xi_emis</code>；后两者依赖下游长波例程在使用前写入。复现风险：若绕开标准 <code>lwmain</code> 调用顺序单独调用消费方，可能读到未定义值。</li>
+<li><code>gcp</code> 不在本模块初始化，而是在 <code>callradite_mod.F</code> 第 403 行设为 <code>g/cpp</code>。<code>nlaylte</code> 不在本模块计算，而是在 <code>nlthermeq.F</code> 第 53-57 行写入。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>ini_yomlw_h(ngrid)</code> 从 <code>dimradmars_mod</code> 导入 <code>nuco2/nflev</code>。</li>
+<li>按 <code>(ngrid,nuco2,0:nflev+1,0:nflev+1)</code> 分配 <code>xi</code>，按 <code>(ngrid,nuco2)</code> 分配 <code>xi_ground</code>，按 <code>(ngrid,nuco2,nflev-1)</code> 分配 <code>xi_emis</code>。</li>
+<li>把 <code>xi</code> 全部置零。源码注释说明这一步过去在 <code>lwmain</code> 的 <code>firstcall</code> 初始化中完成。</li>
+<li>用 <code>reshape</code> 填入 <code>xp(6,nir)</code>，作为 <code>lwb</code> 的 Planck 函数多项式系数。</li>
+<li>用 <code>reshape</code> 填入 <code>at(2,2)</code> 和 <code>bt(2,2)</code>，作为 <code>lwu</code> 的吸收量温度依赖系数。</li>
+<li>填入 <code>ga(1:4,1:2)</code> 和 <code>gb(1:4,1:2)</code>，作为 <code>lwtt</code> 的 Padé 透过率系数。</li>
+<li>用 <code>reshape</code> 填入 <code>cst_voigt(2,2)</code>，作为 <code>lwtt</code> 的 Voigt 等效吸收量修正常数。</li>
+<li><code>end_yomlw_h</code> 分别检查三个可分配数组是否已分配，若已分配则释放。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>ini_yomlw_h(ngrid):
+    import nuco2, nflev from dimradmars_mod
+
+    allocate xi(ngrid, nuco2, 0:nflev+1, 0:nflev+1)
+    allocate xi_ground(ngrid, nuco2)
+    allocate xi_emis(ngrid, nuco2, nflev-1)
+    xi = 0
+
+    xp = fixed Planck polynomial table from old sulw path
+    at, bt = fixed absorber temperature-dependence tables
+    ga, gb = fixed Pade coefficient tables
+    cst_voigt = fixed Voigt correction table
+
+end_yomlw_h:
+    deallocate xi, xi_ground, xi_emis if allocated</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">辐射计算</a></td>
+<td>提供长波 LTE 链的共享系数和净交换率缓存；<code>lwb/lwu/lwtt/lwflux/lwi/lwxd/lwxn/lwxb</code> 直接依赖本模块状态。</td>
+</tr>
+<tr>
+<td><a href="nlteparams_h.html">高层大气 / NLTE</a></td>
+<td><code>nlaylte</code> 由 <code>nlthermeq</code> 计算，用于 LTE 与 NLTE 辐射层范围衔接。</td>
+</tr>
+<tr>
+<td><a href="phys_state_var_init_mod.html">物理状态初始化</a></td>
+<td>通过 <code>end_yomlw_h</code> + <code>ini_yomlw_h(ngrid)</code> 管理长波数组生命周期。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>这是 F90 状态模块，但保存的是旧长波辐射 <code>sulw.F</code> 路径中的固定表；注释标明来源为 Jean-Jacques Morcrette 的 ECMWF 例程并由 F. Forget 在 2000 年简化。</li>
+<li>数组下标使用 <code>0:nflev+1</code>，覆盖真实层、地面/边界和大气顶哨兵位置；下游 <code>lwxb/lwxd/lwxn</code> 会按几何路径写入不同块。</li>
+<li><code>ga/gb</code> 只给当前两个 CO2 吸收带赋值；维度由 <code>npademx/nabsmx</code> 给出，但当前初始化只覆盖 <code>1:4,1:2</code>。</li>
+<li><code>THREADPRIVATE</code> 意味着 OpenMP 并行时每个线程持有独立副本；复现并行初始化时必须保证每个线程看到已初始化的表和已分配数组。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须先完成 <code>dimradmars_mod</code> 初始化，使 <code>nflev/nuco2/nir/npademx/nabsmx</code> 与当前运行一致，再调用 <code>ini_yomlw_h</code>。</li>
+<li>标准初始化顺序应先释放后分配，避免重复 <code>allocate</code> 已分配数组。</li>
+<li>若更改 <code>nflev</code> 或 <code>ngrid</code>，必须重新执行 <code>end_yomlw_h</code> 和 <code>ini_yomlw_h</code>，否则 <code>xi</code> 系列数组维度会与调用方不一致。</li>
+<li>在运行长波链前，必须已经由 <code>nlthermeq</code> 写入 <code>nlaylte</code>，由 <code>callradite</code> 写入 <code>gcp</code>。</li>
+<li>若单独测试 <code>lwb/lwu/lwtt</code>，需要确保 <code>xp/at/bt/ga/gb/cst_voigt/tstand/tref</code> 已由 <code>ini_yomlw_h</code> 填充。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>xi_ground</code> 和 <code>xi_emis</code> 在本初始化例程中未显式清零，是否完全依赖下游例程覆盖全部被读取元素，需要结合 <code>lwxd/lwxn/lwflux</code> 的调用顺序确认。</li>
+<li><code>ga/gb/cst_voigt</code> 的物理拟合来源只在旧例程注释中说明，本页只记录当前源码内硬编码值和使用位置。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="dimradmars_mod.html">dimradmars_mod</a> - 提供 <code>nir/nuco2/nflev/npademx/nabsmx</code> 等辐射维度。</li>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod</a> - 调用本模块生命周期入口。</li>
+<li><a href="nlthermeq.html">nlthermeq</a> - 计算并写入 <code>nlaylte</code>。</li>
+<li><a href="lwb.html">lwb</a>, <a href="lwu.html">lwu</a>, <a href="lwtt.html">lwtt</a> - 读取本模块的 Planck、吸收量和 CO2 透过率系数。</li>
+<li><a href="lwxb.html">lwxb</a>, <a href="lwxd.html">lwxd</a>, <a href="lwxn.html">lwxn</a> - 写入 <code>xi/xi_ground/xi_emis</code> 交换率缓存。</li>
+<li><a href="lwflux.html">lwflux</a>, <a href="lwi.html">lwi</a>, <a href="lwdiff.html">lwdiff</a> - 消费长波交换率、通量和冷却率相关状态。</li>
+<li><a href="swr_fouquart.html">swr_fouquart</a>, <a href="swr_toon.html">swr_toon</a> - 读取 <code>nlaylte</code> 作为短波 LTE 层限制。</li>
+<li><a href="../../themes/radiation.html">radiation</a> - 辐射主题流程。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

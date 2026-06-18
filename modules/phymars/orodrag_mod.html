@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>orodrag_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/orodrag_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="orodrag_modf90">orodrag_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\orodrag_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>orodrag_mod.F90</code> 定义 <code>orodrag_mod</code> 和核心例程 <code>ORODRAG</code>，是 Lott/Miller 地形重力波与次网格地形阻塞拖曳链的核心计算层。上游 <code>calldrag_noro_mod</code> 负责读取开关、按 <code>zstd</code> 筛选格点并分子域调用；<code>drag_noro_mod</code> 负责翻转垂直层序和构造 <code>zgeom</code>；本文件则调用 <code>OROSETUP</code>、<code>GWSTRESS</code>、<code>GWPROFIL</code> 生成半层重力波应力 <code>ZTAU</code>，再把应力垂直差分和阻塞层拖曳转换为 <code>pdudt/pdvdt/pdtdt</code>。</p>
+<p>文件名中 <code>orodrag</code> 对应 orographic gravity wave drag。它和 <code>nonoro_gwd_ran_mod</code> / <code>nonoro_gwd_mix_mod</code> 的非地形 GW 路径不同；<code>physiq_mod.F</code> 中由 <code>calllott</code> 开关进入 <code>calldrag_noro</code> 链后才会走到本例程。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>orodrag_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装地形重力波 / 次网格地形拖曳核心例程。</td>
+</tr>
+<tr>
+<td><code>ORODRAG</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>调用 <code>OROSETUP</code>、<code>GWSTRESS</code>、<code>GWPROFIL</code> 后计算 U/V/T tendency。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>ndomainsz</code></td>
+<td>固定子域数组第一维，接口数组均按 <code>ndomainsz</code> 声明。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>gwstress_mod</code></td>
+<td><code>gwstress</code></td>
+<td>初始化底层半层地形重力波应力 <code>ZTAU(:,nlayer+1)</code>。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>gwprofil_mod</code></td>
+<td><code>gwprofil</code></td>
+<td>沿垂直方向重算 <code>ZTAU</code> 应力廓线。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code>, <code>cpp</code></td>
+<td><code>g</code> 用于由 stress 差分换算风 tendency，<code>cpp</code> 用于把动能耗散率换算为温度 tendency。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>yoegwd_h</code></td>
+<td><code>gkwake</code></td>
+<td>阻塞层 wake drag 方程中的经验系数。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>orosetup_mod</code></td>
+<td><code>orosetup</code></td>
+<td>计算阻塞层、临界层、低层风、密度、Brunt-Vaisala 频率和地形各向异性组合量。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>OROSETUP</code></td>
+<td><code>orosetup_mod.F90</code></td>
+<td>行 140-148</td>
+<td>计算 <code>IKCRIT/IKCRITH/ICRIT/IKENVH/IKNU/IKNU2</code>、<code>ZRHO/PRI/BV/ZVPH/ZPSI/ZZDEP/ZD1/ZD2/ZDMOD</code> 和低层风。</td>
+</tr>
+<tr>
+<td><code>GWSTRESS</code></td>
+<td><code>gwstress_mod.F90</code></td>
+<td>行 154-164</td>
+<td>用 <code>ZRHO/BV/pvar/psig/zdmod/ZVPH</code> 初始化底层半层应力 <code>ZTAU</code>。</td>
+</tr>
+<tr>
+<td><code>GWPROFIL</code></td>
+<td><code>gwprofil_mod.F90</code></td>
+<td>行 169-176</td>
+<td>按临界层、波破碎判据和阻塞层插值重算半层应力廓线 <code>ZTAU</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code>, <code>nlayer</code></td>
+<td><code>drag_noro</code> 当前子域</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>当前子域有效水平点数和垂直层数。</td>
+</tr>
+<tr>
+<td><code>kgwd</code>, <code>kgwdim</code>, <code>kdx</code>, <code>ktest</code></td>
+<td><code>calldrag_noro</code> 筛选结果，经 <code>drag_noro</code> 透传</td>
+<td>integer scalar / arrays</td>
+<td>-</td>
+<td>当前子域中进入地形 GW 计算的点数、局部索引和开关图。</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td><code>physiq</code> 经上游透传</td>
+<td>real scalar</td>
+<td>s</td>
+<td>物理时间步；阻塞层拖曳公式和动能耗散换算使用。</td>
+</tr>
+<tr>
+<td><code>pplev</code>, <code>pplay</code></td>
+<td><code>drag_noro</code> 翻转后的半层 / 全层压力</td>
+<td>real <code>(ndomainsz,nlayer+1)</code> / <code>(ndomainsz,nlayer)</code></td>
+<td>Pa</td>
+<td><code>OROSETUP</code>、<code>GWPROFIL</code> 和 tendency 分母使用。</td>
+</tr>
+<tr>
+<td><code>zgeom</code></td>
+<td><code>drag_noro</code> 用静力关系构造</td>
+<td>real <code>(ndomainsz,nlayer)</code></td>
+<td>位势相关量</td>
+<td>用于 <code>OROSETUP</code> 判定地形高度层和 leakiness。</td>
+</tr>
+<tr>
+<td><code>pt</code>, <code>pu</code>, <code>pv</code></td>
+<td><code>drag_noro</code> 翻转后的温度和风</td>
+<td>real <code>(ndomainsz,nlayer)</code></td>
+<td>K, m/s, m/s</td>
+<td>基本态温度、纬向风、经向风。</td>
+</tr>
+<tr>
+<td><code>pvar</code></td>
+<td><code>surfdat_h:zstd</code> 子域切片</td>
+<td>real <code>(ndomainsz)</code></td>
+<td>m</td>
+<td>次网格地形标准差。</td>
+</tr>
+<tr>
+<td><code>psig</code></td>
+<td><code>surfdat_h:zsig</code> 子域切片</td>
+<td>real <code>(ndomainsz)</code></td>
+<td>-</td>
+<td>次网格坡度统计量。</td>
+</tr>
+<tr>
+<td><code>pgam</code></td>
+<td><code>surfdat_h:zgam</code> 子域切片</td>
+<td>real <code>(ndomainsz)</code>, intent(inout)</td>
+<td>-</td>
+<td>地形各向异性；<code>OROSETUP</code> 会用 <code>gtsec</code> 给它下限。</td>
+</tr>
+<tr>
+<td><code>pthe</code></td>
+<td><code>surfdat_h:zthe</code> 子域切片</td>
+<td>real <code>(ndomainsz)</code></td>
+<td>degree，按 <code>OROSETUP</code> 用法</td>
+<td>地形主轴角；<code>OROSETUP</code> 内乘 <code>pi/180.</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PULOW</code>, <code>PVLOW</code></td>
+<td>返回 <code>drag_noro</code></td>
+<td>real <code>(ndomainsz)</code></td>
+<td>m/s</td>
+<td><code>OROSETUP</code> 计算的低层纬向/经向平均风。</td>
+</tr>
+<tr>
+<td><code>pdudt</code></td>
+<td>返回 <code>drag_noro</code>，再转为 <code>d_u</code></td>
+<td>real <code>(ndomainsz,nlayer)</code></td>
+<td>m/s/s</td>
+<td>地形 GW / 阻塞层拖曳对纬向风的 tendency。</td>
+</tr>
+<tr>
+<td><code>pdvdt</code></td>
+<td>返回 <code>drag_noro</code>，再转为 <code>d_v</code></td>
+<td>real <code>(ndomainsz,nlayer)</code></td>
+<td>m/s/s</td>
+<td>地形 GW / 阻塞层拖曳对经向风的 tendency。</td>
+</tr>
+<tr>
+<td><code>pdtdt</code></td>
+<td>返回 <code>drag_noro</code>，再转为 <code>d_t</code></td>
+<td>real <code>(ndomainsz,nlayer)</code></td>
+<td>K/s</td>
+<td>由拖曳前后动能差换算的温度 tendency。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本文件没有本地 <code>SAVE</code> 变量、<code>THREADPRIVATE</code>、文件 I/O、配置读取或诊断输出。</li>
+<li><code>pgam</code> 是 <code>intent(inout)</code>；<code>OROSETUP</code> 中会执行 <code>pgam=max(pgam,gtsec)</code>，因此调用链会修改传入的地形各向异性局部数组。</li>
+<li><code>ZTAU</code>、<code>BV</code>、<code>ZRHO</code>、<code>ZVPH</code>、<code>PRI</code> 等为本例程局部工作数组，由 <code>OROSETUP/GWSTRESS/GWPROFIL</code> 依次填充或改写。</li>
+<li>只在 <code>JL=1..kgwd</code> 循环中写 <code>pdudt/pdvdt/pdtdt</code>；调用方 <code>drag_noro</code> 在调用前已把这些输出工作数组清零，因此未被 <code>kgwd/kdx</code> 覆盖的格点保持零 tendency。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>调用 <code>OROSETUP</code>。该步骤按翻转后的压力、风、温度、<code>zgeom</code> 和地形统计量计算：
+<ul>
+<li>低层风 <code>PULOW/PVLOW</code>；</li>
+<li>阻塞层顶 <code>IKENVH</code>、波破碎混合高度 <code>IKCRITH</code>、临界层 <code>ICRIT</code>；</li>
+<li>半层密度 <code>ZRHO</code>、Brunt-Vaisala 频率 <code>BV</code>、低层风速投影 <code>ZVPH</code>；</li>
+<li>地形方向组合量 <code>ZD1/ZD2/ZDMOD</code>、压力厚度 <code>ZZDEP</code> 和角度 <code>ZPSI</code>。</li>
+</ul></li>
+<li>调用 <code>GWSTRESS</code>。该步骤在底层半层初始化 <code>ZTAU(:,nlayer+1)</code>。</li>
+<li>调用 <code>GWPROFIL</code>。该步骤沿半层重算 <code>ZTAU</code> 垂直廓线。</li>
+<li>将 <code>ZDUDT/ZDVDT/ZDTDT</code> 初始化为 0。</li>
+<li>对每个层 <code>JK=1..nlayer</code> 和每个有效 GW 点 <code>JL=1..kgwd</code>：
+<ul>
+<li>用 <code>JI=kdx(JL)</code> 找到当前子域局部格点；</li>
+<li>计算半层压力厚度 <code>ZDELP=pplev(JI,JK+1)-pplev(JI,JK)</code>；</li>
+<li>由 stress 差分计算公共因子 <code>ZTEMP=-g*(ZTAU(JI,JK+1)-ZTAU(JI,JK))/(ZVPH(JI,nlayer+1)*ZDELP)</code>；</li>
+<li>用 <code>PULOW/PVLOW</code> 和 <code>ZD1/ZD2/ZDMOD</code> 把公共因子投影为 <code>ZDUDT/ZDVDT</code>。</li>
+</ul></li>
+<li>如果 <code>JK &gt;= IKENVH(JI)</code>，说明当前翻转层序下位于阻塞层内，则改用阻塞层 wake drag 公式：
+<ul>
+<li>计算 <code>zb=1-0.18*pgam-0.04*pgam^2</code> 与 <code>zc=0.48*pgam+0.3*pgam^2</code>；</li>
+<li>计算 <code>zconb=2*ptimestep*gkwake*psig/(4*pvar)</code>；</li>
+<li>由 <code>ZPSI</code> 得到 <code>zzd1</code>、障碍物长宽比 <code>ratio</code>，再得 <code>zbet=max(0,2-1/ratio)*zconb*ZZDEP*zzd1*zabsv</code>；</li>
+<li>令 <code>ZDUDT=-pu/ptimestep*zbet/(1+zbet)</code>，<code>ZDVDT=-pv/ptimestep*zbet/(1+zbet)</code>。</li>
+</ul></li>
+<li>写出 <code>pdudt/pdvdt</code>。</li>
+<li>用 <code>pu/pv + ptimestep*tendency</code> 得到拖曳后的风 <code>ZUST/ZVST</code>，计算动能差 <code>ZDIS</code>，再以 <code>ZDEDT=ZDIS/ptimestep</code>、<code>ZDTDT=ZDEDT/cpp</code> 写出 <code>pdtdt</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>ORODRAG(inputs from drag_noro):
+    OROSETUP(...) -&gt; layer indices, low-level wind, BV, density, ZPSI, ZZDEP, ZD1/ZD2/ZDMOD
+    GWSTRESS(...) -&gt; initialize bottom half-level ZTAU
+    GWPROFIL(...) -&gt; recompute vertical ZTAU profile
+
+    zero local tendency work arrays
+
+    for each model layer JK:
+        for each active GW point JI = kdx(JL):
+            dp = pplev(JI,JK+1) - pplev(JI,JK)
+            stress_factor = -g * (ZTAU(JI,JK+1)-ZTAU(JI,JK))
+                            / (ZVPH(JI,nlayer+1) * dp)
+            du = projection of stress_factor using PULOW, PVLOW, ZD1, ZD2, ZDMOD
+            dv = projection of stress_factor using PULOW, PVLOW, ZD1, ZD2, ZDMOD
+
+            if JK is inside blocked layer:
+                compute B, C, obstacle aspect ratio and zbet
+                du = -pu / ptimestep * zbet/(1+zbet)
+                dv = -pv / ptimestep * zbet/(1+zbet)
+
+            pdudt(JI,JK) = du
+            pdvdt(JI,JK) = dv
+
+            wind_after = wind_before + ptimestep * tendency
+            kinetic_energy_loss = 0.5 * (|wind_before|^2 - |wind_after|^2)
+            pdtdt(JI,JK) = kinetic_energy_loss / ptimestep / cpp</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>地形重力波 / 次网格地形拖曳</td>
+<td>核心计算层：从低层风、地形统计量和稳定度生成 stress profile，再转换为风温 tendency。</td>
+</tr>
+<tr>
+<td>主物理时间步 <code>physiq</code></td>
+<td><code>physiq_mod.F</code> 在 <code>calllott</code> 为真时进入 <code>calldrag_noro -&gt; drag_noro -&gt; ORODRAG</code> 链；本例程输出最终会回加到 <code>pdu/pdv/pdt</code>。</td>
+</tr>
+<tr>
+<td>垂直层序适配</td>
+<td>本例程接收的是 <code>drag_noro</code> 已翻转后的层序；页面中的 <code>JK &gt;= IKENVH</code> 也应按该层序理解。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>.F90</code> 自由格式模块，但保留 ECMWF/IFS 历史注释和大量被注释掉的旧变量。</li>
+<li><code>kgwd/kdx</code> 控制有效点循环；本例程不遍历所有 <code>ngrid</code> 点计算 tendency。</li>
+<li><code>ILEVP1=nlayer+1</code> 只用于读取 <code>ZVPH(:,nlayer+1)</code>。</li>
+<li><code>ZVIDIS</code> 被初始化和累加，但源码注释标明它是无效/未使用变量。</li>
+<li>温度 tendency 来自拖曳前后水平风动能差，并除以 <code>cpp</code>；不是由热力方程单独求解。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须保留 <code>OROSETUP -&gt; GWSTRESS -&gt; GWPROFIL -&gt; tendency</code> 的调用顺序；<code>ZTAU</code> 是顺序改写的 <code>inout</code> 工作数组。</li>
+<li>上游 <code>drag_noro</code> 已翻转垂直层序。若直接用原始 <code>physiq</code> 层序调用本例程，会改变阻塞层和 stress 差分含义。</li>
+<li><code>pgam</code> 会在 <code>OROSETUP</code> 内被下限保护；如果复用同一局部数组，需要考虑该 <code>intent(inout)</code> 副作用。</li>
+<li>阻塞层分支会覆盖由 stress 差分得到的 <code>ZDUDT/ZDVDT</code>，而不是叠加。</li>
+<li><code>pvar</code> 进入 <code>zconb</code> 分母，<code>ZVPH(:,nlayer+1)</code> 和 <code>ZDELP</code> 也在 stress tendency 分母中；源码没有额外零保护，依赖上游筛选和参数范围。</li>
+<li><code>pdtdt</code> 对应动能损失换热，可能随阻塞层分支或 stress 分支的风 tendency 改变；复现时不要只复制动量 tendency。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>zgeom</code> 在上游 <code>drag_noro</code> 页面中已标注为位势相关量；本文件按 <code>OROSETUP</code> 源码使用 <code>zgeom/g</code> 判定高度，未重新解释其单位。</li>
+<li><code>if(jk.ge.ikenvh)</code> 的注释写“level lower than blocked layer”，该判断依赖翻转层序；需要在 <code>orosetup.F90</code> 文件页中继续核对所有 <code>IK*</code> 索引约定。</li>
+<li><code>ZTEMP</code> 分母没有对 <code>ZVPH(JI,nlayer+1)</code> 或 <code>ZDELP</code> 做保护；当前页面只记录源码行为，不推断实际运行中是否可能为零。</li>
+<li><code>ZVIDIS</code> 当前未被输出或读取，可能是历史诊断残留。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="calldrag_noro_mod.html">calldrag_noro_mod</a>：<code>physiq</code> 调用层，读取开关和 <code>zstd</code> 阈值，分子域调用 <code>drag_noro</code>。</li>
+<li><a href="drag_noro_mod.html">drag_noro_mod</a>：上游包装层，翻转层序、构造 <code>zgeom</code> 并把本例程 tendency 转为每步增量。</li>
+<li><a href="gwstress_mod.html">gwstress_mod</a>：本例程内部调用的底层应力初始化步骤。</li>
+<li><a href="gwprofil_mod.html">gwprofil_mod</a>：本例程内部调用的 stress profile 重算步骤。</li>
+<li><a href="index.html">phymars 目录</a>：本模块所属目录。</li>
+<li><a href="orosetup.html">orosetup</a>：本例程直接调用的预处理层，提供 <code>IK*</code> 层索引、<code>BV/ZRHO/ZVPH/ZPSI/ZD*</code> 和阻塞层 <code>ZZDEP</code>。</li>
+<li><a href="sugwd.html">sugwd</a>：记录 <code>gkwake/gkdrag/grcrit</code> 等地形 GW 调参常量初始化来源。</li>
+<li><a href="yoegwd_h.html">yoegwd_h</a>：记录这些共享变量的定义位置和 <code>THREADPRIVATE</code> 属性。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

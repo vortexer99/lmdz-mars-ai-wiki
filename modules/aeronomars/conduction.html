@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>conduction - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/conduction.md</span>
+    </nav>
+    <article class="content">
+<h1 id="conductionf">conduction.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\conduction.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>conduction.F</code> 定义 <code>conduction_mod</code>，是热层分子热传导求解器。子程序 <code>conduction</code> 用隐式三对角（Thomas 算法）在一维垂直方向上求解温度依赖的热传导方程，输出热传导温度倾向 <code>zdtconduc</code>（K/s）。热导率随温度按 <code>k = Akk * T**skk</code>（<code>skk=0.69</code>）变化，其中 <code>Akk</code> 取自 <code>conc_mod::Akknew</code>（随大气成分动态更新）。下边界用地表温度 <code>tsurf</code>，上边界用零热通量（<code>phitop=0</code>）。</p>
+<p>该例程由 <code>thermosphere_mod</code> 在 <code>callconduct</code> 开关下调用，是 <code>physiq → thermosphere → conduction</code> 链路的一环；分子黏性模块 <code>molvis.F</code> 注明“Based on conduction.F”（同源算法）。</p>
+<p>作者注：N. Descamp, F. Forget 05/1999（源码第 17 行）。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>conduction_mod</code></td>
+<td>module</td>
+<td>1（<code>END MODULE</code> 172）</td>
+<td>包装热传导例程的模块</td>
+</tr>
+<tr>
+<td><code>conduction</code></td>
+<td>subroutine</td>
+<td>7（<code>END SUBROUTINE</code> 170）</td>
+<td>隐式三对角求解垂直分子热传导倾向</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>conc_mod</code></td>
+<td><code>Akknew</code>, <code>rnew</code>, <code>cpnew</code></td>
+<td>取逐格点逐层热导率系数 <code>Akknew</code>、比气体常数 <code>rnew</code>、定压比热 <code>cpnew</code> 构造传导系数与热容项</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无外部例程</td>
+<td>-</td>
+<td>-</td>
+<td>本例程只做局部数组运算和 Thomas 递推，不调用其他子程序（仅用 Fortran intrinsics）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>integer</td>
+<td>-</td>
+<td>大气列数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>integer</td>
+<td>-</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real</td>
+<td>s</td>
+<td>物理时间步</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>Pa</td>
+<td>层中气压，用于数密度/密度 <code>muvol=p/(R*T)</code></td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer+1)</code></td>
+<td>Pa</td>
+<td>层界面气压；<strong>声明后未在函数体使用</strong></td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K</td>
+<td>当前层中温度</td>
+</tr>
+<tr>
+<td><code>pdt</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K/s</td>
+<td>已累计温度倾向；用于构造预测温度 <code>zt=pt+pdt*ptimestep</code></td>
+</tr>
+<tr>
+<td><code>tsurf</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid)</code></td>
+<td>K</td>
+<td>地表温度，作为下边界</td>
+</tr>
+<tr>
+<td><code>zzlay</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m</td>
+<td>层中高度</td>
+</tr>
+<tr>
+<td><code>zzlev</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer+1)</code></td>
+<td>m</td>
+<td>层界面高度</td>
+</tr>
+<tr>
+<td><code>Akknew</code> / <code>rnew</code> / <code>cpnew</code></td>
+<td><code>conc_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>热导率系数 / J/kg/K / J/kg/K</td>
+<td>成分依赖的热力学属性（由 <code>update_r_cp_mu_ak</code> 在 <code>photochem/callthermos</code> 路径更新）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zdtconduc</code></td>
+<td><code>thermosphere_mod</code>（第 93 行 <code>pdt=pdt+zdtconduc</code>）</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K/s</td>
+<td>分子热传导温度倾向；<code>callconduct=.false.</code> 时由调用方预置为 0</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>phitop</code>（<code>real, save</code>）和 <code>firstcall</code>（<code>logical, save</code>）为模块内保存变量，并用 <code>!$OMP THREADPRIVATE(phitop,firstcall)</code>（第 67 行）声明为线程私有。</li>
+<li><code>firstcall</code> 块（第 73–85 行）仅在首次调用执行：向标准输出打印 <code>skk</code>，把 <code>phitop</code> 置 <code>0.0</code>，然后翻转 <code>firstcall</code>。注意源码注释（第 74–77 行）说明原想同时打印 <code>Akk,skk</code>，但 <code>Akk</code> 在此阶段未定义，故只打印 <code>skk</code>。</li>
+<li><code>phitop</code> 自始至终只被赋值为 <code>0.0</code>，从不更新——即上边界恒为零热通量，是占位的零通量边界条件。</li>
+<li>无文件 I/O、无诊断输出、不修改任何模块级共享数组；<code>pdt</code> 虽由调用方以 <code>inout</code> 传入，但本例程声明为 <code>intent(in)</code>，只读不改。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<p>逐列 <code>ig=1,ngrid</code> 独立求解：</p>
+<ol type="1">
+<li><strong>预测温度</strong>：<code>zt(i)=pt(ig,i)+pdt(ig,i)*ptimestep</code>（第 89–98 行）。此时 <code>pdt</code> 已含上游 <code>euvheat</code> 注入的 <code>zdteuv</code>（<code>thermosphere_mod</code> 第 86 行先 <code>pdt=pdt+zdteuv</code> 再调 <code>conduction</code>），故热传导在线性化温度中已包含 EUV 加热。</li>
+<li><strong>顶界面延伸</strong>：<code>zlev(nlayer+1)=zlev(nlayer)+10000.</code>（第 100 行）——在最高层界面之上硬编码延伸 10 km，用于定义顶层厚度。</li>
+<li><strong>传导系数 <code>lambda</code></strong>（第 102–108 行）：底层 <code>lambda(1)=Akknew(ig,1)*tsurf**skk/zlay(1)</code>（用地表温度、除以第 1 层全高度）；<code>i=2,nlayer</code> 用 <code>lambda(i)=Akknew(ig,i)*zt(i)**skk/(zlay(i)-zlay(i-1))</code>（用预测温度、除以层间厚度）。</li>
+<li><strong>热容项 <code>alpha</code></strong>（第 109–117 行）：<code>muvol(i)=pplay(ig,i)/(rnew(ig,i)*zt(i))</code>（即密度 ρ），<code>alpha(i)=cpnew(ig,i)*(muvol(i)/ptimestep)*(zlev(i+1)-zlev(i))</code>。顶层 <code>alpha(nlayer)</code> 见“待确认/复现风险”中的索引疑点。</li>
+<li><strong>Thomas 前推 <code>C,D</code></strong>（第 125–143 行）：
+<ul>
+<li>底层 <code>den(1)=alpha(1)+lambda(2)+lambda(1)</code>；<code>C(1)=[lambda(1)*(tsurf-zt(1))+lambda(2)*(zt(2)-zt(1))]/den(1)</code>；<code>D(1)=lambda(2)/den(1)</code>。</li>
+<li>中间层 <code>i=2,nlayer-1</code>：<code>den(i)=alpha(i)+lambda(i+1)+lambda(i)*(1-D(i-1))</code>；<code>C(i)=[lambda(i+1)*(zt(i+1)-zt(i))+lambda(i)*(zt(i-1)-zt(i)+C(i-1))]/den(i)</code>；<code>D(i)=lambda(i+1)/den(i)</code>。</li>
+<li>顶层 <code>den(nlayer)=alpha(nlayer)+lambda(nlayer)*(1-D(nlayer-1))</code>；<code>C(nlayer)=[(C(nlayer-1)+zt(nlayer-1)-zt(nlayer))*lambda(nlayer)+phitop]/den(nlayer)</code>（<code>phitop=0</code> 即零通量上边界）。</li>
+</ul></li>
+<li><strong>回代求温度增量</strong>（第 151–157 行）：<code>pdtc(nlayer)=C(nlayer)</code>；<code>i=nlayer-1,1,-1</code>：<code>pdtc(i)=C(i)+D(i)*pdtc(i+1)</code>。</li>
+<li><strong>输出倾向</strong>（第 164–166 行）：<code>zdtconduc(ig,i)=pdtc(i)/ptimestep</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>conduction(ngrid,nlayer,ptimestep,pplay,pplev,pt,pdt,tsurf,zzlev,zzlay,zdtconduc):
+  if firstcall:
+    print skk
+    phitop = 0.0
+    firstcall = false
+
+  for ig = 1..ngrid:
+    zt(i)  = pt(ig,i) + pdt(ig,i)*ptimestep      # predicted T (includes EUV in pdt)
+    zlay(i)= zzlay(ig,i)
+    zlev(i)= zzlev(ig,i)
+    zlev(nlayer+1) = zlev(nlayer) + 10000.        # artificial top, 10 km
+
+    lambda(1) = Akknew(ig,1)*tsurf(ig)**skk / zlay(1)
+    for i=2..nlayer:
+      lambda(i) = Akknew(ig,i)*zt(i)**skk / (zlay(i)-zlay(i-1))
+
+    for i=1..nlayer-1:
+      muvol(i) = pplay(ig,i)/(rnew(ig,i)*zt(i))
+      alpha(i) = cpnew(ig,i)*(muvol(i)/ptimestep)*(zlev(i+1)-zlev(i))
+    muvol(nlayer) = pplay(ig,nlayer)/(rnew(ig,nlayer)*zt(nlayer))
+    alpha(nlayer) = cpnew(ig,i)*(muvol(nlayer)/ptimestep)*(zlev(nlayer+1)-zlev(nlayer))
+        # NOTE: i is still nlayer-1 here (see 待确认)
+
+    # Thomas forward sweep
+    den(1)=alpha(1)+lambda(2)+lambda(1)
+    C(1)=[lambda(1)*(tsurf-zt(1))+lambda(2)*(zt(2)-zt(1))]/den(1)
+    D(1)=lambda(2)/den(1)
+    for i=2..nlayer-1:
+      den(i)=alpha(i)+lambda(i+1)+lambda(i)*(1-D(i-1))
+      C(i)=[lambda(i+1)*(zt(i+1)-zt(i))+lambda(i)*(zt(i-1)-zt(i)+C(i-1))]/den(i)
+      D(i)=lambda(i+1)/den(i)
+    den(nlayer)=alpha(nlayer)+lambda(nlayer)*(1-D(nlayer-1))
+    C(nlayer)=[(C(nlayer-1)+zt(nlayer-1)-zt(nlayer))*lambda(nlayer)+phitop]/den(nlayer)
+
+    # back substitution
+    pdtc(nlayer)=C(nlayer)
+    for i=nlayer-1..1:
+      pdtc(i)=C(i)+D(i)*pdtc(i+1)
+
+    zdtconduc(ig,i)=pdtc(i)/ptimestep</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热层加热/冷却</td>
+<td><code>thermosphere_mod</code> 在 <code>callconduct</code> 下调用，把热传导倾向累加回 <code>pdt</code>，与 EUV 加热、分子黏性/扩散并列</td>
+</tr>
+<tr>
+<td>大气成分热力学</td>
+<td>通过 <code>conc_mod::Akknew/cpnew/rnew</code> 读取随 tracer 组成动态更新的热导率、比热和气体常数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 <code>.F</code>（续行用第 6 列 <code>$</code>/<code>&amp;</code>）。</li>
+<li><code>phitop</code>、<code>firstcall</code> 为 <code>SAVE</code> + <code>THREADPRIVATE</code>；并行复现需确认每线程都完成 firstcall 初始化。</li>
+<li>热导率温度指数 <code>skk=0.69</code> 为 <code>REAL, PARAMETER</code> 硬编码（第 63 行）。</li>
+<li>顶界面高度硬编码延伸 <code>10000.</code> m（第 100 行）。</li>
+<li>局部变量 <code>m</code>、<code>tmean</code>、<code>l</code> 声明后未在函数体使用；入参 <code>pplev</code> 同样声明后未使用（见待确认）。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>调用前提：<code>conduction</code> 仅在 <code>thermosphere_mod</code>（<code>callthermos</code> 路径）内被调用，而 <code>conc_mod::Akknew</code> 由 <code>update_r_cp_mu_ak</code> 在 <code>photochem.or.callthermos</code> 为真时更新。因此正常运行中 <code>Akknew</code> 已是当步成分相关值；若试图脱离 <code>callthermos</code> 路径单独调用 <code>conduction</code>，需自行保证 <code>Akknew/cpnew/rnew</code> 已赋值（<code>init_r_cp_mu</code> 不写 <code>Akknew</code>）。</li>
+<li>预测温度 <code>zt</code> 含上游 <code>zdteuv</code>（<code>thermosphere_mod</code> 先把 EUV 倾向加进 <code>pdt</code> 再调用本例程），复现热层倾向顺序时须保持 <code>euvheat → conduction</code> 的先后。</li>
+<li>上边界为零热通量（<code>phitop=0</code>）；顶界面用硬编码 <code>zlev(nlayer)+10000.</code> 定义，结果依赖模式顶高度与该 10 km 假设。</li>
+<li><code>zdtconduc</code> 在 <code>callconduct=.false.</code> 时由 <code>thermosphere_mod</code> 预置为 0，不进入 <code>pdt</code>。</li>
+<li>顶层 <code>alpha(nlayer)</code> 的 <code>cpnew</code> 索引疑点会影响顶层热容，复现顶层热传导时按源码字面行为执行（见待确认）。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><strong>顶层 <code>alpha(nlayer)</code> 的 <code>cpnew</code> 索引</strong>（第 116 行）：<code>alpha(nlayer)=cpnew(ig,i)*(muvol(nlayer)/ptimestep)*(zlev(nlayer+1)-zlev(nlayer))</code>。此处 <code>i</code> 是前一个 <code>DO i=1,nlayer-1</code> 循环结束后的残留值 <code>nlayer-1</code>（Fortran 循环变量在循环结束后保留末值），故实际取 <code>cpnew(ig,nlayer-1)</code> 而非 <code>cpnew(ig,nlayer)</code>；同层 <code>muvol/pplay/rnew/zt</code> 均正确取 <code>nlayer</code>。疑似 off-by-one，待开发者确认是否应为 <code>cpnew(ig,nlayer)</code>。已同步记入 <code>symbol-index.md</code>“源码疑点与待确认符号”。</li>
+<li>入参 <code>pplev</code> 声明为 <code>intent(in)</code> 但函数体未使用；是否为历史接口残留待确认。</li>
+<li>局部变量 <code>m</code>、<code>tmean</code>、<code>l</code> 声明后未使用，疑似历史遗留。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览，本文件在其“加热与传导”分类下。</li>
+<li><a href="../phymars/conc_mod.html">conc_mod</a>：提供 <code>Akknew/cpnew/rnew</code>；<code>update_r_cp_mu_ak</code> 在 <code>callthermos</code> 路径更新这些数组。</li>
+<li><a href="../phymars/callkeys_mod.html">callkeys_mod</a>：<code>callconduct</code> 开关门控本例程。</li>
+<li><a href="../phymars/physiq_mod.html">physiq_mod</a>：主物理调度，经 <code>thermosphere</code> 间接调用本例程。</li>
+<li><a href="thermosphere_mod.html">thermosphere_mod</a>：热层物理过程总调度，直接调用方。</li>
+<li><a href="molvis.html">molvis</a>：分子黏性速度扩散文件页（TASK-0197），其源码注明“Based on conduction.F”。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

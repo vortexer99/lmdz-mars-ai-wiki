@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>photochemistry_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/photochemistry_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="photochemistry_modf90">photochemistry_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\photochemistry_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>photochemistry_mod.F90</code> 定义 <code>photochemistry_mod</code>，是 <code>calchim_mod</code> 逐列调用的主光化学积分器。它把 GCM tracer mole fraction <code>zycol</code> 映射到内部化学物种数组，计算在线或离线光解率、可选离子光电离率、气相/异相反应速率和反应索引矩阵，然后在 <code>lswitch-1</code> 以下逐层用自适应子时间步和 LAPACK <code>dgesv</code> 解隐式线性系统，最后把数密度结果写回 <code>zycol</code>。</p>
+<p>该文件实现的是 ASIS 光化学求解框架的 Mars 反应网络，核心对象包括基础 C/O/H/N 光化学、可选氘化学、可选离子化学、冰/尘异相项以及 NO/O2 夜辉诊断。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>photochemistry_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1（<code>END MODULE</code> 4345）</td>
+<td>光化学主模块</td>
+</tr>
+<tr>
+<td><code>photochemistry</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">21（<code>END SUBROUTINE</code> 4343）</td>
+<td>主积分器；更新 <code>zycol</code>，输出 <code>jo3/jh2o/em_no/em_o2/iter</code></td>
+</tr>
+<tr>
+<td><code>define_dt</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">531-646</td>
+<td>按局部曲率误差准则迭代修正化学子时间步</td>
+</tr>
+<tr>
+<td><code>reactionrates</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">650-2296</td>
+<td>计算光解、二体、三体、quench 和异相反应速率数组</td>
+</tr>
+<tr>
+<td><code>fill_matrix</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">2300-2419</td>
+<td>用 <code>indice_*</code> 和速率数组填隐式求解的 Jacobian 矩阵、产生项和损失项</td>
+</tr>
+<tr>
+<td><code>indice</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">2423-3919</td>
+<td>分配并填充 <code>types_asis</code> 中的 <code>indice_phot/indice_3/indice_4</code> 反应化学计量表</td>
+</tr>
+<tr>
+<td><code>gcmtochim</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">3923-4221</td>
+<td>从 <code>zycol</code> 和 <code>tracer_mod::igcm_*</code> 构造内部 mole fraction <code>rm</code> 与数密度 <code>c</code></td>
+</tr>
+<tr>
+<td><code>chimtogcm</code></td>
+<td>internal subroutine</td>
+<td style="text-align: right;">4225-4341</td>
+<td>把 <code>lswitch-1</code> 以下内部数密度 <code>c</code> 写回 <code>zycol</code> 的 GCM tracer 槽位</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>param_v4_h</code></td>
+<td><code>jion</code></td>
+<td>读取 <code>phdisrate</code> 写入的离子光电离率，映射到 <code>v_phot(:,nphot+1:nphot+18)</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>jthermcalc_e107_mod</code></td>
+<td><code>jthermcalc_e107</code></td>
+<td>在线光解且 <code>ionchem</code> 时计算 E107 光吸收/光电离输入</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>paramfoto_compact_mod</code></td>
+<td><code>phdisrate</code></td>
+<td>把 <code>jthermcalc_e107</code> 结果转成 <code>jion</code>；本文件固定以 <code>chemthermod=2</code> 调用</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>photolysis_module</code></td>
+<td><code>photolysis</code></td>
+<td><code>jonline=.false.</code> 时使用离线查找表计算光解率</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>photolysis_online_mod</code></td>
+<td><code>photolysis_online</code></td>
+<td><code>jonline=.true.</code> 且白天时在线计算基础光解率</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td>全模块 use</td>
+<td><code>reactionrates</code> 中读取物理常数；具体常数使用需结合该子例程逐项反应确认</td>
+<td>是</td>
+</tr>
+<tr>
+<td><code>photolysis_mod</code></td>
+<td><code>nphot</code></td>
+<td><code>reactionrates</code> 中确定基础光解项之后的 photoionization 计数起点</td>
+<td>-</td>
+</tr>
+<tr>
+<td><a href="types_asis.html"><code>types_asis</code></a></td>
+<td>全模块 use</td>
+<td><code>fill_matrix</code> 和 <code>indice</code> 使用 <code>z3spec/z4spec</code> 类型与 <code>indice_*</code> 共享索引数组</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>tracer_mod</code></td>
+<td>多个 <code>igcm_*</code></td>
+<td><code>gcmtochim/chimtogcm</code> 检查并映射 GCM tracer 索引</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>indice</code></td>
+<td>本文件</td>
+<td>257-264</td>
+<td>firstcall 建立反应化学计量索引表并检查计数</td>
+</tr>
+<tr>
+<td><code>gcmtochim</code></td>
+<td>本文件</td>
+<td>272-280</td>
+<td>把 <code>zycol</code> 映射为内部 <code>rm/c</code></td>
+</tr>
+<tr>
+<td><code>photolysis_online</code></td>
+<td><code>photolysis_online.F</code></td>
+<td>290-295</td>
+<td>在线计算基础光解率</td>
+</tr>
+<tr>
+<td><code>jthermcalc_e107</code></td>
+<td><code>jthermcalc_e107_mod.F</code></td>
+<td>299</td>
+<td>离子化学路径下计算 E107 光吸收输入</td>
+</tr>
+<tr>
+<td><code>phdisrate</code></td>
+<td><code>paramfoto_compact.F</code></td>
+<td>301</td>
+<td>逐层生成 <code>jion</code>；调用参数固定 <code>chemthermod=2</code></td>
+</tr>
+<tr>
+<td><code>photolysis</code></td>
+<td><code>photolysis.F90</code></td>
+<td>371-372</td>
+<td>离线光解查找表路径</td>
+</tr>
+<tr>
+<td><code>reactionrates</code></td>
+<td>本文件</td>
+<td>392-398</td>
+<td>填 <code>v_phot/v_3/v_4</code> 反应速率</td>
+</tr>
+<tr>
+<td><code>fill_matrix</code></td>
+<td>本文件</td>
+<td>435-437</td>
+<td>构造隐式矩阵、产生项和损失项</td>
+</tr>
+<tr>
+<td><code>define_dt</code></td>
+<td>本文件</td>
+<td>441-442</td>
+<td>计算本轮子时间步</td>
+</tr>
+<tr>
+<td><code>dgesv</code></td>
+<td>LAPACK</td>
+<td>461；608</td>
+<td>解线性系统；未定义 <code>LAPACK</code> 时中止</td>
+</tr>
+<tr>
+<td><code>chimtogcm</code></td>
+<td>本文件</td>
+<td>518-526</td>
+<td>将更新后的内部数密度写回 <code>zycol</code></td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>LMDZ 物理工具（未显式 use）</td>
+<td>464、611、3916、3995 等</td>
+<td>缺 LAPACK、反应数组维度不匹配或 tracer 缺失时中止</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlayer</code>,<code>nq</code>,<code>nesp</code></td>
+<td><code>calchim_mod</code></td>
+<td>integer</td>
+<td>-</td>
+<td>层数、GCM tracer 数、内部化学物种数</td>
+</tr>
+<tr>
+<td><code>nb_reaction_3_max</code>,<code>nb_reaction_4_max</code></td>
+<td><code>calchim_mod</code></td>
+<td>integer</td>
+<td>-</td>
+<td>三体/二体反应数组容量</td>
+</tr>
+<tr>
+<td><code>nphot</code>,<code>nb_phot_max</code>,<code>nphotion</code></td>
+<td><code>calchim_mod</code> / <code>photolysis_mod</code></td>
+<td>integer</td>
+<td>-</td>
+<td>基础光解、总光解样反应、photoionization 数</td>
+</tr>
+<tr>
+<td><code>ionchem</code>,<code>deutchem</code>,<code>jonline</code></td>
+<td><code>calchim_mod</code></td>
+<td>logical</td>
+<td>-</td>
+<td>是否启用离子化学、氘化学、在线光解</td>
+</tr>
+<tr>
+<td><code>ig</code></td>
+<td><code>calchim_mod</code> 列循环</td>
+<td>integer</td>
+<td>-</td>
+<td>当前网格列，用于 E107 光化学和诊断</td>
+</tr>
+<tr>
+<td><code>lswitch</code></td>
+<td><code>calchim_mod</code></td>
+<td>integer</td>
+<td>-</td>
+<td>低层光化学与热层化学分界；本文件只积分 <code>1:lswitch-1</code></td>
+</tr>
+<tr>
+<td><code>zycol</code></td>
+<td><code>calchim_mod</code></td>
+<td>real <code>(nlayer,nq)</code></td>
+<td>mole fraction</td>
+<td>输入/输出化学 tracer 体积混合比</td>
+</tr>
+<tr>
+<td><code>sza</code></td>
+<td><code>calchim_mod</code></td>
+<td>real</td>
+<td>degree</td>
+<td>太阳天顶角；在线路径 <code>sza&lt;=113</code> 计算光解，否则清零</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td><code>calchim_mod</code></td>
+<td>real</td>
+<td>s</td>
+<td>物理时间步，作为化学积分总时长</td>
+</tr>
+<tr>
+<td><code>press</code>,<code>alt</code>,<code>temp</code>,<code>temp_elect</code></td>
+<td><code>calchim_mod</code></td>
+<td>real <code>(nlayer)</code></td>
+<td>hPa, km, K, K</td>
+<td>层压、高度、中性温度和电子温度</td>
+</tr>
+<tr>
+<td><code>dens</code></td>
+<td><code>calchim_mod</code></td>
+<td>real <code>(nlayer)</code></td>
+<td>cm^-3</td>
+<td>总数密度，<code>gcmtochim</code> 用于 mole fraction 到数密度转换</td>
+</tr>
+<tr>
+<td><code>zmmean</code></td>
+<td><code>calchim_mod</code></td>
+<td>real <code>(nlayer)</code></td>
+<td>g/mol</td>
+<td>在线光解路径使用的平均摩尔质量</td>
+</tr>
+<tr>
+<td><code>dist_sol</code>,<code>zday</code></td>
+<td><code>calchim_mod</code></td>
+<td>real</td>
+<td>AU, Mars day</td>
+<td>日火距离和季节日，供光解/E107 使用</td>
+</tr>
+<tr>
+<td><code>surfdust1d</code>,<code>surfice1d</code></td>
+<td><code>calchim_mod</code></td>
+<td>real <code>(nlayer)</code></td>
+<td>cm2/cm3</td>
+<td>尘/冰表面积，异相反应速率使用</td>
+</tr>
+<tr>
+<td><code>tau</code></td>
+<td><code>calchim_mod</code></td>
+<td>real</td>
+<td>-</td>
+<td>尘埃光学厚度；离线路径会按 <code>tau*7/press(1)</code> 重标定</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zycol</code></td>
+<td><code>calchim_mod</code></td>
+<td>real <code>(nlayer,nq)</code></td>
+<td>mole fraction</td>
+<td><code>1:lswitch-1</code> 的化学物种被更新后写回 GCM tracer 槽位</td>
+</tr>
+<tr>
+<td><code>jo3</code></td>
+<td><code>calchim_mod</code> 诊断</td>
+<td>real <code>(nlayer)</code></td>
+<td>s^-1</td>
+<td><code>v_phot(:,5)</code>，O3 -&gt; O1D 光解率</td>
+</tr>
+<tr>
+<td><code>jh2o</code></td>
+<td><code>calchim_mod</code> 诊断</td>
+<td>real <code>(nlayer)</code></td>
+<td>s^-1</td>
+<td><code>v_phot(:,7)</code>，H2O -&gt; H + OH 光解率</td>
+</tr>
+<tr>
+<td><code>em_no</code></td>
+<td><code>calchim_mod</code> 诊断</td>
+<td>real <code>(nlayer)</code></td>
+<td>cm^-3 s^-1</td>
+<td><code>O*N*v_4(ind_norec)</code> 夜辉发射率</td>
+</tr>
+<tr>
+<td><code>em_o2</code></td>
+<td><code>calchim_mod</code> 诊断</td>
+<td>real <code>(nlayer)</code></td>
+<td>cm^-3 s^-1</td>
+<td><code>0.75*O*O*CO2*v_3(ind_orec)</code> 夜辉发射率</td>
+</tr>
+<tr>
+<td><code>iter</code></td>
+<td><code>calchim_mod</code> 诊断</td>
+<td>integer <code>(nlayer)</code></td>
+<td>count</td>
+<td>每层化学积分内部子步次数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>photochemistry</code> 和 <code>gcmtochim</code> 各有 <code>firstcall</code>，均为 <code>SAVE/THREADPRIVATE</code>；首次调用后缓存内部物种索引并不再重复分配/检查。</li>
+<li><code>indice</code> 会 <code>allocate(indice_phot/indice_3/indice_4)</code>，这些数组来自 <a href="types_asis.html">types_asis</a>，用于后续矩阵填充；页面未发现释放路径。</li>
+<li><code>indice</code> 每次 firstcall 打印 <code>nb_phot/nb_reaction_4/nb_reaction_3</code>，并在计数不等于传入容量时中止。</li>
+<li>在线离子路径写入并读取 <code>param_v4_h::jion</code>，依赖 <code>jthermcalc_e107</code> 和 <code>phdisrate</code> 的共享状态副作用。</li>
+<li>未定义编译宏 <code>LAPACK</code> 时，主求解和 <code>define_dt</code> 的矩阵求解分支都会调用 <code>abort_physic</code>。</li>
+<li><code>reactionrates</code> 内部硬编码 <code>hetero_dust=.false.</code>、<code>hetero_ice=.true.</code>，因此冰异相反应活跃，尘异相反应默认关闭。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>firstcall 设置内部物种索引</strong>：基础 17 个物种固定为 CO2、CO、O、O1D、O2、O3、H、H2、OH、HO2、H2O2、H2O、N、N2D、NO、NO2、N2；若 <code>ionchem</code> 为真追加 15 个离子/电子物种，若 <code>deutchem</code> 为真追加 6 个氘相关物种。随后调用 <code>indice</code> 建立反应化学计量表。</li>
+<li><strong>GCM tracer 到内部数组</strong>：<code>gcmtochim</code> 首次检查所有必需 <code>tracer_mod::igcm_*</code> 索引，之后把 <code>zycol</code> 的对应 tracer 拷贝到内部 <code>rm</code>，低于 <code>1.e-30</code> 的 mole fraction 清零，再乘 <code>dens</code> 得到数密度 <code>c</code>。</li>
+<li><strong>光解和光电离率</strong>：<code>jonline</code> 时若 <code>sza&lt;=113</code> 调 <code>photolysis_online</code>；夜间直接清零 <code>v_phot</code>。若 <code>ionchem</code>，再调 <code>jthermcalc_e107</code> 和逐层 <code>phdisrate(ig,nlayer,2,sza,ilay)</code>，把 <code>jion</code> 的 CO2/O2/O/NO/CO/N2/N/H 光电离通道放入 <code>v_phot(:,nphot+1:nphot+18)</code>。<code>jonline=.false.</code> 时改调 <code>photolysis</code>，并先把 <code>tau</code> 按 7 hPa 查找表口径重标定。</li>
+<li><strong>保存诊断光解率</strong>：<code>jo3=v_phot(:,5)</code>，<code>jh2o=v_phot(:,7)</code>。</li>
+<li><strong>反应速率表</strong>：<code>reactionrates</code> 先按 <code>nphot+nphotion</code> 初始化光解样反应数，再填 O、O(1D)、HOx、N/NOx、CO、氘、离子和异相反应。二体反应进 <code>v_4</code>，三体/同物种二次反应进 <code>v_3</code>，quench/异相项按光解样一阶反应进 <code>v_phot</code>。</li>
+<li><strong>逐层隐式积分</strong>：对 <code>ilev=1:lswitch-1</code>，在 <code>time&lt;ptimestep</code> 循环中先用 <code>fill_matrix</code> 形成矩阵、产生项和损失项，再由 <code>define_dt</code> 按误差准则修正子步，最后解 <code>(I + J*dt)*cnew = c_old</code>。低于 <code>1.e-30*dens</code> 的数密度置零。</li>
+<li><strong>电荷中性修正</strong>：若 <code>ionchem</code>，每个子步后把电子数密度强制设为所有正离子数密度之和。</li>
+<li><strong>夜辉和写回</strong>：积分结束后计算 <code>em_no/em_o2</code>，再调用 <code>chimtogcm</code> 将 <code>1:lswitch-1</code> 的内部数密度除以 <code>dens</code> 写回 <code>zycol</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>photochemistry(...):
+  if firstcall:
+    assign fixed species indices
+    append ion species if ionchem
+    append deuterium species if deutchem
+    call indice(...) to allocate/fill reaction stoichiometry tables
+    firstcall = false
+
+  call gcmtochim(...)  # zycol -&gt; rm -&gt; c
+
+  if jonline:
+    if sza &lt;= 113:
+      call photolysis_online(..., v_phot)
+      if ionchem:
+        call jthermcalc_e107(...)
+        for ilay = 1..lswitch-1: call phdisrate(..., chemthermod=2, ilay)
+        copy jion channels into v_phot after nphot
+    else:
+      v_phot = 0
+  else:
+    tau = tau * 7 / press(1)
+    call photolysis(..., v_phot)
+
+  jo3 = v_phot(:,5)
+  jh2o = v_phot(:,7)
+  hetero_dust = false
+  hetero_ice = true
+  call reactionrates(..., v_phot, v_3, v_4, ind_norec, ind_orec)
+
+  for ilev = 1..lswitch-1:
+    time = 0
+    dt_guess = ptimestep
+    while time &lt; ptimestep:
+      call fill_matrix(ilev, mat1, prod, loss, c, ...)
+      call define_dt(..., dt_corrected, ...)
+      cap dt_corrected at remaining physical timestep
+      mat = identity + mat1*dt_corrected
+      solve mat*cnew = c(ilev,:) with dgesv
+      zero very small cnew
+      c(ilev,:) = cnew
+      if ionchem: electron = sum(positive ions)
+      time += dt_corrected
+      dt_guess = dt_corrected
+
+  em_no = O*N*NO_recombination_rate
+  em_o2 = 0.75*O*O*CO2*O_recombination_rate
+  call chimtogcm(...)  # c -&gt; zycol</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>光化学 / 光解</td>
+<td>主低层光化学积分器，消费在线或离线光解率并更新化学 tracer</td>
+</tr>
+<tr>
+<td>离子化学</td>
+<td><code>ionchem</code> 开启时追加离子/电子物种，使用 E107/<code>phdisrate</code> 生成 18 个 photoionization 通道，并强制电子电荷中性</td>
+</tr>
+<tr>
+<td>氘化学</td>
+<td><code>deutchem</code> 开启时追加 HDO/OD/D/HD/DO2/HDO2 并增加相关反应</td>
+</tr>
+<tr>
+<td>异相化学</td>
+<td>默认启用冰表面反应、关闭尘表面反应，按一阶光解样项进入矩阵</td>
+</tr>
+<tr>
+<td>夜辉诊断</td>
+<td>输出 NO 和 O2 体发射率，供 <code>calchim_mod</code> 写诊断/统计</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>主例程包含 6 个内部子例程，<code>indice_*</code> 类型来自 <code>types_asis</code>，反应化学计量和速率计算分离。</li>
+<li>编译必须有 <code>LAPACK</code> 宏和 <code>dgesv</code> 链接，否则运行时会在求解处中止。</li>
+<li><code>jionos</code> 在主例程内硬编码为 <code>.true.</code>，没有外部配置输入。</li>
+<li><code>hetero_ice</code> 硬编码 <code>.true.</code>，<code>hetero_dust</code> 硬编码 <code>.false.</code>。</li>
+<li><code>phychemrat=1</code>，名义化学步长等于物理时间步；实际子步由 <code>define_dt</code> 自适应切分。</li>
+<li><code>chimtogcm</code> 只写回 <code>1:lswitch-1</code>，因此 <code>.not.unichim</code> 时 <code>lswitch:nlayer</code> 留给热层化学路径处理。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>nesp</code> 必须与 <code>ionchem/deutchem</code> 对应的内部物种数一致：基础 17，离子化学加 15，氘化学加 6。</li>
+<li><code>nb_phot_max/nb_reaction_3_max/nb_reaction_4_max</code> 必须与 <code>indice</code> 实际填充计数一致，否则 <code>indice</code> 会中止。</li>
+<li>在线光解夜间阈值是 <code>sza&gt;113</code>，而 <code>phdisrate</code> 自身还有 <code>zenit&gt;140</code> 夜间判断；本文件进入在线夜间分支时已经把全部 <code>v_phot</code> 清零。</li>
+<li>离线路径会原地修改局部参数 <code>tau=tau*7/press(1)</code>，这是查找表 7 hPa 口径换算。</li>
+<li>若 <code>ionchem</code> 为真，<code>param_read_e107</code>/<code>fill_data_thermos</code> 等上游热层参数初始化必须已使 <code>jthermcalc_e107</code> 和 <code>phdisrate</code> 可用。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>reactionrates</code> 中 <code>i027</code> 和 <code>i056</code> 速率分别被连续写入两次（1894-1898、2148-2152），未见 <code>i028</code> 对应赋值；是否为编号遗漏或有意复用待确认。</li>
+<li><code>phdisrate</code> 在本文件中固定 <code>chemthermod=2</code>，因此不进入 <code>chemthermod==3</code> 的扩展通道；离子光化学是否需要这些通道需与物理设计确认。</li>
+<li><code>indice</code> 分配的 <code>types_asis</code> 共享索引数组未在本文件释放；是否由进程生命周期管理待确认。</li>
+<li><code>comcstfi_h</code> 在 <code>reactionrates</code> 中全模块 use，需进一步逐项反应确认具体使用的常数。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="calchim_mod.html">calchim_mod</a>：上游调度方，准备列状态并调用 <code>photochemistry</code>。</li>
+<li><a href="chemistrydata.html">chemistrydata</a>：离线光解查找表读取方。</li>
+<li><a href="photolysis.html">photolysis</a>：离线光解查找表插值器，<code>jonline=false</code> 时生成基础 <code>v_phot</code>。</li>
+<li><a href="photolysis_online.html">photolysis_online.F</a>：在线光解率计算。</li>
+<li><a href="photolysis_mod.html">photolysis_mod</a>：在线光解初始化和共享光解参数；本文件读取其 <code>nphot</code> 来布局光解槽位。</li>
+<li><a href="types_asis.html">types_asis</a>：ASIS 反应索引类型和 <code>indice_phot/indice_3/indice_4</code> 共享数组定义。</li>
+<li><a href="paramfoto_compact.html">paramfoto_compact</a>：提供 <code>phdisrate</code>，本文件离子路径读取其 <code>jion</code> 输出。</li>
+<li><a href="param_read_e107.html">param_read_e107</a>：提供 E107 光化学表和分支比。</li>
+<li><a href="iono_h.html">iono_h</a>：电子温度来自 <code>calchim_mod</code> 对 <code>temp_elect</code> 的调用，本文件参数 <code>temp_elect(nlayer)</code> 是数组而非函数。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

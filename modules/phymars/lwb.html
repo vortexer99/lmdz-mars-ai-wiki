@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lwb - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/lwb.md</span>
+    </nav>
+    <article class="content">
+<h1 id="lwbf">lwb.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\lwb.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>lwb.F</code> 定义 <code>lwb_mod</code> 模块，提供长波辐射主流程中的谱带 Planck 函数预处理例程 <code>lwb</code>。它不直接计算辐射通量，而是在 <code>lwmain_mod.F</code> 的长波 LTE 计算流程开头被调用，根据层温 <code>tlay</code>、层界温度 <code>tlev</code> 和地表温度跳变 <code>dt0</code>，为每个长波红外谱带生成地表、顶层、层中心、层界的 Planck 函数表，以及层温导数和半层差分量。</p>
+<p>这些输出随后由 <code>lwflux</code> 使用，用于长波冷却率、地面下行通量、顶层出射长波辐射和净辐射收支计算。源码注释明确说明，本例程使用 Planck 函数的多项式展开；多项式系数来自 <code>yomlw_h</code> 中的 <code>xp(:,jnu)</code>，温度归一化基准为 <code>tstand</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lwb_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>封装长波 Planck 函数和梯度预处理例程。</td>
+</tr>
+<tr>
+<td><code>lwb</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7</td>
+<td>对每个红外谱带、水平列和 LTE 长波层计算 <code>bsurf/btop/blev/blay/dblay/dbsublay</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>ndlon</code>, <code>ndlo2</code>, <code>nir</code></td>
+<td>提供辐射向量列数和红外谱带数，约束输入输出数组形状。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>yomlw_h</code></td>
+<td><code>nlaylte</code>, <code>xi</code>, <code>tstand</code>, <code>xp</code></td>
+<td>提供 LTE 长波层数、Planck 多项式基准温度和谱带多项式系数；<code>xi</code> 被 use 但在本例程中未使用。</td>
+<td><code>xi</code> 的 use 是否为历史遗留未在本文件内确认</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>本例程只做数组循环和多项式计算，不调用其他用户例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kdlon</code></td>
+<td><code>lwmain</code></td>
+<td><code>integer</code></td>
+<td>column</td>
+<td>本次向量化处理的水平列数，循环范围为 <code>1:kdlon</code>。</td>
+</tr>
+<tr>
+<td><code>kflev</code></td>
+<td><code>lwmain</code></td>
+<td><code>integer</code></td>
+<td>layer</td>
+<td>调用方传入的垂直层数；输出数组按该维度声明，但实际循环使用 <code>nlaylte</code>。</td>
+</tr>
+<tr>
+<td><code>tlev</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(ndlo2,kflev+1)</code></td>
+<td>K</td>
+<td>层界温度；用于层界 Planck 函数、顶层 Planck 函数和地表温度基准。</td>
+</tr>
+<tr>
+<td><code>tlay</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(ndlo2,kflev)</code></td>
+<td>K</td>
+<td>层中心温度；用于层中心 Planck 函数和温度导数。</td>
+</tr>
+<tr>
+<td><code>dt0</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(ndlo2)</code></td>
+<td>K</td>
+<td>地表温度相对第一层界温度的跳变；地表 Planck 函数使用 <code>tlev(:,1)+dt0</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bsurf</code></td>
+<td><code>lwmain</code> -&gt; <code>lwflux</code></td>
+<td><code>real(ndlo2,nir)</code></td>
+<td>Planck 函数值</td>
+<td>地表谱带 Planck 函数。</td>
+</tr>
+<tr>
+<td><code>btop</code></td>
+<td><code>lwmain</code> -&gt; <code>lwflux</code></td>
+<td><code>real(ndlo2,nir)</code></td>
+<td>Planck 函数值</td>
+<td>大气顶层谱带 Planck 函数，等于 <code>blev(:,jnu,nlaylte+1)</code>。</td>
+</tr>
+<tr>
+<td><code>blev</code></td>
+<td><code>lwmain</code> -&gt; <code>lwflux</code></td>
+<td><code>real(ndlo2,nir,kflev+1)</code></td>
+<td>Planck 函数值</td>
+<td>各层界的谱带 Planck 函数。</td>
+</tr>
+<tr>
+<td><code>blay</code></td>
+<td><code>lwmain</code> -&gt; <code>lwflux</code></td>
+<td><code>real(ndlo2,nir,kflev)</code></td>
+<td>Planck 函数值</td>
+<td>各层中心的谱带 Planck 函数。</td>
+</tr>
+<tr>
+<td><code>dblay</code></td>
+<td><code>lwmain</code> -&gt; <code>lwi</code></td>
+<td><code>real(ndlo2,nir,kflev)</code></td>
+<td>Planck 函数值 / K</td>
+<td>层中心 Planck 多项式对温度的导数。</td>
+</tr>
+<tr>
+<td><code>dbsublay</code></td>
+<td><code>lwmain</code> -&gt; <code>lwflux</code></td>
+<td><code>real(ndlo2,nir,2*kflev)</code></td>
+<td>Planck 函数差值</td>
+<td>每层拆成上下两个半层后，层中心与层界之间的 Planck 差分。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p><code>lwb.F</code> 不定义保存型模块变量，不读写文件，不打印诊断，也不读取运行时配置。它读取 <code>dimradmars_mod</code> 和 <code>yomlw_h</code> 中的共享常数/表，副作用只限于写入调用方传入的输出数组。临时数组 <code>ztlay</code>、<code>ztlev</code> 为局部数组。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>对每个红外谱带 <code>jnu=1:nir</code> 循环。</li>
+<li>对 <code>jk=1:nlaylte</code> 的层中心和层界循环，把温度归一化为 <code>(T-tstand)/tstand</code>。</li>
+<li>用 <code>xp(1:6,jnu)</code> 进行五次嵌套多项式求值，分别得到 <code>blev(:,jnu,jk)</code> 和 <code>blay(:,jnu,jk)</code>。</li>
+<li>对层中心温度计算同一多项式的温度导数，形式为 <code>xp(2)+2*xp(3)*z+...+5*xp(6)*z**4</code>，再除以 <code>tstand</code> 写入 <code>dblay</code>。</li>
+<li>对大气顶 <code>nlaylte+1</code> 单独计算 <code>blev</code>，并复制到 <code>btop</code>。</li>
+<li>对地表使用 <code>tlev(:,1)+dt0</code> 计算 <code>bsurf</code>，因此地表 Planck 函数可以不同于第一层界值。</li>
+<li>对每个层 <code>jk</code> 生成两个半层差分：<code>dbsublay(:,jnu,2*jk-1)=blay-blev(jk)</code>，<code>dbsublay(:,jnu,2*jk)=blev(jk+1)-blay</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>for each infrared band jnu:
+  for each LTE layer jk:
+    z_level = (tlev(:,jk) - tstand) / tstand
+    blev(:,jnu,jk) = polynomial_xp(jnu, z_level)
+
+    z_layer = (tlay(:,jk) - tstand) / tstand
+    blay(:,jnu,jk) = polynomial_xp(jnu, z_layer)
+    dblay(:,jnu,jk) = derivative_polynomial_xp(jnu, z_layer) / tstand
+
+  z_top = (tlev(:,nlaylte+1) - tstand) / tstand
+  btop(:,jnu) = polynomial_xp(jnu, z_top)
+
+  z_surface = (tlev(:,1) + dt0 - tstand) / tstand
+  bsurf(:,jnu) = polynomial_xp(jnu, z_surface)
+
+  for each LTE layer jk:
+    dbsublay(:,jnu,2*jk-1) = blay(:,jnu,jk) - blev(:,jnu,jk)
+    dbsublay(:,jnu,2*jk) = blev(:,jnu,jk+1) - blay(:,jnu,jk)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">辐射计算</a></td>
+<td><code>lwmain</code> 长波 LTE 流程中的 Planck 函数预处理步骤，位于吸收量、交换系数和通量计算之前。</td>
+</tr>
+<tr>
+<td><a href="index.html">phymars 核心物理模块目录</a></td>
+<td>属于 <code>libf\phymars</code> 的长波辐射辅助文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 文件，模块内只有一个子例程。</li>
+<li>多项式使用 Horner 形式展开，避免显式构造高次幂。</li>
+<li><code>kflev</code> 用于形参维度声明，但实际计算循环使用共享的 <code>nlaylte</code>；复现实验必须保证两者在调用链中一致。</li>
+<li><code>xi</code> 从 <code>yomlw_h</code> 引入但未在本例程使用，可能是长波模块模板化 use 列表的历史遗留。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>yomlw_h</code> 必须已经初始化 <code>nlaylte</code>、<code>tstand</code> 和 <code>xp(1:6,1:nir)</code>，否则本例程只会传播未初始化表值。</li>
+<li><code>kdlon</code> 不应超过 <code>ndlo2</code>/<code>ndlon</code> 所能容纳的向量列数。</li>
+<li><code>kflev</code> 的数组维度必须覆盖 <code>nlaylte+1</code> 层界和 <code>nlaylte</code> 层中心；源码循环不使用 <code>kflev</code> 作为上界。</li>
+<li><code>dt0</code> 会直接改变 <code>bsurf</code>，因此地表温度跳变必须与 <code>lwmain</code> 上游地表能量状态一致。</li>
+<li>复现风险：<code>dblay</code> 是对归一化多项式求导后除以 <code>tstand</code>，如果替换 <code>xp</code> 表或 <code>tstand</code>，必须同时检查导数单位和 <code>lwi</code> 的半隐式冷却率使用方式。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>xi</code> 在 <code>lwb.F</code> 中未使用；是否应从 use 列表中移除属于源码维护问题，本页不建议修改源码。</li>
+<li><code>xp</code> 多项式系数的生成来源和适用温度范围不在本文件内说明，需要查 <code>yomlw_h.F90</code> 初始化链或数据表。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../themes/radiation.html">radiation</a></li>
+<li><a href="index.html">phymars/index</a></li>
+<li><a href="flusv.html">flusv</a></li>
+<li><a href="lwmain_mod.html">lwmain_mod</a> - 长波 LTE 主调度入口，直接调用本例程。</li>
+<li><a href="lwdiff.html">lwdiff</a></li>
+<li><a href="lwflux.html">lwflux</a></li>
+<li><a href="lwi.html">lwi</a></li>
+<li><a href="lwu.html">lwu</a></li>
+<li><a href="dimradmars_mod.html">dimradmars_mod</a> - 提供长波辐射维度常数和谱带定义。</li>
+<li><a href="yomlw_h.html">yomlw_h.md</a>：长波辐射共享参数。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>param_read_e107 - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/param_read_e107.md</span>
+    </nav>
+    <article class="content">
+<h1 id="param_read_e107f">param_read_e107.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\param_read_e107.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>param_read_e107.F</code> 定义 <code>param_read_e107_mod</code>，提供热层 E107 参数读取例程 <code>param_read_e107</code>。它是当前源码中可见的热层参数初始化入口：<code>physiq_mod.F</code> 在 <code>callthermos</code> 为真时先调用 <code>fill_data_thermos</code>、<code>allocate_param_thermos</code>、<code>allocate_param_iono</code>，再调用 <code>param_read_e107</code>。</p>
+<p>该例程把 <code>datadir/EUVDAT/param_v6</code> 下的柱含量、透过率/光吸收表、E10.7 拟合系数和 Mars-year E107 时间序列表读入 <a href="param_v4_h.html">param_v4_h</a>，并设置解离/电离效率表。与旧版 <a href="param_read.html">param_read</a> 相比，本文件改用 <code>param_v6/trans*.dat</code>，新增 <code>fit_js_e107.dat</code>、<code>e107_MY*.dat</code> 和 Schunk &amp; Nagy (2000) 分支比文件，并显式支持 <code>callkeys_mod::solvaryear</code> 选择太阳活动年表。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>param_read_e107_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1（<code>end module</code> 554）</td>
+<td>封装 E107 版热层参数读取例程</td>
+</tr>
+<tr>
+<td><code>param_read_e107</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7（<code>end subroutine</code> 552）</td>
+<td>读取 <code>EUVDAT/param_v6</code> 表格、E107 序列和电离分支比，初始化 <code>param_v4_h</code> 热层共享参数</td>
+</tr>
+<tr>
+<td><code>filename</code></td>
+<td>local <code>character*13</code></td>
+<td style="text-align: right;">37</td>
+<td>根据 <code>solvaryear</code> 构造 <code>e107_MYxx.dat</code> 文件名</td>
+</tr>
+<tr>
+<td><code>ierr</code></td>
+<td>local integer</td>
+<td style="text-align: right;">35</td>
+<td>只用于 <code>coln.dat</code> 打开失败检测</td>
+</tr>
+<tr>
+<td><code>nada</code></td>
+<td>local real</td>
+<td style="text-align: right;">36</td>
+<td>读取电离分支比文件第二列总电离效率的占位变量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>param_v4_h</code></td>
+<td><code>c1_16</code>,<code>c17_24</code>,<code>c25_29</code>,<code>c30_31</code>,<code>c32</code>..<code>c36</code>,<code>t0</code>,<code>jabsifotsintpar</code>,<code>ninter</code>,<code>nz2</code>,<code>nabs</code>,<code>e107</code>,<code>date_e107</code>,<code>e107_tab</code>,<code>coefit0</code>..<code>coefit4</code>,<code>efdis*</code>,<code>efion*</code>,<code>fluxtop</code>,<code>ct1</code>,<code>ct2</code>,<code>p1</code>,<code>p2</code> 等</td>
+<td>写入热层 EUV 表、E107 拟合系数、时间序列和解离/电离效率</td>
+<td><code>jfotsout/crscabsi2/co2crsc195/co2crsc295/ct1/ct2/p1/p2/e107</code> 在本例程 use 列表中出现但未直接写入</td>
+</tr>
+<tr>
+<td><code>datafile_mod</code></td>
+<td><code>datadir</code></td>
+<td>拼接 <code>EUVDAT/param_v6</code> 和 <code>EUVDAT/*branchingratio*</code> 文件路径</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>is_master</code></td>
+<td>限定大部分文件 I/O 在 master 进程执行</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td><code>bcast</code></td>
+<td>广播 master 读入的数组到其他进程</td>
+<td><code>efiono3p/efionn/efionno/efionh</code> 在所有进程本地设置，未单独广播</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>solvaryear</code></td>
+<td>选择 <code>e107_MYxx.dat</code> 年表文件</td>
+<td>错误提示写“24 and 37”，而条件允许 <code>23..37</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bcast</code></td>
+<td><code>mod_phys_lmdz_transfert_para</code></td>
+<td>276-297, 410-415, 448-451, 479-482, 512-515</td>
+<td>广播柱含量、透过率、E107 拟合/时间表和部分电离分支效率</td>
+</tr>
+<tr>
+<td><code>open/read/close</code></td>
+<td>Fortran intrinsic</td>
+<td>多处</td>
+<td>读取 <code>param_v6</code> 表、E107 年表和分支比文件</td>
+</tr>
+<tr>
+<td><code>write/STOP</code></td>
+<td>Fortran intrinsic</td>
+<td>51-60, 260-263, 270</td>
+<td>缺 <code>coln.dat</code> 或 <code>solvaryear</code> 不合法时中止；读取 E107 表时逐行打印调试信息</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datadir</code></td>
+<td><code>datafile_mod</code> / <code>callphys.def</code></td>
+<td>character path</td>
+<td>-</td>
+<td>数据目录根路径</td>
+</tr>
+<tr>
+<td><code>solvaryear</code></td>
+<td><code>callkeys_mod</code> / <code>callphys.def</code></td>
+<td>integer</td>
+<td>Mars year</td>
+<td>选择 <code>e107_MYxx.dat</code>；源码条件允许 <code>23..37</code></td>
+</tr>
+<tr>
+<td><code>coln.dat</code></td>
+<td><code>datadir/EUVDAT/param_v6</code></td>
+<td>ASCII table</td>
+<td>mixed</td>
+<td>柱含量分组，反向写入 <code>c1_16/c17_24/.../c36</code></td>
+</tr>
+<tr>
+<td><code>trans*.dat</code></td>
+<td><code>datadir/EUVDAT/param_v6</code></td>
+<td>ASCII tables</td>
+<td>mixed</td>
+<td>13 个吸收体的 <code>jabsifotsintpar(i,absorber,interval)</code> 表</td>
+</tr>
+<tr>
+<td><code>fit_js_e107.dat</code></td>
+<td><code>datadir/EUVDAT/param_v6</code></td>
+<td>ASCII table</td>
+<td>-</td>
+<td><code>coefit0..coefit4(ninter,nabs)</code> 多项式拟合系数</td>
+</tr>
+<tr>
+<td><code>e107_MYxx.dat</code></td>
+<td><code>datadir/EUVDAT/param_v6</code></td>
+<td>669 行时间序列</td>
+<td>-</td>
+<td><code>date_e107(1:669)</code> 和 <code>e107_tab(1:669)</code></td>
+</tr>
+<tr>
+<td><code>co2/o2/n2/co ion_branchingratio_schunkandnagy2000_param.dat</code></td>
+<td><code>datadir/EUVDAT</code></td>
+<td>ASCII tables</td>
+<td>fraction</td>
+<td>CO2、O2、N2、CO 的总电离效率和通道相对比例</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>c1_16</code>,<code>c17_24</code>,<code>c25_29</code>,<code>c30_31</code>,<code>c32</code>..<code>c36</code></td>
+<td><code>param_v4_h</code></td>
+<td>real arrays over <code>nz2</code></td>
+<td>mixed</td>
+<td>柱含量查找表</td>
+</tr>
+<tr>
+<td><code>jabsifotsintpar</code></td>
+<td><code>param_v4_h</code></td>
+<td>real <code>(nz2,nabs,ninter)</code></td>
+<td>mixed</td>
+<td>各吸收体/区间的透过率或光吸收参数</td>
+</tr>
+<tr>
+<td><code>t0</code></td>
+<td><code>param_v4_h</code></td>
+<td>real <code>(nz2)</code></td>
+<td>K</td>
+<td>所有进程本地设为 <code>195.</code> 后广播</td>
+</tr>
+<tr>
+<td><code>fluxtop</code></td>
+<td><code>param_v4_h</code></td>
+<td>real <code>(ninter)</code></td>
+<td>-</td>
+<td>所有进程本地设为 <code>1.</code> 后广播</td>
+</tr>
+<tr>
+<td><code>coefit0..coefit4</code></td>
+<td><code>param_v4_h</code></td>
+<td>real <code>(ninter,nabs)</code></td>
+<td>-</td>
+<td>E10.7 到光吸收参数的多项式拟合系数</td>
+</tr>
+<tr>
+<td><code>date_e107</code>,<code>e107_tab</code></td>
+<td><code>param_v4_h</code></td>
+<td>real <code>(669)</code></td>
+<td>-</td>
+<td>E107 时间轴和表值</td>
+</tr>
+<tr>
+<td><code>efdis*</code></td>
+<td><code>param_v4_h</code></td>
+<td>real <code>(ninter)</code></td>
+<td>fraction</td>
+<td>各物种解离效率</td>
+</tr>
+<tr>
+<td><code>efionco2</code>,<code>efiono2</code>,<code>efionn2</code>,<code>efionco</code>,<code>efiono3p</code>,<code>efionn</code>,<code>efionno</code>,<code>efionh</code></td>
+<td><code>param_v4_h</code></td>
+<td>real arrays</td>
+<td>fraction</td>
+<td>电离效率和通道分支</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>写入 <code>param_v4_h</code> 的大量模块变量；例程无入参/出参。</li>
+<li>master 读取 <code>param_v6</code> 表和 E107/分支比文件，再通过 <code>bcast</code> 分发主要读入数组。</li>
+<li><code>t0</code>、<code>fluxtop</code>、解离效率硬编码段和部分电离效率在所有进程本地执行，不完全依赖广播。</li>
+<li><code>coln.dat</code> 打不开时直接 <code>STOP</code>；<code>fit_js_e107.dat</code>、<code>e107_MYxx.dat</code> 和分支比文件未使用 <code>iostat</code>。</li>
+<li>读取 E107 年表时每行执行 <code>write(*,*) 'param_read_e107/292', date_e107(i), e107_tab(i), i</code>，会产生 669 行标准输出。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>master 打开 <code>EUVDAT/param_v6/coln.dat</code>，缺失则打印 <code>datadir</code> 修复提示并 <code>STOP</code>。</li>
+<li>master 打开 26 个 <code>trans*.dat</code> 表，跳过两行表头，按 <code>i=nz2..1</code> 反向填入柱含量和 <code>jabsifotsintpar</code>。</li>
+<li>master 关闭表文件；所有进程设置 <code>t0(:)=195.</code> 和 <code>fluxtop(:)=1.</code>。</li>
+<li>master 读取 <code>fit_js_e107.dat</code>：对每个 <code>inter=1..ninter</code> 先跳一行，再读 <code>j=1..nabs</code> 的 <code>coefit0..coefit4</code>。</li>
+<li>master 检查 <code>solvaryear</code>，构造 <code>e107_MYxx.dat</code>，读取 669 行 <code>date_e107/e107_tab</code> 并打印每行。</li>
+<li>广播 <code>t0/fluxtop</code>、柱含量、<code>jabsifotsintpar</code>、<code>coefit0..coefit4</code>、<code>date_e107/e107_tab</code>。</li>
+<li>所有进程清零解离/电离效率数组，并硬编码 H2O、H2O2、O3、NO2、H2、O/N/H 等效率。</li>
+<li>master 分别读取 CO2、O2、N2、CO 的 Schunk &amp; Nagy 分支比文件，用第二列总电离效率计算 <code>efdis* = 1 - total_ionization</code>，并把各通道相对比例乘上总电离效率。</li>
+<li>每类分支比读取后广播对应 <code>efion*</code> 与 <code>efdis*</code>，再对高区间解离效率设为 1。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>param_read_e107():
+  if is_master:
+    open param_v6/coln.dat with iostat, stop if missing
+    open all trans*.dat tables, skip two header rows
+    read coln.dat and trans*.dat from nz2 down to 1
+    close table units
+
+  t0(:) = 195
+  fluxtop(:) = 1
+
+  if is_master:
+    read fit_js_e107.dat into coefit0..coefit4
+    if solvaryear in 23..37:
+      filename = &quot;e107_MY&quot;//solvaryear//&quot;.dat&quot;
+    else:
+      print error; stop
+    read 669 date/e107 rows into date_e107/e107_tab and print each row
+
+  bcast table arrays and E107 arrays
+
+  zero efdis*/efion*
+  set hard-coded dissociation efficiencies
+  for species in CO2, O2, N2, CO:
+    if is_master:
+      read species branching-ratio file
+      derive efdis* and efion* channels
+    bcast species efdis*/efion*
+    set remaining high intervals to fully dissociated
+  set O(3P), N, NO, H ionization efficiencies locally</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热层初始化</td>
+<td><code>physiq_mod.F</code> 在 <code>callthermos</code> 分支中调用本例程，载入热层 EUV/E107 参数</td>
+</tr>
+<tr>
+<td>热层 EUV 加热</td>
+<td><code>hrtherm</code>/<code>jthermcalc_e107</code> 消费 <code>fluxtop</code>、<code>coefit*</code>、<code>date_e107/e107_tab</code> 和 <code>jabsifotsintpar</code></td>
+</tr>
+<tr>
+<td>热层化学/光化学</td>
+<td><code>paramfoto_compact</code> 注释说明会使用 <code>jthermcalc_e107</code> 光吸收率和本例程给出的 ionization/dissociation branching ratios</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 <code>.F</code>，硬编码 unit 和文件名。</li>
+<li>只有 <code>coln.dat</code> 和 <code>solvaryear</code> 有显式错误分支；其他输入文件依赖 Fortran I/O 运行时错误。</li>
+<li>E107 年表长度硬编码为 669，文件名长度 <code>character*13</code> 正好容纳 <code>e107_MYxx.dat</code>。</li>
+<li>错误提示说 <code>solvaryear must be between 24 and 37</code>，但条件实际允许 <code>23</code>。</li>
+<li><code>lnblnk</code>、<code>k</code> 局部变量声明后未见使用；<code>ct1/ct2/p1/p2</code> 在 use 列表中但 E107 路径不读 <code>varflujo.dat</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>callphys.def</code> 中需使 <code>callthermos</code> 为真，才会在 <code>physiq_mod</code> 初始化段触发本例程。</li>
+<li><code>datadir</code> 必须包含 <code>EUVDAT/param_v6/coln.dat</code>、所有 <code>trans*.dat</code>、<code>fit_js_e107.dat</code>、对应 <code>e107_MYxx.dat</code> 以及 <code>EUVDAT/*ion_branchingratio_schunkandnagy2000_param.dat</code>。</li>
+<li><code>solvaryear</code> 必须满足源码条件 <code>23 &lt;= solvaryear &lt;= 37</code>；否则 <code>STOP</code>。</li>
+<li>并行复现需确认 master 读取后广播完成，尤其是 E107 拟合系数和分支比数组。</li>
+<li>标准输出会包含 669 行 E107 表值打印，批量运行日志可能较长。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>solvaryear</code> 合法范围的代码条件（23..37）与报错文案（24..37）不一致，需确认哪个是设计意图。</li>
+<li><code>e107</code> 标量由 <a href="param_v4_h.html">param_v4_h</a> 声明；本例程不直接赋值，实际运行时写入见 <a href="jthermcalc_e107_mod.html">jthermcalc_e107_mod.F</a>（TASK-0190）的 E10.7 插值逻辑。</li>
+<li><code>efdisno</code> 没有从文件读取，后续 <code>efionno(inter)=1.-efdisno(inter)</code> 依赖前面清零和局部设置；NO 解离效率是否应来自旧版 <code>efdis_inter.dat</code> 待确认。</li>
+<li><code>efiono3p/efionn/efionno/efionh</code> 是所有进程本地硬编码而非广播；这应是安全的，但需在并行路径中确认没有线程私有初始化差异。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="param_read.html">param_read</a>：旧版 <code>param_v5</code> 参数读取路径，对比文件命名和效率来源。</li>
+<li><a href="hrtherm.html">hrtherm</a>：热层 EUV 加热率，调用 <code>jthermcalc_e107</code> 消费本例程载入的参数。</li>
+<li><a href="chemthermos.html">chemthermos</a>：热层化学主例程，调用 <code>jthermcalc_e107</code> 与 <code>paramfoto_compact</code>。</li>
+<li><a href="../phymars/physiq_mod.html">physiq_mod</a>：当前可见调用方，在 <code>callthermos</code> 初始化分支调用本例程。</li>
+<li><a href="../phymars/datafile_mod.html">datafile_mod</a>：提供 <code>datadir</code>。</li>
+<li><a href="param_v4_h.html">param_v4_h</a>：共享参数模块文件页，声明本例程写入的 E107/热层参数数组。</li>
+<li><a href="jthermcalc_e107_mod.html">jthermcalc_e107_mod.F</a>：E107 增强版光吸收系数计算，被 <code>hrtherm</code> 和 <code>chemthermos</code> 调用。</li>
+<li><a href="paramfoto_compact.html">paramfoto_compact</a>：分支比消费方，把 <code>jfotsout/fluxtop/efdis*/efion*</code> 转成 <code>jdistot/jion</code>。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

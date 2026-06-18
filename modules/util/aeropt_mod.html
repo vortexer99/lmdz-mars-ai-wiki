@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>aeropt_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/aeropt_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="aeropt_modf90">aeropt_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util\aeropt_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>util</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>aeropt_mod.F90</code> 是 <code>util/aeroptical.F90</code> 使用的气溶胶光学性质表模块。它不直接读写 GCM NetCDF 诊断场，而是读取外部 ASCII 光学性质表，把波长轴、粒径轴、消光效率 <code>Qext</code> 和单次散射反照率 <code>omeg</code> 缓存在模块变量中，并为 <code>aeroptical</code> 提供按目标波长和有效半径插值的接口。</p>
+<p>该模块是离线气溶胶光学厚度计算链的支撑层：<code>aeroptical</code> 负责读取 GCM 变量和写 NetCDF 输出，<code>aeropt_mod</code> 负责光学表读取、查表插值、日志文件和缓存释放。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>aeropt_mod</code></td>
+<td>module</td>
+<td>4</td>
+<td>保存光学性质表状态并提供读取、插值、日志和释放例程。</td>
+</tr>
+<tr>
+<td><code>nwvl</code></td>
+<td>saved module variable</td>
+<td>8</td>
+<td>光学性质表中的波长数量。</td>
+</tr>
+<tr>
+<td><code>nsize</code></td>
+<td>saved module variable</td>
+<td>9</td>
+<td>光学性质表中的粒径数量。</td>
+</tr>
+<tr>
+<td><code>wvl</code></td>
+<td>allocatable saved array</td>
+<td>10</td>
+<td>波长轴，单位 m。</td>
+</tr>
+<tr>
+<td><code>radiusdyn</code></td>
+<td>allocatable saved array</td>
+<td>11</td>
+<td>有效半径/粒径轴，单位 m。</td>
+</tr>
+<tr>
+<td><code>Qext</code></td>
+<td>allocatable saved array</td>
+<td>12</td>
+<td>消光效率二维表，维度 <code>(nwvl,nsize)</code>。</td>
+</tr>
+<tr>
+<td><code>omeg</code></td>
+<td>allocatable saved array</td>
+<td>13</td>
+<td>单次散射反照率二维表，维度 <code>(nwvl,nsize)</code>。</td>
+</tr>
+<tr>
+<td><code>aeroptlogfileID</code></td>
+<td>saved module variable</td>
+<td>15</td>
+<td>越界有效半径等日志信息写入的 Fortran unit，默认 100。</td>
+</tr>
+<tr>
+<td><code>read_optpropfile</code></td>
+<td>subroutine</td>
+<td>20</td>
+<td>读取 ASCII 光学性质文件并填充模块数组。</td>
+</tr>
+<tr>
+<td><code>interp_wvl_reff</code></td>
+<td>subroutine</td>
+<td>206</td>
+<td>对 <code>Qext/omeg</code> 先按有效半径、再按波长做线性插值。</td>
+</tr>
+<tr>
+<td><code>end_aeropt_mod</code></td>
+<td>subroutine</td>
+<td>345</td>
+<td>释放已分配的光学性质数组。</td>
+</tr>
+<tr>
+<td><code>create_logfile</code></td>
+<td>subroutine</td>
+<td>367</td>
+<td>创建或覆盖 <code>aeroptical</code> 运行日志文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖">依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>use netcdf</code></td>
+<td>出现在 <code>read_optpropfile</code> 和 <code>interp_wvl_reff</code> 中；本文件当前未调用 NetCDF API，推测为与调用程序或历史版本保持一致。</td>
+</tr>
+<tr>
+<td>Fortran formatted I/O</td>
+<td><code>INQUIRE</code>、<code>OPEN</code>、<code>READ</code>、<code>BACKSPACE</code>、<code>CLOSE</code> 读取 ASCII 光学表，<code>OPEN(...STATUS='replace')</code> 创建日志。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用方">调用方</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>调用点</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>aeroptical.F90</code></td>
+<td><code>use aeropt_mod</code></td>
+<td>主程序依赖本模块全部接口和模块变量。</td>
+</tr>
+<tr>
+<td><code>aeroptical.F90</code></td>
+<td><code>CALL create_logfile(aeroptlogfile)</code></td>
+<td>为每种 aerosol 创建 <code>aeropt_log_&lt;name&gt;.txt</code>。</td>
+</tr>
+<tr>
+<td><code>aeroptical.F90</code></td>
+<td><code>CALL read_optpropfile(datadir,optpropfile_aer(iaer))</code></td>
+<td>读取对应 aerosol 的 ASCII 光学性质表。</td>
+</tr>
+<tr>
+<td><code>aeroptical.F90</code></td>
+<td><code>CALL interp_wvl_reff(...)</code></td>
+<td>对每个格点/层/时间的有效半径插值得到 <code>Qext/omeg</code>。</td>
+</tr>
+<tr>
+<td><code>aeroptical.F90</code></td>
+<td><code>CALL end_aeropt_mod</code></td>
+<td>每个 aerosol 处理结束后释放表缓存。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datadir</code></td>
+<td><code>read_optpropfile</code> 参数</td>
+<td>字符串</td>
+<td>-</td>
+<td>光学性质 ASCII 文件所在目录。</td>
+</tr>
+<tr>
+<td><code>optpropfile</code></td>
+<td><code>read_optpropfile</code> 参数</td>
+<td>字符串</td>
+<td>-</td>
+<td>ASCII 光学性质文件名。</td>
+</tr>
+<tr>
+<td>光学性质 ASCII 文件</td>
+<td><code>datadir/optpropfile</code></td>
+<td>文本</td>
+<td>-</td>
+<td>非注释行依次包含 <code>nwvl</code>、<code>nsize</code>、<code>wvl</code>、<code>radiusdyn</code>、每个粒径一行的 <code>Qext</code>、每个粒径一行的 <code>omeg</code>。</td>
+</tr>
+<tr>
+<td><code>wvl_val</code></td>
+<td><code>interp_wvl_reff</code> 参数</td>
+<td>标量</td>
+<td>m</td>
+<td>要插值的参考波长。</td>
+</tr>
+<tr>
+<td><code>reff_val</code></td>
+<td><code>interp_wvl_reff</code> 参数</td>
+<td>标量</td>
+<td>m</td>
+<td>要插值的有效半径。</td>
+</tr>
+<tr>
+<td><code>missval</code></td>
+<td><code>interp_wvl_reff</code> 参数</td>
+<td>标量</td>
+<td>调用方约定</td>
+<td>输入半径缺测或越界时输出的缺测值。</td>
+</tr>
+<tr>
+<td><code>filename</code></td>
+<td><code>create_logfile</code> 参数</td>
+<td>字符串</td>
+<td>-</td>
+<td>要创建的日志文件名。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>wvl</code></td>
+<td>模块数组</td>
+<td><code>(nwvl)</code></td>
+<td>m</td>
+<td>光学表波长轴。</td>
+</tr>
+<tr>
+<td><code>radiusdyn</code></td>
+<td>模块数组</td>
+<td><code>(nsize)</code></td>
+<td>m</td>
+<td>光学表有效半径轴。</td>
+</tr>
+<tr>
+<td><code>Qext</code></td>
+<td>模块数组</td>
+<td><code>(nwvl,nsize)</code></td>
+<td>无量纲</td>
+<td>消光效率查找表。</td>
+</tr>
+<tr>
+<td><code>omeg</code></td>
+<td>模块数组</td>
+<td><code>(nwvl,nsize)</code></td>
+<td>无量纲</td>
+<td>单次散射反照率查找表。</td>
+</tr>
+<tr>
+<td><code>Qext_val</code></td>
+<td><code>interp_wvl_reff</code> 输出</td>
+<td>标量</td>
+<td>无量纲或 <code>missval</code></td>
+<td>插值后的消光效率。</td>
+</tr>
+<tr>
+<td><code>omeg_val</code></td>
+<td><code>interp_wvl_reff</code> 输出</td>
+<td>标量</td>
+<td>无量纲或 <code>missval</code></td>
+<td>插值后的单次散射反照率。</td>
+</tr>
+<tr>
+<td>日志文件</td>
+<td>磁盘 ASCII</td>
+<td>文本</td>
+<td>-</td>
+<td>记录有效半径越界等 warning。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="副作用">副作用</h2>
+<ul>
+<li><code>read_optpropfile</code> 会分配并覆盖模块级缓存 <code>wvl/radiusdyn/Qext/omeg</code>；调用前若已有分配，本例程没有先释放。</li>
+<li>光学表文件不存在、维度行或数据行读取失败、参考波长越界时直接 <code>stop</code>。</li>
+<li>有效半径越界不会停止，而是向 <code>aeroptlogfileID</code> 对应日志写 warning，并把 <code>Qext_val/omeg_val</code> 设为 <code>missval</code>。</li>
+<li><code>create_logfile</code> 使用 <code>STATUS='replace'</code>，同名日志会被覆盖。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="读取光学性质表">读取光学性质表</h3>
+<ol type="1">
+<li>用 <code>INQUIRE(FILE=datadir//'/'//optpropfile)</code> 检查文件是否存在。</li>
+<li>打开 formatted ASCII 文件。</li>
+<li>第一轮扫描跳过以 <code>#</code> 或空格开头的行，读取两个非注释数据项：
+<ul>
+<li>第 1 项：<code>nwvl</code>；</li>
+<li>第 2 项：<code>nsize</code>。</li>
+</ul></li>
+<li>分配 <code>wvl(nwvl)</code>、<code>radiusdyn(nsize)</code>、<code>Qext(nwvl,nsize)</code>、<code>omeg(nwvl,nsize)</code>。</li>
+<li>第二轮继续跳过注释/空行，依次读取：
+<ul>
+<li><code>wvl(:)</code>；</li>
+<li><code>radiusdyn(:)</code>；</li>
+<li><code>nsize</code> 行 <code>Qext(:,isize)</code>；</li>
+<li><code>nsize</code> 行 <code>omeg(:,isize)</code>。</li>
+</ul></li>
+<li>关闭文件并打印波长、半径范围。</li>
+</ol>
+<h3 id="插值">插值</h3>
+<ol type="1">
+<li>在 <code>wvl</code> 中找到包围 <code>wvl_val</code> 的 <code>iwvl1/iwvl2</code>。若 <code>wvl_val</code> 超出表范围，打印错误并 <code>stop</code>。</li>
+<li>在 <code>radiusdyn</code> 中找到包围 <code>reff_val</code> 的 <code>isize1/isize2</code>。</li>
+<li>若 <code>reff_val==missval</code>，直接输出缺测。</li>
+<li>若 <code>reff_val</code> 超出半径表范围，写日志 warning，输出缺测。</li>
+<li>否则对 <code>Qext</code> 和 <code>omeg</code> 分别做两步线性插值：
+<ul>
+<li>先在固定 <code>iwvl1</code> 和 <code>iwvl2</code> 上沿有效半径插值；</li>
+<li>再沿波长插值到 <code>wvl_val</code>。</li>
+</ul></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>read_optpropfile(datadir, optpropfile):
+  require datadir/optpropfile exists
+  open formatted file
+  skip comments/blank-leading lines
+  read nwvl, nsize
+  allocate wvl, radiusdyn, Qext, omeg
+  skip comments/blank-leading lines
+  read wvl(:)
+  read radiusdyn(:)
+  for each size: read Qext(:, size)
+  for each size: read omeg(:, size)
+  close file
+
+interp_wvl_reff(wvl_val, reff_val, missval):
+  find bracketing wavelength indices, stop if wavelength out of range
+  if reff_val is missing: return missval
+  find bracketing radius indices
+  if radius out of range: log warning and return missval
+  interpolate Qext and omeg in radius, then wavelength</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>util 气溶胶诊断链</td>
+<td>为 <a href="aeroptical.html">aeroptical.F90</a> 提供光学表读取和查表插值。</td>
+</tr>
+<tr>
+<td>辐射/气溶胶后处理</td>
+<td>将外部光学性质表转成每个格点有效半径对应的 <code>Qext/omeg</code>，供离线不透明度计算。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>ASCII 光学表必须按源码读取顺序组织；注释行只能用 <code>#</code> 开头，源码也跳过首字符为空格的行。</li>
+<li><code>wvl</code> 与 <code>radiusdyn</code> 必须按升序排列；插值查找逻辑假定数组递增。</li>
+<li><code>wvl_val</code> 必须在表范围内，否则程序停止；<code>reff_val</code> 越界只写日志并输出缺测。</li>
+<li>调用 <code>interp_wvl_reff</code> 前必须已经调用 <code>read_optpropfile</code>，否则模块数组未分配。</li>
+<li>处理多个 aerosol 时应在切换表前调用 <code>end_aeropt_mod</code> 或确保上一表缓存已释放。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>read_optpropfile</code> 内声明 <code>iwvl</code> 但未使用，属于无害冗余还是历史残留需确认。</li>
+<li><code>use netcdf</code> 在本文件中未见 NetCDF API 调用，是否仍需要该依赖需确认。</li>
+<li>注释称 <code>create_logfile</code> 的 Purpose 为 “Deallocate module variables”，与实际创建日志不一致。</li>
+<li>如果重复调用 <code>read_optpropfile</code> 而未先释放已分配数组，Fortran 对已分配 allocatable 再 <code>ALLOCATE</code> 的行为会导致运行时错误；调用方当前在 aerosol 循环末尾调用 <code>end_aeropt_mod</code>，但异常路径不会释放。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li>光学表格式稍有变化会导致读取错误或数据错位。</li>
+<li>半径越界不会中止，只会把该点光学性质设为缺测；后续 NetCDF 输出中可能出现空间缺口。</li>
+<li>日志文件使用固定 unit 范围，由调用方设置 <code>aeroptlogfileID=100+iaer</code>，多处并行或嵌套调用需避免 unit 冲突。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">util/index.md</a> - util 后处理工具总览。</li>
+<li><a href="aeroptical.html">aeroptical.F90</a> - 气溶胶不透明度主程序。</li>
+<li><a href="gencol.html">gencol.md</a> - 同属 util 气溶胶与柱量诊断工具组。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

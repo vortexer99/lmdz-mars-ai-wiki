@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lwflux - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/lwflux.md</span>
+    </nav>
+    <article class="content">
+<h1 id="lwfluxf">lwflux.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\lwflux.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>lwflux.F</code> 定义 <code>lwflux_mod</code> 模块，提供长波 LTE 辐射主流程中的通量、冷却率和净辐射收支汇总例程 <code>lwflux</code>。它位于 <code>lwmain_mod.F</code> 的长波调用链后段：<code>lwmain</code> 先调用 <a href="lwb.html">lwb</a> 生成谱带 Planck 函数和半层差分，再准备气体/气溶胶总光学性质，随后在第 160 行调用 <code>lwflux</code>。</p>
+<p>本例程把 CO2 15 微米带内的净交换率 <code>xi</code> 与带外散射通量 <a href="lwdiff.html">lwdiff</a> 合并。源码先按层-层、地面-层、层-太空、地面-太空组合构造 <code>ksidb</code>，把谱带 1 和 2 的 CO2 贡献合并到索引 3；再调用 <code>lwdiff</code> 计算 <code>iir=3:nir</code> 的扩散散射通量；最后把两部分汇入 <code>netrad</code>，输出每层冷却率 <code>coolrate</code>、地表下行长波通量 <code>fluxground</code> 和大气顶出射长波通量 <code>fluxtop</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lwflux_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>封装长波 LTE 通量、冷却率和辐射收支汇总例程。</td>
+</tr>
+<tr>
+<td><code>lwflux</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7</td>
+<td>合并 CO2 15 微米带内净交换率和带外扩散通量，输出 <code>coolrate/fluxground/fluxtop/netrad</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>ndlo2</code>, <code>nir</code>, <code>ndlon</code>, <code>nuco2</code>, <code>nflev</code></td>
+<td>提供辐射列数、红外谱带数、CO2 谱带数和垂直层维度；用于输入输出和局部工作数组声明。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>yomlw_h</code></td>
+<td><code>nlaylte</code>, <code>xi</code>, <code>xi_ground</code>, <code>gcp</code></td>
+<td>提供 LTE 长波层数、净交换率表、地面邻层修正系数和 <code>g/cp</code> 换算因子。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>lwdiff_mod</code></td>
+<td><code>lwdiff</code></td>
+<td>计算 CO2 15 微米带外 <code>iir=3:nir</code> 的红外散射通量贡献。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lwdiff</code></td>
+<td><code>lwdiff_mod</code> / <code>lwdiff.F</code></td>
+<td><code>lwflux.F</code> 第 201 行</td>
+<td>用 <code>bsurf/btop/dbsublay</code> 和总光学性质求带外散射通量，写入 <code>fluxdiff</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ig0</code></td>
+<td><code>lwmain</code></td>
+<td><code>integer</code></td>
+<td>grid index offset</td>
+<td>当前批量列在全局物理网格中的起始偏移；访问 <code>xi(ig0+jl,...)</code> 和 <code>xi_ground(ig0+jl,...)</code>。</td>
+</tr>
+<tr>
+<td><code>kdlon</code></td>
+<td><code>lwmain</code></td>
+<td><code>integer</code></td>
+<td>column</td>
+<td>当前向量化处理的水平列数，循环范围为 <code>1:kdlon</code>。</td>
+</tr>
+<tr>
+<td><code>kflev</code></td>
+<td><code>lwmain</code></td>
+<td><code>integer</code></td>
+<td>layer</td>
+<td>调用方传入的垂直层数；形参数组按它声明，核心循环用 <code>nlaylte</code>。</td>
+</tr>
+<tr>
+<td><code>dp</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(ndlo2,kflev)</code></td>
+<td>Pa</td>
+<td>层压强厚度；用于 <code>coolrate = gcp * netrad / dp</code>。</td>
+</tr>
+<tr>
+<td><code>bsurf</code></td>
+<td><code>lwb</code> -&gt; <code>lwmain</code></td>
+<td><code>real(ndlo2,nir)</code></td>
+<td>Planck 函数值</td>
+<td>地表谱带 Planck 函数；用于地面交换、地面到太空交换和 <code>lwdiff</code>。</td>
+</tr>
+<tr>
+<td><code>btop</code></td>
+<td><code>lwb</code> -&gt; <code>lwmain</code></td>
+<td><code>real(ndlo2,nir)</code></td>
+<td>Planck 函数值</td>
+<td>大气顶谱带 Planck 函数；传给 <code>lwdiff</code> 构造带外扩散顶边界。</td>
+</tr>
+<tr>
+<td><code>blev</code></td>
+<td><code>lwb</code> -&gt; <code>lwmain</code></td>
+<td><code>real(ndlo2,nir,kflev+1)</code></td>
+<td>Planck 函数值</td>
+<td>层界谱带 Planck 函数；本例程只在地面邻层修正中读 <code>blev(:,ja,1)</code>。</td>
+</tr>
+<tr>
+<td><code>blay</code></td>
+<td><code>lwb</code> -&gt; <code>lwmain</code></td>
+<td><code>real(ndlo2,nir,kflev)</code></td>
+<td>Planck 函数值</td>
+<td>层中心谱带 Planck 函数；用于所有净交换率乘积。</td>
+</tr>
+<tr>
+<td><code>dbsublay</code></td>
+<td><code>lwb</code> -&gt; <code>lwmain</code></td>
+<td><code>real(ndlo2,nir,2*kflev)</code></td>
+<td>Planck 差分量</td>
+<td>半层 Planck 差分；原样传给 <code>lwdiff</code>。</td>
+</tr>
+<tr>
+<td><code>tlay</code>, <code>tlev</code>, <code>dt0</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(...)</code></td>
+<td>K</td>
+<td>注释说明用于 G2D 输出；当前 <code>lwflux.F</code> 主体未读取这些参数。</td>
+</tr>
+<tr>
+<td><code>emis</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(ndlo2)</code></td>
+<td>-</td>
+<td>地表发射率；原样传给 <code>lwdiff</code>。</td>
+</tr>
+<tr>
+<td><code>tautotal</code>, <code>omegtotal</code>, <code>gtotal</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(ndlo2,kflev,nir)</code></td>
+<td>optical depth / -</td>
+<td>每层每红外谱带的总光学厚度、单次散射反照率和不对称因子；原样传给 <code>lwdiff</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>coolrate</code></td>
+<td><code>lwmain</code> -&gt; 下游加热率流程</td>
+<td><code>real(ndlo2,kflev)</code></td>
+<td>K/s</td>
+<td>每层长波冷却率，按 <code>gcp * netrad / dp</code> 从净辐射收支换算。</td>
+</tr>
+<tr>
+<td><code>netrad</code></td>
+<td><code>lwmain</code> -&gt; <code>lwi</code></td>
+<td><code>real(ndlo2,kflev)</code></td>
+<td>W/m2</td>
+<td>每层净辐射收支，包含 CO2 带内净交换和 <code>lwdiff</code> 带外扩散通量散度。</td>
+</tr>
+<tr>
+<td><code>fluxground</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(ndlo2)</code></td>
+<td>W/m2</td>
+<td>到达地面的下行长波通量；由层到地面交换项减去 <code>fluxdiff(:,2,1)</code> 得到。</td>
+</tr>
+<tr>
+<td><code>fluxtop</code></td>
+<td><code>lwmain</code></td>
+<td><code>real(ndlo2)</code></td>
+<td>W/m2</td>
+<td>大气顶出射长波通量；由到太空交换项加上 <code>fluxdiff(:,1,nlaylte+1)</code> 得到。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p><code>lwflux.F</code> 不定义保存型 module 变量，不读写文件，不读取运行时配置，也不打印诊断。它读取 <code>yomlw_h</code> 中的共享表 <code>xi</code>、<code>xi_ground</code> 和换算因子 <code>gcp</code>，并写入调用方传入的四个输出数组。</p>
+<p>源码中有一个诊断分支 <code>computeflux = .false.</code>。当保持默认值时，<code>flw_up/flw_dn/coefu/coefd</code> 仅为局部未输出工作数组；如果源码维护者手动改成 <code>.true.</code>，该分支会计算各层宽带上下行通量，但当前没有对外输出或文件副作用。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>清零局部净交换率数组 <code>ksidb</code>。</li>
+<li>对 <code>i=1:nlaylte</code>、<code>j=i+1:nlaylte</code>、<code>ja=1:nuco2</code> 构造层-层交换：<code>xi(ig0+jl,ja,i,j) * (blay(j)-blay(i))</code>，并写入反对称项 <code>ksidb(j,i)=-ksidb(i,j)</code>。</li>
+<li>构造地面-层交换：<code>xi(...,0,i) * (bsurf-blay(i))</code>，再用 <code>xi_ground</code> 对地面和第一层之间的邻层贡献做修正。</li>
+<li>构造层-太空交换和地面-太空交换，太空端 Planck 值按源码写法等效为零。</li>
+<li>把 CO2 15 微米带索引 1 和 2 的交换率相加到 <code>ksidb(:,3,:,:)</code>。</li>
+<li>先把 <code>fluxdiff(:,1:2,nlaylte+1)</code> 置零，再调用 <code>lwdiff</code> 计算带外散射通量。这个预清零是 <code>lwdiff</code> 回填顶层界面的接口前提。</li>
+<li>对每层 <code>i</code> 汇总 <code>ksidb(:,3,i,j)</code> 得到带内 <code>netrad</code>，再叠加扩散通量散度：<code>-fluxdiff(1,i+1)-fluxdiff(2,i+1)+fluxdiff(1,i)+fluxdiff(2,i)</code>。</li>
+<li>用 <code>gcp * netrad / dp</code> 得到冷却率。</li>
+<li>对地面下行通量，累加所有层到地面的 <code>xi * blay</code> 贡献，再减去底界面向下扩散通量 <code>fluxdiff(:,2,1)</code>。</li>
+<li>对顶层出射通量，累加地面和各层到太空的净交换贡献，再加上顶界面向上扩散通量 <code>fluxdiff(:,1,nlaylte+1)</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>ksidb = 0
+
+for each layer pair i &lt; j and CO2 band ja:
+  ksidb(i,j) = xi(i,j) * (blay(j) - blay(i))
+  ksidb(j,i) = -ksidb(i,j)
+
+for each layer i and CO2 band ja:
+  ksidb(i,0) = xi(0,i) * (bsurf - blay(i))
+  ksidb(0,i) = -ksidb(i,0)
+
+adjust ground-first-layer exchange with xi_ground
+build layer-space and ground-space exchange terms
+ksidb(:,3,:,:) = ksidb(:,1,:,:) + ksidb(:,2,:,:)
+
+zero fluxdiff at top interface
+call lwdiff to fill diffusion flux interfaces
+
+for each layer i:
+  netrad(i) = sum_j ksidb(3,i,j)
+  netrad(i) += diffusion_flux_divergence(i)
+  coolrate(i) = gcp * netrad(i) / dp(i)
+
+fluxground = layer_to_ground_exchange - bottom_downward_diffusion
+fluxtop = exchange_to_space + top_upward_diffusion</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">辐射计算</a></td>
+<td>长波 LTE 主流程的通量和冷却率汇总阶段；位于 <code>lwb/lwu/lwxd/lwxn/lwxb</code> 准备量之后，<code>lwi</code> 的温度导数/线性化步骤之前。</td>
+</tr>
+<tr>
+<td><a href="index.html">phymars 核心物理模块目录</a></td>
+<td>属于 <code>libf\phymars</code> 的长波辐射辅助文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 文件，模块内只有一个子例程。</li>
+<li><code>ksidb</code> 使用下标 <code>0:nflev+1</code> 同时表示地面、物理层和太空边界；其中 <code>0</code> 是地面，<code>nlaylte+1</code> 是太空。</li>
+<li><code>ksidb</code> 对层-层、地面-层、层-太空、地面-太空交换都显式写反对称项，后续对 <code>ksidb(:,3,i,j)</code> 求和时只读取目标层对应的行。</li>
+<li><code>ja=3</code> 不是原始 CO2 谱带，而是源码用来保存 <code>ja=1</code> 与 <code>ja=2</code> 合计的工作槽；<code>ksidb</code> 因此声明为 <code>nuco2+1</code>。</li>
+<li><code>computeflux</code> 诊断分支在源码内硬编码为 <code>.false.</code>，不是运行时配置开关。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>ig0+jl</code> 必须能落在 <code>xi</code> 和 <code>xi_ground</code> 的全局列索引范围内。</li>
+<li><code>kdlon</code> 不应超过 <code>ndlo2/ndlon</code> 静态数组容量。</li>
+<li><code>kflev</code> 的形参数组维度必须覆盖 <code>nlaylte</code> 层和 <code>nlaylte+1</code> 层界；源码循环上界使用 <code>nlaylte</code>。</li>
+<li><code>dp(:,i)</code> 不能为零或异常小，否则 <code>coolrate = gcp * netrad / dp</code> 会放大或产生除零风险。</li>
+<li>复现风险：<code>lwflux</code> 只预清零 <code>fluxdiff(:,:,nlaylte+1)</code>，其余界面依赖 <code>lwdiff</code> 填写；若替换或跳过 <code>lwdiff</code>，必须明确初始化 <code>fluxdiff</code>。</li>
+<li>复现风险：<code>xi/xi_ground</code>、<code>bsurf/blay</code> 的符号和单位约定直接决定 <code>netrad/fluxground/fluxtop</code> 的正负号；不要把 <code>ksidb</code> 的反对称项当作重复累加误删。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>tlay</code>、<code>tlev</code>、<code>dt0</code> 在当前源码主体中未读取，注释称仅用于 G2D 输出；是否仍需保留在接口中属于源码维护问题。</li>
+<li><code>computeflux</code> 分支计算的 <code>flw_up/flw_dn</code> 没有对外输出；是否曾用于历史诊断版本需要维护者确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../themes/radiation.html">radiation</a></li>
+<li><a href="index.html">phymars/index</a></li>
+<li><a href="lwb.html">lwb</a></li>
+<li><a href="lwdiff.html">lwdiff</a></li>
+<li><a href="lwmain_mod.html">lwmain_mod</a> - 长波 LTE 主调度入口，直接调用本例程并随后用 <code>lwi</code> 覆盖冷却率。</li>
+<li><a href="lwi.html">lwi</a></li>
+<li><a href="lwtt.html">lwtt</a></li>
+<li><a href="lwu.html">lwu</a></li>
+<li><a href="lwxb.html">lwxb</a></li>
+<li><a href="lwxd.html">lwxd</a></li>
+<li><a href="lwxn.html">lwxn</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

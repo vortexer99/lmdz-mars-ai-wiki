@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>soil - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/soil.md</span>
+    </nav>
+    <article class="content">
+<h1 id="soilf">soil.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\soil.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>soil.F</code> 是火星土壤热扩散求解器。它使用隐式一阶格式（三对角矩阵）求解土壤各层温度，是地表能量收支的核心组件。由 <code>physiq_mod</code> 在每个物理时步调用，返回土壤温度廓线 <code>tsoil</code>、地表热容量 <code>capcal</code> 和地表扩散热通量 <code>fluxgrd</code>。</p>
+<p>首次调用（<code>firstcall=.true.</code>）时只计算扩散系数和三对角矩阵系数，不更新温度；后续调用（<code>firstcall=.false.</code>）执行实际求解。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>soil_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>包裹 <code>soil</code> 子程序的模块</td>
+</tr>
+<tr>
+<td><code>soil</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>土壤热扩散隐式求解主例程</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>layer</code>, <code>mlayer</code>, <code>volcapa</code>, <code>mthermdiff</code>, <code>thermdiff</code>, <code>coefq</code>, <code>coefd</code>, <code>alph</code>, <code>beta</code>, <code>mu</code>, <code>flux_geo</code></td>
+<td>土壤层几何、热容量、扩散系数和三对角矩阵系数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>watercaptag</code>, <code>inert_h2o_ice</code></td>
+<td>永久冰标记和水冰热惯量</td>
+<td></td>
+</tr>
+<tr>
+<td><code>comslope_mod</code></td>
+<td><code>nslope</code></td>
+<td>坡面 bin 数量</td>
+<td></td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>surfaceice_tifeedback</code>, <code>poreice_tifeedback</code></td>
+<td>热惯量反馈开关</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p>本模块不调用其他子程序。纯数值求解，无外部调用。</p>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>physiq</code></td>
+<td>integer</td>
+<td>—</td>
+<td>水平网格点数</td>
+</tr>
+<tr>
+<td><code>nsoil</code></td>
+<td><code>physiq</code>（<code>nsoilmx</code>）</td>
+<td>integer</td>
+<td>—</td>
+<td>土壤层数（=57）</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td><code>physiq</code></td>
+<td>logical</td>
+<td>—</td>
+<td>首次调用标志（<code>.true.</code> 时只计算系数）</td>
+</tr>
+<tr>
+<td><code>therm_i(ngrid,nsoil,nslope)</code></td>
+<td><code>physiq</code>（<code>inertiesoil</code> 或 <code>inertiesoil_tifeedback</code>）</td>
+<td>real</td>
+<td>J·s⁻¹/²·m⁻²·K⁻¹</td>
+<td>各层热惯量</td>
+</tr>
+<tr>
+<td><code>timestep</code></td>
+<td><code>physiq</code>（<code>ptimestep</code>）</td>
+<td>real</td>
+<td>s</td>
+<td>物理时步</td>
+</tr>
+<tr>
+<td><code>tsurf(ngrid,nslope)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>K</td>
+<td>地表温度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tsoil(ngrid,nsoil,nslope)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>K</td>
+<td>土壤各层中间温度</td>
+</tr>
+<tr>
+<td><code>capcal(ngrid,nslope)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>J/m²/K</td>
+<td>地表热容量</td>
+</tr>
+<tr>
+<td><code>fluxgrd(ngrid,nslope)</code></td>
+<td><code>physiq</code></td>
+<td>real</td>
+<td>W/m²</td>
+<td>地表扩散热通量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>读写 <code>comsoil_h</code> module 变量</strong>：
+<ul>
+<li>写入：<code>mthermdiff</code>（中间层扩散系数）、<code>thermdiff</code>（层间扩散系数）、<code>coefq</code>/<code>coefd</code>/<code>alph</code>/<code>beta</code>/<code>mu</code>（三对角矩阵系数）</li>
+<li>读取：<code>layer</code>/<code>mlayer</code>（层深度几何）、<code>volcapa</code>（体积热容量）、<code>flux_geo</code>（底边界地热通量）</li>
+<li>这些写入在 <code>firstcall</code> 或 <code>tifeedback</code> 时发生，后续时步复用</li>
+</ul></li>
+<li><strong><code>watercaptag</code> 分支</strong>：永久冰区域使用固定的 <code>inert_h2o_ice</code> 热惯量替代输入值</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<h3 id="0-预处理firstcall-或-tifeedback-时执行行-48140">0. 预处理（<code>firstcall</code> 或 <code>tifeedback</code> 时执行，行 48–140）</h3>
+<p><strong>0.1 中间层热扩散系数</strong>（行 52–67）：</p>
+<ul>
+<li><code>watercaptag(ig)=.true.</code>：永久冰区域，<code>mthermdiff = inert_h2o_ice² / volcapa</code></li>
+<li>否则：<code>mthermdiff = therm_i² / volcapa</code>（热惯量平方除以体积热容量）</li>
+<li><code>#ifdef MESOSCALE</code>：额外限制最大热惯量不超过 <code>inert_h2o_ice</code></li>
+</ul>
+<p><strong>0.2 层间热扩散系数</strong>（行 84–95）：</p>
+<ul>
+<li><code>thermdiff(ig,ik,islope)</code> 在 <code>layer(ik)</code> 界面上做线性插值：按 <code>mlayer(ik-1)</code> 和 <code>mlayer(ik)</code> 的距离加权平均上下两层的 <code>mthermdiff</code></li>
+</ul>
+<p><strong>0.3 三对角矩阵系数</strong>（行 98–138）：</p>
+<ul>
+<li><code>mu = mlayer(0) / (mlayer(1) - mlayer(0))</code>（地表到第一层中间的距离比）</li>
+<li><code>coefq(0) = volcapa * layer(1) / timestep</code>（第一层热容量/时步）</li>
+<li><code>coefq(ik) = volcapa * (layer(ik+1)-layer(ik)) / timestep</code>（其他层）</li>
+<li><code>coefd(ig,ik,islope) = thermdiff(ig,ik) / (mlayer(ik)-mlayer(ik-1))</code>（扩散系数/层间距）</li>
+<li><code>alph</code>：从底层向上递推的消去系数（Thomas 算法的前向消去）</li>
+<li><code>capcal</code>：地表有效热容量（含 <code>alph</code> 修正）</li>
+</ul>
+<h3 id="1-求解土壤温度firstcallfalse-时执行行-143160">1. 求解土壤温度（<code>firstcall=.false.</code> 时执行，行 143–160）</h3>
+<p><strong>第一层</strong>（行 146–151）：</p>
+<ul>
+<li><code>tsoil(ig,1) = (tsurf + mu*beta(1)*thermdiff(1)/mthermdiff(0)) / (1+mu*(1-alph(1))*thermdiff(1)/mthermdiff(0))</code></li>
+</ul>
+<p><strong>其他层</strong>（行 153–158）：从上到下回代</p>
+<ul>
+<li><code>tsoil(ig,ik+1) = alph(ig,ik) * tsoil(ig,ik) + beta(ig,ik)</code></li>
+</ul>
+<h3 id="2-计算-beta-系数为下一时步预处理行-163181">2. 计算 beta 系数（为下一时步预处理，行 163–181）</h3>
+<p><strong>底层</strong>（行 165–170）：</p>
+<ul>
+<li><code>beta(nsoil-1) = (coefq(nsoil-1)*tsoil(nsoil) + flux_geo) / (coefq(nsoil-1)+coefd(nsoil-1))</code></li>
+</ul>
+<p><strong>其他层</strong>（行 173–181）：从下到上递推</p>
+<h3 id="3-地表扩散热通量行-183207">3. 地表扩散热通量（行 183–207）</h3>
+<ul>
+<li><code>fluxgrd</code> 由两部分组成：扩散项 <code>Fstar</code> 和热容量修正项 <code>Fs</code></li>
+<li><code>Fstar = (thermdiff(1)/(mlayer(1)-mlayer(0))) * (beta(1) + (alph(1)-1)*tsoil(1))</code></li>
+<li><code>Fs = (capcal/timestep) * (tsoil(1)*(1+mu*(1-alph(1))*thermdiff(1)/mthermdiff(0)) - tsurf - mu*beta(1)*thermdiff(1)/mthermdiff(0))</code></li>
+<li><code>fluxgrd = Fstar + Fs</code></li>
+</ul>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if firstcall or tifeedback:
+  ! 0.1 中间层扩散系数
+  for each (ig, islope):
+    if watercaptag: mthermdiff = inert_h2o_ice²/volcapa
+    else:           mthermdiff = therm_i²/volcapa
+
+  ! 0.2 层间扩散系数（线性插值）
+  thermdiff(ik) = weighted_avg(mthermdiff(ik-1), mthermdiff(ik))
+
+  ! 0.3 三对角系数
+  mu = mlayer(0)/(mlayer(1)-mlayer(0))
+  coefq(0) = volcapa*layer(1)/timestep
+  coefq(ik) = volcapa*(layer(ik+1)-layer(ik))/timestep
+  coefd(ik) = thermdiff(ik)/(mlayer(ik)-mlayer(ik-1))
+  alph(nsoil-1) = coefd(nsoil-1)/(coefq(nsoil-1)+coefd(nsoil-1))
+  for ik = nsoil-2..1:   ! 从底层向上消去
+    alph(ik) = coefd(ik)/(coefq(ik)+coefd(ik+1)*(1-alph(ik+1))+coefd(ik))
+  capcal = ...  ! 含 alph 修正的地表有效热容量
+
+if not firstcall:
+  ! 求解温度（Thomas 算法回代）
+  tsoil(1) = (tsurf + mu*beta(1)*thermdiff(1)/mthermdiff(0)) / (1+mu*(1-alph(1))*...)
+  for ik = 1..nsoil-1:
+    tsoil(ik+1) = alph(ik)*tsoil(ik) + beta(ik)
+
+  ! 更新 beta（为下一时步）
+  beta(nsoil-1) = (coefq*tsoil(nsoil)+flux_geo)/(coefq+coefd)
+  for ik = nsoil-2..1:   ! 从底层向上
+    beta(ik) = (coefq*tsoil(ik+1)+coefd*beta(ik+1))/(coefq+coefd*(1-alph)+coefd)
+
+  ! 地表热通量
+  Fstar = diffusion_term
+  Fs = capacity_correction
+  fluxgrd = Fstar + Fs</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>地表能量收支</td>
+<td>提供 <code>capcal</code>（地表热容量）和 <code>fluxgrd</code>（地表扩散热通量）给 <code>vdifc</code> 的地表能量平衡求解</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td><code>waterice_tifeedback</code> 调整热惯量后，本例程用新热惯量重新求解土壤温度</td>
+</tr>
+<tr>
+<td>土壤诊断</td>
+<td><code>tsoil</code> 被 <code>writediagsoil</code> 写入 <code>diagsoil.nc</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>固定格式 Fortran</strong>：使用 <code>c</code> 列注释（行 29）、<code>DO</code>/<code>ENDDO</code> 大写、列对齐。</li>
+<li><strong>隐式三对角求解</strong>：Thomas 算法，系数在 <code>firstcall</code> 时预计算并存储在 <code>comsoil_h</code> 中，后续时步复用。</li>
+<li><strong><code>watercaptag</code> 分支</strong>：永久冰区域使用固定水冰热惯量，不随气候演化。</li>
+<li><strong><code>#ifdef MESOSCALE</code></strong>：中尺度模式下额外限制最大热惯量（行 69–81）。</li>
+<li><strong><code>firstcall</code> 双重用途</strong>：既用于初始化，也用于 <code>tifeedback</code> 时重新计算系数。</li>
+<li><strong><code>nslope</code> 循环</strong>：所有计算都在 <code>islope</code> 循环中，支持多 bin 坡面。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>comsoil_h</code> 中的 <code>layer</code>/<code>mlayer</code>/<code>volcapa</code> 由 <code>soil_settings.F</code> 设置，<code>coefq</code>/<code>coefd</code>/<code>alph</code>/<code>beta</code>/<code>mu</code> 在本文件 <code>firstcall</code> 时计算。</li>
+<li><code>flux_geo</code>（底边界地热通量）通常设为 0，由 <code>comsoil_h</code> 提供。</li>
+<li>热惯量可以是常数（<code>inertiesoil</code>）或随水冰反馈变化（<code>inertiesoil_tifeedback</code>），由 <code>surfaceice_tifeedback</code>/<code>poreice_tifeedback</code> 开关控制。</li>
+<li><code>timestep</code> 是 GCM 物理时步，决定隐式格式的稳定性。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>行 69–81 <code>#ifdef MESOSCALE</code> 限制最大热惯量为 <code>inert_h2o_ice</code>（待确认：是否因中尺度模式没有 <code>watercaptag</code> 机制）。</li>
+<li>行 186–197 注释掉的旧代码（待确认：是否为历史遗留的调试代码）。</li>
+<li><code>mu</code> 的物理含义：<code>mlayer(0)/(mlayer(1)-mlayer(0))</code>，即地表到第一层中间深度与第一层厚度的比值（待确认：<code>mlayer(0)</code> 是否为 0 或极小值）。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="comsoil_h.html">comsoil_h</a> — 土壤共享参数文件，提供层几何、热容量、扩散系数和求解系数</li>
+<li><a href="soil_settings.html">soil_settings</a> — 设置 <code>layer</code>/<code>mlayer</code>/<code>volcapa</code> 等土壤参数</li>
+<li><a href="waterice_tifeedback_mod.html">waterice_tifeedback_mod</a> — 水冰热惯量反馈，调整 <code>inertiesoil_tifeedback</code></li>
+<li><a href="iniwritesoil.html">iniwritesoil</a> — 土壤诊断 NetCDF 初始化</li>
+<li><a href="writediagsoil.html">writediagsoil</a> — 土壤诊断输出，写入 <code>tsoil</code> 等地下剖面字段</li>
+<li><a href="../../themes/water-cycle.html">water-cycle</a> — 水循环主题页</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

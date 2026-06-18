@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>physiq-water-cycle-callpoints - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>routines/physiq-water-cycle-callpoints.md</span>
+    </nav>
+    <article class="content">
+<h1 id="physiq-水循环调用点">physiq 水循环调用点</h1>
+<p>本页只追踪 <code>physiq</code> 主时间步循环中与水循环直接相关的调用点 <code>watercloud</code>（大气水冰云微物理）及其上下游：调用前的有效半径/辐射准备、调用后的 tendency 注入、与沉降（<code>callsedim</code>）和诊断输出的关系。不覆盖 <code>physiq</code> 的其他物理过程（CO2 循环见 <a href="physiq-co2-cycle-callpoints.html">physiq-co2-cycle-callpoints</a>）。</p>
+<h2 id="所属文件">所属文件</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\physiq_mod.F</code></pre>
+<p>源码 4162 行。本页涉及的核心调用点 <code>call watercloud</code> 在行 1831。</p>
+<h2 id="所属模块">所属模块</h2>
+<pre class="text"><code>physiq_mod（SUBROUTINE physiq / physiq_mod 内）</code></pre>
+<h2 id="相关-use-语句">相关 use 语句</h2>
+<table>
+<thead>
+<tr>
+<th>行</th>
+<th>语句</th>
+<th>引入对象</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>16</td>
+<td><code>use watercloud_mod, only: watercloud, zdqcloud, zdqscloud</code></td>
+<td>水冰云微物理调度例程及其模块级 tendency 数组</td>
+</tr>
+<tr>
+<td>18</td>
+<td><code>use updaterad, only: ...</code></td>
+<td>半径反演（见下，<code>watercloud</code> 内部也 use）</td>
+</tr>
+<tr>
+<td>23</td>
+<td><code>use callsedim_mod, only: callsedim</code></td>
+<td>沉降例程（第 9b 段，作用于水冰）</td>
+</tr>
+<tr>
+<td>147</td>
+<td><code>use callkeys_mod, only: water, activice, microphys, CLFvarying</code></td>
+<td>水循环主开关、辐射活化、微物理、次网格云分数</td>
+</tr>
+<tr>
+<td>155</td>
+<td><code>use callkeys_mod, only: sedimentation, scavenging</code></td>
+<td>沉降开关、洗脱（尘埃随冰沉降）开关</td>
+</tr>
+</tbody>
+</table>
+<p><code>watercloud</code> 受 <code>water</code> 控制；<code>activice</code>、<code>microphys</code>、<code>scavenging</code>、<code>CLFvarying</code> 是其下游子开关，决定 tendency 注入的范围。</p>
+<h2 id="调用顺序总览">调用顺序总览</h2>
+<p>水循环相关代码出现在主时间步的多个物理段，顺序如下（行号为大致定位）：</p>
+<ol type="1">
+<li><strong>第 8 段辐射（行 1085–1140）</strong>：<code>call callradite</code>（行 1097，<code>CLFvarying</code> 时行 1121 再调一次 clear-sky）。该调用以 <code>rdust,rice,nuice</code> 为 INOUT，反演出本步辐射用的水冰/尘埃有效半径，并据此算云的光学厚度 <code>taucloudtes</code>。这是 <code>rice</code>/<code>rdust</code> 在进入 <code>watercloud</code> 前的赋值来源。</li>
+<li><strong>第 9a 段水与冰（行 1823–1910）</strong>：<code>IF (water)</code> → <code>call watercloud</code>（行 1831）。返回 <code>zdqcloud</code>/<code>zdtcloud</code>，随后逐项注入 <code>pdq</code>/<code>pdt</code>。</li>
+<li><strong>第 9a bis 段 CO2 云（行 1912–2102）</strong>：<code>co2cloud</code>，与水循环并列，详见 CO2 调用点页。</li>
+<li><strong>第 9b 段沉降（行 2133–2184）</strong>：<code>IF (sedimentation)</code> → <code>call callsedim</code>（行 2143），以 <code>rice,rsedcloud,rhocloud</code> 为输入，处理水冰（及尘埃）的重力沉降，把 <code>zdqsed</code>/<code>zdqssed</code> 注入 <code>pdq</code>/<code>dqsurf</code>。</li>
+<li><strong>第 9c 段化学（行 2202+）</strong>：<code>calchim</code>，把 <code>zdqcloud,zdqscloud</code> 也作为输入传入（行 2226），即云微物理结果参与光化学表面积/非均相过程。</li>
+<li><strong>诊断段（行 2585+/2855+）</strong>：先建工作副本 <code>zq = pq + pdq*ptimestep</code>（行 2587），再用更新后的 <code>zq</code> 与 <code>rice</code> 重算柱积分水汽/水冰、TES 光学厚度、有效半径等，并 <code>write_output</code>。</li>
+</ol>
+<p>因此水循环的数据流是：<strong>callradite 反演 <code>rice</code> → watercloud 用 <code>rice</code> 并更新示踪物 → callsedim 用 <code>rice</code>/<code>rsedcloud</code> 沉降 → 诊断用更新后的 <code>zq</code> 与 <code>rice</code></strong>。</p>
+<hr />
+<h2 id="调用点watercloud行-1831">调用点：watercloud（行 1831）</h2>
+<h3 id="控制条件">控制条件</h3>
+<p><code>IF (water) THEN</code>（行 1829）。整个块到行 1910 <code>END IF ! of IF (water)</code> 结束。</p>
+<h3 id="调用语句">调用语句</h3>
+<pre class="text"><code>call watercloud(ngrid,nlayer,ptimestep,
+     zplev,zplay,pdpsrf,zzlay, pt,pdt,
+     pq,pdq,zdqcloud,zdtcloud,
+     nq,tau,tauscaling,rdust,rice,nuice,
+     rsedcloud,rhocloud,totcloudfrac)</code></pre>
+<h3 id="主要输入">主要输入</h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zplev,zplay,pdpsrf,zzlay</code></td>
+<td>压力层/层间高度、表压变化率</td>
+</tr>
+<tr>
+<td><code>pt,pdt</code></td>
+<td>温度及当前累计温度 tendency（<code>watercloud</code> 内构造 <code>zt=pt+pdt*ptimestep</code> 工作温度）</td>
+</tr>
+<tr>
+<td><code>pq,pdq</code></td>
+<td>示踪物及当前累计 tendency</td>
+</tr>
+<tr>
+<td><code>tau,tauscaling</code></td>
+<td>尘埃光学厚度及缩放</td>
+</tr>
+<tr>
+<td><code>rdust,rice,nuice</code></td>
+<td>尘埃/水冰有效半径与方差（<code>rdust</code>/<code>rice</code> 为 INOUT，来自上游 <code>callradite</code>）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="主要输出">主要输出</h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>方向</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zdqcloud(:,:,:)</code></td>
+<td>OUT（模块级，行 16 引入）</td>
+<td>各示踪物的云微物理 tendency（水汽/水冰/HDO/CCN/尘埃）</td>
+</tr>
+<tr>
+<td><code>zdtcloud(:,:)</code></td>
+<td>OUT</td>
+<td>潜热释放温度 tendency</td>
+</tr>
+<tr>
+<td><code>rice,nuice</code></td>
+<td>INOUT/OUT</td>
+<td>更新后的水冰有效半径与方差（供本步后续沉降与诊断）</td>
+</tr>
+<tr>
+<td><code>rsedcloud(:,:)</code></td>
+<td>OUT</td>
+<td>云沉降半径（<code>callsedim</code> 用）</td>
+</tr>
+<tr>
+<td><code>rhocloud(:,:)</code></td>
+<td>OUT</td>
+<td>云密度</td>
+</tr>
+<tr>
+<td><code>totcloudfrac(:)</code></td>
+<td>INOUT</td>
+<td>云分数（A. Pottier 2013）</td>
+</tr>
+</tbody>
+</table>
+<p><code>watercloud</code> 内部据 <code>microphys</code> 选择 <code>improvedclouds</code>（完整微物理，见 <a href="../modules/phymars/improvedclouds_mod.html">improvedclouds_mod</a>）或 <code>simpleclouds</code>（见 <a href="../modules/phymars/simpleclouds_mod.html">simpleclouds_mod</a>），并调用 <code>updaterice_micro</code>/<code>updaterice_typ</code> 更新 <code>rice</code>（详见 <a href="../modules/phymars/watercloud_mod.html">watercloud_mod</a>）。</p>
+<h3 id="调用后的-tendency-注入行-18361908">调用后的 tendency 注入（行 1836–1908）</h3>
+<p>注入顺序及各自的开关条件：</p>
+<ol type="1">
+<li><strong>潜热温度（<code>if (activice)</code>，行 1837–1841）</strong>：<code>pdt += zdtcloud</code>。只有水冰辐射活化时才把凝结潜热计入温度，否则云微物理对温度无反馈。</li>
+<li><strong>水汽/水冰无条件增量（行 1843–1849）</strong>：<code>pdq(:,:,igcm_h2o_vap) += zdqcloud(...,h2o_vap)</code>、<code>pdq(:,:,igcm_h2o_ice) += zdqcloud(...,h2o_ice)</code>。</li>
+<li><strong>HDO（<code>if (hdo)</code>，行 1851–1859）</strong>：增量 <code>hdo_vap</code>、<code>hdo_ice</code>。</li>
+<li><strong>CCN 质量/数量（<code>if (microphys)</code>，行 1864–1885）</strong>：增量 <code>ccn_mass</code>、<code>ccn_number</code>，随后两组 <code>where</code> 负值保护：<code>ccn_mass</code> 或 <code>ccn_number</code> 任一将变负时，把两者一起重置为 <code>-pq/ptimestep + 1.e-30</code>。注释（行 1862–1863）说明这是单精度舍入导致 N/M 可能为负的保护。</li>
+<li><strong>尘埃质量/数量（<code>if (scavenging)</code>，行 1887–1908）</strong>：增量 <code>dust_mass</code>、<code>dust_number</code>（尘埃被云洗脱），同样配两组成对 <code>where</code> 负值保护。</li>
+</ol>
+<p>负值保护的统一模式：质量与数量耦合，任一变负就把这一对一起钳到 <code>-pq/ptimestep + 1.e-30</code>，保证更新后 <code>pq + ptimestep*pdq ≥ 1.e-30</code>。这与 CO2 云调用点的保护逻辑一致。</p>
+<hr />
+<h2 id="与沉降第-9b-段-callsedim的关系">与沉降（第 9b 段 callsedim）的关系</h2>
+<p><code>IF (sedimentation)</code>（行 2136）→ <code>call callsedim</code>（行 2143），传入 <code>rice,rsedcloud,rhocloud</code>（行 2146，均由 <code>watercloud</code> 更新）。<code>callsedim</code> 返回 <code>zdqsed</code>（各层 tendency）和 <code>zdqssed</code>（地表通量），随后：</p>
+<ul>
+<li>行 2168–2174：<code>pdq(ig,l,iq) += zdqsed(ig,l,iq)</code>，对所有示踪物。</li>
+<li>行 2175–2182：<code>dqsurf(ig,iq,islope) += zdqssed(ig,iq)*cos(pi*def_slope_mean(islope)/180.)</code>，按坡度投影累加到地表。</li>
+</ul>
+<p>注释（行 2134）明确沉降“acts also on water ice”。因此水冰先经 <code>watercloud</code> 凝结/蒸发，再经 <code>callsedim</code> 重力下落到地表；二者顺序不可调换，<code>callsedim</code> 依赖 <code>watercloud</code> 输出的 <code>rice</code>/<code>rsedcloud</code>。</p>
+<p><code>rdstorm</code> 时（行 2152–2166）风暴尘不能沉到地表，把其地表通量回填到最低层 tendency 后清零——与水冰无关，但在同一沉降块内。</p>
+<hr />
+<h2 id="与辐射第-8-段-callradite的关系">与辐射（第 8 段 callradite）的关系</h2>
+<p><code>callradite</code>（行 1097）在 <code>watercloud</code> 之前执行，以 <code>rice,nuice,rdust</code> 为 INOUT：它反演出本步辐射使用的水冰/尘埃有效半径，并输出云的红外光学厚度 <code>taucloudtes</code>（行 1105）。<code>activice</code> 决定水冰是否作为辐射活性气溶胶参与该计算。</p>
+<p>关键时序：<strong>本步辐射用的 <code>rice</code> 是上一步 <code>watercloud</code> 留下的值</strong>（<code>rice</code> 跨步保留，行 306 声明在例程级）。<code>watercloud</code>（行 1831）随后用同一 <code>rice</code> 数组、再据新的水冰量更新它，供本步后续的 <code>callsedim</code> 与诊断、以及下一步的 <code>callradite</code> 使用。</p>
+<p><code>CLFvarying</code> 为真时（行 1115–1140）对 clear-sky 部分再调一次 <code>callradite</code>，并按云分数 <code>totcloudfrac</code> 加权合成通量与加热率——次网格云分数处理。</p>
+<hr />
+<h2 id="水循环诊断输出调用点">水循环诊断/输出调用点</h2>
+<p>诊断均在工作副本 <code>zq = pq + pdq*ptimestep</code>（行 2587，含上述全部注入）之后，位于 <code>if (water)</code> 诊断块（行 2855–2946）：</p>
+<table>
+<thead>
+<tr>
+<th>位置</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>行 2863–2893</td>
+<td>柱积分 <code>mtot</code>（水汽）、<code>icetot</code>（水冰）、<code>mtotD</code>/<code>icetotD</code>（HDO，<code>if (hdo)</code>）；用 <code>rice</code> 算 825 cm⁻¹ 吸收光学厚度 <code>opTES</code>/<code>tauTES</code>（模拟 TES 反演）</td>
+</tr>
+<tr>
+<td>行 2894–2895</td>
+<td><code>call watersat</code> 算饱和混合比 <code>zqsat</code>，<code>satu = zq(h2o_vap)/zqsat</code>（过饱和度）</td>
+</tr>
+<tr>
+<td>行 2897–2920</td>
+<td><code>if (scavenging)</code>：柱积分 <code>Nccntot</code>/<code>Mccntot</code>，按冰表面积加权的有效半径 <code>rave</code></td>
+</tr>
+<tr>
+<td>行 2921–2933</td>
+<td><code>else</code>（无 scavenging）：按冰质量加权的 <code>rave</code></td>
+</tr>
+<tr>
+<td>行 2935–2944</td>
+<td>A. Pottier 加权 <code>rave2</code>（按水冰质量加权 <code>rice</code>）</td>
+</tr>
+<tr>
+<td>行 3032–3056</td>
+<td><code>wstats</code> 累计水汽/水冰体积混合比、<code>h2o_ice_s</code> 地表冰</td>
+</tr>
+<tr>
+<td>行 3283–3286</td>
+<td><code>if (igcm_h2o_ice.ne.0)</code>：算水冰体积混合比</td>
+</tr>
+<tr>
+<td>行 3517–3555</td>
+<td><code>write_output</code> 输出 <code>q01</code>(h2o_ice)/<code>q02</code>(h2o_vap)、<code>h2o_ice</code>/<code>h2o_vap</code> 混合比、地表 <code>h2o_ice_s</code>(_slope)、<code>rice</code>（行 3625）</td>
+</tr>
+<tr>
+<td>行 4024–4029</td>
+<td><code>write_output</code> 输出 <code>zdqcloud</code> 凝结 tendency（h2o_ice/h2o_vap 及二者之和）</td>
+</tr>
+</tbody>
+</table>
+<p><code>comm_RICE = rice</code>（行 3297）把更新后的水冰半径写入通信模块，供后续/外部使用。</p>
+<h2 id="控制流程小结">控制流程小结</h2>
+<pre class="text"><code>[第 8 段] callradite(行 1097, INOUT rice/rdust/nuice) -&gt; taucloudtes
+    IF (CLFvarying): 再调 clear-sky callradite, 按 totcloudfrac 合成
+
+[第 9a 段] IF (water):
+    call watercloud(..., INOUT rice, OUT zdqcloud/zdtcloud/rsedcloud/rhocloud)
+        内部: microphys ? improvedclouds : simpleclouds; updaterice_*
+    IF (activice): pdt += zdtcloud
+    pdq(h2o_vap/h2o_ice) += zdqcloud          (无条件)
+    IF (hdo): pdq(hdo_vap/hdo_ice) += zdqcloud
+    IF (microphys): pdq(ccn_mass/number) += zdqcloud + 负值保护
+    IF (scavenging): pdq(dust_mass/number) += zdqcloud + 负值保护
+
+[第 9b 段] IF (sedimentation): callsedim(..., rice/rsedcloud/rhocloud)
+    pdq += zdqsed; dqsurf += zdqssed (per islope)
+
+[第 9c 段] calchim(..., zdqcloud, zdqscloud)   (云结果参与化学)
+
+[诊断] zq = pq + pdq*ptimestep
+    if (water): 柱积分 mtot/icetot, opTES/tauTES, satu, rave/rave2
+    wstats; write_output(h2o_*, rice, zdqcloud)</code></pre>
+<h2 id="复现注意事项">复现注意事项</h2>
+<ul>
+<li><code>watercloud</code> 的温度反馈只在 <code>activice=true</code> 时生效（行 1837）；关掉 <code>activice</code> 时云仍改变水汽/冰示踪物，但不放潜热，温度场不受云直接影响。</li>
+<li>注入顺序固定：潜热 → 水汽/冰 → HDO → CCN（microphys）→ 尘埃（scavenging）。CCN 和尘埃增量各自带成对负值保护，复现时不能漏任一 <code>where</code> 块，否则单精度舍入可能产生负质量/负数密度。</li>
+<li><code>rice</code> 跨时间步保留：本步 <code>callradite</code> 用的是上一步 <code>watercloud</code> 留下的 <code>rice</code>；<code>watercloud</code> 再更新它供本步 <code>callsedim</code>/诊断与下一步辐射。重排这三步会破坏半径的时间一致性。</li>
+<li>水冰沉降在第 9b 段 <code>callsedim</code> 完成，依赖 <code>watercloud</code> 输出的 <code>rsedcloud</code>/<code>rhocloud</code>；与 CO2 云不同（CO2 冰在 <code>co2cloud</code> 微时间步内部沉降）。</li>
+<li>诊断（柱积分、TES 光学厚度、有效半径）都在 <code>zq=pq+pdq*ptimestep</code> 之后，使用的是含全部 tendency 的更新态，而非 <code>watercloud</code> 局部输出。</li>
+</ul>
+<h2 id="已核验边界">已核验边界</h2>
+<ul>
+<li><code>scavenging</code> 依赖 <code>microphys</code> 和 <code>dustbin&gt;=1</code>：<code>conf_phys.F:921-926</code> 在 <code>scavenging.and..not.microphys</code> 或 <code>dustbin&lt;1</code> 时 abort；<code>microphys=true</code> 但 <code>scavenging=false</code> 只打印 warning，不中止。</li>
+<li><code>watercloud</code> 内部 <code>improvedclouds</code>/<code>simpleclouds</code> 的选择与 <code>rice</code> 更新细节见 <a href="../modules/phymars/watercloud_mod.html">watercloud_mod</a>、<a href="../modules/phymars/improvedclouds_mod.html">improvedclouds_mod</a>、<a href="../modules/phymars/simpleclouds_mod.html">simpleclouds_mod</a>；本页只描述 <code>physiq</code> 调用点。</li>
+<li><code>calchim</code>（行 2223）接收 <code>zdqcloud</code>/<code>zdqscloud</code> 作为输入的具体非均相化学用途属于化学模块范围，见 aeronomars/化学相关页面。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

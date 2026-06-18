@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>yamada4 - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/yamada4.md</span>
+    </nav>
+    <article class="content">
+<h1 id="yamada4f">yamada4.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\yamada4.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>yamada4.F</code> 定义 Mars 版本的 Mellor-Yamada 湍流闭合模块 <code>yamada4_mod</code>。主例程 <code>yamada4</code> 在 <a href="vdifc_mod.html">vdifc_mod</a> 的 <code>callyamada4</code> 分支中调用，用风切变、位温梯度、层界面高度、地表拖曳系数和上一时步 <code>q2</code> 更新湍流动能尺度 <code>q2</code>、动量扩散系数 <code>km</code>、标量扩散系数 <code>kn</code> 和 TKE 扩散系数 <code>kq</code>。这些系数随后供垂直扩散求解使用。</p>
+<p>源码注释说明该文件由 Earth 版本改成 Mars 版本，并按 <code>iflag_pbl</code> 选择 MY 2.0、MY 2.0 Fournier、MY 2.5、以及带 TKE 垂直扩散的 MY 2.5 分支。模块还包含 <code>vdif_q2</code> 和 <code>vdif_q2e</code> 两个 TKE 垂直扩散辅助例程；当前主例程只在 <code>iflag_pbl==9</code> 时调用隐式 <code>vdif_q2</code>，<code>vdif_q2e</code> 未在本文件内被调用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>yamada4_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>Mars 版 Mellor-Yamada 湍流闭合模块。</td>
+</tr>
+<tr>
+<td><code>yamada4</code></td>
+<td>subroutine</td>
+<td>16</td>
+<td>更新 <code>q2/km/kn/kq</code> 的主闭合例程。</td>
+</tr>
+<tr>
+<td><code>vdif_q2</code></td>
+<td>subroutine</td>
+<td>623</td>
+<td>对 <code>q2</code> 做压力坐标隐式垂直扩散。</td>
+</tr>
+<tr>
+<td><code>vdif_q2e</code></td>
+<td>subroutine</td>
+<td>700</td>
+<td>对 <code>q2</code> 做显式垂直扩散；当前主例程未调用。</td>
+</tr>
+<tr>
+<td><code>frif</code>, <code>falpha</code>, <code>fsm</code></td>
+<td>statement functions</td>
+<td>117-119</td>
+<td>由 Richardson 数/flux Richardson 数计算闭合函数。</td>
+</tr>
+<tr>
+<td><code>fl</code></td>
+<td>statement function</td>
+<td>120-122</td>
+<td>计算混合长度，结合 <code>l0</code>、高度、<code>q2</code> 和稳定度限制。</td>
+</tr>
+<tr>
+<td><code>q2min/q2max/knmin/kmmin</code></td>
+<td>saved real</td>
+<td>126-130</td>
+<td>Mars 数值上下限；<code>knmin/kmmin</code> 当前未见实际使用。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>noms</code></td>
+<td>首次调用时扫描 tracer 名称，寻找 <code>co2</code> 并准备分子量修正系数。</td>
+<td>CO2 修正计算当前被注释掉，实际 <code>teta=phc</code>。</td>
+</tr>
+<tr>
+<td><code>turb_mod</code></td>
+<td><code>l0</code></td>
+<td>读写混合长度积分尺度 <code>l0</code>。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vdif_q2</code></td>
+<td>本文件</td>
+<td><code>iflag_pbl==9</code> 分支</td>
+<td>对 <code>q2</code> 做隐式垂直扩散。</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部错误处理</td>
+<td><code>iflag_pbl</code> 非 6..10</td>
+<td>配置不一致时中止。</td>
+</tr>
+<tr>
+<td><code>sqrt</code>, <code>max</code>, <code>min</code>, <code>ceiling</code></td>
+<td>Fortran intrinsic</td>
+<td>多处</td>
+<td>计算稳定度函数、上下限和内部子步数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code>, <code>nlay</code>, <code>nq</code></td>
+<td><code>vdifc</code> 调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>网格点数、垂直层数、tracer 数。</td>
+</tr>
+<tr>
+<td><code>dt</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>s</td>
+<td>物理时间步。</td>
+</tr>
+<tr>
+<td><code>g</code>, <code>rconst</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>SI</td>
+<td>重力加速度和气体常数。</td>
+</tr>
+<tr>
+<td><code>plev(ngrid,nlay+1)</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>Pa</td>
+<td>层界面压力，供 <code>vdif_q2</code> 使用。</td>
+</tr>
+<tr>
+<td><code>temp(ngrid,nlay)</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>K</td>
+<td>温度，供 <code>vdif_q2</code> 压力坐标扩散使用。</td>
+</tr>
+<tr>
+<td><code>zlev(ngrid,nlay+1)</code>, <code>zlay(ngrid,nlay)</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>m</td>
+<td>层界面和层中心高度。</td>
+</tr>
+<tr>
+<td><code>u</code>, <code>v</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>m s-1</td>
+<td>层中心水平风。</td>
+</tr>
+<tr>
+<td><code>phc</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlay)</code></td>
+<td>K-like</td>
+<td>位温或热力变量，当前直接用于稳定度。</td>
+</tr>
+<tr>
+<td><code>pq(ngrid,nlay,nq)</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>mixing ratio</td>
+<td>tracer 场；CO2 分子量修正代码当前注释。</td>
+</tr>
+<tr>
+<td><code>cd(ngrid)</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>-</td>
+<td>地表拖曳系数。</td>
+</tr>
+<tr>
+<td><code>q2(ngrid,nlay+1)</code></td>
+<td>调用方</td>
+<td>real inout</td>
+<td>m2 s-2</td>
+<td>湍流速度尺度平方。</td>
+</tr>
+<tr>
+<td><code>ustar(ngrid)</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>m s-1</td>
+<td>摩擦速度，用于稳定层最小扩散约束。</td>
+</tr>
+<tr>
+<td><code>iflag_pbl</code></td>
+<td>配置/调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>选择 MY 方案分支，源码允许 6..10。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q2</code></td>
+<td>调用方 / <code>turb_mod</code> 状态链</td>
+<td>real <code>(ngrid,nlay+1)</code></td>
+<td>m2 s-2</td>
+<td>更新后的湍流速度尺度平方。</td>
+</tr>
+<tr>
+<td><code>km</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlay+1)</code></td>
+<td>m2 s-1</td>
+<td>动量湍流扩散系数。</td>
+</tr>
+<tr>
+<td><code>kn</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlay+1)</code></td>
+<td>m2 s-1</td>
+<td>标量湍流扩散系数。</td>
+</tr>
+<tr>
+<td><code>kq</code></td>
+<td>调用方</td>
+<td>real <code>(ngrid,nlay+1)</code></td>
+<td>m2 s-1</td>
+<td><code>q2</code> 垂直扩散系数。</td>
+</tr>
+<tr>
+<td><code>l0</code></td>
+<td><code>turb_mod</code></td>
+<td>module array</td>
+<td>m</td>
+<td>混合长度积分尺度，被本例程迭代更新。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>first</code>、<code>ipas</code>、<code>ric/rifc/b1/kap</code>、<code>firstcall</code>、<code>q2min/q2max/knmin/kmmin</code>、<code>ico2/A/B</code> 均为 <code>SAVE</code> / <code>THREADPRIVATE</code> 状态。</li>
+<li><code>firstcall</code> 只在首次调用扫描 <code>tracer_mod:noms</code> 查找 <code>co2</code>，并计算 CO2 分子量修正系数；但实际修正 <code>teta=phc*(A*pq+B)</code> 代码被注释，当前总是 <code>teta=phc</code>。</li>
+<li><code>l0</code> 来自 <code>turb_mod</code>，本例程会按 <code>sqrt(q2)</code> 加权高度积分更新它。</li>
+<li>当 <code>iflag_pbl</code> 不在 6..10 时，例程调用 <code>abort_physic</code> 中止。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>首次调用扫描 tracer 名称，若存在 <code>co2</code> 则准备 <code>A/B</code> 分子量系数；当前实际稳定度变量直接取 <code>teta=phc</code>。</li>
+<li>用 <code>ndt=ceiling(3840./(3699.*24./dt))</code> 计算 MY 2.5 分支的内部子步数。</li>
+<li>校验 <code>iflag_pbl</code> 在 6..10。</li>
+<li>计算层厚倒数、层中心间距、风切变平方 <code>m2</code>、位温梯度、Brunt-Vaisala 频率平方 <code>n2</code>、Richardson 数 <code>ri</code>、<code>rif/alpha/sm</code> 和 <code>zz</code>。</li>
+<li>初始或 <code>iflag_pbl==6</code> 时迭代 10 次估计混合长度 <code>l</code>、<code>q2</code> 和积分尺度 <code>l0</code>。</li>
+<li>每次调用根据当前 <code>q2</code> 更新 <code>l0</code>，再计算界面混合长度 <code>l</code>。</li>
+<li><code>iflag_pbl==6</code>：MY 2.0，直接令 <code>q2=l**2*zz</code>。</li>
+<li><code>iflag_pbl==7</code>：Fournier 分支，用前一步 <code>km/mpre</code> 估计准静态风切变并更新 <code>q2</code>。</li>
+<li><code>iflag_pbl&gt;=8</code>：MY 2.5 分支，在 <code>ndt</code> 个内部子步中半隐式更新 <code>q2</code>；<code>iflag_pbl==9</code> 时额外调用 <code>vdif_q2</code> 做 TKE 垂直扩散。</li>
+<li>对非 <code>iflag_pbl==9</code> 分支，根据 <code>km=l*sqrt(q2)*sm</code>、<code>kn=km*alpha</code>、<code>kq=l*sqrt(q2)*0.2</code> 计算扩散系数并设置顶/底边界。</li>
+<li>最后对稳定边界层施加 Holtslag-Boville 风格的最小扩散约束，并据此回写 <code>q2/km/kn/kq</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>yamada4(...):
+  on first call:
+    find CO2 tracer index and prepare molecular-mass coefficients
+  teta = phc
+  require 6 &lt;= iflag_pbl &lt;= 10
+  compute vertical differences, shear m2, stability n2
+  compute rif, alpha, sm, zz
+  if first or iflag_pbl == 6:
+    initialize l0, iterate l and q2 10 times
+  update l0 from sqrt(q2)-weighted height
+  compute l at interfaces
+  if iflag_pbl == 6:
+    q2 = l**2 * zz
+  else if iflag_pbl == 7:
+    update q2 from Fournier quasi-static branch
+  else if iflag_pbl &gt;= 8:
+    for each internal substep:
+      update q2 with MY 2.5 formula
+      clamp q2 to q2min/q2max
+      if iflag_pbl == 9:
+        compute km/kn/kq and call vdif_q2()
+  if iflag_pbl != 9:
+    compute km/kn/kq from l, sqrt(q2), sm, alpha
+  apply stable-layer minimum K constraint</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>垂直湍流扩散</td>
+<td>为 <code>vdifc</code> 提供动量和标量扩散系数。</td>
+</tr>
+<tr>
+<td>PBL / TKE 演化</td>
+<td>读写 <code>q2</code> 和 <code>l0</code>，按 MY 分支更新湍流速度尺度。</td>
+</tr>
+<tr>
+<td>热羽流耦合约束</td>
+<td><code>conf_phys</code> 中 <code>calltherm</code> 开启时会建议搭配 <code>callyamada4</code> 和 <code>callrichsl</code>。</td>
+</tr>
+<tr>
+<td>CO2 大气热力</td>
+<td>源码保留 CO2 tracer 分子量修正准备逻辑，但实际修正路径被注释。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>文件为固定格式 Fortran 风格，使用 statement functions <code>frif/falpha/fsm/fl</code>。</li>
+<li><code>fl</code> 形式上有参数，但实际表达式直接使用外层 <code>ig/k</code> 和 <code>zlev/q2/n2/l0</code>，阅读时应按内联函数理解。</li>
+<li><code>iflag_pbl=10</code> 通过合法性检查，并进入 <code>iflag_pbl&gt;=8</code> 分支；但垂直扩散只在 <code>iflag_pbl==9</code> 执行，注释也只说明到 9。</li>
+<li>诊断数组 <code>rino/smyam/styam/...</code> 位于 <code>if(1.eq.0)</code> 块内，当前不会执行。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>iflag_pbl</code> 必须在 6..10；不同值对应不同 <code>q2</code> 时间推进方式。</li>
+<li><code>zlev/zlay</code> 必须严格单调并避免零层厚；源码直接用差值取倒数。</li>
+<li><code>q2</code> 会被夹在 <code>q2min=1e-10</code> 与 <code>q2max=1e2</code> 之间，影响强不稳定或数值爆发场景。</li>
+<li><code>iflag_pbl==9</code> 会对子步后的 <code>q2</code> 调用 <code>vdif_q2</code>；其他分支不会执行该隐式扩散。</li>
+<li>稳定层最小扩散约束依赖 <code>ustar</code> 和 <code>ngrid</code>：1D 用 <code>kminfact=0.3</code>，3D 用 <code>0.45</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>iflag_pbl=10</code> 的预期物理含义需确认：它通过检查并走 <code>&gt;=8</code> 的 q2 更新，但不触发 <code>==9</code> 的 <code>vdif_q2</code> 垂直扩散。</li>
+<li>CO2 分子量修正代码被注释后，<code>pq</code> 和首次扫描出的 <code>ico2/A/B</code> 对当前计算没有实际影响；是否为有意停用需结合版本历史确认。</li>
+<li><code>knmin/kmmin</code> 定义了 Mars 下限但当前未见用于最终夹值。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="vdifc_mod.html">vdifc_mod</a></li>
+<li><a href="vdif_kc.html">vdif_kc</a></li>
+<li><a href="turb_mod.html">turb_mod</a></li>
+<li><a href="calltherm_interface_mod.html">calltherm_interface_mod</a></li>
+<li><a href="../../architecture/config-system.html">config-system</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

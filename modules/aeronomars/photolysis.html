@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>photolysis - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/photolysis.md</span>
+    </nav>
+    <article class="content">
+<h1 id="photolysisf90">photolysis.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\photolysis.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>photolysis.F90</code> 定义 <code>photolysis_module</code>，只暴露 <code>photolysis</code> 一个例程。它是 <code>photochemistry_mod</code> 在 <code>jonline=.false.</code> 时使用的<strong>离线光解率插值器</strong>：从 <a href="chemistrydata.html">chemistrydata</a> 读入并广播的 <code>jmars.20140930</code> 查找表中，按温度、太阳天顶角、CO2 空气柱、O3 柱量比和尘埃光学厚度做 5 维线性/对数插值，生成 <code>v_phot(nlayer,nb_phot_max)</code> 的基础光解率槽位。</p>
+<p>本文件不读取查找表文件，也不决定是否走离线光解；查表数据由 <code>chemistrydata_mod::read_phototable</code> 负责，调用选择由 <a href="photochemistry_mod.html">photochemistry_mod</a> 的 <code>jonline=false</code> 分支负责。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>photolysis_module</code></td>
+<td>module</td>
+<td style="text-align: right;">1-310</td>
+<td>离线光解查找表插值模块</td>
+</tr>
+<tr>
+<td><code>photolysis</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">9-306</td>
+<td>对 <code>1:lswitch-1</code> 层插值 <code>jphot</code>，生成基础光解率 <code>v_phot</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code></td>
+<td>用重力常数把 pressure difference 和平均摩尔质量换成 CO2/O3 柱量</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>chemistrydata_mod</code></td>
+<td><code>nd,nz,nozo,nsza,ntemp,ntau</code></td>
+<td>查找表各维度参数</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>chemistrydata_mod</code></td>
+<td><code>szatab,tautab,colairtab,table_ozo,jphot</code></td>
+<td>SZA、尘埃、空气柱、O3 柱和光解率查找表；由 <code>read_phototable</code> 填充</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th style="text-align: right;">调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无外部例程调用</td>
+<td>-</td>
+<td style="text-align: right;">-</td>
+<td>本例程只用 Fortran intrinsic <code>min/max/log</code> 和数组运算完成插值</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>integer</td>
+<td>层</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>nb_phot_max</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>integer</td>
+<td>反应数</td>
+<td>输出 <code>v_phot</code> 第二维容量</td>
+</tr>
+<tr>
+<td><code>lswitch</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>integer</td>
+<td>层索引</td>
+<td>只计算 <code>1:lswitch-1</code> 的低层光化学段</td>
+</tr>
+<tr>
+<td><code>press(nlayer)</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>real</td>
+<td>hPa</td>
+<td>层压；用于柱量和 1.9 hPa 参考温度插值</td>
+</tr>
+<tr>
+<td><code>temp(nlayer)</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>real</td>
+<td>K</td>
+<td>层温度</td>
+</tr>
+<tr>
+<td><code>sza</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>real</td>
+<td>degree</td>
+<td>太阳天顶角；本文件 <code>sza&lt;=95</code> 才插值，夜间置零</td>
+</tr>
+<tr>
+<td><code>tauref</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>real</td>
+<td>-</td>
+<td>已换算到 7 hPa 口径的尘埃光学厚度</td>
+</tr>
+<tr>
+<td><code>zmmean(nlayer)</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>real</td>
+<td>g mole^-1</td>
+<td>平均摩尔质量，用于柱量换算</td>
+</tr>
+<tr>
+<td><code>dist_sol</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>real</td>
+<td>AU</td>
+<td>日火距离，用 <code>(1.52/dist_sol)^2</code> 修正光解率</td>
+</tr>
+<tr>
+<td><code>rmco2(nlayer)</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>real</td>
+<td>VMR</td>
+<td>CO2 体积混合比</td>
+</tr>
+<tr>
+<td><code>rmo3(nlayer)</code></td>
+<td><code>photochemistry_mod</code></td>
+<td>real</td>
+<td>VMR</td>
+<td>O3 体积混合比</td>
+</tr>
+<tr>
+<td><code>jphot</code> 等查找表</td>
+<td><code>chemistrydata_mod</code></td>
+<td>module arrays</td>
+<td>s^-1 等</td>
+<td>离线光解查找表数据</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>v_phot(nlayer,nb_phot_max)</code></td>
+<td><a href="photochemistry_mod.html">photochemistry_mod</a></td>
+<td><code>real(kind=8)</code></td>
+<td>s^-1</td>
+<td>基础光解率；进入 <code>reactionrates/fill_matrix</code> 的一阶反应槽位</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本例程只读 <code>chemistrydata_mod</code> 的 <code>jphot/colairtab/table_ozo/szatab/tautab</code>，不修改模块状态。</li>
+<li>本例程先在末尾统一 <code>v_phot(:,:)=0.</code>，再只填 <code>1:lswitch-1</code> 层的 1-13 号基础槽位；<code>lswitch:nlayer</code> 和未映射槽位保持 0。</li>
+<li><code>sza&gt;95.</code> 时局部 <code>j(:,:)=0.</code>，随后同样映射到 <code>v_phot</code>，等价夜间光解清零。</li>
+<li>无文件 I/O、无 <code>abort_physic</code>、无 MPI 通信；这些由 <code>chemistrydata_mod::read_phototable</code> 处理。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>日夜判断</strong>：只有 <code>sza&lt;=95.</code> 时进入查表插值；更大天顶角直接令 <code>j(:,:)=0.</code>。</li>
+<li><strong>固定温度表</strong>：本文件硬编码 1.9 hPa 参考温度表 <code>226.2, 206.2, 186.2, 169.8 K</code>，对应 <code>ntemp=4</code>。</li>
+<li><strong>SZA 与尘埃索引</strong>：在 <code>szatab</code> 中找包围 <code>sza</code> 的两个点，在 <code>tautab</code> 中找包围 <code>tauref</code> 的两个点；<code>tauref</code> 被夹在 <code>tautab(1)</code> 和 <code>tautab(ntau)</code> 之间。</li>
+<li><strong>CO2/O3 柱量</strong>：
+<ul>
+<li>顶层 <code>lswitch-1</code> 的 CO2 空气柱用 <code>6.022e22*rmco2*press*100/(zmmean*g)</code> 估算。</li>
+<li>向下循环 <code>l=lswitch-2..1</code>，用相邻层平均 <code>rmco2/rmo3</code> 和压差 <code>dp=(press(l)-press(l+1))*100</code> 累加 CO2 与 O3 柱量。</li>
+<li>CO2 柱量上限为 <code>colairtab(1)</code>。</li>
+</ul></li>
+<li><strong>O3 柱量比</strong>：用 <code>colo3min=col*7.171e-10</code> 定义 0.1 micron-atm 的理论最小柱量，<code>ratio_o3=colo3/colo3min</code>，并夹在 <code>1.</code> 到 <code>table_ozo(nozo)*10.</code>。</li>
+<li><strong>参考温度</strong>：在压力剖面中寻找 1.9 hPa 所在层间，用线性权重插值得 <code>tref</code>；随后夹在 <code>table_temp(4)..table_temp(1)</code>，并用对数温度比计算温度插值权重。</li>
+<li><strong>逐层 5 维插值</strong>：对每个 <code>l=1:lswitch-1</code>，分别在 <code>colairtab</code>、<code>table_ozo</code> 上定位索引，用 <code>poids(2,2,2,2,2)</code> 形成温度、SZA、空气柱、O3、尘埃五维角点权重，累加 32 个 <code>jphot</code> 角点。</li>
+<li><strong>日火距离修正</strong>：每个 <code>j(l,ij)</code> 乘 <code>(1.52/dist_sol)**2</code>。</li>
+<li><strong>映射到 <code>v_phot</code></strong>：按 <code>jmars.20140930</code> 的 13 个查表通道填入 <code>v_phot</code>；H2 和 N2 光解槽位没有查表数据，分别置 0。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>photolysis(...):
+  if sza &lt;= 95:
+    find SZA interpolation bracket in szatab
+    clamp tauref to tautab and find dust bracket
+    build CO2 column and O3 column from top (lswitch-1) downward
+    ratio_o3 = clamp(colo3 / (col * 7.171e-10), 1, table_ozo(nozo)*10)
+    interpolate tref at 1.9 hPa and find table_temp bracket
+
+    for l = 1..lswitch-1:
+      find CO2-column and O3-ratio brackets
+      build 32 weights over temp, sza, column, ozone, tau
+      for ij = 1..nd:
+        j(l,ij) = weighted sum of jphot corners
+        j(l,ij) *= (1.52 / dist_sol)^2
+  else:
+    j = 0
+
+  v_phot = 0
+  for l = 1..lswitch-1:
+    copy j lookup channels 1..9, 10..11 into v_phot slots
+    set v_phot(:,10) = 0 for missing H2 lookup
+    set v_phot(:,13) = 0 for missing N2 lookup</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>离线光解</td>
+<td><code>jonline=false</code> 时由 <a href="photochemistry_mod.html">photochemistry_mod</a> 调用，消费 <a href="chemistrydata.html">chemistrydata</a> 的 <code>jphot</code> 表</td>
+</tr>
+<tr>
+<td>光化学反应网络</td>
+<td>提供基础 13 个一阶光解槽位中的 11 个有效查表速率，供 <code>photochemistry</code> 后续矩阵积分</td>
+</tr>
+<tr>
+<td>尘埃/臭氧影响</td>
+<td>插值维度显式包含 7 hPa 尘埃光学厚度和 O3 柱量比</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 <code>.F90</code>，但保留较老的长注释分段风格。</li>
+<li><code>poids(2,2,2,2,2)</code> 是五维权重；源码注释写“4-dimensional interpolation”但实际包含 <code>temp,sza,co2,o3,tau</code> 五个维度。</li>
+<li><code>j_hdo</code> 被声明但未赋值、未使用；HNO3/HNO4 查表通道被读入局部 <code>j</code>，但没有映射到当前 <code>v_phot</code> 输出槽位。</li>
+<li><code>v_phot(l,10)=0.</code> 注释为 H2 missing in lookup table；<code>v_phot(l,13)=0.</code> 注释为 N2 missing in lookup table。</li>
+<li><code>sza</code> 白天阈值为 95°，不同于 <a href="photochemistry_mod.html">photochemistry_mod</a> 在线光解分支的 113° 阈值。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>调用前必须已执行 <a href="chemistrydata.html">chemistrydata</a>::<code>read_phototable</code>，否则 <code>jphot/colairtab/table_ozo</code> 没有有效数据。</li>
+<li>调用方传入的 <code>tauref</code> 应已是 7 hPa 口径；<a href="photochemistry_mod.html">photochemistry_mod</a> 离线路径会先做 <code>tau=tau*7./press(1)</code>。</li>
+<li><code>press</code> 需随层号向上递减，才能让 <code>press(l)-press(l+1)</code> 和 1.9 hPa 插值逻辑符合源码假设。</li>
+<li><code>colairtab</code> 的排序必须与源码 <code>if (colairtab(icol) &lt; col(l))</code> 的查找方式一致；本文件不做表单调性检查。</li>
+<li><code>dist_sol</code> 修正以 1.52 AU 为基准；复现其他日火距离时不要省略平方反比缩放。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>源码注释称 4 维插值，但数组和求和项为 5 维，是否仅为注释陈旧待确认。</li>
+<li><code>j_hdo</code> 声明未使用；是否为氘化学离线光解遗留待确认。</li>
+<li>HNO3/HNO4 两个查表通道未映射到 <code>v_phot</code>，当前反应网络是否有意忽略这两个输出待确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="photochemistry_mod.html">photochemistry_mod</a>：离线光解调用方，接收 <code>v_phot</code> 并继续反应矩阵积分。</li>
+<li><a href="chemistrydata.html">chemistrydata</a>：<code>jphot/colairtab/table_ozo/szatab/tautab</code> 查找表读取和广播方。</li>
+<li><a href="calchim_mod.html">calchim_mod</a>：高层调度方，<code>jonline=false</code> 时 firstcall 读取查找表。</li>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览。</li>
+<li><a href="photolysis_mod.html">photolysis_mod</a>：在线光解初始化和 <code>nphot</code> 共享状态；与本文件的离线查找表路径互斥。</li>
+<li><a href="photolysis_online.html">photolysis_online</a>：在线光解率计算。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

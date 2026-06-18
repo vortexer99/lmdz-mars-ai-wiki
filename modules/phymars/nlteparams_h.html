@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nlteparams_h - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/nlteparams_h.md</span>
+    </nav>
+    <article class="content">
+<h1 id="nlteparams_hf90">nlteparams_h.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\nlteparams_h.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>nlteparams_h.F90</code> 定义 <code>nlteparams_h</code> 模块，集中保存 LTE 长波辐射与 NLTE 冷却倾向之间过渡所需的 4 个编译期常量。它不属于 <a href="nlte_paramdef_h.html">nlte_paramdef_h</a> 的快速 NLTE 谱线/网格参数集合；本文件只服务于 <code>blendrad.F</code> 与 <code>nlthermeq.F</code> 的过渡层控制。</p>
+<p>下游使用方式很直接：<a href="blendrad.html">blendrad</a> 读取 <code>ptrans</code> 和 <code>zwi</code>，用 <code>alpha = 1/(1+(pplay/ptrans)**zwi)</code> 在 LTE 倾向与 NLTE 倾向之间平滑加权；<code>nlthermeq.F</code> 读取 <code>ptrans</code>、<code>zw</code> 和 <code>pminte</code>，决定 LTE 辐射方案至少要计算到哪一层，并在首次调用时打印这些参数。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlteparams_h</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>LTE/NLTE 辐射倾向过渡参数模块。</td>
+</tr>
+<tr>
+<td><code>ptrans</code></td>
+<td>real parameter</td>
+<td style="text-align: right;">10</td>
+<td>过渡中心压强，固定为 <code>0.1 Pa</code>。</td>
+</tr>
+<tr>
+<td><code>zw</code></td>
+<td>real parameter</td>
+<td style="text-align: right;">12</td>
+<td>过渡半宽，固定为 <code>0.5</code> 个标高。</td>
+</tr>
+<tr>
+<td><code>pminte</code></td>
+<td>real parameter</td>
+<td style="text-align: right;">14</td>
+<td>LTE 长波辐射至少应计算到的压强上限，定义为 <code>0.4*ptrans</code>，即 <code>0.04 Pa</code>。</td>
+</tr>
+<tr>
+<td><code>zwi</code></td>
+<td>real parameter</td>
+<td style="text-align: right;">18</td>
+<td><code>blendrad</code> 使用的过渡指数，定义为 <code>2./zw</code>，当前为 <code>4.0</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>本文件只定义 <code>parameter</code> 常量，不依赖其他 module。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>本文件没有 <code>contains</code>，不定义也不调用可执行例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无运行时输入</td>
+<td>源码字面常量</td>
+<td><code>real,parameter</code></td>
+<td>Pa / 标高</td>
+<td>常量在编译期固定。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ptrans</code></td>
+<td><code>blendrad.F</code>, <code>nlthermeq.F</code></td>
+<td>scalar real parameter</td>
+<td>Pa</td>
+<td>LTE/NLTE 过渡中心；<code>blendrad</code> 在 <code>pplay=ptrans</code> 时得到 <code>alpha=0.5</code>。</td>
+</tr>
+<tr>
+<td><code>zw</code></td>
+<td><code>nlthermeq.F</code></td>
+<td>scalar real parameter</td>
+<td>scale heights</td>
+<td>首次调用诊断输出中的过渡半宽。</td>
+</tr>
+<tr>
+<td><code>pminte</code></td>
+<td><code>nlthermeq.F</code></td>
+<td>scalar real parameter</td>
+<td>Pa</td>
+<td>搜索 <code>nlaylte</code> 的阈值；源码注释说明 LTE 至少计算到该压强。</td>
+</tr>
+<tr>
+<td><code>zwi</code></td>
+<td><code>blendrad.F</code></td>
+<td>scalar real parameter</td>
+<td>1 / scale heights</td>
+<td>过渡权重公式中的指数，等于 <code>2/zw</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本模块没有 <code>save</code> 变量、I/O、诊断输出、文件访问或运行时副作用。</li>
+<li>它的影响发生在下游：修改 <code>ptrans/zw/pminte/zwi</code> 会改变 <code>blendrad</code> 的 LTE/NLTE 加权曲线和 <code>nlthermeq</code> 选择的 LTE 计算层数。</li>
+<li><code>pminte</code> 与 <code>zwi</code> 是派生常量：<code>pminte=0.4*ptrans</code>，<code>zwi=2./zw</code>。复现实验如果只改 <code>ptrans</code> 或 <code>zw</code>，这两个下游常量会随编译重新计算。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>编译时建立 <code>nlteparams_h</code> 模块。</li>
+<li>固定过渡中心压强 <code>ptrans=0.1 Pa</code>。</li>
+<li>固定半宽 <code>zw=0.5</code> 个标高。</li>
+<li>从 <code>ptrans</code> 派生 <code>pminte=0.4*ptrans</code>，供 <code>nlthermeq</code> 找到 LTE 计算至少覆盖到的层。</li>
+<li>从 <code>zw</code> 派生 <code>zwi=2./zw</code>，供 <code>blendrad</code> 把 <code>tanh</code> 型过渡写成压强幂函数。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>module nlteparams_h:
+  ptrans = 0.1 Pa
+  zw = 0.5 scale heights
+  pminte = 0.4 * ptrans
+  zwi = 2 / zw
+
+blendrad:
+  alpha = 1 / (1 + (pplay / ptrans) ** zwi)
+  dtrad = (1-alpha) * LTE + NIR_CO2 + alpha * NLTE
+
+nlthermeq:
+  find nlaylte from the highest-pressure reference column
+  stop scanning when pplay(igpmax,nlaylte) &gt; pminte</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LTE/NLTE 辐射过渡</td>
+<td>提供过渡中心、半宽和 LTE 覆盖阈值。</td>
+</tr>
+<tr>
+<td>辐射倾向合成</td>
+<td><code>blendrad</code> 使用 <code>ptrans/zwi</code> 计算 <code>alpha</code>，把 <code>zdtsw+zdtlw</code> 逐渐切换到 <code>zdtnlte</code>。</td>
+</tr>
+<tr>
+<td>长波 LTE 覆盖层选择</td>
+<td><code>nlthermeq</code> 使用 <code>pminte</code> 确定 <code>yomlw_h::nlaylte</code>，保证 LTE 方案覆盖到过渡层以上。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>文件是极小的 Fortran 90 参数模块，所有值都是 <code>real,parameter</code>。</li>
+<li>源码注释仍写 <code>nlteparams.h</code>，但当前实现文件是 <code>.F90</code> module，名称为 <code>nlteparams_h</code>。</li>
+<li><code>zwi</code> 不是独立调参常量，而是 <code>zw</code> 的倒数派生形式；<code>blendrad.F</code> 的注释明确说明它来自 <code>zwi=2/zw</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>ptrans</code> 单位是 Pa，必须与 <code>blendrad</code> 输入 <code>pplay</code> 的 Pa 单位一致。</li>
+<li><code>ptrans=0.1 Pa</code> 时，<code>blendrad</code> 的 <code>alpha</code> 在该压强处为 0.5；高压侧 LTE 权重大，低压侧 NLTE 权重大。</li>
+<li><code>pminte=0.04 Pa</code> 控制 <code>nlthermeq</code> 中 <code>nlaylte</code> 的搜索停止条件；改变它会改变 LTE 长波方案实际计算到的层数。</li>
+<li><code>zw=0.5</code> 使 <code>zwi=4.0</code>，过渡相对陡峭；如果改宽过渡层，需要同时检查 <code>blendrad</code> 的 alpha 曲线和 <code>nlthermeq</code> 的 LTE 覆盖范围是否仍匹配。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>ptrans=0.1 Pa</code> 与 <code>zw=0.5</code> 的物理校准来源未在本文件中给出；只能从 <code>blendrad.F</code> / <code>nlthermeq.F</code> 的 2000 年注释确认其用途。</li>
+<li><code>pminte=0.4*ptrans</code> 注释称“almost one scale height above transition in worst case is very safe”，但该安全裕度的外部推导未在源码内展开。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a></li>
+<li><a href="blendrad.html">blendrad</a></li>
+<li><a href="nlthermeq.html">nlthermeq</a></li>
+<li><a href="nltecool.html">nltecool</a></li>
+<li><a href="nlte_tcool_mod.html">nlte_tcool_mod</a></li>
+<li><a href="nlte_paramdef_h.html">nlte_paramdef_h</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

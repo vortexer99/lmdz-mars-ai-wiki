@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>zrecast - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/zrecast.md</span>
+    </nav>
+    <article class="content">
+<h1 id="zrecastf90">zrecast.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util\zrecast.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>util</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>zrecast.F90</code> 是 LMD Mars GCM 输出的垂直坐标重投影工具。它读取 <code>diagfi.nc</code>、<code>concat.nc</code> 或 <code>stats.nc</code> 一类 lon-lat-alt-time 四维 NetCDF 场，把原始 GCM sigma 或 hybrid sigma 垂直坐标转换到物理垂直坐标：压力、areoid 以上高度、本地地表以上高度，或距行星中心半径。</p>
+<p><code>util/README</code> 明确说明 GCM 原始 hybrid 坐标不对应任何物理垂直坐标，<code>zrecast</code> 是制作可发表科学图像前的必要步骤。程序通过静力方程积分建立 GCM 层的几何高度/压力关系，再按用户给定的新垂直层进行插值，并把结果写入一个新的 NetCDF 文件。</p>
+<p>本文件是独立命令行 <code>program zrecast</code>，不是运行时物理模块；它通过 stdin 交互或 <code>zrecast.*.def</code> 重定向输入。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>planet_const</code></td>
+<td>module</td>
+<td>1</td>
+<td>保存由 <code>controle</code> 读出的行星半径、重力和平均气体常数。</td>
+</tr>
+<tr>
+<td><code>zrecast</code></td>
+<td>program</td>
+<td>9</td>
+<td>主程序：读输入文件、选择输出垂直坐标、构建压力/高度场、插值变量并写 NetCDF。</td>
+</tr>
+<tr>
+<td><code>init_planet_const</code></td>
+<td>subroutine</td>
+<td>2163</td>
+<td>从 <code>controle</code> 初始化 <code>a0</code>、<code>g0</code>、<code>Rmean</code>。</td>
+</tr>
+<tr>
+<td><code>build_gcm_zs</code></td>
+<td>subroutine</td>
+<td>2217</td>
+<td>在有 <code>rho</code> 时积分静力方程，构建 GCM 层的本地地表以上高度。</td>
+</tr>
+<tr>
+<td><code>build_gcm_za</code></td>
+<td>subroutine</td>
+<td>2343</td>
+<td>在有 <code>rho</code> 时构建 GCM 层的 areoid 以上高度。</td>
+</tr>
+<tr>
+<td><code>build_zs</code></td>
+<td>subroutine</td>
+<td>2467</td>
+<td>为 <code>mcd</code> 模式构建通用本地地表高度层。</td>
+</tr>
+<tr>
+<td><code>crude_gcm_zs</code></td>
+<td>subroutine</td>
+<td>2528</td>
+<td>无 <code>rho</code> 时用常数 <code>Rmean</code> 近似构建本地地表以上高度。</td>
+</tr>
+<tr>
+<td><code>crude_gcm_za</code></td>
+<td>subroutine</td>
+<td>2630</td>
+<td>无 <code>rho</code> 时用常数 <code>Rmean</code> 近似构建 areoid 以上高度。</td>
+</tr>
+<tr>
+<td><code>p_coord_interp</code></td>
+<td>subroutine</td>
+<td>2730</td>
+<td>将变量插值到压力坐标；压力轴用 <code>-log(P)</code> 插值。</td>
+</tr>
+<tr>
+<td><code>z_coord_interp</code></td>
+<td>subroutine</td>
+<td>2805</td>
+<td>将变量插值到 areoid 高度或半径坐标。</td>
+</tr>
+<tr>
+<td><code>zs_coord_interp</code></td>
+<td>subroutine</td>
+<td>2921</td>
+<td>将变量插值到本地地表以上高度坐标，含近地外推分支。</td>
+</tr>
+<tr>
+<td><code>interpolf</code></td>
+<td>subroutine</td>
+<td>3102</td>
+<td>一维插值辅助例程。</td>
+</tr>
+<tr>
+<td><code>build_gcm_ra</code></td>
+<td>subroutine</td>
+<td>3144</td>
+<td>基于 areoid 半径和高度构建距行星中心半径坐标。</td>
+</tr>
+<tr>
+<td><code>areoid_ini</code></td>
+<td>subroutine</td>
+<td>3224</td>
+<td>初始化 areoid 球谐系数。</td>
+</tr>
+<tr>
+<td><code>geoid</code></td>
+<td>subroutine</td>
+<td>9839</td>
+<td>计算给定经纬度的 areoid 半径（输出参数 <code>rg</code>）。</td>
+</tr>
+<tr>
+<td><code>LGNDR</code></td>
+<td>subroutine</td>
+<td>9905</td>
+<td>Legendre 多项式相关辅助例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>netcdf</code></td>
+<td>（全部）</td>
+<td><code>init_planet_const</code> 使用 nf90 接口读取 <code>controle</code>。</td>
+<td></td>
+</tr>
+<tr>
+<td><code>planet_const</code></td>
+<td>（全部）</td>
+<td>主程序和高度构建例程共享 <code>a0</code>、<code>g0</code>、<code>Rmean</code>。</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>主程序主体还包含 <code>include 'netcdf.inc'</code>，大量使用旧式 NetCDF Fortran <code>NF_*</code> 接口读写文件。</p>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>init_planet_const</code></td>
+<td>本文件</td>
+<td>主程序读入维度和 <code>controle</code> 后</td>
+<td>初始化行星常数，供高度和半径计算使用。</td>
+</tr>
+<tr>
+<td><code>build_gcm_zs</code> / <code>crude_gcm_zs</code></td>
+<td>本文件</td>
+<td>构建本地地表高度输出前</td>
+<td>根据是否有 <code>rho</code> 选择精细或近似静力积分。</td>
+</tr>
+<tr>
+<td><code>build_gcm_za</code> / <code>crude_gcm_za</code></td>
+<td>本文件</td>
+<td>构建 areoid 高度输出前</td>
+<td>根据是否有 <code>rho</code> 选择精细或近似静力积分。</td>
+</tr>
+<tr>
+<td><code>build_zs</code></td>
+<td>本文件</td>
+<td><code>mcd</code> 本地地表高度层模式</td>
+<td>用参考压力和高度尺度生成通用 <code>zsurface</code> 层。</td>
+</tr>
+<tr>
+<td><code>build_gcm_ra</code></td>
+<td>本文件</td>
+<td>半径坐标输出</td>
+<td>调用 areoid 相关例程，把 areoid 高度转为距行星中心半径。</td>
+</tr>
+<tr>
+<td><code>p_coord_interp</code></td>
+<td>本文件</td>
+<td>压力坐标输出变量循环</td>
+<td>在压力维上插值变量，并额外生成 <code>zareoid</code>。</td>
+</tr>
+<tr>
+<td><code>z_coord_interp</code></td>
+<td>本文件</td>
+<td>areoid 高度或半径输出变量循环</td>
+<td>在几何高度/半径维上插值变量，并额外生成 <code>pressure</code>。</td>
+</tr>
+<tr>
+<td><code>zs_coord_interp</code></td>
+<td>本文件</td>
+<td>本地地表高度输出变量循环</td>
+<td>在本地地表高度维上插值变量，并额外生成 <code>pressure</code>。</td>
+</tr>
+<tr>
+<td><code>areoid_ini</code> / <code>geoid</code></td>
+<td>本文件</td>
+<td><code>build_gcm_ra</code> 内部</td>
+<td>用内置 Lemoine/MOLA 系数计算 areoid 半径。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入文件名</td>
+<td>stdin / <code>.def</code></td>
+<td>NetCDF 文件</td>
+<td>-</td>
+<td><code>diagfi.nc</code>、<code>concat.nc</code>、<code>stats.nc</code> 一类 GCM 输出。</td>
+</tr>
+<tr>
+<td>变量列表</td>
+<td>stdin / <code>.def</code></td>
+<td>字符串列表</td>
+<td>-</td>
+<td>要重投影的变量名；空行结束。</td>
+</tr>
+<tr>
+<td>输出坐标类型</td>
+<td>stdin / <code>.def</code></td>
+<td>整数选项</td>
+<td>-</td>
+<td>1=压力，2=areoid 以上高度，3=本地地表以上高度，4=距行星中心半径。</td>
+</tr>
+<tr>
+<td>垂直层定义模式</td>
+<td>stdin / <code>.def</code></td>
+<td><code>yes</code> / <code>no</code> / <code>mcd</code></td>
+<td>-</td>
+<td><code>yes</code> 用 min/max/nlevels 自动生成；<code>no</code> 手动逐层输入；<code>mcd</code> 为本地地表高度专用层构建。</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td>输入 NetCDF</td>
+<td>REAL(lon,lat,time)</td>
+<td>Pa</td>
+<td>地表压力，用于从 sigma/hybrid 层计算压力。</td>
+</tr>
+<tr>
+<td><code>temp</code> 或候选温度名</td>
+<td>输入 NetCDF</td>
+<td>REAL(lon,lat,alt,time)</td>
+<td>K</td>
+<td>静力积分所需温度；源码还尝试 <code>t</code>、<code>teta</code>、<code>temperature</code> 等候选名。</td>
+</tr>
+<tr>
+<td><code>sigma</code> 或 <code>aps</code>/<code>bps</code></td>
+<td>输入 NetCDF</td>
+<td>REAL(alt)</td>
+<td>- / Pa</td>
+<td>GCM 原始垂直层；优先找 <code>sigma</code>，否则找 hybrid 坐标。</td>
+</tr>
+<tr>
+<td><code>phisinit</code></td>
+<td>输入文件或回退文件</td>
+<td>REAL(lon,lat)</td>
+<td>m2 s-2</td>
+<td>地表位势；当前文件无此变量时，回退查找 <code>diagfi.nc</code>、<code>diagfi1.nc</code>、<code>phisinit.nc</code>。</td>
+</tr>
+<tr>
+<td><code>rho</code></td>
+<td>输入 NetCDF</td>
+<td>REAL(lon,lat,alt,time)</td>
+<td>kg m-3</td>
+<td>可选密度；存在时用 <code>R=P/(rho*T)</code> 计算局地气体常数。</td>
+</tr>
+<tr>
+<td><code>controle</code></td>
+<td>输入文件或回退文件</td>
+<td>REAL(n)</td>
+<td>混合</td>
+<td>可选控制数组；用于读 <code>a0=controle(5)</code>、<code>g0=controle(7)</code>、<code>Rmean=1000*8.314511/controle(8)</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>示例输入文件：</p>
+<pre class="text"><code>zrecast.auto.def:
+../stats.nc
+temp
+
+2
+yes
+-2000 2000
+3
+
+zrecast.manual.def:
+../stats.nc
+temp
+
+2
+no
+3
+-2000
+0
+1000</code></pre>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name_of_input_file_P.nc</code></td>
+<td>磁盘</td>
+<td>NetCDF</td>
+<td>-</td>
+<td>压力坐标输出。</td>
+</tr>
+<tr>
+<td><code>name_of_input_file_A.nc</code></td>
+<td>磁盘</td>
+<td>NetCDF</td>
+<td>-</td>
+<td>areoid 以上高度坐标输出。</td>
+</tr>
+<tr>
+<td><code>name_of_input_file_S.nc</code></td>
+<td>磁盘</td>
+<td>NetCDF</td>
+<td>-</td>
+<td>本地地表以上高度坐标输出。</td>
+</tr>
+<tr>
+<td><code>name_of_input_file_R.nc</code></td>
+<td>磁盘</td>
+<td>NetCDF</td>
+<td>-</td>
+<td>距行星中心半径坐标输出。</td>
+</tr>
+<tr>
+<td>用户选择的变量</td>
+<td>输出文件</td>
+<td>REAL(lon,lat,newalt,time)</td>
+<td>随变量</td>
+<td>在新垂直坐标上的插值结果。</td>
+</tr>
+<tr>
+<td><code>zareoid</code></td>
+<td>压力坐标输出</td>
+<td>REAL(lon,lat,newalt,time)</td>
+<td>m</td>
+<td>压力层对应的 areoid 以上高度。</td>
+</tr>
+<tr>
+<td><code>pressure</code></td>
+<td>高度/本地高度/半径输出</td>
+<td>REAL(lon,lat,newalt,time)</td>
+<td>Pa</td>
+<td>新几何坐标层对应的大气压力。</td>
+</tr>
+<tr>
+<td><code>phisinit</code></td>
+<td>输出文件</td>
+<td>REAL(lon,lat)</td>
+<td>m2 s-2</td>
+<td>2021 修改后加入输出，保留地表位势。</td>
+</tr>
+<tr>
+<td><code>sigma</code> 或 <code>aps</code>/<code>bps</code></td>
+<td>输出文件</td>
+<td>REAL(alt)</td>
+<td>- / Pa</td>
+<td>原始 GCM 垂直层信息。</td>
+</tr>
+<tr>
+<td><code>controle</code></td>
+<td>输出文件</td>
+<td>REAL(n)</td>
+<td>混合</td>
+<td>若输入可得，则复制到输出。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>文件副作用</strong>：读取输入 NetCDF 和可能的回退文件 <code>diagfi.nc</code>、<code>diagfi1.nc</code>、<code>phisinit.nc</code>；创建新的 <code>*_P.nc</code>、<code>*_A.nc</code>、<code>*_S.nc</code> 或 <code>*_R.nc</code>。</li>
+<li><strong>stdout 交互提示</strong>：程序通过 <code>write(*,*)</code> 输出大量选择菜单、查找提示和错误信息。</li>
+<li><strong>硬停止</strong>：多数 NetCDF 错误、缺少必要维度/变量、非法输入值都会直接 <code>stop</code>。</li>
+<li><strong>全局常数</strong>：<code>planet_const</code> 中的 <code>a0</code>、<code>g0</code>、<code>Rmean</code> 由 <code>controle</code> 初始化，之后被高度积分和 areoid/半径计算使用。</li>
+<li><strong>内置 areoid 数据</strong>：半径坐标分支依赖文件末尾内嵌的 Lemoine/MOLA 系数，而不是外部数据文件。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>读输入文件和维度</strong>：打开用户指定的 GCM 输出，读取 longitude、latitude、altitude、Time 维度，收集变量列表、<code>ps</code>、温度、<code>sigma</code> 或 <code>aps/bps</code>、<code>phisinit</code>、可选 <code>rho</code> 和 <code>controle</code>。</li>
+<li><strong>初始化行星常数</strong>：<code>init_planet_const</code> 从 <code>controle</code> 读行星半径、参考重力和平均气体常数；若当前输入文件没有 <code>controle</code>，继续查找 <code>diagfi.nc</code> 和 <code>diagfi1.nc</code>。</li>
+<li><strong>选择目标垂直坐标</strong>：用户选择压力、areoid 高度、本地地表高度或半径坐标；层数可由 min/max/nlevels 自动生成，也可逐层手动输入。本地地表高度还有 <code>mcd</code> 特殊构建模式。</li>
+<li><strong>构建原始 GCM 层压力</strong>：若有 <code>sigma</code>，按 <code>P=sigma*ps</code>；否则按 <code>P=aps+bps*ps</code>。</li>
+<li><strong>构建几何高度关系</strong>：需要高度坐标时，程序积分静力方程。若有 <code>rho</code>，用 <code>R=P/(rho*T)</code>；若没有 <code>rho</code>，使用 <code>Rmean</code> 的近似分支。</li>
+<li><strong>定义输出 NetCDF</strong>：复制维度、坐标、<code>phisinit</code>、原始 sigma/hybrid 层和可得的 <code>controle</code>；根据输出模式定义 <code>pressure</code> 或 <code>zareoid</code> 辅助变量。</li>
+<li><strong>逐变量垂直插值</strong>：对用户选择的变量读取四维场；<code>rho*</code> 和 <code>num_*</code> 前缀变量设置为 log-space 插值；其他变量按线性或压力对数坐标规则插值。</li>
+<li><strong>写结果并关闭文件</strong>：每个变量写入输出文件，最后写辅助坐标变量、关闭输入/输出 NetCDF。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>program zrecast:
+  read infile and variable list from stdin
+  open NetCDF input; read lon/lat/alt/time and ps
+  read temp from preferred or fallback names
+  read sigma, else aps/bps
+  read phisinit from input, else diagfi.nc, diagfi1.nc, phisinit.nc
+  optionally read rho and controle
+  init_planet_const(controle)
+
+  ask output vertical coordinate:
+    1 pressure -&gt; build target pressures
+    2 above areoid -&gt; build target zareoid levels
+    3 above local surface -&gt; build target zsurface levels
+    4 radius -&gt; build target radius levels
+
+  compute original pressure on GCM levels:
+    if sigma: press = sigma * ps
+    else:     press = aps + bps * ps
+
+  if target needs height:
+    if rho exists: use hydrostatic integration with R=P/(rho*T)
+    else:          use crude integration with Rmean
+    if radius target: add areoid radius from geoid()
+
+  create output file and metadata
+  for each requested variable:
+    read 4D data
+    flag = log interpolation if variable starts with &quot;rho&quot; or &quot;num_&quot;
+    if pressure target:
+      p_coord_interp(...)
+    else if areoid or radius target:
+      z_coord_interp(...)
+    else if local-surface target:
+      zs_coord_interp(...)
+    write output variable
+  write pressure or zareoid auxiliary field; close files</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GCM 后处理与绘图</td>
+<td>把原始 hybrid 坐标输出转换到科学图像可解释的压力或几何高度坐标。</td>
+</tr>
+<tr>
+<td>观测比较链</td>
+<td><code>extract</code> 和部分观测比较流程通常需要先运行 <code>zrecast</code>，使输入文件拥有压力或几何高度垂直坐标。</td>
+</tr>
+<tr>
+<td>util 工具链</td>
+<td>常规链路为 <code>concatnc</code> 拼接输出后，运行 <code>zrecast</code> 生成物理垂直坐标，再交给 <code>localtime</code>、<code>lslin</code>、<code>solzenangle</code> 或 <code>extract</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>混合 NetCDF API</strong>：主程序使用 <code>netcdf.inc</code> 里的 <code>NF_*</code> 旧接口，<code>init_planet_const</code> 使用 <code>use netcdf</code> 的 nf90 接口。</li>
+<li><strong>交互式 stdin 驱动</strong>：与 util 目录其他工具一致，既可回答屏幕问题，也可用 <code>.def</code> 文件重定向。</li>
+<li><strong>变量名前缀规则</strong>：<code>rho*</code> 和 <code>num_*</code> 变量被强制按对数空间插值，用来处理密度或数密度廓线。</li>
+<li><strong>多层回退查找</strong>：<code>phisinit</code> 和 <code>controle</code> 不只从当前输入文件读取，还会在常见伴随文件中查找。</li>
+<li><strong>常数和经验层构建</strong>：<code>build_zs</code> 使用 <code>P_ref=610</code>、低层/高层尺度高度和 tanh 过渡，为 <code>mcd</code> 模式生成本地高度层。</li>
+<li><strong>半径坐标自带 areoid 模型</strong>：<code>build_gcm_ra</code> 通过 <code>areoid_ini</code>/<code>geoid</code> 使用文件内嵌球谐系数计算 areoid 半径。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>输入文件必须包含 <code>ps</code>、温度变量、<code>sigma</code> 或 <code>aps/bps</code>，并能提供 <code>phisinit</code>；否则程序会在回退文件中查找，失败则停止。</li>
+<li>温度变量名最好显式给出；源码有候选名回退，但不同历史输出的命名差异会影响自动识别。</li>
+<li>若缺少 <code>rho</code>，高度积分会退化为常数 <code>Rmean</code> 近似；同一输出坐标下，含 <code>rho</code> 和不含 <code>rho</code> 的结果并不完全等价。</li>
+<li>对密度、数密度一类变量，应确保变量名以 <code>rho</code> 或 <code>num_</code> 开头，否则不会触发 log-space 垂直插值。</li>
+<li>压力坐标输出会额外写 <code>zareoid</code>；高度/本地高度/半径坐标输出会额外写 <code>pressure</code>，后续工具应读取正确的辅助变量。</li>
+<li><code>zrecast.auto.def</code> 的自动层模式输入顺序是：输入文件、变量列表空行、坐标类型、<code>yes</code>、min/max、层数；手动层模式则是：坐标类型、<code>no</code>、层数、逐层值。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>源码注释说明压力坐标输出时缺少温度可被容忍，但当前页面未逐行验证所有缺温分支的行为。</li>
+<li><code>temp</code> 的候选变量名回退已按源码搜索记录，具体优先级和所有提示文本未在本文完整展开。</li>
+<li>半径坐标的 areoid 系数来自文件内嵌常数，未与外部 MOLA/Lemoine 数据版本做数值核对。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li>程序大量使用 <code>stop</code>，批处理链中任一缺失变量或 NetCDF 错误都会终止而不生成可用的部分结果。</li>
+<li>回退读取 <code>diagfi.nc</code>、<code>diagfi1.nc</code>、<code>phisinit.nc</code> 依赖当前工作目录，移动 <code>.def</code> 或在其他目录运行时容易找不到伴随文件。</li>
+<li><code>stats.nc</code>、<code>diagfi.nc</code> 和 <code>concat.nc</code> 的时间覆盖、变量维度和命名可能不同；重投影前应先用 <code>ncdump</code> 或同类工具确认。</li>
+<li>本地地表高度的 <code>zs_coord_interp</code> 在最低层以下有外推逻辑，而最高层以上可能填缺测或做指数外推，边界层外结果需要谨慎解释。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">util/index.md</a> - util 后处理工具总览。</li>
+<li><a href="simu_MCS.html">simu_MCS.md</a> - 同属 util 的观测模拟和分箱比较工具。</li>
+<li><a href="extract.html">extract.md</a>：常接在 <code>zrecast</code> 后抽取点值或廓线。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

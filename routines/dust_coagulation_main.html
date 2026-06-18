@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dust_coagulation_main - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>routines/dust_coagulation_main.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dust_coagulation_main">dust_coagulation_main</h1>
+<h2 id="所在文件">所在文件</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dust_coagulation_mod.F90</code></pre>
+<p><code>SUBROUTINE dust_coagulation_main</code>（源码第 93-400 行，共 308 行）。</p>
+<h2 id="例程类型">例程类型</h2>
+<p><code>subroutine</code></p>
+<h2 id="职责">职责</h2>
+<p>源码依据（第 4-7 行注释 "Dust coagulation scheme, Based on Bertrand et al., 2022"）：在每个物理时间步中，对所有格点的所有层计算**尘埃凝并（coagulation）**倾向。</p>
+<p>凝并的物理含义：两个尘埃粒子碰撞后粘连形成更大的粒子，改变尘埃粒径分布。本例程：</p>
+<ol type="1">
+<li>将 mass/number 双矩量展开为 <code>nres_coag=10</code> 个 bin 的对数正态分布；</li>
+<li>用离散化的凝并方程（Smoluchowski 方程）计算每个 bin 的数浓度变化；</li>
+<li>通过体积守恒归一化修正质量守恒；</li>
+<li>将 bin 分布重新合并回 mass/number 的双矩量；</li>
+<li>输出质量/数浓度的倾向 <code>pdqcoag</code>。</li>
+</ol>
+<p>涉及三种尘埃示踪物：<code>dust</code>、<code>stormdust</code>、<code>topdust</code>（各自含 mass/number 双矩量）。</p>
+<h2 id="参数">参数</h2>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>方向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>in</td>
+<td>integer</td>
+<td>—</td>
+<td>水平格点数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>in</td>
+<td>integer</td>
+<td>—</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>nq</code></td>
+<td>in</td>
+<td>integer</td>
+<td>—</td>
+<td>示踪物数</td>
+</tr>
+<tr>
+<td><code>ptime</code></td>
+<td>in</td>
+<td>real</td>
+<td>s</td>
+<td>当前时间（本例程未使用）</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td>in</td>
+<td>real</td>
+<td>s</td>
+<td>物理时间步</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td>in</td>
+<td>real(ngrid,nlayer,nq)</td>
+<td>kg/kg</td>
+<td>示踪物混合比</td>
+</tr>
+<tr>
+<td><code>pdqfi</code></td>
+<td>in</td>
+<td>real(ngrid,nlayer,nq)</td>
+<td>kg/kg/s</td>
+<td>上游倾向</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td>in</td>
+<td>real(ngrid,nlayer)</td>
+<td>K</td>
+<td>层中点温度</td>
+</tr>
+<tr>
+<td><code>pdtfi</code></td>
+<td>in</td>
+<td>real(ngrid,nlayer)</td>
+<td>K/s</td>
+<td>上游温度倾向</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td>in</td>
+<td>real(ngrid,nlayer)</td>
+<td>Pa</td>
+<td>层中点气压</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td>in</td>
+<td>real(ngrid,nlayer+1)</td>
+<td>Pa</td>
+<td>层间界面气压（本例程未使用）</td>
+</tr>
+<tr>
+<td><code>pdqcoag</code></td>
+<td>out</td>
+<td>real(ngrid,nlayer,nq)</td>
+<td>kg/kg/s</td>
+<td>凝并倾向（仅尘埃类示踪物有非零值）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="使用的-module-变量">使用的 module 变量</h2>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>来源模块</th>
+<th>读/写</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pi</code></td>
+<td><code>comcstfi_h</code></td>
+<td>读</td>
+<td>圆周率</td>
+</tr>
+<tr>
+<td><code>g</code></td>
+<td><code>comcstfi_h</code></td>
+<td>读</td>
+<td>重力加速度</td>
+</tr>
+<tr>
+<td><code>r</code></td>
+<td><code>comcstfi_h</code></td>
+<td>读</td>
+<td>比气体常数</td>
+</tr>
+<tr>
+<td><code>mugaz</code></td>
+<td><code>comcstfi_h</code></td>
+<td>读</td>
+<td>气体摩尔质量（推断）</td>
+</tr>
+<tr>
+<td><code>igcm_dust_mass/number</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>尘埃 mass/number 索引</td>
+</tr>
+<tr>
+<td><code>igcm_stormdust_mass/number</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>stormdust 索引</td>
+</tr>
+<tr>
+<td><code>igcm_topdust_mass/number</code></td>
+<td><code>tracer_mod</code></td>
+<td>读</td>
+<td>topdust 索引</td>
+</tr>
+<tr>
+<td><code>kbz</code></td>
+<td><code>microphys_h</code></td>
+<td>读</td>
+<td>Boltzmann 常数</td>
+</tr>
+<tr>
+<td><code>m0co2</code></td>
+<td><code>microphys_h</code></td>
+<td>读</td>
+<td>CO₂ 分子质量</td>
+</tr>
+<tr>
+<td><code>rho_dust</code></td>
+<td>本模块（第 54 行）</td>
+<td>读</td>
+<td>尘埃密度 2500 kg/m³（模块级 <code>public</code>）</td>
+</tr>
+<tr>
+<td><code>dev_dt</code></td>
+<td>本模块（第 53 行）</td>
+<td>读</td>
+<td>对数正态分布标准差 0.63676</td>
+</tr>
+<tr>
+<td><code>full_coag_equations</code></td>
+<td>本模块（第 18 行）</td>
+<td>读</td>
+<td>是否使用完整方程（vs 查表）</td>
+</tr>
+<tr>
+<td><code>coal_fac</code></td>
+<td>本模块（第 31 行）</td>
+<td>读</td>
+<td>总体凝并效率因子（默认 1.0）</td>
+</tr>
+<tr>
+<td><code>dust_coag_kernel_b/g/de/ti</code></td>
+<td>本模块（第 19-22 行）</td>
+<td>读</td>
+<td>各 kernel 激活标志</td>
+</tr>
+<tr>
+<td><code>coal_coeff_mode</code></td>
+<td>本模块（第 24 行）</td>
+<td>读</td>
+<td>凝聚系数模式（0/1/2）</td>
+</tr>
+<tr>
+<td><code>nres_coag</code></td>
+<td>本模块（第 35 行）</td>
+<td>读</td>
+<td>bin 分辨率 = 10（<code>parameter</code>）</td>
+</tr>
+<tr>
+<td><code>rads_coag</code></td>
+<td>本模块（第 37 行）</td>
+<td>读</td>
+<td>各 bin 半径（由 <code>dust_coagulation_init</code> 填充）</td>
+</tr>
+<tr>
+<td><code>vols_coag</code></td>
+<td>本模块（第 37 行）</td>
+<td>读</td>
+<td>各 bin 体积</td>
+</tr>
+<tr>
+<td><code>deltar_coag</code></td>
+<td>本模块（第 37 行）</td>
+<td>读</td>
+<td>各 bin 直径宽度</td>
+</tr>
+<tr>
+<td><code>table_b/g/de</code></td>
+<td>本模块（第 49-51 行）</td>
+<td>读</td>
+<td>预计算的 kernel 查表（3D+2bin 维）</td>
+</tr>
+<tr>
+<td><code>table_pt/pres/mfp</code></td>
+<td>本模块（第 46-48 行）</td>
+<td>读</td>
+<td>查表轴（温度/气压/平均自由程）</td>
+</tr>
+<tr>
+<td><code>table_numt/nump/numm</code></td>
+<td>本模块（第 43-45 行）</td>
+<td>读</td>
+<td>查表维度大小（15/25/25）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的其他例程">调用的其他例程</h2>
+<table>
+<thead>
+<tr>
+<th>例程</th>
+<th>调用目的</th>
+<th>是否影响主流程</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mfp(pt,rho)</code></td>
+<td>计算空气分子平均自由程（第 226、276 行）</td>
+<td>是——决定 kernel 值</td>
+</tr>
+<tr>
+<td><code>betab(pt,mfp,rad1,rad2)</code></td>
+<td>Brownian 凝并 kernel（第 236-237、249-250 行）</td>
+<td>是——完整方程模式</td>
+</tr>
+<tr>
+<td><code>betag(pt,mfp,rad1,rad2)</code></td>
+<td>重力凝并 kernel（第 237、250 行）</td>
+<td>是</td>
+</tr>
+<tr>
+<td><code>betade(pt,mfp,rho,rad1,rad2)</code></td>
+<td>扩散增强 kernel（第 238、251 行）</td>
+<td>是</td>
+</tr>
+<tr>
+<td><code>betati(pt,mfp,rho,rad1,rad2)</code></td>
+<td>湍流 kernel（第 239、252 行，注释标注 "not implemented yet"）</td>
+<td>是（当前不激活）</td>
+</tr>
+<tr>
+<td><code>boxinterp(...)</code></td>
+<td>2D 双线性插值查表 kernel（第 300-340 行）</td>
+<td>是——查表模式</td>
+</tr>
+<tr>
+<td><code>findval(array,value)</code></td>
+<td>在排序数组中找第一个 &gt; value 的位置（第 279-290 行）</td>
+<td>是——确定插值角点</td>
+</tr>
+<tr>
+<td><code>frac(i,j,k)</code></td>
+<td>计算两个 bin 凝并产物落入目标 bin k 的体积分数（第 240、316 行）</td>
+<td>是——质量重新分配</td>
+</tr>
+</tbody>
+</table>
+<h2 id="控制流程">控制流程</h2>
+<ol type="1">
+<li><strong>初始化</strong>（第 142-213 行）：无条件执行</li>
+<li><strong>凝并分支</strong>（第 220 行 <code>if (full_coag_equations)</code>）：
+<ul>
+<li><strong>完整方程模式</strong>（第 220-266 行）：逐格点逐层逐 bin 直接计算 kernel 函数</li>
+<li><strong>查表模式</strong>（第 268-357 行）：先通过 <code>findval</code> 定位 (T, mfp) 或 (T, P) 角点，再用 <code>boxinterp</code> 双线性插值 kernel</li>
+</ul></li>
+<li><strong>凝并激活阈值</strong>（第 223、273 行）：<code>if (ntot(i,j) &gt; 1000.)</code> — 总粒子浓度 &gt; 1000 nb/m³ 时才触发</li>
+<li><strong>质量守恒归一化</strong>（第 261-262、350-351 行）：在每个格点层执行</li>
+<li><strong>新矩量计算</strong>（第 362-398 行）：将 bin 分布重新合并为 mass/number 双矩量</li>
+<li><strong>非负保护</strong>（第 391-396 行 <code>where</code> 语句）：防止混合比变负</li>
+</ol>
+<h2 id="核心计算步骤">核心计算步骤</h2>
+<h3 id="阶段-1初始化第-142-213-行">阶段 1：初始化（第 142-213 行）</h3>
+<ol type="1">
+<li><p><strong>分布常数</strong>（第 145-147 行）：</p>
+<pre class="text"><code>dens = rho_dust         ! 2500 kg/m³
+sig0 = dev_dt           ! 0.63676
+cst  = 0.75 / (π*dens) * exp(-4.5*sig0²)</code></pre></li>
+<li><p><strong>示踪物场推进</strong>（第 153-154 行）：</p>
+<pre class="text"><code>zq = pq + pdqfi * ptimestep
+zt = pt + pdtfi * ptimestep</code></pre></li>
+<li><p><strong>大气密度</strong>（第 157-159 行）：<code>rho = pplay / (r * pt)</code></p></li>
+<li><p><strong>初始对数正态分布</strong>（第 173-193 行）：对三种尘埃示踪物（mass, mass-1=number）：</p>
+<pre class="text"><code>mass_ini = max(zq(mass), 1e-15)
+numb_ini = max(zq(number), 1e-15)
+mtot += mass_ini                           ! 累积总质量用于守恒
+r0 = (0.75 * mass_ini / (π * numb_ini * dens))^(1/3) * exp(-1.5*sig0²)
+
+对每个 bin i:
+  ndis_tab(i) = numb_ini * rho * deltar_coag(i) / (2*rad(i)*√(2π)*sig0)
+                * exp(-0.5*(ln(rad(i)/r0))² / sig0²)</code></pre>
+<p>这是标准的对数正态分布 PDF，归一化为数浓度。</p></li>
+<li><p><strong>各模式数浓度比</strong>（第 196-208 行）：</p>
+<pre class="text"><code>rat_tab(iq) = ndis_tab(iq) / sum(ndis_tab(all_iq))
+rat_tab(iq) /= sum(rat_tab(all_iq))         ! 二次归一化确保 Σ=1</code></pre>
+<p>此比值在凝并后用于将总分布重新拆分回各尘埃模式。</p></li>
+<li><p><strong>总初始分布</strong>（第 211-213 行）：</p>
+<pre class="text"><code>ndis = sum(ndis_tab(all_iq))     ! 所有模式合并
+ntot = sum(ndis(all_bins)) / rho ! nb/kg</code></pre></li>
+</ol>
+<h3 id="阶段-2凝并第-215-357-行">阶段 2：凝并（第 215-357 行）</h3>
+<p>对每个格点层，若 <code>ntot &gt; 1000</code>：</p>
+<ol type="1">
+<li><p><strong>环境参数</strong>（第 224-226 行）：<code>pt0=pt, rho0=rho, mfp0=mfp(pt0,rho0)</code></p></li>
+<li><p><strong>逐 bin 凝并方程</strong>（第 229-258 行）：</p>
+<p><strong>Term 1</strong>（增益项，第 231-243 行）：所有 <code>ii &lt; k, jj ≤ k</code> 的碰撞中，产物落入 bin k 的部分</p>
+<pre class="text"><code>term1 = Σ_{jj=1..k} Σ_{ii=1..k-1} frac(ii,jj,k) * vol(ii) * kernel(ii,jj) * ndis_new(ii) * ndis(jj)
+term1 *= ptimestep / vol(k)</code></pre>
+<p><strong>Term 2</strong>（损耗项，第 246-255 行）：bin k 与所有 bin 碰撞而消失</p>
+<pre class="text"><code>term2 = Σ_{jj=1..nres_coag} (1 - frac(k,jj,k)) * kernel(k,jj) * ndis(jj)
+term2 *= ptimestep</code></pre>
+<p><strong>半隐式更新</strong>（第 257 行）：</p>
+<pre class="text"><code>ndis_new(k) = (ndis(k) + coal_fac * term1) / (1 + coal_fac * term2)</code></pre>
+<p>这是经典的半隐式格式：增益项用部分更新值（<code>ndis_new</code> for ii&lt;k），损耗项隐式处理。</p></li>
+<li><p><strong>体积守恒归一化</strong>（第 261-262 行）：</p>
+<pre class="text"><code>norm = Σ(ndis * vol) / Σ(ndis_new * vol)
+ndis_new *= norm</code></pre></li>
+</ol>
+<p><strong>完整方程 vs 查表</strong>：</p>
+<ul>
+<li>完整方程（第 220 分支）：直接调用 <code>betab/betag/betade/betati</code> 函数计算 kernel。</li>
+<li>查表模式（第 268 分支）：通过 <code>findval</code> 在 <code>table_pt</code>/<code>table_mfp</code>/<code>table_pres</code> 中定位角点（第 279-290 行），再用 <code>boxinterp</code> 做 2D 双线性插值（第 300-340 行）。Brownian/Gravitational 按 (T, mfp) 插值；Diffusion Enhancement 按 (T, P) 插值。Turbulent kernel 标注 "not implemented yet"。</li>
+</ul>
+<h3 id="阶段-3新矩量计算第-359-398-行">阶段 3：新矩量计算（第 359-398 行）</h3>
+<ol type="1">
+<li><p><strong>按模式拆分</strong>（第 364-380 行）：用初始比值分配</p>
+<pre class="text"><code>ndis_tab_new(iq) = ndis_new * rat_tab(iq)
+numb_new(iq) = Σ(ndis_tab_new(iq)) / rho
+mass_new(iq) = Σ(ndis_tab_new(iq) * vol) * dens / rho</code></pre></li>
+<li><p><strong>质量守恒</strong>（第 382-398 行）：</p>
+<pre class="text"><code>mass_new(iq) *= mtot / mtotnew     ! 按总量比缩放确保总质量守恒
+pdqcoag(mass)  = (mass_new - mass_ini) / ptimestep
+pdqcoag(number)= (numb_new - numb_ini_dis) / ptimestep</code></pre></li>
+<li><p><strong>非负保护</strong>（第 391-396 行）：</p>
+<pre class="text"><code>where (zq(mass) + pdqcoag(mass)*ptimestep ≤ 0):
+  pdqcoag(mass) = -zq(mass)/ptimestep + 1e-15
+where (zq(number) + pdqcoag(number)*ptimestep ≤ 0):
+  pdqcoag(number) = -zq(number)/ptimestep + 1e-14</code></pre></li>
+</ol>
+<h2 id="关键公式或算法">关键公式或算法</h2>
+<h3 id="凝并方程smoluchowski-方程的离散化">凝并方程（Smoluchowski 方程的离散化）</h3>
+<pre class="text"><code>dn_k/dt = ½ Σ_{i+j→k} β(i,j) n_i n_j - Σ_{j} β(k,j) n_k n_j</code></pre>
+<p>本代码的半隐式离散形式：</p>
+<pre class="text"><code>n&#39;_k = (n_k + Σ_{ii&lt;k,jj≤k} frac(ii,jj,k)·vol(ii)·β(ii,jj)·n&#39;_ii·n_jj · Δt/V_k)
+       / (1 + Σ_j (1-frac(k,j,k))·β(k,j)·n_jj · Δt)</code></pre>
+<h3 id="对数正态分布初始化">对数正态分布初始化</h3>
+<pre class="text"><code>n(r) = N·ρ·ΔD / (2·r·√(2π)·σ₀) · exp(-0.5·(ln(r/r₀))²/σ₀²)</code></pre>
+<p>其中 <code>r₀ = (0.75·Q/(π·N·ρ_d))^(1/3) · exp(-1.5·σ₀²)</code> 是几何中值半径。</p>
+<h3 id="frac-函数体积分数分配">frac 函数（体积分数分配）</h3>
+<p>当 bin i 和 bin j 的粒子凝并，产物体积 <code>v = vol(i) + vol(j)</code>。<code>frac(i,j,k)</code> 表示产物落入 bin k 的比例：</p>
+<ul>
+<li>若 <code>v ∈ [vol(k), vol(k+1))</code>：<code>frac = (vol(k+1)-v)/(vol(k+1)-vol(k)) · vol(k)/v</code></li>
+<li>若 <code>k = nres_coag</code> 且 <code>v ≥ vol(k)</code>：<code>frac = 1</code>（溢出到最大 bin）</li>
+<li>若 <code>v ∈ (vol(k-1), vol(k))</code>：<code>frac = (v-vol(k-1))/(vol(k)-vol(k-1)) · vol(k)/v</code></li>
+<li>否则 <code>frac = 0</code></li>
+</ul>
+<h3 id="kernel-函数">Kernel 函数</h3>
+<table>
+<thead>
+<tr>
+<th>Kernel</th>
+<th>物理机制</th>
+<th>公式概要</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>betab</code></td>
+<td>Brownian 运动</td>
+<td><code>4π(r₁+r₂)(D₁+D₂) / (den₁ + den₂)</code>，含 Fuchs 过渡区修正</td>
+</tr>
+<tr>
+<td><code>betag</code></td>
+<td>差速沉降碰并</td>
+<td>`E·π(r₁+r₂)²·</td>
+</tr>
+<tr>
+<td><code>betade</code></td>
+<td>扩散增强</td>
+<td><code>0.45·Re^(1/3 or 1/2)·Sc^(1/3)·β_Brownian</code></td>
+</tr>
+<tr>
+<td><code>betati</code></td>
+<td>湍流凝并</td>
+<td>`ε^0.75·π/(g·ν^0.25)·(r₁+r₂)²·</td>
+</tr>
+</tbody>
+</table>
+<h2 id="边界条件与保护逻辑">边界条件与保护逻辑</h2>
+<ul>
+<li><strong>凝并激活阈值</strong>（第 223、273 行）：<code>ntot(i,j) &gt; 1000</code> nb/m³——低于此阈值凝并无效，倾向为零。</li>
+<li><strong>混合比下限</strong>（第 176-177 行）：<code>mass_ini/numb_ini = max(zq, 1e-15)</code>，避免除零。</li>
+<li><strong>非负保护</strong>（第 391-396 行）：<code>where</code> 语句防止 <code>zq + pdqcoag*ptimestep ≤ 0</code>，但 mass 和 number 的下限常数不同（1e-15 vs 1e-14）。</li>
+<li><strong>查表插值角点保护</strong>（第 280-290 行）：<code>findval</code> 返回 0（超出范围）时截断到最远端点；返回 1 时下推到 2，保证插值区间有效。</li>
+<li><strong>体积守恒归一化</strong>（第 261-262、350-351 行）：确保凝并前后总粒子体积不变。</li>
+<li><strong><code>coal_fac</code> 因子</strong>（第 257、346 行）：控制整体凝并强度，默认 1.0，可通过 <code>callphys.def</code> 修改。</li>
+</ul>
+<h2 id="输入数据来源">输入数据来源</h2>
+<ul>
+<li><strong>上游倾向</strong>：<code>pdqfi</code>/<code>pdtfi</code> 来自物理时间步中凝并之前的所有过程（辐射、湍流等）。</li>
+<li><strong>模块状态</strong>：<code>rads_coag</code>/<code>vols_coag</code>/<code>deltar_coag</code> 由 <code>dust_coagulation_init</code> 在首调时填充。</li>
+<li><strong>查表数据</strong>：<code>table_b/g/de/ti</code> 由 <code>make_tables()</code> 在 <code>dust_coagulation_init</code> 中预计算（仅查表模式）。</li>
+<li><strong>运行配置</strong>：<code>full_coag_equations</code>、<code>dust_coag_kernel_b/g/de/ti</code>、<code>coal_coeff_mode</code>、<code>coal_fac</code> 均来自 <code>callphys.def</code>（通过 <code>conf_phys.F</code> 读取）。</li>
+</ul>
+<h2 id="输出与副作用">输出与副作用</h2>
+<ul>
+<li><strong><code>pdqcoag</code></strong>（唯一输出）：<code>real(ngrid,nlayer,nq)</code>，凝并倾向。仅尘埃类（mass 和 number）分量有非零值，其他分量保持初始化时的 0。</li>
+<li><strong>无文件 I/O</strong>、无诊断输出。</li>
+<li><strong>无模块变量写入</strong>：本例程只读模块变量。</li>
+<li><strong><code>firstcall</code></strong>（第 132 行）：声明但<strong>未在 <code>dust_coagulation_main</code> 中使用</strong>——推断为 <code>dust_coagulation_init</code> 的 firstcall 已处理了初始化逻辑，本例程中的声明是残留代码。</li>
+</ul>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>subroutine dust_coagulation_main(ngrid, nlayer, nq, ptimestep, pq, pdqfi, pt, pdtfi, pplay, pplev, pdqcoag):
+
+  #--- 阶段 1: 初始化 ---
+  sig0 = dev_dt; dens = rho_dust; cst = 0.75/(π*dens)*exp(-4.5*sig0²)
+  zq = pq + pdqfi*ptimestep
+  zt = pt + pdtfi*ptimestep
+  rho = pplay / (r * pt)
+  pdqcoag = 0
+
+  for each dust mode iq in {dust_mass, stormdust_mass, topdust_mass}:
+    mass_ini(iq) = max(zq(mass), 1e-15)
+    numb_ini(iq) = max(zq(number), 1e-15)
+    mtot += mass_ini(iq)
+    r0 = (0.75*mass/(π*numb*dens))^(1/3) * exp(-1.5*sig0²)
+    for each bin i:
+      ndis_tab(i,iq) = numb*rho*deltar/(2*rad*√(2π)*sig0) * exp(-0.5*(ln(rad/r0))²/sig0²)
+    numb_ini_dis(iq) = sum(ndis_tab(iq)) / rho
+
+  rat_tab(iq) = normalize(ndis_tab(iq) / sum(ndis_tab))
+  ndis = sum(ndis_tab(all_iq))
+  ntot = sum(ndis) / rho
+
+  #--- 阶段 2: 凝并（逐格点逐层）---
+  for each (i,j):
+    if ntot(i,j) &gt; 1000:
+      pt0 = pt(i,j); rho0 = rho(i,j); mfp0 = mfp(pt0, rho0)
+
+      # 查表模式: findval + boxinterp 确定 kernel
+      # 完整方程模式: 直接调 betab/betag/betade/betati
+
+      for each bin k = 1..nres_coag:
+        term1 = Σ_{ii&lt;k, jj≤k} frac(ii,jj,k)*vol(ii)*K(ii,jj)*ndis_new(ii)*ndis(jj) * Δt/V_k
+        term2 = Σ_j (1-frac(k,j,k))*K(k,j)*ndis(jj) * Δt
+        ndis_new(k) = (ndis(k) + coal_fac*term1) / (1 + coal_fac*term2)
+
+      # 体积守恒
+      norm = Σ(ndis*vol) / Σ(ndis_new*vol)
+      ndis_new *= norm
+
+  #--- 阶段 3: 新矩量 ---
+  for each dust mode iq:
+    ndis_tab_new(iq) = ndis_new * rat_tab(iq)     # 按初始比值拆分
+    numb_new(iq) = sum(ndis_tab_new(iq)) / rho
+    mass_new(iq) = sum(ndis_tab_new(iq)*vol)*dens / rho
+    mtotnew += mass_new(iq)
+
+  for each dust mode iq:
+    mass_new(iq) *= mtot / mtotnew                  # 质量守恒
+    pdqcoag(mass, iq)   = (mass_new - mass_ini) / ptimestep
+    pdqcoag(number, iq) = (numb_new - numb_ini_dis) / ptimestep
+    where (zq + pdqcoag*ptimestep ≤ 0):             # 非负保护
+      pdqcoag = -zq/ptimestep + small_value</code></pre>
+<h2 id="复现注意事项">复现注意事项</h2>
+<ul>
+<li><strong><code>nres_coag = 10</code></strong>（第 35 行，<code>parameter</code>）：bin 数量硬编码为 10。改变此值需同步修改 <code>rads_coag</code>/<code>vols_coag</code>/<code>deltar_coag</code> 的初始化逻辑（<code>dust_coagulation_init</code> 中）。</li>
+<li><strong>bin 半径等比分布</strong>（<code>dust_coagulation_init</code> 第 72-77 行）：<code>vrat_coag = (rn/r1)^(3/(nres-1))</code>，<code>rads(i) = r1 * vrat^((i-1)/3)</code>。范围 <code>r1=0.01e-6</code> 到 <code>rn=40e-6</code> m。</li>
+<li><strong><code>dev_dt = 0.63676</code></strong>（第 53 行）：对数正态分布标准差，影响 <code>cst</code> 和 <code>r0</code> 计算。重新实现时必须使用此精确值。</li>
+<li><strong><code>frac</code> 函数的体积分数分配</strong>（第 613-638 行）：决定了凝并产物如何在 bin 间分配。公式含 <code>vol(k)/vint</code> 校正因子，容易实现错误。</li>
+<li><strong>半隐式格式</strong>（第 257/346 行）：增益项用 <code>ndis_new(ii)</code>（ii &lt; k，已更新），损耗项分母隐式处理。这种格式比纯显式稳定但比纯隐式简单。</li>
+<li><strong><code>coal_fac</code> 因子</strong>（第 257/346 行）：全局缩放凝并效率。若设为 0 则凝并完全关闭。</li>
+<li><strong>凝并阈值 <code>ntot &gt; 1000</code></strong>（第 223/273 行）：低于此浓度不触发凝并。这是性能优化而非物理要求。</li>
+<li><strong>质量守恒双重保护</strong>：体积守恒归一化（阶段 2）+ 总质量缩放（阶段 3 第 385 行）。两个机制共同保证质量守恒。</li>
+<li><strong><code>rat_tab</code> 二次归一化</strong>（第 204-208 行）：先算比值再做归一化确保 Σ=1。若省略第二步，浮点误差会导致模式间质量泄漏。</li>
+<li><strong>非负保护下限不一致</strong>（第 392 vs 395 行）：mass 用 <code>1e-15</code>，number 用 <code>1e-14</code>。重新实现时需保留此差异（推断：number 分量需要略高的下限以防止数值不稳定）。</li>
+<li><strong>复现风险</strong>：<code>firstcall</code> 变量在 <code>dust_coagulation_main</code> 中声明但未使用（第 132-133 行）。若误用为初始化开关，可能导致首步不计算凝并。</li>
+<li><strong>复现风险</strong>：<code>betati</code>（湍流 kernel，第 591-599 行）标注 "not implemented yet"。若 <code>dust_coag_kernel_ti = .true.</code>，完整方程模式会调用但结果可能不可靠。查表模式中湍流 kernel 表 <code>table_ti</code> 从未被填充。</li>
+<li><strong>复现风险</strong>：查表模式的插值——Brownian/Gravitational 按 <code>(T, mfp)</code> 对数插值（<code>log10(table_mfp)</code>），Diffusion Enhancement 按 <code>(T, P)</code> 对数插值（<code>log10(table_pres)</code>）。插值轴的对数变换必须正确实现。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>firstcall</code>（第 132 行）是否曾有用途——当前代码中未被引用。</li>
+<li><code>coal_fac</code> 是否通过 <code>callphys.def</code> 可调——模块声明为 <code>real :: coal_fac = 1.</code>，未在 <code>conf_phys.F</code> 中找到对应 <code>getin_p</code> 调用（待确认）。</li>
+<li>非负保护的 mass/number 下限差异（1e-15 vs 1e-14）是否有物理依据，还是数值调试产物。</li>
+<li><code>table_pres</code> 的初始化公式（第 655 行 <code>1.e-8 * 10^(j/2)</code>）：从约 0.03 Pa 到约 3e4 Pa 的对数等距分布——具体覆盖范围和物理意图待确认。</li>
+<li><code>betati</code> 中 <code>eps</code> 变量（第 594、598 行）——被声明但从未赋值，推断为湍流耗散率，但当前未实现。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

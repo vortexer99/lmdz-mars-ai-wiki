@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>gencol - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/util/gencol.md</span>
+    </nav>
+    <article class="content">
+<h1 id="gencolf90">gencol.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\util\gencol.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>util</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>gencol.F90</code> 是 LMD Mars GCM 输出的离线柱含量计算工具。它读取 <code>diagfi.nc</code>、<code>concat.nc</code>、<code>stats.nc</code> 一类 NetCDF 文件中的四维 tracer 变量，根据变量单位判断输入是质量混合比、体积混合比还是数浓度，再沿 hybrid 垂直层积分出二维水平场随时间变化的柱质量，输出文件名为 <code>input_col.nc</code>。</p>
+<p>程序只选择维度数为 4 且单位属于 <code>kg/kg</code>、<code>kg.kg-1</code>、<code>mol/mol</code>、<code>mol.mol-1</code>、<code>cm-3</code> 或 <code>m-3</code> 的变量。输出变量名为原变量名追加 <code>_col</code>，单位固定写为 <code>kg/m2</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>genCol</code></td>
+<td>program</td>
+<td>1</td>
+<td>主程序：读取输入文件、筛选 tracer、读取 hybrid 坐标和辅助场，计算并写出柱含量。</td>
+</tr>
+<tr>
+<td><code>initiate</code></td>
+<td>internal subroutine</td>
+<td>800</td>
+<td>创建输出 NetCDF 文件，定义并写入 <code>latitude/longitude/altitude/Time</code> 坐标。</td>
+</tr>
+<tr>
+<td><code>def_var</code></td>
+<td>internal subroutine</td>
+<td>923</td>
+<td>在输出文件中定义变量并写入 <code>title</code>、<code>units</code> 属性。</td>
+</tr>
+<tr>
+<td><code>getmm</code></td>
+<td>internal subroutine</td>
+<td>977</td>
+<td>从变量名中解析物种名，并映射到分子量表；供 VMR 和数浓度转换使用。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖">依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>include "netcdf.inc"</code></td>
+<td>使用旧式 NetCDF Fortran <code>NF_*</code> 接口读写文件、变量、维度和属性。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NF_OPEN</code> / <code>NF_CLOSE</code></td>
+<td>NetCDF 库</td>
+<td>打开输入文件、必要时打开 <code>diagfi.nc</code> 或 <code>diagfi1.nc</code> 读取 hybrid 坐标，最后关闭文件。</td>
+</tr>
+<tr>
+<td><code>NF_INQ_NVARS</code> / <code>NF_INQ_VARNAME</code> / <code>NF_INQ_VARNDIMS</code> / <code>NF_GET_ATT_TEXT</code></td>
+<td>NetCDF 库</td>
+<td>列出候选变量并按维度和单位筛选 tracer。</td>
+</tr>
+<tr>
+<td><code>NF_INQ_DIMID</code> / <code>NF_INQ_DIMLEN</code> / <code>NF_INQ_VARID</code> / <code>NF_GET_VAR_REAL</code></td>
+<td>NetCDF 库</td>
+<td>读取坐标、<code>ap/bp/aps/bps</code>、<code>ps</code>、<code>rho</code>、<code>mmean</code>、<code>temp</code>、<code>pressure</code> 和 tracer 数据。</td>
+</tr>
+<tr>
+<td><code>NF_CREATE</code> / <code>NF_DEF_DIM</code> / <code>NF_DEF_VAR</code> / <code>NF_PUT_ATT_TEXT</code> / <code>NF_PUT_VAR_REAL</code></td>
+<td>NetCDF 库</td>
+<td>创建 <code>*_col.nc</code>，定义坐标和 <code>*_col</code> 输出变量并写入结果。</td>
+</tr>
+<tr>
+<td><code>initiate</code></td>
+<td>本文件</td>
+<td>创建输出文件与坐标变量。</td>
+</tr>
+<tr>
+<td><code>def_var</code></td>
+<td>本文件</td>
+<td>封装变量定义和 <code>title/units</code> 属性写入。</td>
+</tr>
+<tr>
+<td><code>getmm</code></td>
+<td>本文件</td>
+<td>为 <code>vmr_*</code>、<code>num_*</code> 等变量查分子量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入文件名</td>
+<td>stdin / <code>gencol.def</code></td>
+<td>NetCDF 文件名</td>
+<td>-</td>
+<td><code>diagfi.nc</code>、<code>concat.nc</code>、<code>stats.nc</code> 等。</td>
+</tr>
+<tr>
+<td>变量列表</td>
+<td>stdin / <code>gencol.def</code></td>
+<td><code>all</code> 或逐行变量名，空行结束</td>
+<td>-</td>
+<td>要积分的 4D tracer；<code>all</code> 会自动选择全部合格 tracer。</td>
+</tr>
+<tr>
+<td><code>latitude</code> / <code>longitude</code> / <code>altitude</code> / <code>Time</code></td>
+<td>输入 NetCDF</td>
+<td>1D</td>
+<td>随文件</td>
+<td>输出坐标的来源。</td>
+</tr>
+<tr>
+<td><code>ap</code> / <code>bp</code></td>
+<td>输入 NetCDF，或 <code>diagfi.nc</code> / <code>diagfi1.nc</code></td>
+<td><code>altlength+1</code></td>
+<td>Pa / 无量纲</td>
+<td>hybrid 层界面坐标，用于每层空气质量。</td>
+</tr>
+<tr>
+<td><code>aps</code> / <code>bps</code></td>
+<td>输入 NetCDF，或 <code>diagfi.nc</code> / <code>diagfi1.nc</code></td>
+<td><code>altlength</code></td>
+<td>Pa / 无量纲</td>
+<td>hybrid 层中心坐标，用于必要时计算压力。</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td>输入 NetCDF</td>
+<td><code>(longitude,latitude,Time)</code></td>
+<td>Pa</td>
+<td>地表压力；所有积分分支必需。</td>
+</tr>
+<tr>
+<td><code>rho</code></td>
+<td>输入 NetCDF</td>
+<td><code>(longitude,latitude,altitude,Time)</code></td>
+<td>kg m-3</td>
+<td>数浓度转质量必需，也可用于反推局地平均分子量。</td>
+</tr>
+<tr>
+<td><code>mmean</code></td>
+<td>输入 NetCDF</td>
+<td><code>(longitude,latitude,altitude,Time)</code></td>
+<td>源码注释按 g mol-1 处理</td>
+<td>VMR 转质量时的局地平均分子量；读不到时尝试计算。</td>
+</tr>
+<tr>
+<td><code>temp</code> / <code>pressure</code></td>
+<td>输入 NetCDF</td>
+<td><code>(longitude,latitude,altitude,Time)</code></td>
+<td>K / Pa</td>
+<td>当 <code>mmean</code> 不可读且 <code>rho</code> 存在时，用理想气体关系反推 <code>locmm</code>。</td>
+</tr>
+<tr>
+<td>tracer 变量</td>
+<td>输入 NetCDF</td>
+<td>4D</td>
+<td><code>kg/kg</code>、<code>mol/mol</code>、<code>cm-3</code> 等</td>
+<td>被积分的 tracer。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>input_col.nc</code></td>
+<td>磁盘 NetCDF</td>
+<td>文件</td>
+<td>-</td>
+<td>由 <code>infile(1:len_trim(infile)-3)//"_col.nc"</code> 生成，会覆盖同名文件。</td>
+</tr>
+<tr>
+<td><code>latitude</code> / <code>longitude</code> / <code>altitude</code> / <code>Time</code></td>
+<td>输出 NetCDF</td>
+<td>1D</td>
+<td>degrees / km / days since...</td>
+<td>从输入坐标复制或按 <code>initiate</code> 的固定属性写出。</td>
+</tr>
+<tr>
+<td><code>&lt;var&gt;_col</code></td>
+<td>输出 NetCDF</td>
+<td><code>(longitude,latitude,Time)</code></td>
+<td><code>kg/m2</code></td>
+<td>每个选择 tracer 的柱质量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="副作用">副作用</h2>
+<ul>
+<li>使用 <code>NF_CLOBBER</code> 创建输出，同名 <code>_col.nc</code> 会被覆盖。</li>
+<li>输入文件和变量列表完全由标准输入提供，批处理时应保存实际 <code>gencol.def</code>。</li>
+<li>tracer、<code>rho</code>、<code>temp</code>、<code>press</code>、<code>locmm</code> 都按完整 <code>(lon,lat,alt,time)</code> 分配。</li>
+<li>缺少 <code>ps</code>、必要 hybrid 坐标、未知分子量、浓度分支缺 <code>rho</code>、NetCDF 读写失败时直接 <code>stop</code>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>打开输入文件，遍历所有变量，打印维度为 4 且单位为 MMR、VMR 或数浓度的变量。</li>
+<li>用户输入 <code>all</code> 或逐行列出变量；程序再次检查变量存在、维度为 4、单位可识别。</li>
+<li>读取 <code>latitude</code>、<code>longitude</code>、<code>Time</code>、<code>altitude</code>。</li>
+<li>优先从输入文件读取 <code>ap/bp</code> 和 <code>aps/bps</code>；若没有，则依次尝试当前目录的 <code>diagfi.nc</code> 和 <code>diagfi1.nc</code>。</li>
+<li>读取必需的 <code>ps</code>，可选读取 <code>rho</code>。</li>
+<li>优先读取 <code>mmean</code>。若读取失败且已有 <code>rho</code>，尝试用 <code>temp</code> 与 <code>pressure</code> 计算 <code>locmm = rgp*rho*temp/pressure</code>；若 <code>pressure</code> 不存在，则用 <code>aps+bps*ps</code> 回推；若仍不可行，则使用 <code>cstmm=rgp/Rmean</code>。</li>
+<li>创建 <code>*_col.nc</code> 并写入坐标。</li>
+<li>对每个选择 tracer 读取完整四维数组，按单位进入 MMR、VMR 或数浓度分支。</li>
+</ol>
+<p>每层空气质量增量为：</p>
+<pre class="text"><code>incMass = ((ap(k)-ap(k+1)) + (bp(k)-bp(k+1))*ps(i,j,t)) / g</code></pre>
+<p>其中 <code>g=3.72</code>。MMR 分支累加 <code>incMass*tracer</code>。VMR 分支先用 <code>getmm</code> 得到物种分子量 <code>tmpmm</code>，常数平均分子量时累加 <code>incMass*tracer*tmpmm/cstmm</code>，局地平均分子量时累加 <code>incMass*tracer*tmpmm/locmm*1.e3</code>。数浓度分支要求 <code>rho</code> 和 <code>getmm</code> 成功，累加 <code>incMass/rho*tracer*tmpmm/nav</code>，<code>nav=6.023d23</code>；输入为 <code>cm-3</code> 时最终再乘 <code>1.d6</code>。</p>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>read infile
+open input NetCDF
+scan candidate 4D tracer variables by units
+read selected variable list
+read lon, lat, alt, Time
+read ap/bp and aps/bps from input or diagfi fallback
+read ps and optional rho
+prepare local or constant mean molecular mass
+create infile_col.nc
+for each tracer:
+  read tracer(lon,lat,alt,time)
+  for each lon, lat, time:
+    sum layer contributions using hybrid pressure thickness
+  define and write tracer_col(lon,lat,time)</code></pre>
+<h2 id="getmm-物种表"><code>getmm</code> 物种表</h2>
+<p><code>getmm</code> 假设变量名格式为 <code>*_name_*</code> 或 <code>*_name</code>，用第一个和第二个下划线之间的字符串作为物种名。它覆盖 CO2/CO/O/O2/O3/H/H2/OH/HO2/H2O2/N2/CH4/Ar/N/NO/NO2、热层离子、水汽和冰、HDO 同位素等名称，最后把 g mol-1 转成 kg mol-1。</p>
+<p>复现时要注意变量名必须让解析出的 <code>varname</code> 与表中字符串完全相等；否则 VMR 和数浓度分支会停止。</p>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>util 后处理链</td>
+<td>可接在 <a href="concatnc.html">concatnc</a>、<a href="zrecast.html">zrecast</a> 或原始 <code>diagfi/stats</code> 输出之后，把 tracer 场转换为柱质量诊断。</td>
+</tr>
+<tr>
+<td>气溶胶与化学诊断</td>
+<td>对质量混合比、体积混合比或数浓度 tracer 统一输出 <code>kg/m2</code> 柱量，便于与光学厚度、柱含量或观测产品比较。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>输入文件名必须以 <code>.nc</code> 结尾；输出名通过去掉最后 3 个字符再拼 <code>_col.nc</code> 得到。</li>
+<li>输入文件必须有 <code>latitude</code>、<code>longitude</code>、<code>altitude</code>、<code>Time</code> 和 <code>ps</code>。</li>
+<li><code>ap/bp</code> 长度按 <code>altlength+1</code> 使用，<code>aps/bps</code> 长度按 <code>altlength</code> 使用；若输入缺失，需要当前目录存在匹配的 <code>diagfi.nc</code> 或 <code>diagfi1.nc</code>。</li>
+<li>只有四维变量会被处理；二维/三维 tracer 即使单位匹配也不会进入候选列表。</li>
+<li>浓度变量必须同时有 <code>rho</code>，否则程序停止。</li>
+<li>VMR 或浓度变量名要能被 <code>getmm</code> 解析出已知物种名。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>源码中用 <code>ps(ilon,ialt,it)</code> 计算回退压力，第三个索引位置按 <code>ps(lon,lat,time)</code> 声明看疑似应为 <code>ps(ilon,ilat,it)</code>；复现时按源码字面行为执行，需开发者确认意图。</li>
+<li>输出 <code>altitude</code> 的单位在 <code>initiate</code> 中固定写为 <code>km</code>，没有读取输入 <code>altitude</code> 的原始单位。</li>
+<li><code>getmm</code> 物种名比较大小写敏感，表中 <code>Ar_N2</code> 为混合大小写；实际变量名若使用 <code>ar_n2</code> 将无法匹配。</li>
+<li><code>locmm</code> 的单位处理依赖源码注释“mmean is stored in g/mol”，不同输入文件若单位不同需人工确认。</li>
+</ul>
+<h2 id="复现风险">复现风险</h2>
+<ul>
+<li><code>_col.nc</code> 会被 <code>NF_CLOBBER</code> 覆盖。</li>
+<li>大网格和长时间序列会一次性分配多个四维数组，内存占用较高。</li>
+<li>输入缺少 <code>rho/temp/pressure/mmean</code> 时 VMR 转换会退到常数平均分子量，物理误差取决于大气组成变化。</li>
+<li><code>getmm</code> 不识别新 tracer 名称时程序直接停止，需要扩展源码中的分子量表。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">util/index.md</a> - util 后处理工具总览。</li>
+<li><a href="concatnc.html">concatnc.md</a> - 常见上游时间拼接工具。</li>
+<li><a href="zrecast.html">zrecast.md</a> - 常见上游垂直坐标转换工具。</li>
+<li><a href="hrecast.html">hrecast.md</a> - 常见水平重网格工具。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>moldiffcoeff - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/moldiffcoeff.md</span>
+    </nav>
+    <article class="content">
+<h1 id="moldiffcoefff">moldiffcoeff.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\moldiffcoeff.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>moldiffcoeff.F</code> 定义 <code>moldiffcoeff_mod</code>，提供例程 <code>moldiffcoeff</code>，按 Nair 1994（pg 131）计算 14 种高层大气物种之间的<strong>二元分子扩散系数矩阵</strong> <code>dij(14,14)</code>。首次调用时从 <code>tracer_mod::igcm_*</code> 识别 GCM tracer 索引（缺任一则 <code>stop</code>），随后用 H2-X 与 H-O 基础系数按 <code>sqrt(mmol)</code> 质量缩放填充对称矩阵（对角 1.0）。该例程由 <code>moldiff</code>（分子扩散主模块）调用。作者 MAC 2002。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>moldiffcoeff_mod</code></td>
+<td>module</td>
+<td>1（<code>END MODULE</code> 227）</td>
+<td>包装分子扩散系数计算的模块</td>
+</tr>
+<tr>
+<td><code>moldiffcoeff</code></td>
+<td>subroutine</td>
+<td>7（<code>END SUBROUTINE</code> 225）</td>
+<td>计算 <code>dij(14,14)</code> 二元分子扩散系数矩阵</td>
+</tr>
+<tr>
+<td><code>i_co</code>..<code>i_o</code></td>
+<td>integer parameters</td>
+<td>39–52</td>
+<td>本地物种索引 1–14（O 必须为末位，高层主导）</td>
+</tr>
+<tr>
+<td><code>g_co2</code> 等 14 个</td>
+<td>integer save THREADPRIVATE</td>
+<td>55–68</td>
+<td>GCM tracer 索引缓存，firstcall 从 <code>igcm_*</code> 设值</td>
+</tr>
+<tr>
+<td><code>gcmind(14)</code></td>
+<td>integer save THREADPRIVATE</td>
+<td>73</td>
+<td>本地索引→GCM 索引映射</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td>logical save THREADPRIVATE</td>
+<td>76</td>
+<td>首次调用标志</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_co2/co/o/o1d/o2/o3/h/h2/oh/ho2/h2o2/n2/ar/h2o_vap</code>,<code>mmol</code></td>
+<td>取 GCM tracer 索引与摩尔质量，做存在性校验与质量缩放</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>open</code>/<code>write</code>/<code>close</code></td>
+<td>Fortran intrinsic</td>
+<td>198/220/223</td>
+<td>每次调用写诊断文件 <code>coeffs.dat</code>（unit 56）</td>
+</tr>
+<tr>
+<td><code>stop</code></td>
+<td>Fortran intrinsic</td>
+<td>86 等</td>
+<td>firstcall 缺 tracer 时硬中止（非 <code>abort_physic</code>）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>igcm_*</code>（14 个）</td>
+<td><code>tracer_mod</code></td>
+<td>integer</td>
+<td>GCM tracer 索引；firstcall 校验非 0</td>
+</tr>
+<tr>
+<td><code>mmol</code></td>
+<td><code>tracer_mod</code></td>
+<td>real array</td>
+<td>tracer 摩尔质量，用于 <code>sqrt</code> 质量缩放</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dij</code></td>
+<td><code>moldiff.F:118</code> 调用方</td>
+<td>real <code>(14,14)</code></td>
+<td>二元分子扩散系数矩阵，对称，对角 1.0</td>
+</tr>
+<tr>
+<td><code>coeffs.dat</code></td>
+<td>文件</td>
+<td>-</td>
+<td>每次调用覆写的 <code>dij</code> 诊断转储</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>g_*</code>(14)、<code>gcmind</code>、<code>firstcall</code> 为 <code>SAVE + THREADPRIVATE</code>（第 70–71、78 行）。</li>
+<li>firstcall 缺任一 tracer 调用 <code>stop</code>（硬中止，非 <code>abort_physic</code>）。</li>
+<li><strong>每次调用</strong>（非仅 firstcall）执行 <code>open(56,file='coeffs.dat')</code>、写 <code>dij</code>、<code>close(56)</code>，并 <code>print 'COEFF CALC'</code>——文件 I/O 与标准输出副作用每次发生。</li>
+<li><code>dij</code> 计算在 firstcall 块之外（第 179–223 行），故每次调用重算（结果与状态无关，恒定）。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>firstcall</strong>（第 81–176 行）：从 <code>igcm_*</code> 设 14 个 <code>g_*</code>，每个校验非 0 否则 <code>stop</code>；填 <code>gcmind(i_*)=g_*</code>；<code>firstcall=.false.</code>。</li>
+<li><strong>基础系数</strong>（第 179–195 行）：<code>dij(h2,co)=6.51e-5</code>、<code>(h2,n2)=6.74e-5</code>、<code>(h2,o2)=6.97e-5</code>、<code>(h2,co2)=5.50e-5</code>；其余 <code>dij(h2,*)=0</code>；<code>dij(h,o)=0.000114</code>（第 195 行；第 194 行注释保留旧值 <code>0.0000144</code>）。</li>
+<li><strong>质量缩放填充</strong>（第 197–216 行）：<code>open(56,'coeffs.dat')</code>；<code>do n=1..14</code>：
+<ul>
+<li>若 <code>dij(h2,n)&gt;0</code>：<code>dij(nn,n)=dij(h2,n)*sqrt(mmol(h2)/mmol(gcmind(nn)))</code>（<code>nn=n..14</code>），对角置 1.0，对称。</li>
+<li>若 <code>dij(h2,n)==0</code>：<code>dnh=dij(h,o)*sqrt(mmol(o)/mmol(gcmind(n)))</code>，<code>dij(nn,n)=dnh*sqrt(mmol(h)/mmol(gcmind(nn)))</code>，对角 1.0，对称。</li>
+</ul></li>
+<li><strong>转储</strong>（第 218–223 行）：写 <code>dij(n,nn)</code> 到 unit 56；<code>close(56)</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>moldiffcoeff(dij):
+  if firstcall:
+    g_* = igcm_* for 14 species; stop if any == 0
+    gcmind(i_*) = g_*
+    firstcall = false
+  # base coefficients (Nair 94)
+  dij(h2,co)=6.51e-5; dij(h2,n2)=6.74e-5; dij(h2,o2)=6.97e-5; dij(h2,co2)=5.50e-5
+  dij(h2, others)=0
+  dij(h,o)=0.000114
+  open(56,&#39;coeffs.dat&#39;); print &#39;COEFF CALC&#39;
+  for n=1..14:
+    if dij(h2,n) &gt; 0:
+      for nn=n..14: dij(nn,n)=dij(h2,n)*sqrt(mmol(h2)/mmol(gcmind(nn)))
+                    if n==nn: dij(nn,n)=1.0
+                    dij(n,nn)=dij(nn,n)
+    else:
+      dnh=dij(h,o)*sqrt(mmol(o)/mmol(gcmind(n)))
+      for nn=n..14: dij(nn,n)=dnh*sqrt(mmol(h)/mmol(gcmind(nn)))
+                    if n==nn: dij(nn,n)=1.0
+                    dij(n,nn)=dij(nn,n)
+  write dij to unit 56; close(56)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>分子扩散</td>
+<td><code>moldiff</code> 调用，提供 <code>dij</code> 供高层大气分子扩散求解</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 <code>.F</code>（续行第 6 列 <code>&amp;</code>）。</li>
+<li>物种顺序固定 14 种，<strong>O 必须末位</strong>（高层主导，源码注释要求）。</li>
+<li>基础系数 H2-CO/N2/O2/CO2 与 H-O 来自 Nair 1994；其余用 <code>sqrt(mmol)</code> Chapman-Enskog 质量缩放。</li>
+<li><code>dij(h,o)</code> 第 195 行 <code>0.000114</code> 覆盖第 194 行注释旧值 <code>0.0000144</code>（约 10×）。</li>
+<li>对角强制 1.0，矩阵对称。</li>
+<li>firstcall 用 <code>stop</code>（非 <code>abort_physic</code>）中止。</li>
+<li>局部 <code>nq/i/iq</code> 声明后未用。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>须先 <code>initracer</code> 设好 <code>igcm_*</code>；14 种 tracer 任一缺失即 <code>stop</code>。</li>
+<li><code>dij</code> 与运行状态无关（仅依赖常数 <code>mmol</code> 与基础系数），每次调用结果恒定；但每次调用都重算并覆写 <code>coeffs.dat</code>，并行/频繁调用时文件 I/O 为副作用。</li>
+<li><code>coeffs.dat</code> 用相对路径（CWD），unit 56 硬编码。</li>
+<li>O 须为第 14 物种；改变物种顺序须同步 <code>i_*</code> 与上游 <code>moldiff</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>每次调用重算 <code>dij</code> 并写 <code>coeffs.dat</code> 是否有意（结果恒定，疑可移入 firstcall）。</li>
+<li><code>dij(h,o)=0.000114</code> 相对注释旧值 <code>0.0000144</code> 的 ~10× 修正依据。</li>
+<li><code>dij(h2,oh/ho2/h2o/h2o2/o3)</code> 注释 <code>!0003</code>（3e-4）是否曾为候选值。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览，本文件在其“分子扩散”分类下。</li>
+<li><a href="../phymars/tracer_mod.html">tracer_mod</a>：提供 <code>igcm_*</code> 索引与 <code>mmol</code> 摩尔质量。</li>
+<li><a href="moldiff.html">moldiff.F</a>：原版 14 物种分子扩散求解器（死代码，已被 <code>moldiff_red</code>/<code>moldiff_MPF</code> 取代），用 <code>dij</code> 做 α 矩阵 + LU + 三对角扩散求解。</li>
+<li><a href="moldiffcoeff_red.html">moldiffcoeff_red.F</a>：简化变体文件页（TASK-0196），供 <code>moldiff_red</code>/<code>moldiff_MPF</code> 使用。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

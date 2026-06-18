@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>testphys1d - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../../index.html">主页</a>
+        <a href="../../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../../libf-overview.html">模块</a>
+        <a href="../../../themes/index.html">主题</a>
+        <a href="../../../routines/index.html">例程</a>
+        <a href="../../../reference/file-index.html">文件索引</a>
+        <a href="../../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dyn1d/testphys1d.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dyn1dtestphys1df90">dyn1d/testphys1d.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d\testphys1d.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>testphys1d.F90</code> 定义 1D 单柱物理测试主程序 <code>testphys1d</code>。它不运行 3D 动力核心，而是在 <code>ngrid=1</code> 的单个物理列上：</p>
+<ol type="1">
+<li>检查 <code>run.def</code> 是否存在。</li>
+<li>读取 <code>startfiles_1D</code> 并判断 <code>start1D.txt</code>、<code>startfi.nc</code> 是否可用。</li>
+<li>调用 <a href="init_testphys1d_mod.html">init_testphys1d_mod</a> 初始化时间、压力、温度、风、tracer、地表、土壤、坡面和水 profile 控制状态。</li>
+<li>必要时用 <a href="../phyredem.html">phyredem</a> 写出新的 <code>startfi.nc</code>。</li>
+<li>在 <code>ndt</code> 个物理步中调用 <a href="../physiq_mod.html">physiq_mod</a> 的 <code>physiq</code>，并用 1D 专用的风场松弛、水 profile 强制/松弛和表压更新推进状态。</li>
+<li>如果启用 <code>startfiles_1D</code>，调用 <a href="writerestart1D_mod.html">writerestart1D_mod</a> 写出 <code>restart1D.txt</code>。</li>
+</ol>
+<p>源码注释给出的编译示例是 <code>makegcm -p mars -d 25 testphys1d</code>；运行需要 <code>testphys1d.def</code>、<code>callphys.def</code>、带 <code>INCLUDEDEF=callphys.def</code> 的 <code>run.def</code>，以及 <code>z2sig.def</code> 等垂直层定义文件。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>testphys1d</code></td>
+<td>program</td>
+<td style="text-align: right;">1-268</td>
+<td>1D 火星物理单柱主程序，初始化状态并循环调用 <code>physiq</code>。</td>
+</tr>
+<tr>
+<td><code>gr_fi_dyn</code></td>
+<td>dummy subroutine</td>
+<td style="text-align: right;">274-286</td>
+<td>为编译 <code>testphys1d</code> 和使用 <code>writediagfi</code> 提供 1D 到动力网格的最小映射。</td>
+</tr>
+</tbody>
+</table>
+<p>文件共 289 行。主程序内没有自定义 module；所有物理、tracer、并行和 I/O 功能都通过 <code>use</code> 引入。</p>
+<h2 id="关键状态和维度">关键状态和维度</h2>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>维度/单位</th>
+<th>来源/用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid=1</code></td>
+<td>单格点</td>
+<td>固定 1D 物理列。</td>
+</tr>
+<tr>
+<td><code>nlayer=llm</code></td>
+<td>垂直层数</td>
+<td>来自 <code>dimensions.h</code>。</td>
+</tr>
+<tr>
+<td><code>odpref=610.</code></td>
+<td>Pa</td>
+<td>尘埃光学厚度参考压力，传给初始化。</td>
+</tr>
+<tr>
+<td><code>ndt</code>, <code>dttestphys</code></td>
+<td>步数、秒</td>
+<td><code>init_testphys1d</code> 从配置计算；主循环 <code>do idt=1,ndt</code> 使用。</td>
+</tr>
+<tr>
+<td><code>day0</code>, <code>day</code>, <code>time</code></td>
+<td>sol、sol 分数</td>
+<td>物理时间和日内时间，传给 <code>physiq</code> 并逐步更新。</td>
+</tr>
+<tr>
+<td><code>psurf</code>, <code>plev</code>, <code>play</code></td>
+<td>Pa</td>
+<td>表压、界面压力、层中压力；主循环按 <code>dpsurf</code> 更新后用 <code>ap/bp/aps/bps</code> 重算。</td>
+</tr>
+<tr>
+<td><code>u</code>, <code>v</code>, <code>temp</code></td>
+<td><code>(nlayer)</code></td>
+<td>风和温度剖面；每步累加 <code>du/dv/dtemp</code>。</td>
+</tr>
+<tr>
+<td><code>q</code>, <code>dq</code>, <code>dqdyn</code></td>
+<td>allocatable <code>(1,nlayer,nq)</code></td>
+<td>tracer 混合比和 tendency；<code>q</code> 每步累加 <code>dttestphys*dq</code>。</td>
+</tr>
+<tr>
+<td><code>ctrl_h2ovap</code>, <code>ctrl_h2oice</code></td>
+<td>logical</td>
+<td>控制 1D 水汽/水冰参考廓线强制或松弛。</td>
+</tr>
+<tr>
+<td><code>qref_h2ovap</code>, <code>qref_h2oice</code></td>
+<td><code>(nlayer)</code></td>
+<td>水 profile 参考值，由初始化读取。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="初始化流程">初始化流程</h2>
+<h3 id="1-命令行和并行占位">1. 命令行和并行占位</h3>
+<p>主程序先调用 <code>parse_args()</code>。若编译了 <code>CPP_XIOS</code>，随后调用 <a href="mod_const_mpi.html">mod_const_mpi</a> 的 <code>init_const_mpi</code> 和 <a href="parallel_lmdz.html">parallel_lmdz</a> 的 <code>init_parallel</code>，为 XIOS/并行输出路径准备 communicator 和 rank 状态。</p>
+<h3 id="2-rundef-和-start-文件检查">2. <code>run.def</code> 和 start 文件检查</h3>
+<ol type="1">
+<li><code>inquire(file='run.def', exist=there)</code> 检查运行目录下必须存在 <code>run.def</code>。缺失时打印说明并 <code>error stop</code>。</li>
+<li><code>startfiles_1D</code> 默认 <code>.false.</code>，通过 <code>getin('startfiles_1D',startfiles_1D)</code> 改写。</li>
+<li>如果 <code>startfiles_1D=.true.</code>，分别检查 <code>start1D.txt</code> 和 <code>startfi.nc</code>。</li>
+<li>如果有 <code>start1D.txt</code> 但没有 <code>startfi.nc</code>，程序直接 <code>error stop</code>，因为 <code>qsurf</code>、<code>tsurf</code> 等物理 restart 状态可能无法一致初始化。</li>
+</ol>
+<h3 id="3-调用-1d-初始化">3. 调用 1D 初始化</h3>
+<p>主程序调用：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">call init_testphys1d(&#39;start1D.txt&#39;,&#39;startfi.nc&#39;,therestart1D,therestartfi,ngrid,nlayer,odpref,nq,q, &amp;</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>                     time,psurf,u,v,temp,ndt,ptif,pks,dttestphys,zqsat,dq,dqdyn,day0,day,gru,grv,w, <span class="kw">&amp;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>                     play,plev,latitude,longitude,cell_area,                                        <span class="kw">&amp;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>                     ctrl_h2ovap,relaxtime_h2ovap,qref_h2ovap,ctrl_h2oice,relaxtime_h2oice,qref_h2oice)</span></code></pre></div>
+<p>该调用负责分配 <code>q/dq/dqdyn/zqsat</code>，读取 <code>traceur.def</code>、profile、restart、垂直坐标和物理配置；详细分支见 <a href="init_testphys1d_mod.html">init_testphys1d_mod</a>。</p>
+<h3 id="4-生成-startfinc">4. 生成 <code>startfi.nc</code></h3>
+<p>如果没有 <code>startfi.nc</code>，主程序先调用 <code>physdem0("startfi.nc",...)</code> 写头部/维度/控制信息，再调用 <code>physdem1("startfi.nc",...)</code> 写地表、土壤、坡面、tracer surface、云量、<code>tauscaling</code> 等物理状态。这个 <code>startfi.nc</code> 会在第一次 <code>physiq</code> 调用时被物理模块读取。</p>
+<h2 id="时间步主循环">时间步主循环</h2>
+<p>主循环是 <code>do idt = 1,ndt</code>。每步执行：</p>
+<ol type="1">
+<li>若 <code>idt==ndt</code>，设 <code>lastcall=.true.</code>；首步前 <code>firstcall=.true.</code>。</li>
+<li>用 <code>aps/bps</code>、<code>psurf</code>、<code>rcp</code>、<code>cpp</code> 和 <code>temp</code> 计算 Exner 相关量 <code>s/h</code>，再垂直积分得到 geopotential <code>phi</code>。</li>
+<li>调用：</li>
+</ol>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">call physiq(1,llm,nq,firstcall,lastcall,day,time,dttestphys,plev,play,phi,u,v,temp,q,w,du,dv,dtemp,dq,dpsurf)</span></span></code></pre></div>
+<p><code>physiq</code> 输出风、温度、tracer 和表压 tendency。</p>
+<ol start="4" type="1">
+<li>1D 专用风场更新不是当前启用的 Coriolis 方案，而是把风向背景风 <code>gru/grv</code> 以 <code>1.e4</code> s 时间尺度松弛：</li>
+</ol>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>du <span class="kw">=</span> du <span class="kw">+</span> (gru <span class="kw">-</span> u)<span class="kw">/</span><span class="fl">1.e4</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>dv <span class="kw">=</span> dv <span class="kw">+</span> (grv <span class="kw">-</span> v)<span class="kw">/</span><span class="fl">1.e4</span></span></code></pre></div>
+<ol start="5" type="1">
+<li>若 <code>water</code> 为真且 <code>ctrl_h2ovap</code> 或 <code>ctrl_h2oice</code> 为真，则改写或追加水汽/水冰 tendency：
+<ul>
+<li><code>relaxtime &lt; 0</code>：强制到参考 profile，即 <code>(qref-q)/dttestphys</code>。</li>
+<li><code>relaxtime &gt;= 0</code>：在物理 tendency 基础上减去 <code>(q-qref)/relaxtime</code>。</li>
+</ul></li>
+<li>更新时间：<code>time = time + dttestphys/daysec</code>；若 <code>time &gt; 1</code>，减 1 并令 <code>day=day+1</code>。</li>
+<li>更新 prognostic 状态：
+<ul>
+<li><code>u = u + dttestphys*du</code></li>
+<li><code>v = v + dttestphys*dv</code></li>
+<li><code>temp = temp + dttestphys*dtemp</code></li>
+<li><code>psurf = psurf + dttestphys*dpsurf(1)</code></li>
+<li><code>plev = ap + psurf*bp</code></li>
+<li><code>play = aps + psurf*bps</code></li>
+<li><code>q = q + dttestphys*dq</code></li>
+</ul></li>
+</ol>
+<h2 id="restart-和输出">Restart 和输出</h2>
+<table>
+<thead>
+<tr>
+<th>文件/输出</th>
+<th>条件</th>
+<th>写入者</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>startfi.nc</code></td>
+<td><code>therestartfi=.false.</code></td>
+<td><code>physdem0</code>、<code>physdem1</code></td>
+<td><code>physiq</code> 第一次调用所需物理 restart 状态。</td>
+</tr>
+<tr>
+<td><code>restart1D.txt</code></td>
+<td><code>startfiles_1D=.true.</code></td>
+<td><code>writerestart1D</code></td>
+<td><code>psurf/pa/preff</code>、逐 tracer 垂直廓线、<code>u/v</code>、<code>tsurf/temp</code>。</td>
+</tr>
+<tr>
+<td>标准输出</td>
+<td>始终</td>
+<td>主程序</td>
+<td>缺文件提示、<code>startfiles_1D</code> 值和最终完成信息。</td>
+</tr>
+</tbody>
+</table>
+<p>主程序 <code>use write_output_mod, only: write_output</code>，但当前源码中没有直接调用 <code>write_output</code>；具体诊断输出发生在 <code>physiq</code> 及其下游物理模块。</p>
+<h2 id="gr_fi_dyn-dummy-例程"><code>gr_fi_dyn</code> dummy 例程</h2>
+<p><code>gr_fi_dyn(nfield,ngrid,im,jm,pfi,pdyn)</code> 是为 1D 编译路径提供的最小动力-物理映射：</p>
+<ol type="1">
+<li>若 <code>ngrid /= 1</code>，直接 <code>error stop 'gr_fi_dyn error: in 1D ngrid should be 1!!!'</code>。</li>
+<li>执行 <code>pdyn(1,1,1:nfield)=pfi(1,1:nfield)</code>。</li>
+</ol>
+<p>它没有通用水平重映射能力，只是让需要 <code>gr_fi_dyn</code> 符号的诊断/输出路径在 1D 中可链接。</p>
+<h2 id="调用关系">调用关系</h2>
+<table>
+<thead>
+<tr>
+<th>方向</th>
+<th>符号/页面</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>被调</td>
+<td><a href="init_testphys1d_mod.html">init_testphys1d_mod</a></td>
+<td>时间循环前的主初始化入口。</td>
+</tr>
+<tr>
+<td>被调</td>
+<td><a href="../phyredem.html">phyredem</a></td>
+<td>无 <code>startfi.nc</code> 时写物理 restart。</td>
+</tr>
+<tr>
+<td>被调</td>
+<td><a href="../physiq_mod.html">physiq_mod</a></td>
+<td>每个物理步调用的 Mars 物理主入口。</td>
+</tr>
+<tr>
+<td>被调</td>
+<td><a href="writerestart1D_mod.html">writerestart1D_mod</a></td>
+<td>可选写 <code>restart1D.txt</code>。</td>
+</tr>
+<tr>
+<td>被调</td>
+<td><a href="mod_const_mpi.html">mod_const_mpi</a>、<a href="parallel_lmdz.html">parallel_lmdz</a></td>
+<td><code>CPP_XIOS</code> 分支的 MPI/并行初始化。</td>
+</tr>
+<tr>
+<td>依赖</td>
+<td><a href="comvert_mod.html">comvert_mod</a></td>
+<td>使用 <code>ap/bp/aps/bps/pa/preff</code> 构造压力和 restart 实参。</td>
+</tr>
+<tr>
+<td>依赖</td>
+<td><a href="../tracer_mod.html">tracer_mod</a></td>
+<td>使用水 tracer 索引和 <code>noms</code> 写 restart。</td>
+</tr>
+<tr>
+<td>依赖</td>
+<td><a href="profile_temp_mod.html">profile_temp_mod</a>、<a href="read_profile_mod.html">read_profile_mod</a></td>
+<td>通过初始化例程间接使用温度和 tracer profile。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>运行目录必须有 <code>run.def</code>；否则在任何初始化前停止。</li>
+<li><code>run.def</code> 需要包含 <code>INCLUDEDEF=callphys.def</code>，否则 <code>getin</code> 无法读取物理配置。</li>
+<li><code>startfiles_1D=.true.</code> 时允许两个 start 文件都存在、两个都缺失、或只存在 <code>startfi.nc</code>；但只存在 <code>start1D.txt</code> 而缺 <code>startfi.nc</code> 会停止。</li>
+<li><code>ndt</code> 是初始化例程返回的物理步数，主程序按步数循环，不再把它解释为 sol 数。</li>
+<li>1D 风场当前向 <code>gru/grv</code> 松弛，源码中的 Coriolis 增量块被注释掉；复现 3D 风场反馈时不能直接等同。</li>
+<li>水汽/水冰 profile 控制发生在 <code>physiq</code> 之后、状态更新之前，因此会覆盖或修正物理过程给出的 <code>dq</code>。</li>
+<li>表压由 <code>dpsurf</code> 逐步累加，并立即重算 <code>plev/play</code>；长时间 1D run 的质量守恒解释需要单独检查。</li>
+<li><code>restart1D.txt</code> 只有在 <code>startfiles_1D=.true.</code> 时写出；默认 <code>.false.</code> 时不会写 1D 文本 restart。</li>
+</ol>
+<h2 id="待确认和风险">待确认和风险</h2>
+<ul>
+<li>注释中仍提到 <code>testphys1d.def</code>，但当前源码显式检查的是 <code>run.def</code>，配置页和实际运行脚本需要保持一致。</li>
+<li><code>write_output</code> 被 <code>use</code> 但未直接调用，可能是历史遗留或为下游链接保留；当前未做编译验证。</li>
+<li>只存在 <code>startfi.nc</code> 而没有 <code>start1D.txt</code> 时不会停止，初始化会混合物理 restart 和默认/配置大气 profile；这是否是推荐工作流需运行经验确认。</li>
+<li><code>gr_fi_dyn</code> 只支持 <code>ngrid=1</code>，任何尝试复用本主程序做多列测试都会在该 dummy 例程处失败。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn1d/index.md</a> - dyn1d 子目录索引。</li>
+<li><a href="../../../architecture/testphys1d-config.html">testphys1d 配置</a> - 1D 配置和运行要求。</li>
+<li><a href="init_testphys1d_mod.html">init_testphys1d_mod</a> - 初始化主例程。</li>
+<li><a href="../physiq_mod.html">physiq_mod</a> - Mars 物理主入口。</li>
+<li><a href="../phyredem.html">phyredem</a> - 物理 restart 写出。</li>
+<li><a href="comvert_mod.html">comvert_mod</a> - 垂直坐标系数。</li>
+<li><a href="../tracer_mod.html">tracer_mod</a> - tracer 索引。</li>
+<li><a href="profile_temp_mod.html">profile_temp_mod</a> - 初始温度廓线。</li>
+<li><a href="read_profile_mod.html">read_profile_mod</a> - 初始 tracer profile。</li>
+<li><a href="writerestart1D_mod.html">writerestart1D_mod</a> - 1D 文本 restart 写出。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

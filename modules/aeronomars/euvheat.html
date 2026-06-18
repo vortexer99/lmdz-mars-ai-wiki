@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>euvheat - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/euvheat.md</span>
+    </nav>
+    <article class="content">
+<h1 id="euvheatf90">euvheat.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\euvheat.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>euvheat.F90</code> 定义 <code>euvheat_mod</code>，提供热层 EUV 吸收加热例程 <code>euvheat</code>。它在 <code>thermosphere_mod</code> 的 <code>calleuv</code> 分支下逐格点调用：先用输入温度/示踪物及其当前倾向外推到时间步末，再把质量混合比转换成数密度矩阵 <code>rm</code>，调用 <code>hrtherm</code> 得到每层总光吸收 <code>jtot</code>，最后用 <code>callkeys_mod::euveff</code>、<code>cpnew/rnew/pplay/zt</code> 把 <code>jtot</code> 换算为温度倾向 <code>pdteuv</code>。</p>
+<p>该文件处在 <code>thermosphere_mod -&gt; euvheat -&gt; hrtherm -&gt; jthermcalc_e107</code> 链路中；<code>thermosphere_mod</code> 随后把 <code>pdteuv</code> 累加回 <code>pdt</code>，且热传导 <code>conduction</code> 会看到已包含 EUV 的预测温度。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>euvheat_mod</code></td>
+<td>module</td>
+<td>1（<code>END MODULE</code> 454）</td>
+<td>包装 EUV 加热例程</td>
+</tr>
+<tr>
+<td><code>euvheat</code></td>
+<td>subroutine</td>
+<td>7（<code>END SUBROUTINE</code> 452）</td>
+<td>计算 EUV 加热温度倾向 <code>pdteuv(ngrid,nlayer)</code></td>
+</tr>
+<tr>
+<td><code>i_co2</code>..<code>i_n2</code></td>
+<td>integer parameters</td>
+<td>86-102</td>
+<td>热层化学/EUV 物种槽位，源码要求与 <code>chemthermos.F90</code>、<code>hrtherm.F</code> 等保持一致</td>
+</tr>
+<tr>
+<td><code>nespeuv</code>,<code>euvmod</code>,<code>rm</code>,<code>g_*</code>,<code>firstcall</code></td>
+<td>saved local state</td>
+<td>63, 66, 67, 123-143, 145</td>
+<td>首次调用缓存物种数、EUV 模式、数密度矩阵和 GCM tracer 索引</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_co2</code>, <code>igcm_co</code>, <code>igcm_o</code>, <code>igcm_o1d</code>, <code>igcm_o2</code>, <code>igcm_h</code>, <code>igcm_h2</code>, <code>igcm_oh</code>, <code>igcm_ho2</code>, <code>igcm_h2o2</code>, <code>igcm_h2o_vap</code>, <code>igcm_o3</code>, <code>igcm_n2</code>, <code>igcm_n</code>, <code>igcm_no</code>, <code>igcm_no2</code>, <code>igcm_n2d</code>, <code>mmol</code></td>
+<td>读取 GCM tracer 索引和摩尔质量，用于检查必须物种并把质量混合比转为数密度</td>
+<td><code>traceur.def</code> 中具体 tracer 顺序由 <code>tracer_mod/initracer</code> 路径决定</td>
+</tr>
+<tr>
+<td><code>conc_mod</code></td>
+<td><code>rnew</code>, <code>cpnew</code></td>
+<td>用比气体常数和定压比热计算密度与 K/s 温度倾向</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>hrtherm_mod</code></td>
+<td><code>hrtherm</code></td>
+<td>计算每层总光吸收 <code>jtot</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>euveff</code></td>
+<td>EUV 加热效率，参与 <code>pdteuv</code> 换算</td>
+<td>其配置读取在 <code>conf_phys</code>，本页只记录消费点</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hrtherm</code></td>
+<td><code>hrtherm_mod</code> / <code>hrtherm.F</code></td>
+<td>430</td>
+<td>按太阳天顶角、日期、温度和数密度计算 <code>jtot(nlayer)</code>；夜间返回 0</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code>,<code>nlayer</code>,<code>nq</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>integer</td>
+<td>-</td>
+<td>水平格点数、层数、tracer 数</td>
+</tr>
+<tr>
+<td><code>pt</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K</td>
+<td>当前温度</td>
+</tr>
+<tr>
+<td><code>pdt</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K/s</td>
+<td>已有温度倾向，用于外推 <code>zt=pt+pdt*ptimestep</code></td>
+</tr>
+<tr>
+<td><code>pplev</code>,<code>pplay</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer+1)</code> / <code>(ngrid,nlayer)</code></td>
+<td>Pa</td>
+<td>界面/层中压力；<code>pplev</code> 传入但本例程不直接使用</td>
+</tr>
+<tr>
+<td><code>zzlay</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m</td>
+<td>层中高度，转为 km 传给 <code>hrtherm</code></td>
+</tr>
+<tr>
+<td><code>mu0</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid)</code></td>
+<td>-</td>
+<td>太阳天顶角余弦，转换为角度 <code>zenit</code></td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real</td>
+<td>s</td>
+<td>物理时间步</td>
+</tr>
+<tr>
+<td><code>zday</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real</td>
+<td>sol</td>
+<td>自 Ls=0 起的日期，传给 <code>hrtherm</code></td>
+</tr>
+<tr>
+<td><code>pq</code>,<code>pdq</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer,nq)</code></td>
+<td>kg/kg_air, kg/kg_air/s</td>
+<td>当前 tracer 质量混合比及倾向，用于外推 <code>zq=pq+pdq*ptimestep</code></td>
+</tr>
+<tr>
+<td><code>rnew</code>,<code>cpnew</code></td>
+<td><code>conc_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>J/kg/K, J/kg/K</td>
+<td>比气体常数和定压比热</td>
+</tr>
+<tr>
+<td><code>euveff</code></td>
+<td><code>callkeys_mod</code></td>
+<td>real</td>
+<td>-</td>
+<td>EUV 加热效率</td>
+</tr>
+<tr>
+<td><code>mmol</code></td>
+<td><code>tracer_mod</code></td>
+<td>real <code>(nq)</code></td>
+<td>g/mol 或源码约定</td>
+<td>各 tracer 摩尔质量，用于数密度换算</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdteuv</code></td>
+<td><code>thermosphere_mod</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K/s</td>
+<td>EUV 加热温度倾向；<code>thermosphere_mod</code> 第 86 行把它累加进 <code>pdt</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>首次调用时保存并线程私有化 <code>nespeuv/euvmod/rm/g_* / firstcall</code>；<code>rm</code> 在第 357 行按 <code>(nlayer,nespeuv)</code> 分配，结尾的 <code>deallocate(rm)</code> 被注释，数组跨调用保留。</li>
+<li>首次调用会检查必需 tracer；缺失 CO2/O/O2/H2/OH/HO2/H2O2/H2O/O1D/CO/H/O3 会 <code>write(*,*)</code> 后 <code>stop</code>。NO 缺失时不停止，只打印“不做 N species in UV heating”；若 NO 存在，则要求 N2/N/NO2/N2D 同时存在，否则停止。</li>
+<li>首次调用会打印 <code>euvheat: Computing absorption by ... species</code>；错误路径也打印并 <code>stop</code>。</li>
+<li>不写文件，不调用 <code>getin</code>/<code>abort_physic</code>。</li>
+<li><code>pplev</code>、<code>n</code> 局部变量未在活跃计算中使用；<code>zlocal(1)</code> 连续赋值为 <code>zzlay(ig,1)</code> 与 <code>zzlay(ig,1)/1000.</code>，最终传给 <code>hrtherm</code> 的是 km。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>首次调用初始化</strong>（第 150-359 行）：读取 GCM tracer 索引，按源码硬编码物种槽位检查必需物种；默认 <code>euvmod=0</code>，O3 存在后设为 <code>1</code>，NO 存在后设为 <code>2</code> 并启用 N 族检查；按 <code>euvmod</code> 校验 <code>nespeuv</code> 为 11/12/17。</li>
+<li><strong>构造时间步末局地状态</strong>（第 364-392 行）：对参与物种做 <code>zq=pq+pdq*ptimestep</code>；温度做 <code>zt=pt+pdt*ptimestep</code>。若 <code>euvmod</code> 越界则打印并 <code>stop</code>。</li>
+<li><strong>逐格点准备辐射输入</strong>（第 395-428 行）：<code>zenit=acos(mu0)*180/pi</code>；密度 <code>dens=pplay/(rnew*zt)/1.66e-21</code>；把各物种质量混合比除以 <code>mmol</code> 后填入 <code>rm(l,i_*)</code>；高度 <code>zzlay</code> 转为 km，温度拷贝到 <code>tx</code>。</li>
+<li><strong>调用光吸收核</strong>（第 430 行）：<code>call hrtherm(ig,nlayer,euvmod,rm,nespeuv,tx,zlocal,zenit,zday,jtot)</code>，得到每层 <code>jtot</code>。夜间置零由 <code>hrtherm</code> 内部处理。</li>
+<li><strong>换算温度倾向</strong>（第 440-442 行）：<code>pdteuv=euveff*jtot/10/(cpnew*pplay/(rnew*zt))</code>。源码注释说明太阳距离修正不在这里乘，因为 <code>flujo.F</code> 中的太阳通量已修正。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>euvheat(...):
+  if firstcall:
+    read required tracer indexes from tracer_mod
+    stop if mandatory C/O/H/O3 species are missing
+    if NO exists:
+      euvmod=2 and require N2/N/NO2/N2D
+    else:
+      euvmod=1 after mandatory O3 check
+    check nespeuv count; allocate rm(nlayer,nespeuv); firstcall=false
+
+  for each layer and grid:
+    zq(selected tracers) = pq + pdq*ptimestep
+    zt = pt + pdt*ptimestep
+
+  for each grid column:
+    zenit = acos(mu0)*180/pi
+    for each layer:
+      dens = pplay/(rnew*zt)/1.66e-21
+      rm(:, selected species) = zq*density/mmol
+      tx = zt
+      zlocal = zzlay/1000
+    call hrtherm(..., rm, tx, zlocal, zenit, zday, jtot)
+    for each layer:
+      pdteuv = euveff*jtot/10/(cpnew*pplay/(rnew*zt))</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热层 EUV 加热</td>
+<td><code>thermosphere_mod</code> 在 <code>calleuv</code> 下调用本例程，本例程输出 <code>zdteuv/pdteuv</code> 并由调用方累加到温度倾向</td>
+</tr>
+<tr>
+<td>热层化学/光吸收</td>
+<td>使用与 <code>chemthermos.F90</code>、<code>hrtherm.F</code> 一致的物种槽位，向 <code>hrtherm</code> 和 <code>jthermcalc_e107</code> 链路提供数密度输入</td>
+</tr>
+<tr>
+<td>热层过程耦合顺序</td>
+<td><code>thermosphere_mod</code> 先累加 EUV 倾向，再进入 <code>callconduct</code> 热传导、<code>callmolvis</code> 分子黏性和 <code>callmoldiff</code> 分子扩散路径</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 <code>.F90</code> 模块，但保留大量固定格式风格续行和旧注释。</li>
+<li><code>rm</code> 是 <code>double precision, allocatable, save</code>，且 <code>THREADPRIVATE</code>；分配后不释放。</li>
+<li><code>euvmod</code> 实际由 tracer 配置决定：O3 缺失会停止，因此正常通过初始化后至少为 1；NO 存在时切到 2 并启用 N 族物种。</li>
+<li><code>euveff</code> 从 <code>callkeys_mod</code> 读取；旧的局部 <code>real euveff</code> 与 <code>euveff=0.16</code> 注释块已停用。</li>
+<li>源码会校验 OH/HO2/O1D/N2D 等 tracer，但 <code>hrtherm</code> 的可见吸收打包只消费 CO2/O2/O/H2O/H2/H2O2/O3/N2/N/NO/NO2/CO/H；下游 <code>jthermcalc_e107</code> 对完整 <code>rm</code> 的使用需看对应文件页。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>callthermos</code> 和 <code>calleuv</code> 共同决定是否运行该路径；<code>conf_phys</code> 中还要求 <code>calleuv</code> 依赖 <code>callthermos</code>。</li>
+<li>tracer 列表必须满足源码检查；O3 对 <code>calleuv</code> 是强制项，NO 是 N 族路径开关。</li>
+<li>物种槽位必须与 <code>chemthermos.F90</code>、<code>hrtherm.F</code>、<code>jthermcalc*</code>、<code>paramfoto_compact.F</code> 同步；源码注释明确要求同步修改。</li>
+<li><code>pdteuv</code> 依赖当前步外推状态 <code>pq+pdq*dt</code>、<code>pt+pdt*dt</code>，因此上游倾向会影响 EUV 加热输入温度和成分。</li>
+<li>单位换算链路是 <code>jtot</code>(erg/s) -&gt; <code>euveff*jtot/10</code> -&gt; 除以体积热容 <code>cpnew*pplay/(rnew*zt)</code> 得到 K/s；太阳距离修正不在本例程重复乘。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>1.66e-21</code> 和 <code>/10.</code> 两个换算常数的完整单位推导需结合 <code>hrtherm/jthermcalc_e107</code> 和历史文献确认。</li>
+<li><code>jthermcalc_e107</code> 对 <code>rm</code> 各物种槽位的实际使用范围见 <a href="jthermcalc_e107_mod.html">jthermcalc_e107_mod.F</a>（TASK-0190），仍需结合具体 <code>chemthermod</code> 配置确认运行分支。</li>
+<li><code>case(0)</code> 的 <code>euvmod</code> 分支在当前 O3 强制检查后是否仍可能到达，待开发者或历史配置确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">aeronomars/index</a>：<code>aeronomars</code> 目录总览。</li>
+<li><a href="hrtherm.html">hrtherm</a>：被本例程逐列调用，计算 <code>jtot</code>。</li>
+<li><a href="conduction.html">conduction</a>：调用顺序上在 EUV 加热之后，预测温度会包含 <code>pdteuv</code>。</li>
+<li><a href="../phymars/callkeys_mod.html">callkeys_mod</a>：提供 <code>calleuv</code> 与 <code>euveff</code>。</li>
+<li><a href="../phymars/conc_mod.html">conc_mod</a>：提供 <code>rnew/cpnew</code>。</li>
+<li><a href="thermosphere_mod.html">thermosphere_mod</a>：热层物理过程总调度。</li>
+<li><a href="chemthermos.html">chemthermos</a>：共享同一套热层物种槽位的热层化学主例程。</li>
+<li><a href="jthermcalc_e107_mod.html">jthermcalc_e107_mod.F</a>：核对 <code>rm/jfotsout</code> 的下游使用。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

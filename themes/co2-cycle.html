@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>co2-cycle - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a class="active" href="index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>themes/co2-cycle.md</span>
+    </nav>
+    <article class="content">
+<h1 id="co2-循环主题">CO2 循环主题</h1>
+<h2 id="主题目标">主题目标</h2>
+<p>本页串联 LMDZ.MARS 中 CO2 气相、CO2 冰云、地表 CO2 冰、CO2 雪发射率、尘埃/水冰清除和诊断输出的主流程，目标是让读者可以沿源码复现一个物理时间步内的 CO2 循环：</p>
+<ol type="1">
+<li><code>physiq</code> 中 <code>co2cloud</code> 与 <code>co2condens</code> 的调用点、顺序和 tendency 注入位置。</li>
+<li><code>co2cloud_mod</code> 如何调度 <code>improvedco2clouds</code>、内部沉降和 <code>co2condens</code> 所需的连接量。</li>
+<li><code>co2sat</code> / <code>tcondco2</code> 如何提供 CO2 饱和蒸汽压与凝结温度。</li>
+<li><code>co2condens</code> 如何在 <code>co2clouds=false</code> 时自算大气凝结，在 <code>co2clouds=true</code> 时接收微物理凝结/沉降，并继续处理地表 CO2 凝结、表压和 sigma 层校正。</li>
+<li><code>nucleaco2</code>、<code>massflowrateco2</code>、<code>density_co2_ice</code> 在 CO2 云微物理中的位置。</li>
+<li><code>co2snow</code> 如何把 CO2 雪沉降反馈到地表红外发射率。</li>
+<li><code>scavco2cond</code> / <code>scavenging_by_co2</code>、<code>co2useh2o</code>、<code>meteo_flux</code> 如何把 CO2 循环与尘埃、水冰和流星尘 tracer 耦合。</li>
+<li>配置开关、tracer、XIOS/<code>write_output</code> 输出和复现风险。</li>
+</ol>
+<p>源码依据：本页用 <code>rg</code> 只读核验了 <code>physiq_mod.F</code>、<code>co2condens_mod.F</code>、<code>co2cloud_mod.F90</code>、<code>improvedco2clouds_mod.F90</code>、<code>co2sat.F</code>、<code>tcondco2.F90</code>、<code>nucleaco2.F90</code>、<code>massflowrateco2.F90</code>、<code>density_co2_ice.F90</code>、<code>co2snow.F</code>、<code>initracer.F90</code>、<code>conf_phys.F</code>、<code>deftank/callphys.def*</code>、<code>deftank/traceur.def*</code>、<code>deftank/xios/field_def_physics.xml</code>、<code>deftank/xios/file_def_physics.xml</code>。更细的文件级证据见相关子页。</p>
+<h2 id="入口">入口</h2>
+<table>
+<thead>
+<tr>
+<th>入口例程</th>
+<th>文件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>physiq</code></td>
+<td><a href="../modules/phymars/physiq_mod.html"><code>libf/phymars/physiq_mod.F</code></a></td>
+<td>主物理时间步入口；第 9a bis 段在 <code>co2clouds</code> 为真时调用 <code>co2cloud</code>，第 11 段在 <code>callcond</code> 为真时调用 <code>co2condens</code>。</td>
+</tr>
+<tr>
+<td><code>co2cloud</code></td>
+<td><a href="../modules/phymars/co2cloud_mod.html"><code>libf/phymars/co2cloud_mod.F90</code></a></td>
+<td>CO2 云主调度；只调用完整 CO2 云微物理 <code>improvedco2clouds</code>，再在自身内部做 CO2 冰/CCN 沉降、非负保护、云内 tendency 到格点平均的映射。</td>
+</tr>
+<tr>
+<td><code>co2condens</code></td>
+<td><a href="../routines/co2condens.html"><code>libf/phymars/co2condens_mod.F</code></a></td>
+<td>CO2 地表/大气凝结主例程；处理地表 CO2 冰、表压变化、sigma 层校正、<code>co2snow</code> 发射率反馈和可选 scavenging。</td>
+</tr>
+<tr>
+<td><code>initracer</code> CO2 段</td>
+<td><a href="../modules/phymars/initracer.html"><code>libf/phymars/initracer.F90</code></a></td>
+<td>把 <code>traceur.def</code> 中的 CO2/CO2 ice/CCNCO2 名字映射到 <code>igcm_*</code> 索引，并在 <code>co2clouds</code> 为真时做 tracer 存在性检查和初始物性设置。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="参与文件">参与文件</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>参与阶段</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/phymars/physiq_mod.html"><code>physiq_mod.F</code></a></td>
+<td>主调度</td>
+<td>决定 <code>co2cloud</code> 与 <code>co2condens</code> 的顺序，注入 <code>pdt/pdq/dqsurf/pdpsrf</code>，并在 <code>co2condens</code> 后更新表压和垂直坐标。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/co2cloud_mod.html"><code>co2cloud_mod.F90</code></a></td>
+<td>CO2 云调度</td>
+<td>读 <code>imicroco2</code>，计算 <code>CLFvaryingCO2</code> 云分数，调用 <code>improvedco2clouds</code>，调用 <code>newsedim</code> 做 CO2 云内部沉降，输出 <code>pcondicea</code>、<code>pdqs_sedco2</code>、<code>pdqcloudco2</code>、<code>pdtcloudco2</code>。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/improvedco2clouds_mod.html"><code>improvedco2clouds_mod.F90</code></a></td>
+<td>CO2 云微物理</td>
+<td>计算饱和、成核、冰增长/升华、CCN 释放，支持尘埃、流星尘和水冰三类成核基底。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/co2-saturation-helpers.html"><code>co2sat.F</code></a> / <a href="../modules/phymars/co2-saturation-helpers.html"><code>tcondco2.F90</code></a></td>
+<td>热力学基础</td>
+<td>CO2 饱和蒸汽压与凝结温度反解。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/nucleaco2.html"><code>nucleaco2.F90</code></a></td>
+<td>成核</td>
+<td>根据 CO2 分压、温度、过饱和比、CCN bin 和接触参数计算异质成核率。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/massflowrateco2.html"><code>massflowrateco2.F90</code></a></td>
+<td>冰增长/升华</td>
+<td>计算单个 CO2 冰粒质量传输率 <code>Ic</code>，由 <code>improvedco2clouds</code> 转成 tracer 质量变化。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/density_co2_ice.html"><code>density_co2_ice.F90</code></a></td>
+<td>冰密度</td>
+<td>给定温度返回 CO2 冰密度；<code>improvedco2clouds</code> 用于 <code>vo2co2</code>，<code>updaterad/aeropacity</code> 也会使用。</td>
+</tr>
+<tr>
+<td><a href="../routines/co2condens.html"><code>co2condens_mod.F</code></a></td>
+<td>凝结/表压</td>
+<td>处理大气与地表 CO2 凝结、地表冰量、albedo/emissivity、sigma 层校正、Van Leer 输运和 scavenging。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/co2snow.html"><code>co2snow.F</code></a></td>
+<td>地表发射率</td>
+<td>根据地表 CO2 雪沉降通量降低红外发射率，并按雪变质时间尺度向参考发射率弛豫。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/conf_phys.html"><code>conf_phys.F</code></a> / <code>callphys.def*</code></td>
+<td>配置</td>
+<td>读取 <code>callcond</code>、<code>co2clouds</code>、<code>activeco2ice</code>、<code>co2useh2o</code>、<code>scavco2cond</code>、<code>CLFvaryingCO2</code>、<code>satindexco2</code>、<code>meteo_flux</code> 等开关并做依赖检查。</td>
+</tr>
+<tr>
+<td><code>traceur.def*</code> / <a href="../modules/phymars/initracer.html"><code>initracer.F90</code></a></td>
+<td>tracer</td>
+<td>给出 CO2 云路径所需 tracer 名字，缺失时由 <code>initracer</code> 中止。</td>
+</tr>
+<tr>
+<td><code>deftank/xios/*.xml</code></td>
+<td>输出</td>
+<td>定义和选择 CO2 地表冰、第一层 CO2、柱积分、守恒和凝结 tendency 等 XIOS 字段。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="主调用链">主调用链</h2>
+<pre class="text"><code>physiq
+  -&gt; IF (co2clouds):
+       zero zdqssed_co2 / zdqssed_ccn
+       call co2cloud(..., zdqcloudco2, zdtcloudco2,
+                     zdqssed_co2, zdqssed_ccn,
+                     zcondicea_co2microp)
+         -&gt; optional CLFvaryingCO2:
+              tcondco2(pplay, co2_vapor) -&gt; tcond
+              cloud fraction in [mincloud, 1]
+         -&gt; for microstep = 1..imicroco2:
+              improvedco2clouds(...)
+                -&gt; co2sat / tcondco2
+                -&gt; density_co2_ice
+                -&gt; nucleaco2 for dust / meteor / H2O ice CCN
+                -&gt; massflowrateco2 for ice growth or sublimation
+              non-negative guards for co2/co2_ice/ccnco2/dust/meteor/H2O groups
+              if sedimentation:
+                updaterice_microco2 -&gt; riceco2, rhocloudco2
+                newsedim for co2_ice and CCNCO2 families
+         -&gt; pdqcloudco2(co2)=0; CO2 gas tendency is left to co2condens
+       inject CO2 cloud pdt/pdq and surface CCN sedimentation into physiq accumulators
+
+  -&gt; IF (sedimentation):
+       callsedim handles dust and water ice; CO2 cloud sedimentation is already done inside co2cloud
+
+  -&gt; IF (callcond):                         ! last atmospheric physical process
+       call co2condens(...,
+                       zdqssed_co2,
+                       zcondicea_co2microp,
+                       ...)
+         -&gt; if co2clouds=false:
+              compute atmospheric CO2 condensation from local ztcond
+              optional scavenging_by_co2
+            else:
+              consume co2cloud sedimentation/condensation diagnostics
+         -&gt; surface CO2 condensation/sublimation
+         -&gt; albedocaps and co2snow
+         -&gt; sigma-layer correction with vl1d
+       inject zdtc/zdqc/zdqsc/zdtsurfc/pdpsrf
+       update ps, zplay, zplev, zzlay, zzlev from pdpsrf
+
+  -&gt; diagnostics:
+       CO2 column totals, wstats, write_output / XIOS fields</code></pre>
+<p>源码依据：<code>physiq_mod.F:1933-1939</code> 调用 <code>co2cloud</code>；<code>physiq_mod.F:2308-2322</code> 调用 <code>co2condens</code> 并传入 <code>zdqssed_co2</code> 与 <code>zcondicea_co2microp</code>；<code>physiq_mod.F:2357-2403</code> 在 <code>co2condens</code> 后更新表压和垂直坐标；<code>co2cloud_mod.F90:632</code> 调用 <code>improvedco2clouds</code>，<code>co2cloud_mod.F90:819-884</code> 调用多组 <code>newsedim</code>，<code>co2cloud_mod.F90:982</code> 把 <code>pdqcloudco2(co2)</code> 置零并注明由 <code>co2condens</code> 计算。</p>
+<h2 id="计算阶段">计算阶段</h2>
+<h3 id="1-配置和-tracer-准备">1. 配置和 tracer 准备</h3>
+<p>最小 CO2 凝结路径只要求 <code>co2</code> tracer 与 <code>callcond=.true.</code>。标准 GCM6 样例中 <code>callcond=.true.</code> 且 <code>scavco2cond=.true.</code>，但不启用 CO2 云微物理。CO2 云微物理路径要求 <code>co2clouds=.true.</code>，并要求 <code>traceur.def</code> 至少包含：</p>
+<pre class="text"><code>co2
+co2_ice
+ccnco2_number
+ccnco2_mass</code></pre>
+<p>若 <code>co2useh2o=.true.</code>，还需要 <code>ccnco2_h2o_number</code>、<code>ccnco2_h2o_mass_ice</code>、<code>ccnco2_h2o_mass_ccn</code>；若 <code>meteo_flux=.true.</code>，还需要 <code>ccnco2_meteor_number</code>、<code>ccnco2_meteor_mass</code>。仓库自带 <code>traceur.def.co2clouds.GCM5</code> 含基础 CO2 云 tracer 和水/尘 tracer，但源码核验未发现自带 <code>traceur.def*</code> 含 <code>ccnco2_meteor_*</code> 或 <code>ccnco2_h2o_*</code> 名字；启用这两个子路径时需要用户自备 tracer 配置。</p>
+<p>源码依据：<code>initracer.F90:221-225</code> 识别 <code>co2</code>，<code>:467-471</code> 识别 <code>co2_ice</code>，<code>:492-531</code> 在 <code>co2clouds</code> 下识别 CCNCO2/meteor/H2O 子 tracer，<code>:846-900</code> 做缺失检查，<code>:1042-1058</code> 设定基础 CO2 云 tracer 物性。</p>
+<p>复现风险：<code>initracer.F90:891-900</code> 的 <code>meteo_flux</code> 检查块存在报错文案拷贝错误和 <code>igcm_ccnco2_meteor_mass</code> 重复检查，需按源码字面行为复现，但不能把报错文案当作精确设计说明。</p>
+<h3 id="2-physiq-中先算-co2-云后算-co2-凝结">2. <code>physiq</code> 中先算 CO2 云，后算 CO2 凝结</h3>
+<p><code>co2cloud</code> 位于 <code>physiq</code> 第 9a bis 段，早于第 11 段 <code>co2condens</code>。这不是可交换顺序：<code>co2cloud</code> 输出 <code>zdqssed_co2</code> 和 <code>zcondicea_co2microp</code>，随后 <code>co2condens</code> 消费这两个量来处理地表沉降、表压变化和层质量校正。</p>
+<p><code>co2cloud</code> 调用后，<code>physiq</code> 立即把 <code>zdtcloudco2</code> 加入 <code>pdt</code>，把 <code>zdqcloudco2</code> 加入 dust、CO2 ice、CCNCO2、meteor 和 H2O 相关 tracer。CO2 气相 tracer 的微物理 tendency 在 <code>co2cloud_mod</code> 中被置零，外层实际 CO2 气相变化由 <code>co2condens</code> 的 sigma 校正和凝结逻辑给出。</p>
+<p>复现风险：不要把 CO2 冰沉降放到 <code>physiq</code> 第 9b 段的 <code>callsedim</code> 中。源码注释和调用链表明 CO2 cloud tracers 的沉降在 <code>co2cloud</code> 内部 microstep 完成；<code>callsedim</code> 继续处理尘埃和水冰。</p>
+<h3 id="3-co2-饱和和凝结温度公式">3. CO2 饱和和凝结温度公式</h3>
+<p><code>co2sat</code> 使用 James et al. 1992 形式的饱和蒸汽压：</p>
+<pre class="text"><code>psat = 1.382e12 * exp(-3182.48 / T)</code></pre>
+<p><code>tcondco2</code> 使用相同公式反解凝结温度。调用方先把 CO2 质量混合比转成 CO2 分压：</p>
+<pre class="text"><code>pco2 = q(ig,l) * (mmean(ig,l) / 44.01) * p(ig,l)
+A = log(1.382d12)
+B = -3182.48
+tcond = B / (log(pco2) - A)</code></pre>
+<p>其中 <code>mmean</code> 来自 <code>conc_mod</code>，<code>q</code> 是 CO2 tracer 质量混合比。<code>co2cloud_mod</code> 的 <code>CLFvaryingCO2</code> 路径传入 CO2 vapor；<code>improvedco2clouds_mod</code> 传入 <code>co2 + co2_ice</code> 作为凝结温度反解的质量输入。</p>
+<p>复现风险：<code>tcondco2</code> 对 <code>pco2 &lt;= 0</code> 没有保护，复现时必须保证调用点输入为正，或记录任何额外保护会改变原始源码行为。</p>
+<h3 id="4-co2cloud_mod-的分派和内部沉降">4. <code>co2cloud_mod</code> 的分派和内部沉降</h3>
+<p>CO2 云没有水循环中 <code>simpleclouds/improvedclouds</code> 那样的双方案分派。<code>co2clouds=.true.</code> 即启用 <code>co2cloud</code>，而 <code>co2cloud</code> 内部始终调用 <code>improvedco2clouds</code>；旧配置项 <code>microphysco2</code> 仍出现在 <code>callphys.def.co2clouds.GCM5</code>，但 <code>conf_phys.F</code> 不再读取它，不能把它当作有效开关。</p>
+<p><code>co2cloud</code> 首次调用时读 <code>imicroco2</code>，默认全局版为 30、MESOSCALE 版为 2，并读取 <code>optprop_co2ice_1mic.dat</code> 构造 1 mic 光学厚度查表。每个 microstep 内：</p>
+<ol type="1">
+<li>把此前 <code>pdt/pdq</code> 累加成 microstep 初始状态。</li>
+<li>调 <code>improvedco2clouds</code> 得到成核、增长/升华和 CCN 释放 tendency。</li>
+<li>对 CO2/CO2 ice、CCNCO2/dust、meteor、H2O 相关 tracer 做非负保护。</li>
+<li>若 <code>sedimentation=true</code>，对 <code>co2_ice</code>、CCNCO2、meteor 和 H2O 相关 CO2 cloud tracer 分别调 <code>newsedim</code>。</li>
+<li>输出 <code>pcondicea</code>、<code>pdqs_sedco2</code>、<code>pdqs_sedccn</code>、<code>pdtcloudco2</code> 和 <code>pdqcloudco2</code>。</li>
+</ol>
+<p><code>CLFvaryingCO2</code> 为真时，<code>co2cloud</code> 先用 <code>tcondco2</code> 和 <code>SatIndex</code> 估计云分数，把云内 tracer 放大为 <code>pqeff = pq / co2cloudfrac</code>，最终再把微物理 tendency 乘回 <code>co2cloudfrac</code>。源码疑点见下文：<code>zdelt</code> 未见赋值，<code>NN = sqrt(g/zt(iq,l)*...)</code> 使用了 <code>iq</code> 而非 <code>ig</code>。</p>
+<h3 id="5-improvedco2clouds-的微物理核心">5. <code>improvedco2clouds</code> 的微物理核心</h3>
+<p><code>improvedco2clouds</code> 先用 <code>co2sat(zt)</code> 和 <code>tcondco2(pplay, co2+co2_ice)</code> 建立热力学状态，然后逐格逐层处理：</p>
+<ol type="1">
+<li>CO2 分压与过饱和比：</li>
+</ol>
+<pre class="text"><code>pco2 = co2 * (mmean / mco2 * 1e3) * pplay
+satu = pco2 / zqsat</code></pre>
+<ol start="2" type="1">
+<li>若 <code>satu &gt;= 1</code>，调用 <code>density_co2_ice</code> 得到温度依赖 CO2 冰密度，并把单分子冰体积写成 <code>vo2co2 = m0co2 / rho_ice_co2T</code>。</li>
+<li>对尘埃 CCN 调 <code>nucleaco2(..., mtetaco2)</code>；若 <code>meteo_flux=true</code>，对流星尘 CCN 也调 <code>nucleaco2(..., mtetaco2)</code>；若 <code>co2useh2o=true</code>，对水冰 CCN 调 <code>nucleaco2(..., mteta)</code>。</li>
+<li>若 CCNCO2 数浓度足够，调用 <code>massflowrateco2</code> 得到单粒质量传输率 <code>Ic_rice</code>，并转成网格质量变化：</li>
+</ol>
+<pre class="text"><code>dMice = ccnco2_number * Ic_rice * microtimestep * tauscaling</code></pre>
+<ol start="5" type="1">
+<li>用 <code>facteurmax = abs(tcond - zt) * cpp/lw</code> 和可用 <code>co2/co2_ice</code> 对 <code>dMice</code> 双向裁剪，再更新 <code>co2_ice += dMice</code>、<code>co2 -= dMice</code>、<code>subpdtcloudco2 = dMice*lw/cpp/microtimestep</code>。</li>
+<li>若冰消失或 CCN 不足，把 CCNCO2 释放回 dust、meteor 或 H2O ice/CCN 相关 tracer，并把剩余 CO2 ice 转回 CO2 气相。</li>
+</ol>
+<p>待确认：<code>massflowrateco2</code> 的 Kelvin 因子使用 <code>tracer_mod::rho_ice_co2</code> 常数，而不是 <code>density_co2_ice</code> 的温度依赖密度；这是源码字面行为，不能把两者混写。</p>
+<h3 id="6-co2condens-的两条大气凝结路径">6. <code>co2condens</code> 的两条大气凝结路径</h3>
+<p><code>co2condens</code> 首先计算 CO2 体积混合比。<code>improved_ztcond=.true.</code> 且找到 <code>co2</code> tracer 时：</p>
+<pre class="text"><code>vmr_co2 = qco2 * mmean / m_co2</code></pre>
+<p>否则使用历史路径 <code>vmr_co2 = 0.95</code>。随后分两条路径：</p>
+<ul>
+<li><code>co2clouds=false</code>：自行计算大气凝结温度 <code>ztcond = 1/(bcond - acond*log(.01*vmr_co2*pplay))</code>，从顶层向下计算凝结/升华、下落冰通量和可选 <code>scavenging_by_co2</code>。</li>
+<li><code>co2clouds=true</code>：使用 <code>co2cloud</code> 输出的 <code>pcondicea_co2microp</code> 和 <code>zdqssed_co2</code>，把微物理路径已经算好的 CO2 凝结/沉降接入后续地表和层质量校正。</li>
+</ul>
+<p>接着 <code>co2condens</code> 计算地表凝结温度 <code>ztcondsol</code>，对每个格点和坡面处理地表 CO2 凝结/升华、可用 CO2 限制、冰完全升华保护，并给出 <code>pdpsrf = -g * zdiceco2_mesh_avg</code>。<code>physiq</code> 随后用 <code>pdpsrf</code> 更新 <code>ps</code>、<code>zplay</code>、<code>zplev</code>、<code>zzlay</code>、<code>zzlev</code>。这就是 CO2 循环与模型垂直坐标的直接耦合点。</p>
+<p>复现风险：<code>co2condens</code> 被注释标为最后一个大气物理过程。改变其相对顺序会改变表压、层质量和之后所有依赖坐标的诊断。</p>
+<h3 id="7-co2snowalbedoemissivity-和地表能量">7. <code>co2snow</code>、albedo/emissivity 和地表能量</h3>
+<p><code>co2condens</code> 在更新地表 CO2 冰后调用 <code>albedocaps</code> 和 <code>co2snow</code>。其中 <code>co2snow</code> 不改质量、温度或 tracer，只改 <code>pemisurf</code>。其核心逻辑为：</p>
+<ul>
+<li>若当前列没有 CO2 凝结/升华，<code>pemisurf = emisref</code>。</li>
+<li>若存在 CO2 雪过程，按纬度选择南/北半球参数 <code>iceradius(icap)</code> 与 <code>dtemisice(icap)</code>。</li>
+<li>发射率变化率由两项相加：向参考发射率弛豫的雪变质项，以及由地表 CO2 冰下落通量 <code>pfallice(ig,1)</code> 驱动的新雪项。</li>
+</ul>
+<p>复现风险：<code>pemisurf</code> 形参声明为 <code>intent(out)</code>，但公式读入调用前值；调用方在进入 <code>co2snow</code> 前确实把当前坡面发射率复制到临时数组。重新实现时应把它当作 in/out 行为处理。</p>
+<h3 id="8-co2-凝结-scavenging">8. CO2 凝结 scavenging</h3>
+<p><code>scavco2cond=true</code> 时，且 <code>co2clouds=false</code> 时，<code>co2condens</code> 可调用 <code>scavenging_by_co2</code>。<code>conf_phys.F</code> 明确禁止 <code>co2clouds</code> 与 <code>scavco2cond</code> 同开，并要求 <code>scavco2cond</code> 需要 <code>dustbin &gt; 0</code>。</p>
+<p><code>scavenging_by_co2</code> 对每个格点从顶层向下计算：</p>
+<pre class="text"><code>if pcondicea &gt; 0:
+  captured = 1 - exp(-20 * pcondicea * dt / layer_mass)
+  dust/h2o_ice/ccn tendency = -pq/dt * captured
+else if pcondicea &lt; 0:
+  release scavenged particles in proportion to -pcondicea / pfallice</code></pre>
+<p>清除下来的 dust、CCN 和 H2O ice 通量最终进入地表 <code>pdqsc</code>。这条路径把 CO2 凝结和尘埃/水循环耦合起来，但它是参数化路径，不是 CO2 cloud 微物理内部沉降路径。</p>
+<p>待确认：升华释放分支直接除以 <code>pfallice(l+1)</code>，源码未见显式除零保护；<code>pdqsc(dust_mass)</code> 对 freedust 和 ccn 两部分分别累加，是否存在重复计数需要开发者确认。</p>
+<h2 id="状态变量">状态变量</h2>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>来源</th>
+<th>单位</th>
+<th>含义</th>
+<th>生命周期</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pq(:,:,igcm_co2)</code></td>
+<td><code>physiq</code> tracer</td>
+<td>kg/kg</td>
+<td>CO2 气相质量混合比</td>
+<td>主时间步状态</td>
+</tr>
+<tr>
+<td><code>pq(:,:,igcm_co2_ice)</code></td>
+<td><code>physiq</code> tracer</td>
+<td>kg/kg</td>
+<td>大气 CO2 冰</td>
+<td>CO2 cloud 微物理和沉降更新</td>
+</tr>
+<tr>
+<td><code>pq(:,:,igcm_ccnco2_mass/number)</code></td>
+<td><code>traceur.def</code> / <code>initracer</code></td>
+<td>kg/kg, #/kg</td>
+<td>CO2 云凝结核质量/数</td>
+<td>CO2 cloud 微物理更新</td>
+</tr>
+<tr>
+<td><code>zdtcloudco2</code>, <code>zdqcloudco2</code></td>
+<td><code>co2cloud</code></td>
+<td>K/s, kg/kg/s</td>
+<td>CO2 云微物理局地 tendency</td>
+<td>返回 <code>physiq</code> 注入</td>
+</tr>
+<tr>
+<td><code>zcondicea_co2microp</code></td>
+<td><code>co2cloud</code></td>
+<td>kg/kg/s</td>
+<td>CO2 云微物理凝结率</td>
+<td>传给 <code>co2condens</code></td>
+</tr>
+<tr>
+<td><code>zdqssed_co2</code>, <code>zdqssed_ccn</code></td>
+<td><code>co2cloud</code></td>
+<td>kg/m2/s</td>
+<td>CO2 冰和 CCN 地表沉降通量</td>
+<td>传给 <code>co2condens</code> 或 <code>dqsurf</code></td>
+</tr>
+<tr>
+<td><code>qsurf(:,igcm_co2,:)</code></td>
+<td>地表状态</td>
+<td>kg/m2</td>
+<td>坡面 CO2 地表冰储量</td>
+<td>跨时间步</td>
+</tr>
+<tr>
+<td><code>pdpsrf</code></td>
+<td><code>co2condens</code></td>
+<td>Pa/s</td>
+<td>CO2 凝结/升华导致的表压变化率</td>
+<td>本时间步用于更新 <code>ps</code></td>
+</tr>
+<tr>
+<td><code>pemisurf</code></td>
+<td><code>co2condens/co2snow</code></td>
+<td>-</td>
+<td>地表红外发射率</td>
+<td>地表能量收支输入</td>
+</tr>
+<tr>
+<td><code>riceco2</code>, <code>rhocloudco2</code>, <code>rsedcloudco2</code></td>
+<td><code>co2cloud</code></td>
+<td>m, kg/m3, m</td>
+<td>CO2 冰粒半径、云密度、沉降半径</td>
+<td>微物理、沉降和诊断</td>
+</tr>
+</tbody>
+</table>
+<h2 id="配置开关">配置开关</h2>
+<table>
+<thead>
+<tr>
+<th>配置项</th>
+<th>文件</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>callcond</code></td>
+<td><code>callphys.def*</code> / <code>conf_phys.F</code></td>
+<td>是否调用 <code>co2condens</code>；源码默认 <code>.true.</code>。</td>
+</tr>
+<tr>
+<td><code>co2clouds</code></td>
+<td>同上</td>
+<td>是否启用 CO2 云微物理并调用 <code>co2cloud</code>；源码默认 <code>.false.</code>。</td>
+</tr>
+<tr>
+<td><code>activeco2ice</code></td>
+<td>同上</td>
+<td>CO2 冰是否作为辐射活性气溶胶；源码要求 <code>activeco2ice</code> 依赖 <code>co2clouds</code>。</td>
+</tr>
+<tr>
+<td><code>co2useh2o</code></td>
+<td>同上</td>
+<td>水冰/水云 CCN 是否可作为 CO2 云凝结核；需要额外 <code>ccnco2_h2o_*</code> tracer。</td>
+</tr>
+<tr>
+<td><code>meteo_flux</code></td>
+<td>同上</td>
+<td>是否使用流星尘核；需要 <code>Meteo_flux_Plane.dat</code> 和额外 <code>ccnco2_meteor_*</code> tracer。</td>
+</tr>
+<tr>
+<td><code>CLFvaryingCO2</code> / <code>satindexco2</code> / <code>spantCO2</code></td>
+<td>同上</td>
+<td>CO2 次网格云分数与 SatIndex 路径。</td>
+</tr>
+<tr>
+<td><code>imicroco2</code></td>
+<td><code>co2cloud_mod</code> 通过 <code>getin</code></td>
+<td>CO2 云 microstep 数；默认全局版 30、MESOSCALE 版 2。</td>
+</tr>
+<tr>
+<td><code>scavco2cond</code></td>
+<td><code>co2condens_mod</code> / <code>conf_phys.F</code></td>
+<td>瞬时 CO2 凝结清除 dust/H2O ice；与 <code>co2clouds</code> 互斥，且需要 <code>dustbin&gt;0</code>。</td>
+</tr>
+<tr>
+<td><code>nuiceco2_sed</code>, <code>nuiceco2_ref</code></td>
+<td><code>conf_phys.F</code> / <code>tracer_mod</code></td>
+<td>CO2 冰粒分布有效方差；影响沉降半径和参考半径。</td>
+</tr>
+<tr>
+<td><code>albedo_perennialco2_north/south</code></td>
+<td><code>conf_phys.F</code></td>
+<td>多年 CO2 冰盖反照率。</td>
+</tr>
+<tr>
+<td><code>microphysco2</code></td>
+<td>旧 <code>callphys.def.co2clouds.GCM5</code></td>
+<td>已废弃；源码不再读取。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="数据依赖">数据依赖</h2>
+<table>
+<thead>
+<tr>
+<th>数据</th>
+<th>来源</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>callphys.def*</code></td>
+<td><code>deftank</code></td>
+<td>物理开关和数值参数。</td>
+</tr>
+<tr>
+<td><code>traceur.def*</code></td>
+<td><code>deftank</code></td>
+<td>CO2、CO2 ice、CCNCO2、dust、H2O、meteor/H2O 子核 tracer 名字。</td>
+</tr>
+<tr>
+<td><code>optprop_co2ice_1mic.dat</code></td>
+<td><code>datadir</code></td>
+<td><code>co2cloud</code> 读取的 CO2 冰 1 mic 消光系数表；缺失会中止。</td>
+</tr>
+<tr>
+<td><code>Meteo_flux_Plane.dat</code></td>
+<td><code>datadir</code></td>
+<td><code>meteo_flux=true</code> 时 <code>improvedco2clouds</code> 读取的流星尘通量。</td>
+</tr>
+<tr>
+<td><code>field_def_physics.xml</code> / <code>file_def_physics.xml</code></td>
+<td><code>deftank/xios</code></td>
+<td>XIOS CO2 字段定义与实际输出选择。</td>
+</tr>
+<tr>
+<td><code>iceradius</code>, <code>dtemisice</code></td>
+<td><code>surfdat_h</code> / start 状态</td>
+<td><code>co2snow</code> 的散射系数和雪变质时间尺度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与其他主题的耦合">与其他主题的耦合</h2>
+<table>
+<thead>
+<tr>
+<th>其他主题</th>
+<th>耦合方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="radiation.html">辐射</a></td>
+<td><code>activeco2ice</code> 使 CO2 冰参与辐射；<code>co2cloud</code> 计算 <code>tau1mic</code>、<code>riceco2</code> 等光学/粒径诊断；<code>co2snow</code> 改 <code>pemisurf</code>，进而影响地表辐射冷却。</td>
+</tr>
+<tr>
+<td><a href="dust-cycle.html">尘埃循环</a></td>
+<td>尘埃是 CO2 云成核基底；<code>co2cloud</code> 可把 dust 转成 CCNCO2 并经 <code>newsedim</code> 沉降；<code>scavenging_by_co2</code> 可由 CO2 凝结清除 dust。</td>
+</tr>
+<tr>
+<td><a href="water-cycle.html">水循环</a></td>
+<td><code>co2useh2o</code> 允许水冰/水云 CCN 作为 CO2 云核，并更新 <code>h2o_ice</code>、<code>ccn_mass</code>、<code>ccn_number</code> 及 <code>ccnco2_h2o_*</code>；<code>scavenging_by_co2</code> 也可清除 H2O ice。</td>
+</tr>
+<tr>
+<td>沉降</td>
+<td>CO2 cloud tracer 沉降在 <code>co2cloud</code> 内部直接调 <code>newsedim</code>，不走 <code>physiq</code> 第 9b 段的 <code>callsedim</code>。</td>
+</tr>
+<tr>
+<td>诊断 tendency</td>
+<td><code>co2cloud</code> 输出 <code>pdtcloudco2</code>、<code>pdqcloudco2</code>、<code>pcondicea</code>、<code>pdqs_sedco2</code>；<code>co2condens</code> 输出 <code>co2condens_zfallice</code>、<code>co2condens_pdtc</code> 等诊断。</td>
+</tr>
+<tr>
+<td>垂直坐标/动力耦合</td>
+<td><code>co2condens</code> 输出 <code>pdpsrf</code>，<code>physiq</code> 随后更新表压和 <code>zplay/zplev/zzlay/zzlev</code>；MESOSCALE 条件编译路径跳过该段，由动力核处理。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出结果">输出结果</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdt</code>, <code>pdq</code></td>
+<td><code>physiq</code> 主状态</td>
+<td>CO2 cloud 和 CO2 condensation 注入后的温度/tracer tendency。</td>
+</tr>
+<tr>
+<td><code>dqsurf(:,igcm_co2,:)</code></td>
+<td>地表状态</td>
+<td>地表 CO2 冰凝结/升华与沉降 tendency。</td>
+</tr>
+<tr>
+<td><code>pdpsrf</code> / <code>ps</code></td>
+<td>表压和垂直坐标</td>
+<td>CO2 凝结/升华导致的大气柱质量变化。</td>
+</tr>
+<tr>
+<td><code>riceco2</code>, <code>rhocloudco2</code>, <code>rsedcloudco2</code></td>
+<td>诊断/后续物理</td>
+<td>CO2 冰粒半径、云密度和沉降半径。</td>
+</tr>
+<tr>
+<td><code>mtotco2</code>, <code>icetotco2</code>, <code>vaptotco2</code></td>
+<td><code>physiq</code> / <code>wstats</code> / <code>write_output</code></td>
+<td>CO2 柱质量、冰柱质量和气相柱质量。</td>
+</tr>
+<tr>
+<td><code>co2ice</code>, <code>co2ice_slopeXX</code>, <code>perennial_co2ice*</code></td>
+<td>XIOS</td>
+<td>地表 CO2 冰和多年 CO2 冰。</td>
+</tr>
+<tr>
+<td><code>co2_layer1</code>, <code>co2</code>, <code>vmr_co2</code>, <code>num_co2</code></td>
+<td>XIOS 字段定义</td>
+<td>第一层/三维 CO2 诊断；是否实际输出取决于 <code>file_def_physics.xml</code> 引用。</td>
+</tr>
+<tr>
+<td><code>co2condens_zfallice</code>, <code>co2condens_pdtc</code></td>
+<td>XIOS 字段定义</td>
+<td>CO2 凝结降冰通量和温度 tendency 诊断。</td>
+</tr>
+</tbody>
+</table>
+<p>注意：<code>field_def_physics.xml</code> 定义了 <code>co2</code>、<code>vmr_co2</code>、<code>num_co2</code>、<code>co2condens_pdtc</code> 等字段，但 GCM6 的 <code>file_def_physics.xml</code> 只引用了部分地表 CO2 冰和 <code>co2_layer1</code> 字段；复现输出文件时必须核对 <code>file_def_physics.xml</code> 是否实际启用目标字段。</p>
+<h2 id="伪代码总览">伪代码总览</h2>
+<pre class="text"><code>for each physics timestep:
+  read/use callphys switches and tracer indices initialized by initracer
+
+  if co2clouds:
+    co2cloud:
+      if firstcall:
+        imicroco2 = getin(&quot;imicroco2&quot;)
+        read optprop_co2ice_1mic.dat
+      if CLFvaryingCO2:
+        tcondco2(pplay, co2_vapor) -&gt; cloudfrac
+      for microstep:
+        improvedco2clouds:
+          co2sat(zt) -&gt; psat
+          tcondco2(pplay, co2 + co2_ice) -&gt; tcond
+          density_co2_ice(T) -&gt; rho_ice_co2T
+          if satu &gt;= 1:
+            nucleaco2 for dust
+            if meteo_flux: nucleaco2 for meteor CCN
+            if co2useh2o: nucleaco2 for H2O ice CCN
+          if enough CCN:
+            massflowrateco2 -&gt; Ic
+            dMice = Nccnco2 * Ic * dt * tauscaling
+            clip by thermal energy and available co2/co2_ice
+            update co2_ice, co2, pdt tendency
+          if ice exhausted:
+            release CCN back to dust/meteor/H2O families
+        protect negative tracer pairs
+        if sedimentation:
+          newsedim for co2_ice and CCNCO2 families
+      return pcondicea, zdqssed_co2, zdqcloudco2, zdtcloudco2
+
+    physiq injects cloud tendencies, except CO2 gas tendency is left for co2condens
+
+  if callcond:
+    co2condens:
+      compute vmr_co2 and tcond/ztcondsol
+      if not co2clouds:
+        compute atmospheric CO2 condensation
+        if scavco2cond: scavenging_by_co2
+      else:
+        consume pcondicea_co2microp and zdqssed_co2 from co2cloud
+      compute surface CO2 condensation/sublimation on each slope
+      update piceco2, pdpsrf, albedo/emissivity
+      co2snow updates pemisurf from CO2 snow flux
+      sigma correction with vl1d updates T/U/V/Q tendencies
+
+    physiq injects co2condens tendencies
+    if not MESOSCALE:
+      ps = zplev(:,1) + pdpsrf * dt
+      recompute pressure levels/layers and geometric heights
+
+  update surface state and diagnostics</code></pre>
+<h2 id="源码疑点与待确认项">源码疑点与待确认项</h2>
+<ul>
+<li><code>physiq_mod.F:2957</code> 中 <code>icetotco2(ig) = icetot(ig) + ...</code> 疑似把水冰柱积分 <code>icetot</code> 用作 CO2 冰累加基值；这会影响 <code>icetotco2/mtotco2</code> 诊断。待确认是否为已知 bug。</li>
+<li><code>co2cloud_mod.F90:250,524-536</code> 中 <code>zdelt</code> 参与 <code>CLFvaryingCO2</code> 云分数计算，但本页源码核验未看到赋值。复现 <code>CLFvaryingCO2</code> 时需确认编译器/调用路径下该值来源。</li>
+<li><code>co2cloud_mod.F90:479</code> 的 SatIndex 计算使用 <code>zt(iq,l)</code>，其中 <code>iq</code> 是 tracer 循环变量名而非网格点 <code>ig</code>；疑似索引错误，需开发者确认。</li>
+<li><code>co2cloud_mod.F90</code> <code>use density_co2_ice</code> 但本体未直接调用；实际温度依赖密度调用在 <code>improvedco2clouds_mod.F90:344</code>。不能据 <code>use</code> 行推断 <code>co2cloud</code> 本体直接消费该例程。</li>
+<li><code>co2condens_mod.F:5-7</code> 声明了 <code>CO2cond_ps</code>，<code>physiq</code> 在 1D 缩放中使用；子页曾记录其在 <code>co2condens</code> 内部未使用。复现 1D 时应核对 <code>physiq</code> 缩放段，而非只看 <code>co2condens</code> 本体。</li>
+<li><code>co2condens_mod.F:1100-1115</code> 的 scavenging 升华释放分支除以 <code>pfallice(l+1)</code>，未见显式除零保护。</li>
+<li><code>co2condens_mod.F:1131</code> / 子页记录的 <code>scav_ccn_number</code> 累积细节和 <code>pdqsc(dust_mass)</code> 双段累加需要确认是否符合设计意图。</li>
+<li><code>initracer.F90:891-900</code> 的 meteor tracer 检查存在报错文案拷贝错误和重复检查，影响用户定位缺失 tracer。</li>
+<li><code>co2snow</code> 的 <code>pemisurf</code> 形参声明为 <code>intent(out)</code> 但读入旧值，实际依赖调用方预先复制有效发射率。</li>
+<li><code>microphysco2</code> 出现在旧配置样例中但源码不读取；不能作为当前 CO2 云微物理开关。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../routines/physiq-co2-cycle-callpoints.html">physiq CO2 循环调用点</a></li>
+<li><a href="../routines/co2condens.html">co2condens</a></li>
+<li><a href="../routines/co2condens-scavenging.html">co2condens-scavenging</a></li>
+<li><a href="../modules/phymars/co2cloud_mod.html">co2cloud_mod</a></li>
+<li><a href="../modules/phymars/improvedco2clouds_mod.html">improvedco2clouds_mod</a></li>
+<li><a href="../modules/phymars/co2-saturation-helpers.html">co2-saturation-helpers</a></li>
+<li><a href="../modules/phymars/nucleaco2.html">nucleaco2</a></li>
+<li><a href="../modules/phymars/massflowrateco2.html">massflowrateco2</a></li>
+<li><a href="../modules/phymars/density_co2_ice.html">density_co2_ice</a></li>
+<li><a href="../modules/phymars/co2snow.html">co2snow</a></li>
+<li><a href="../routines/initracer-co2-tracers.html">initracer-co2-tracers</a></li>
+<li><a href="../architecture/co2-cycle-config.html">CO2 循环配置</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

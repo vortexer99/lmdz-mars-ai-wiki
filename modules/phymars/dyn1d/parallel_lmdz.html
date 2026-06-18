@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>parallel_lmdz - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../../index.html">主页</a>
+        <a href="../../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../../libf-overview.html">模块</a>
+        <a href="../../../themes/index.html">主题</a>
+        <a href="../../../routines/index.html">例程</a>
+        <a href="../../../reference/file-index.html">文件索引</a>
+        <a href="../../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dyn1d/parallel_lmdz.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dyn1dparallel_lmdzf90">dyn1d/parallel_lmdz.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d\parallel_lmdz.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>dyn1d/parallel_lmdz.F90</code> 在当前源码树中不是独立实现，而是一行相对路径：</p>
+<pre class="text"><code>../../../../LMDZ.COMMON/libf/dyn3dpar/parallel_lmdz.F90</code></pre>
+<p>它把 1D <code>testphys1d</code> 构建路径中的 <code>parallel_lmdz</code> 解析到公共并行动力运行时模块。目标模块负责 MPI/OpenMP 运行时状态、纬向带分配、halo 交换、broadcast/gather 和并行结束清理。当前 dyn1d 目录中直接使用该模块的源码点是 <a href="testphys1d.html">testphys1d.F90</a>，只导入并调用 <code>init_parallel</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">目标行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>parallel_lmdz.F90</code></td>
+<td>path stub</td>
+<td style="text-align: right;">dyn1d line 1</td>
+<td>指向 <code>LMDZ.COMMON/libf/dyn3dpar/parallel_lmdz.F90</code>。</td>
+</tr>
+<tr>
+<td><code>parallel_lmdz</code></td>
+<td>module</td>
+<td style="text-align: right;">common line 4</td>
+<td>保存并行运行状态并提供 MPI/OpenMP 分配、通信和结束入口。</td>
+</tr>
+<tr>
+<td><code>using_mpi</code> / <code>using_omp</code></td>
+<td>logical, save</td>
+<td style="text-align: right;">common lines 13-14</td>
+<td>记录当前编译/运行是否启用 MPI/OpenMP；<code>init_parallel</code> 按 <code>CPP_MPI</code>、<code>CPP_OMP</code> 设置。</td>
+</tr>
+<tr>
+<td><code>mpi_size</code> / <code>mpi_rank</code></td>
+<td>integer, save</td>
+<td style="text-align: right;">common lines 16-17</td>
+<td><code>COMM_LMDZ</code> 上的进程数和当前 rank。</td>
+</tr>
+<tr>
+<td><code>jj_begin</code> / <code>jj_end</code> / <code>jj_nb</code></td>
+<td>integer, save</td>
+<td style="text-align: right;">common lines 18-20</td>
+<td>当前 MPI rank 负责的纬向带起止和数量。</td>
+</tr>
+<tr>
+<td><code>ij_begin</code> / <code>ij_end</code></td>
+<td>integer, save</td>
+<td style="text-align: right;">common lines 21-22</td>
+<td>当前 rank 的扁平化水平索引范围，按 <code>iip1</code> 和 <code>jj_*</code> 派生。</td>
+</tr>
+<tr>
+<td><code>pole_nord</code> / <code>pole_sud</code></td>
+<td>logical, save</td>
+<td style="text-align: right;">common lines 23-24</td>
+<td>当前 rank 是否持有北/南极纬向边界。</td>
+</tr>
+<tr>
+<td><code>jj_begin_para(:)</code> / <code>jj_end_para(:)</code> / <code>jj_nb_para(:)</code></td>
+<td>allocatable integer, save</td>
+<td style="text-align: right;">common lines 26-28</td>
+<td>每个 MPI rank 的纬向分配表。</td>
+</tr>
+<tr>
+<td><code>OMP_CHUNK</code> / <code>omp_rank</code> / <code>omp_size</code></td>
+<td>integer, save</td>
+<td style="text-align: right;">common lines 29-31</td>
+<td>OpenMP 垂直层 chunk 和线程编号/线程数；<code>omp_rank</code> 为 threadprivate。</td>
+</tr>
+<tr>
+<td><code>jjb_u</code> 等 dummy 变量</td>
+<td>integer, save</td>
+<td style="text-align: right;">common lines 36-49</td>
+<td>为兼容 <code>dyn3d_mem/parallel_lmdz.F90</code> 中的 <code>calfis_loc</code> 编译需求而保留的 u/v 网格占位变量。</td>
+</tr>
+<tr>
+<td><code>init_parallel</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">common line 53</td>
+<td>初始化 MPI/OpenMP 状态、rank 纬向分配和输出文件。</td>
+</tr>
+<tr>
+<td><code>SetDistrib</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">common line 205</td>
+<td>用外部传入的 <code>jj_Nb_New</code> 重设每个 rank 的纬向分配。</td>
+</tr>
+<tr>
+<td><code>Finalize_parallel</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">common line 238</td>
+<td>释放分配表并按 XIOS/OASIS/MPI 条件关闭运行时。</td>
+</tr>
+<tr>
+<td><code>Pack_Data</code> / <code>Unpack_Data</code></td>
+<td>subroutines</td>
+<td style="text-align: right;">common lines 297, 320</td>
+<td>在二维 field 子块和一维通信 buffer 之间打包/解包。</td>
+</tr>
+<tr>
+<td><code>barrier</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">common line 345</td>
+<td><code>using_mpi</code> 时调用 <code>MPI_Barrier(COMM_LMDZ)</code>。</td>
+</tr>
+<tr>
+<td><code>exchange_hallo</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">common line 361</td>
+<td>按上下 halo 行数与极点边界执行相邻 rank 的非阻塞 halo 交换。</td>
+</tr>
+<tr>
+<td><code>Gather_Field</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">common line 494</td>
+<td>把分布式 <code>ip1jmp1</code> 或 <code>ip1jm</code> 水平场收集到指定 root rank。</td>
+</tr>
+<tr>
+<td><code>AllGather_Field</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">common line 578</td>
+<td>先 <code>Gather_Field(...,0)</code>，再从 rank 0 广播全场。</td>
+</tr>
+<tr>
+<td><code>Broadcast_Field</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">common line 600</td>
+<td>从指定 rank 广播 field。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="初始化流程">初始化流程</h2>
+<p><code>init_parallel</code> 的源码流程如下：</p>
+<ol type="1">
+<li>按编译宏设置运行模式：定义 <code>CPP_MPI</code> 时 <code>using_mpi=.TRUE.</code>，否则 <code>.FALSE.</code>；定义 <code>CPP_OMP</code> 时 <code>using_OMP=.TRUE.</code>，否则 <code>.FALSE.</code>。</li>
+<li>调用 <code>InitVampir</code> 初始化性能计时钩子。</li>
+<li>若 <code>using_mpi</code>，用 <a href="mod_const_mpi.html">mod_const_mpi</a> 提供的 <code>COMM_LMDZ</code> 调 <code>MPI_COMM_SIZE</code> 和 <code>MPI_COMM_RANK</code>；否则强制 <code>mpi_size=1</code>、<code>mpi_rank=0</code>。</li>
+<li>如果 <code>lunout</code> 不是标准输入输出单元 5/6，非 root rank 打开 <code>lmdz.out_XXXX</code> 作为文本输出文件。</li>
+<li>分配 <code>jj_begin_para/jj_end_para/jj_nb_para(0:mpi_size-1)</code>。</li>
+<li>将 <code>jjm+1</code> 个纬向带尽量均分到所有 rank：每个 rank 先取整数商，前 <code>MOD(jjm+1,mpi_size)</code> 个 rank 多得一带。</li>
+<li>若某 rank 的 <code>jj_nb_para(i)&lt;=1</code>，打印错误；MPI 分支下调用 <code>MPI_ABORT(COMM_LMDZ,-1,ierr)</code>。</li>
+<li>由累计纬向带得到每个 rank 的 <code>jj_begin_para(i)</code> 和 <code>jj_end_para(i)</code>，再写入当前 rank 的 <code>jj_begin/jj_end/jj_nb</code>。</li>
+<li>计算扁平水平范围：<code>ij_begin=(jj_begin-1)*iip1+1</code>，<code>ij_end=jj_end*iip1</code>。</li>
+<li>设置极点标志：<code>mpi_rank==0</code> 为北极 rank，<code>mpi_rank==mpi_size-1</code> 为南极 rank。</li>
+<li>OpenMP 分支中取 <code>omp_size/omp_rank</code>，默认 <code>omp_chunk=ceil((llm+1)/omp_size)</code>，再用 <code>getin('omp_chunk',omp_chunk)</code> 允许配置覆盖；非 OpenMP 时设 <code>omp_size=1</code>、<code>omp_rank=0</code>。</li>
+</ol>
+<h2 id="通信和分布算法">通信和分布算法</h2>
+<h3 id="setdistrib"><code>SetDistrib</code></h3>
+<p><code>SetDistrib(jj_Nb_New)</code> 接收一个从 <code>0</code> 到 <code>MPI_Size-1</code> 的纬向带数量数组，直接覆写 <code>jj_Nb_Para</code>，然后从 rank 0 起逐段累加生成新的 <code>jj_begin_para/jj_end_para</code>。最后按当前 <code>mpi_rank</code> 重算 <code>jj_begin/jj_end/jj_nb/ij_begin/ij_end</code>。</p>
+<p>复现时要注意：这个例程不重新分配 <code>jj_*_para</code>，调用前必须已经执行过 <code>init_parallel</code>，且 <code>jj_Nb_New</code> 的大小必须与当前 <code>MPI_Size</code> 一致。</p>
+<h3 id="exchange_hallo"><code>exchange_hallo</code></h3>
+<p><code>exchange_hallo(Field,ij,ll,up,down)</code> 只在 <code>using_mpi</code> 为真时工作：</p>
+<ol type="1">
+<li>先执行全局 <code>barrier</code>，再调用 <code>VTb(VThallo)</code> 开始 halo 计时。</li>
+<li>默认允许向上/向下发送和接收。</li>
+<li>若当前 rank 是北极，禁止向上发送和接收；若是南极，禁止向下发送和接收。</li>
+<li>若 <code>up==0</code>，禁止向下发送和向上接收；若 <code>down==0</code>，禁止向上发送和向下接收。</li>
+<li>每个启用的方向分配对应 buffer，<code>Pack_Data</code> 把 <code>row*iip1*ll</code> 个元素打包。</li>
+<li>用 <code>MPI_ISSEND</code> 把北侧/南侧边界发送给 <code>mpi_rank-1</code> 或 <code>mpi_rank+1</code>，用 <code>MPI_IRECV</code> 接收相邻 rank 的边界。</li>
+<li><code>MPI_WAITALL</code> 等待所有请求完成。</li>
+<li>用 <code>Unpack_Data</code> 把收到的 buffer 写回 <code>Field(ij_begin-up*iip1,1)</code> 或 <code>Field(ij_end+1,1)</code> 位置。</li>
+<li>调 <code>VTe(VThallo)</code> 结束计时，再执行一次 <code>barrier</code>。</li>
+</ol>
+<p><code>Pack_Data</code> 和 <code>Unpack_Data</code> 的循环次序是外层垂直层 <code>l=1..ll</code>，内层水平点 <code>i=1..row*iip1</code>，因此通信 buffer 以“每层连续水平行块”的顺序排列。</p>
+<h3 id="gather_fieldallgather_field-和-broadcast_field"><code>Gather_Field</code>、<code>AllGather_Field</code> 和 <code>Broadcast_Field</code></h3>
+<p><code>Gather_Field(Field,ij,ll,rank)</code> 支持两种水平数组长度：</p>
+<ul>
+<li><code>ij==ip1jmp1</code>：包含 <code>jjm+1</code> 纬向行的全水平网格。</li>
+<li><code>ij==ip1jm</code>：少一个纬向行，源码用 <code>min(jj_end,jjm)</code> 避免南边界越界。</li>
+</ul>
+<p>每个 rank 先把本地纬向带打包到 <code>Buffer_send</code>。root rank 根据所有 <code>jj_begin_para/jj_end_para</code> 构造 <code>Recv_count</code> 和 <code>displ</code>，调 <code>MPI_GATHERV</code> 后再逐 rank <code>Unpack_Data</code> 回完整 <code>Field</code>。非 root rank 为避免 debug 模式未分配实参报警，会分配一个长度为 1 的 dummy <code>Buffer_Recv</code>。</p>
+<p><code>AllGather_Field</code> 是 <code>Gather_Field(...,0)</code> 加 <code>MPI_BCAST(Field,ij*ll,...)</code>；<code>Broadcast_Field</code> 则直接从指定 rank 广播整个 <code>Field</code>。</p>
+<h2 id="结束流程">结束流程</h2>
+<p><code>Finalize_parallel</code> 先释放 <code>jj_begin_para/jj_end_para/jj_nb_para</code>。随后按编译宏和 <code>type_ocean</code> 选择关闭路径：</p>
+<ul>
+<li><code>type_ocean == 'couple'</code> 且有 <code>CPP_XIOS</code>：调用 <code>wxios_close()</code>。</li>
+<li><code>type_ocean == 'couple'</code> 且无 XIOS 但有 <code>CPP_COUPLE</code>：调用 <code>prism_terminate_proto(ierr)</code>；若返回值不是 <code>PRISM_Ok</code>，调用 <code>abort_gcm</code>。</li>
+<li>非 couple 且有 <code>CPP_XIOS</code>：调用 <code>wxios_close()</code>。</li>
+<li>非 couple 且有 <code>CPP_MPI</code>：若 <code>using_mpi</code>，调用 <code>MPI_FINALIZE(ierr)</code>。</li>
+</ul>
+<h2 id="dyn1d-使用路径">dyn1d 使用路径</h2>
+<p><a href="testphys1d.html">testphys1d.F90</a> 在程序开头导入：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">use</span> mod_const_mpi,       <span class="kw">only</span>: init_const_mpi</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">use</span> parallel_lmdz,       <span class="kw">only</span>: init_parallel</span></code></pre></div>
+<p>随后在主流程早期顺序调用：</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">call init_const_mpi</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co">call init_parallel</span></span></code></pre></div>
+<p>因此 1D 主程序依赖 <a href="mod_const_mpi.html">mod_const_mpi</a> 先建立 <code>COMM_LMDZ</code>，再由 <code>parallel_lmdz::init_parallel</code> 建立 rank/线程状态。当前 dyn1d 源码未发现直接调用 <code>Finalize_parallel</code>、<code>exchange_hallo</code>、<code>Gather_Field</code>、<code>AllGather_Field</code> 或 <code>Broadcast_Field</code> 的位置；这些例程来自公共并行模块，供完整动力/物理并行路径或被链接的公共代码使用。</p>
+<h2 id="编译条件和外部依赖">编译条件和外部依赖</h2>
+<table>
+<thead>
+<tr>
+<th>宏/依赖</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CPP_MPI</code></td>
+<td>引入 <code>mpif.h</code>，启用 <code>MPI_COMM_SIZE/RANK</code>、<code>MPI_ABORT</code>、<code>MPI_Barrier</code>、非阻塞发送接收、<code>MPI_GATHERV</code>、<code>MPI_BCAST</code> 和 <code>MPI_FINALIZE</code>。</td>
+</tr>
+<tr>
+<td><code>CPP_OMP</code></td>
+<td>使用 OpenMP runtime 取线程数和线程号，并设置 <code>omp_chunk</code>。</td>
+</tr>
+<tr>
+<td><code>CPP_IOIPSL</code></td>
+<td>从 IOIPSL 使用 <code>getin</code>；否则使用本地 <code>ioipsl_getincom::getin</code>。</td>
+</tr>
+<tr>
+<td><code>CPP_XIOS</code></td>
+<td><code>Finalize_parallel</code> 中调用 <code>wxios_close()</code>。</td>
+</tr>
+<tr>
+<td><code>CPP_COUPLE</code> / <code>CPP_OMCT</code></td>
+<td><code>Finalize_parallel</code> 中走 OASIS/PRISM coupler 结束路径。</td>
+</tr>
+<tr>
+<td><code>dimensions.h</code> / <code>paramet.h</code></td>
+<td>提供 <code>iip1/jjm/llm/ip1jmp1/ip1jm</code> 等网格维度。</td>
+</tr>
+<tr>
+<td><code>iniprint.h</code></td>
+<td>提供 <code>lunout</code> 输出单元。</td>
+</tr>
+<tr>
+<td><code>vampir</code></td>
+<td>提供 <code>InitVampir</code>、<code>VTb</code>、<code>VTe</code> 和 <code>VThallo</code> 计时标识。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>当前 dyn1d 文件本身只有一行路径；实际行为以 <code>LMDZ.COMMON/libf/dyn3dpar/parallel_lmdz.F90</code> 为准。</li>
+<li><code>init_parallel</code> 假设 <a href="mod_const_mpi.html">mod_const_mpi</a> 已经初始化了 <code>COMM_LMDZ</code>；在 <code>testphys1d</code> 中源码顺序确实是先 <code>init_const_mpi</code> 再 <code>init_parallel</code>。</li>
+<li>MPI 纬向分配要求每个 rank 至少两条纬向带，否则源码会 abort；这对小网格/多进程组合是硬约束。</li>
+<li>非 MPI 编译时，<code>using_mpi=.FALSE.</code>，<code>mpi_size=1</code>，<code>mpi_rank=0</code>，通信例程主体不会执行。</li>
+<li><code>exchange_hallo</code> 的 <code>up/down</code> 为 halo 行数；为 0 时源码会禁用对应方向的发送/接收，不是“交换 0 行后继续通信”。</li>
+<li><code>jjb_u/jje_u/...</code> 和 <code>ijb_u/ije_u/...</code> 在本目标文件内没有赋值逻辑；它们是为了公共接口兼容保留的 dummy 状态。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 1D 构建默认是否启用 <code>CPP_MPI</code>、<code>CPP_OMP</code> 或 <code>CPP_XIOS</code>，需要结合 makefile/编译脚本确认；本页只按源码条件分支记录。</li>
+<li>Windows 工作树把 dyn1d 入口呈现为一行路径文本；原始类 Unix 工作树中它可能是符号链接。</li>
+<li><code>Finalize_parallel</code> 在 <code>testphys1d</code> 运行结束路径是否被其他公共代码调用，当前 dyn1d 直接源码未发现调用点。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn1d/index.md</a> - dyn1d 子目录索引。</li>
+<li><a href="mod_const_mpi.html">mod_const_mpi</a> - <code>COMM_LMDZ</code> 和 <code>init_const_mpi</code> 的来源。</li>
+<li><a href="mod_interface_dyn_phys.html">mod_interface_dyn_phys</a> - 动力-物理接口索引映射，与并行物理分布相关。</li>
+<li><a href="init_testphys1d_mod.html">init_testphys1d_mod</a> - 1D 初始化主例程。</li>
+<li><a href="testphys1d.html">testphys1d.F90</a> - 1D 主程序。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

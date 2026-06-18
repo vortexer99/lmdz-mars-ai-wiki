@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>aeroptproperties - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/aeroptproperties.md</span>
+    </nav>
+    <article class="content">
+<h1 id="aeroptpropertiesf">aeroptproperties.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\aeroptproperties.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>该文件定义气溶胶光学属性计算模块 <code>aeroptproperties_mod</code>，导出唯一例程 <code>aeroptproperties</code>，由辐射调用入口 <code>callradite</code>（行 424）在 <code>aeropacity</code> 之前调用。它的职责是：在每个网格箱内，根据气溶胶颗粒的有效半径 <code>reffrad</code> 和有效方差 <code>nueffrad</code>，对预先按离散半径表（<code>radiustab</code>）给出的单粒子散射参数做对数正态尺寸分布的积分（Gauss-Legendre 求积），从而得到该网格箱实际尺寸分布下的有效散射参数——消光效率比 <code>Q/Qref</code>、单次散射反照率 <code>omega</code>、不对称因子 <code>g</code>，分可见光（<code>nsun=2</code> 带）与红外（<code>nir=4</code> 带）以及参考波长输出。</p>
+<p>为避免每个网格箱都重做昂贵的卷积积分，模块在 firstcall 建立一张 <code>(reff, nueff)</code> 对数插值网格（<code>refftabsize=100 × nuefftabsize=100</code>），把每个网格节点的卷积结果缓存在 <code>*grid</code> 数组里（<code>checkgrid</code> 标记是否算过），随后对每个真实网格箱只做线性（常方差）或双线性（变方差）插值。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>aeroptproperties_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>气溶胶光学属性计算模块</td>
+</tr>
+<tr>
+<td><code>aeroptproperties</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>按 <code>reffrad/nueffrad</code> 对单粒子光学参数做尺寸分布积分与插值，输出 3D 散射参数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>nir, nsun, naerkind, radiustab, nsize, QVISsQREF, omegavis, gvis, QIRsQREF, omegaIR, gIR, QREFvis, QREFir, omegaREFvis, omegaREFir</code></td>
+<td>维度常数（<code>nir=4</code>、<code>nsun=2</code>、<code>naerkind</code>）、离散半径表、各气溶胶在离散半径处的单粒子可见光/红外/参考波长光学参数表</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>write_output_mod</code></td>
+<td><code>write_output</code></td>
+<td>仅在 <code>out_qwg=.true.</code> 测试分支输出诊断场（非 MESOSCALE）</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abort_physic</code></td>
+<td>（phymars 公共中止例程）</td>
+<td>行 591、984</td>
+<td><code>normd</code> 归一化因子仍为 <code>1e-30</code> 时（除零风险）致命中止</td>
+</tr>
+<tr>
+<td><code>write_output</code></td>
+<td><code>write_output_mod</code></td>
+<td>行 1312–1348（<code>#ifndef MESOSCALE</code>）</td>
+<td>测试分支输出 <code>qext/omeg/g</code> 诊断场</td>
+</tr>
+<tr>
+<td><code>minloc</code>（intrinsic）</td>
+<td>Fortran</td>
+<td>行 388、449</td>
+<td>在 <code>radiustab</code> 中定位最接近 Gauss 节点半径的离散索引</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid, nlayer</code></td>
+<td><code>callradite</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>水平格点数、垂直层数</td>
+</tr>
+<tr>
+<td><code>reffrad(ngrid,nlayer,naerkind)</code></td>
+<td><code>callradite</code></td>
+<td>real (IN)</td>
+<td>m</td>
+<td>各气溶胶有效半径</td>
+</tr>
+<tr>
+<td><code>nueffrad(ngrid,nlayer,naerkind)</code></td>
+<td><code>callradite</code></td>
+<td>real (IN)</td>
+<td>无量纲</td>
+<td>各气溶胶有效方差</td>
+</tr>
+<tr>
+<td><code>radiustab, nsize, QVISsQREF, ...</code></td>
+<td><code>dimradmars_mod</code></td>
+<td>real/integer (SAVE)</td>
+<td>混合</td>
+<td>离散半径表与对应单粒子光学参数表（由 <code>suaer</code> 等填充）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>QVISsQREF3d(ngrid,nlayer,nsun,naerkind)</code></td>
+<td><code>callradite</code>→短波辐射</td>
+<td>real (OUT)</td>
+<td>-</td>
+<td>可见光各带 <code>Qext/Qext(ref)</code></td>
+</tr>
+<tr>
+<td><code>omegaVIS3d(ngrid,nlayer,nsun,naerkind)</code></td>
+<td><code>callradite</code></td>
+<td>real (OUT)</td>
+<td>-</td>
+<td>可见光各带单次散射反照率</td>
+</tr>
+<tr>
+<td><code>gVIS3d(ngrid,nlayer,nsun,naerkind)</code></td>
+<td><code>callradite</code></td>
+<td>real (OUT)</td>
+<td>-</td>
+<td>可见光各带不对称因子</td>
+</tr>
+<tr>
+<td><code>QIRsQREF3d(ngrid,nlayer,nir,naerkind)</code></td>
+<td><code>callradite</code>→长波辐射</td>
+<td>real (OUT)</td>
+<td>-</td>
+<td>红外各带 <code>Qext/Qext(ref)</code></td>
+</tr>
+<tr>
+<td><code>omegaIR3d(ngrid,nlayer,nir,naerkind)</code></td>
+<td><code>callradite</code></td>
+<td>real (OUT)</td>
+<td>-</td>
+<td>红外各带单次散射反照率</td>
+</tr>
+<tr>
+<td><code>gIR3d(ngrid,nlayer,nir,naerkind)</code></td>
+<td><code>callradite</code></td>
+<td>real (OUT)</td>
+<td>-</td>
+<td>红外各带不对称因子</td>
+</tr>
+<tr>
+<td><code>QREFvis3d/QREFir3d(ngrid,nlayer,naerkind)</code></td>
+<td><code>callradite</code>→<code>aeropacity</code></td>
+<td>real (OUT)</td>
+<td>-</td>
+<td>参考波长可见光/红外消光效率（供光学厚度公式）</td>
+</tr>
+<tr>
+<td><code>omegaREFvis3d/omegaREFir3d(ngrid,nlayer,naerkind)</code></td>
+<td><code>callradite</code>→<code>aeropacity</code></td>
+<td>real (OUT)</td>
+<td>-</td>
+<td>参考波长可见光/红外单次散射反照率</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>全部插值网格缓存、Gauss 中间量、<code>pi</code>、<code>firstcall</code>、<code>out_qwg</code> 均为 <code>SAVE</code>+<code>THREADPRIVATE</code>（行 41–221），在 firstcall 一次性 <code>allocate</code> 并初始化。</li>
+<li><code>checkgrid</code> 跨调用累积：某 <code>(reff,nueff)</code> 网格节点一旦算过即标 <code>.true.</code>，后续调用复用缓存，因此本例程的输出与历史调用顺序无关但缓存状态会增长。</li>
+<li>标准输出副作用：firstcall 打印插值网格各散射体/通道的最小/最大半径；除零风险时打印警告并 <code>abort_physic</code>。</li>
+<li>测试副作用：<code>out_qwg=.true.</code>（源码默认 <code>.false.</code>）时对 <code>out_iaer=2</code> 气溶胶用 <code>write_output</code> 写 <code>qextvis/omegvis/gvis/qextir/omegir/gir/omegvisref/omegirref</code> 诊断（<code>#ifndef MESOSCALE</code>）。</li>
+<li>只读 <code>dimradmars_mod</code> 的离散光学参数表；不修改它们。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>firstcall（行 233–345）</strong>：<code>allocate</code> 全部 <code>SAVE</code> 数组；<code>checkgrid=.false.</code>、<code>varyingnueff=.false.</code>；<code>pi=2*asin(1)</code>；对每个气溶胶 <code>iaer</code>、每个通道域 <code>idomain</code>（1=可见，2=红外）建立对数半径插值轴 <code>refftab</code>（从 <code>refftabmin=radiusm-radiusr*radgaus(ngau)</code> 到 <code>refftabmax=最大离散半径</code>，按体积比 <code>logvratgrid</code> 等比展开）和指数方差轴 <code>nuefftab</code>（<code>exp</code> 从 <code>nuefftabmin=-4.6</code> 到 <code>nuefftabmax=0</code>）。</li>
+<li><strong>逐气溶胶主循环（行 347–1293）</strong>：
+<ul>
+<li><strong>单粒径捷径（行 349–370）</strong>：若 <code>nsize(iaer,1)=nsize(iaer,2)=1</code>，光学属性均匀，直接把离散表第 1 个半径的值铺到所有 <code>ig,lg</code>。</li>
+<li>否则进入<strong>双通道域循环（行 372）</strong>：
+<ul>
+<li><strong>1.1–1.2 Gauss 节点插值（行 375–504）</strong>：取半径中点 <code>radiusm</code>、半幅 <code>radiusr</code>；对 10 个 Gauss 节点分别在 <code>radiusm±drad</code> 处用 <code>minloc</code> 定位离散半径区间、线性内插（<code>kint</code>）得到 a 组（<code>radiusm-drad</code>）和 b 组（<code>radiusm+drad</code>）的单粒子参数 <code>qsqref/omeg/g/qref</code>（可见或红外）。</li>
+<li><strong>常方差分支（<code>.NOT.varyingnueff</code>，行 507–871）</strong>：对每层每格点算 <code>reff</code> 网格索引 <code>grid_i</code> 与权重 <code>kx</code>；对 <code>j=grid_i,grid_i+1</code> 两节点若 <code>checkgrid</code> 未算则做对数正态分布卷积（<code>dista/distb</code> 为分布权重，<code>normd</code> 为归一化截面），分别累加 <code>qext/qscat/g/qref/qscatref</code> 网格量并归一化，得 <code>qsqref/omeg</code>；最后用 <code>k1=1-kx,k2=kx</code> 线性插值写出 3D 输出。</li>
+<li><strong>变方差分支（<code>varyingnueff</code>，行 873–1287）</strong>：额外算方差网格索引 <code>grid_j</code> 与权重 <code>ky</code>；对 <code>(j,k)</code> 四节点做同样卷积缓存；用双线性权重 <code>k1..k4</code> 写出 3D 输出。</li>
+</ul></li>
+</ul></li>
+<li><strong>测试输出（行 1295–1350）</strong>：<code>out_qwg</code> 时写诊断场。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if firstcall:
+    allocate 所有 SAVE 网格/缓存数组; checkgrid=false; varyingnueff=false
+    pi = 2*asin(1)
+    for iaer, idomain in (1=VIS, 2=IR):
+        建立对数半径轴 refftab[1..100] 和指数方差轴 nuefftab[1..100]
+    firstcall = false
+
+for iaer in 1..naerkind:
+    if nsize(iaer,1)==1 and nsize(iaer,2)==1:
+        把离散表第 1 半径值直接铺到所有 (ig,lg)   # 单粒径均匀
+    else:
+        for idomain in (VIS, IR):
+            # 在 10 个 Gauss 节点 radiusm±drad 处线性内插单粒子参数 -&gt; a/b 组
+            if not varyingnueff(iaer):     # 常方差: 一维网格 + 线性插值
+                for (lg,ig):
+                    定位 grid_i, kx
+                    for j in grid_i..grid_i+1:
+                        if not checkgrid(j,1,iaer,idomain):
+                            对数正态卷积 -&gt; qext/qscat/g/qref 网格量, 归一化
+                            checkgrid=true
+                    线性插值 (k1,k2) 写 QVISsQREF3d/.../QREFir3d 等
+            else:                          # 变方差: 二维网格 + 双线性插值
+                for (lg,ig):
+                    定位 grid_i,kx 和 grid_j,ky
+                    for (j,k) in 四节点:
+                        if not checkgrid: 卷积缓存
+                    双线性插值 (k1..k4) 写 3D 输出
+
+if out_qwg:  # 默认 false
+    write_output 诊断 qext/omeg/g (#ifndef MESOSCALE)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>辐射</td>
+<td>为短波（<code>nsun</code> 带）和长波（<code>nir</code> 带）辐射传输提供按实际尺寸分布积分的散射参数 <code>Q/Qref</code>、<code>omega</code>、<code>g</code>，以及参考波长 <code>QREFvis3d/QREFir3d</code>（再喂给 <code>aeropacity</code> 算光学厚度）</td>
+</tr>
+<tr>
+<td>尘埃循环</td>
+<td>尘埃粒径随循环变化时，本例程把变化的 <code>reffrad/nueffrad</code> 转换为对应的散射效率</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran（<code>.F</code>，第 6 列续行）。</li>
+<li>全部网格缓存为 <code>SAVE</code>+<code>THREADPRIVATE</code>+<code>ALLOCATABLE</code>，firstcall 分配；OpenMP 下每线程各持一份。</li>
+<li><code>checkgrid</code> 惰性缓存：只在首次命中某 <code>(reff[,nueff])</code> 网格节点时做卷积，显著省时；<code>varyingnueff(iaer)=.false.</code> 进一步退化为一维网格（注释提示设为 false 计算更快）。</li>
+<li>Gauss-Legendre 10 点求积，<code>radgaus/weightgaus</code> 为硬编码 DATA。</li>
+<li>硬编码常数：<code>nuefftabmin=-4.6</code>、<code>nuefftabmax=0</code>、<code>refftabsize=100</code>、<code>nuefftabsize=100</code>、<code>ngau=10</code>、<code>out_iaer=2</code>、<code>normd</code> 初值 <code>1e-30</code>。</li>
+<li>对数正态分布参数按 Hansen 1974：<code>sizedistk1=r_g</code>、<code>sizedistk2=sigma_g^2</code>。</li>
+<li>数值保护：<code>grid_i/grid_j</code> 越界钳制到 <code>[1,tabsize-1]</code>，<code>normd==1e-30</code> 触发 <code>abort_physic</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>维度常数：<code>nsun=2</code>（不可改，见 dimradmars 注释）、<code>nir=4</code>、<code>naerkind</code> 由 <code>callphys.def</code> 决定。</li>
+<li>插值网格：对数半径轴 <code>refftab</code> 按体积比 <code>logvratgrid</code> 等比展开，节点数 100；方差轴 <code>nuefftab</code> 指数分布于 <code>exp(-4.6)..exp(0)</code>，节点数 100。</li>
+<li>卷积归一化：<code>normd</code> 为对数正态分布的几何截面加权积分；所有 <code>*grid</code> 量除以 <code>normd</code> 得加权平均；<code>omeg=qscat/qext</code>、<code>qsqref=qext/qref</code>。</li>
+<li>单粒径捷径要求 <code>nsize(iaer,1)=nsize(iaer,2)=1</code>；否则必须走 Gauss 积分路径。</li>
+<li>输入 <code>radiustab/QVISsQREF/...</code> 必须先由 <code>suaer</code> 等填充，否则插值结果无意义。</li>
+<li><code>out_qwg</code> 默认 <code>.false.</code>，复现常规运行时不产生诊断输出。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>行 822、1213 红外 <code>qsqrefIRgrid</code> 用 <code>qrefVISgrid</code>（可见光参考）作分母，而非 <code>qrefIRgrid</code>；红外卷积（行 729、745 等）也用 <code>qrefVISb/qrefVISa</code> 加权。推断：这是 LMDZ.MARS 辐射方案“红外 Q 相对可见光参考波长归一”的约定（与 <code>QIRsQREF</code> 命名一致，<code>QIRsQREF=Qext/Qext(longrefvis)</code>，见 dimradmars 注释行 149），并非笔误；但跨通道用可见光参考量是易误解点，复现时需保留该约定。</li>
+<li>常方差分支卷积循环（行 543）用 <code>nueffrad(1,1,iaer)</code>（固定取第 1 格点第 1 层方差）而非当前 <code>nueffrad(ig,lg,iaer)</code>；推断这正是“常方差”假设的体现——整层大气用同一方差以省时，与文件头注释 <code>varyingnueff</code> 说明一致。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="aeropacity_mod.html">aeropacity_mod</a> — 紧随本例程被 <code>callradite</code> 调用，用本例程输出的 <code>QREFvis3d/QREFir3d</code> 等算光学厚度</li>
+<li><a href="updaterad.html">updaterad</a> / <a href="updatereffrad_mod.html">updatereffrad_mod</a> — 提供 <code>reffrad</code>/<code>nueffrad</code></li>
+<li><a href="../../themes/radiation.html">radiation 主题</a>、<a href="../../themes/dust-cycle.html">dust-cycle 主题</a></li>
+<li><a href="write_output_mod.html">write_output_mod</a> — 测试诊断输出后端</li>
+<li><a href="callradite_mod.html">callradite_mod</a> - 本例程唯一调用方和辐射入口。</li>
+<li><a href="dimradmars_mod.html">dimradmars_mod</a> - 离散光学参数表与维度常数来源。</li>
+<li><a href="suaer.html">suaer</a> - 填充 <code>radiustab/QVISsQREF/QIRsQREF</code> 等离散光学参数表。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

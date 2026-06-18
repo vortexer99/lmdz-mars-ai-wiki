@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>water-cycle - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a class="active" href="index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>themes/water-cycle.md</span>
+    </nav>
+    <article class="content">
+<h1 id="水循环主题">水循环主题</h1>
+<h2 id="主题目标">主题目标</h2>
+<p>本页串联 LMDZ.MARS 中水汽、云冰、地表霜、地下冰和诊断输出的主流程，目标是让读者能沿源码复现一个物理时间步中的水循环计算：</p>
+<ol type="1">
+<li><code>physiq</code> 中何处调用 <code>watercloud</code>，调用前后哪些 tendency 被注入。</li>
+<li><code>watercloud_mod</code> 如何按 <code>microphys</code> 分派到 <code>simpleclouds</code> 或 <code>improvedclouds</code>。</li>
+<li><code>watersat</code> 与 <code>tcondwater</code> 如何提供水冰饱和混合比和凝结温度。</li>
+<li><code>vdifc</code> 如何处理水汽地表交换，并在 <code>adsorption_soil</code> 分支耦合 <code>soilwater</code> 的吸附水/地下冰储库。</li>
+<li><code>waterice_tifeedback</code> 如何把地表/孔隙水冰反馈到土壤热惯量，再影响地温。</li>
+<li>配置开关、tracer、XIOS 输出如何决定水循环是否可运行、可诊断。</li>
+</ol>
+<p>源码依据：本页核验了 <code>physiq_mod.F</code>、<code>watercloud_mod.F</code>、<code>watersat_mod.F90</code>、<code>tcondwater.F90</code>、<code>vdifc_mod.F</code>、<code>soilwater.F90</code>、<code>waterice_tifeedback_mod.F90</code>、<code>conf_phys.F</code>、<code>deftank/callphys.def.GCM6</code>、<code>traceur.def.watercycle.GCM5</code>、<code>deftank/xios/field_def_physics.xml</code>、<code>deftank/xios/file_def_physics.xml</code>。更细的文件级证据见相关子页。</p>
+<h2 id="入口">入口</h2>
+<table>
+<thead>
+<tr>
+<th>入口例程</th>
+<th>文件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>physiq</code></td>
+<td><a href="../modules/phymars/physiq_mod.html"><code>libf/phymars/physiq_mod.F</code></a></td>
+<td>主物理时间步入口；在 <code>IF (water)</code> 块内调用 <code>watercloud</code>，随后注入水汽/水冰/CCN/尘埃 tendency，并把水云结果交给沉降、化学和诊断。</td>
+</tr>
+<tr>
+<td><code>watercloud</code></td>
+<td><a href="../modules/phymars/watercloud_mod.html"><code>libf/phymars/watercloud_mod.F</code></a></td>
+<td>大气水冰云主调度；按 <code>microphys</code> 选择简化云或完整微物理云，统一处理非负保护、半径更新、<code>CLFvarying</code> 缩放和 <code>rsedcloud</code>。</td>
+</tr>
+<tr>
+<td><code>vdifc</code> 水汽地表交换段</td>
+<td><a href="../modules/phymars/vdifc_mod.html"><code>libf/phymars/vdifc_mod.F</code></a></td>
+<td>边界层/地表侧入口；对 <code>h2o_vap</code> 构造拉向饱和的隐式下边界，计算地表霜升华/沉积、永久冰盖消耗、地下冰/吸附水通量。</td>
+</tr>
+<tr>
+<td><code>waterice_tifeedback</code></td>
+<td><a href="../modules/phymars/waterice_tifeedback_mod.html"><code>libf/phymars/waterice_tifeedback_mod.F90</code></a></td>
+<td>热惯量反馈入口；由 <code>physiq</code> 在土壤求解前后调用，把地表水冰或孔隙冰转换成新的土壤热惯量廓线。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="参与文件">参与文件</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>参与阶段</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/phymars/physiq_mod.html"><code>physiq_mod.F</code></a></td>
+<td>主时间步调度</td>
+<td>调用辐射、<code>watercloud</code>、<code>callsedim</code>、诊断输出；决定水云 tendency 注入顺序。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/watercloud_mod.html"><code>watercloud_mod.F</code></a></td>
+<td>大气云调度</td>
+<td>分派 <code>simpleclouds</code>/<code>improvedclouds</code>，更新 <code>rice</code>、<code>nuice</code>、<code>rsedcloud</code>、<code>rhocloud</code>、<code>totcloudfrac</code>。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/simpleclouds_mod.html"><code>simpleclouds_mod.F</code></a></td>
+<td>简化云方案</td>
+<td><code>microphys=.false.</code> 时瞬时调到饱和；无显式成核动力学。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/improvedclouds_mod.html"><code>improvedclouds_mod.F90</code></a></td>
+<td>完整云微物理</td>
+<td><code>microphys=.true.</code> 时处理 CCN 成核、冰增长/升华、尘核释放、HDO 分馏和自适应子步。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/water-saturation-helpers.html"><code>watersat_mod.F90</code></a></td>
+<td>饱和公式</td>
+<td>给定温度和压力，计算水冰饱和质量混合比 <code>qsat</code>。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/water-saturation-helpers.html"><code>tcondwater.F90</code></a></td>
+<td>凝结温度反解</td>
+<td>给定压力和总水混合比，反解水凝结温度；<code>CLFvarying</code> 云分数使用。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/vdifc_mod.html"><code>vdifc_mod.F</code></a></td>
+<td>地表交换</td>
+<td>计算地表水汽通量、地表水冰 tendency、潜热反馈、地下冰/吸附分支。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/soilwater.html"><code>soilwater.F90</code></a></td>
+<td>地下储库</td>
+<td><code>adsorption_soil=.true.</code> 时被 <code>vdifc</code> 调用，求解 regolith 水汽、吸附水、地下冰的吸附-扩散-相变。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/waterice_tifeedback_mod.html"><code>waterice_tifeedback_mod.F90</code></a></td>
+<td>热惯量反馈</td>
+<td>根据地表水冰厚度或孔隙冰填充率重算土壤热惯量。</td>
+</tr>
+<tr>
+<td><a href="../modules/phymars/conf_phys.html"><code>conf_phys.F</code></a> / <code>callphys.def.*</code></td>
+<td>配置</td>
+<td>读取并校验 <code>water</code>、<code>microphys</code>、<code>activice</code>、<code>supersat</code>、<code>cloud_adapt_ts</code>、<code>surfaceice_tifeedback</code> 等开关。</td>
+</tr>
+<tr>
+<td><code>traceur.def.*</code> / <a href="../modules/phymars/initracer.html"><code>initracer.F90</code></a></td>
+<td>tracer</td>
+<td>给出 <code>h2o_vap</code>、<code>h2o_ice</code>、<code>ccn_*</code>、<code>dust_*</code>、HDO 等 tracer 名称和索引。</td>
+</tr>
+<tr>
+<td><code>deftank/xios/*.xml</code> / <code>writediagsoil.F90</code></td>
+<td>输出</td>
+<td>XIOS XML 定义并选择水汽、水冰、地表冰、地下通量、云 tendency 等字段；<a href="../modules/phymars/writediagsoil.html">writediagsoil</a> 负责传统 <code>diagsoil.nc</code> 地下剖面输出。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="主调用链">主调用链</h2>
+<pre class="text"><code>physiq
+  -&gt; callradite(... rice, nuice, rdust ...)          ! 本步辐射先使用上一状态/上一步留下的半径
+  -&gt; IF (water):
+       call watercloud(... pq,pdq,pdt, tau, tauscaling,
+                       rdust, rice, nuice, rsedcloud, rhocloud, totcloudfrac)
+         -&gt; IF (microphys):
+              improvedclouds(...)                   ! 成核、增长/升华、CCN/尘埃耦合
+            ELSE:
+              simpleclouds(...)                     ! 瞬时饱和调整
+         -&gt; watersat / tcondwater / updaterice_* / updaterdust
+       inject zdtcloud/zdqcloud into pdt/pdq
+  -&gt; IF (sedimentation):
+       callsedim(... rice, rsedcloud, rhocloud ...)  ! 水冰沉降
+  -&gt; diagnostics / XIOS write_output
+
+vdifc
+  -&gt; IF (water .and. iq == h2o_vap):
+       watersat(ztsrf, pplev(:,1)) -&gt; qsat
+       implicit lower boundary pulls near-surface vapor toward qsat
+       optional soilwater(...) when adsorption_soil
+       update pdqsdif(h2o_ice), dwatercap_dif, pdtsrf, flux_ssice
+
+physiq
+  -&gt; IF (surfaceice_tifeedback .or. poreice_tifeedback):
+       waterice_tifeedback(qsurf(h2o_ice), pore_icefraction) -&gt; inertiesoil_tifeedback
+       soil(..., inertiesoil_tifeedback, ...)</code></pre>
+<h2 id="计算阶段">计算阶段</h2>
+<h3 id="1-配置与-tracer-准备">1. 配置与 tracer 准备</h3>
+<p>水循环必须从配置开始复现。<code>conf_phys.F</code> 中 <code>water</code> 的源码默认值为 <code>.false.</code>，样例 <code>callphys.def.GCM6</code> 显式设为 <code>.true.</code>；完整水云微物理通常还需要 <code>microphys=.true.</code>、<code>temp_dependent_m=.true.</code>、<code>cloud_adapt_ts=.true.</code>、<code>scavenging=.true.</code>。源码校验会中止若 <code>microphys</code> 没有同时满足 <code>water</code> 和 <code>doubleq</code>，也会中止若 <code>scavenging</code> 没有 <code>microphys</code>。</p>
+<p>最小水循环 tracer 是 <code>h2o_ice</code> 和 <code>h2o_vap</code>。微物理路径还依赖 <code>ccn_number</code>、<code>ccn_mass</code>、<code>dust_number</code>、<code>dust_mass</code>；HDO 路径依赖 <code>hdo_vap</code>、<code>hdo_ice</code>。<code>traceur.def.watercycle.GCM5</code> 的样例包含 <code>co2</code>、两类尘埃、两类 CCN、<code>h2o_ice</code>、<code>h2o_vap</code>。</p>
+<p>源码依据：<code>conf_phys.F:715</code> 读取 <code>water</code>；<code>:852</code> 读取 <code>microphys</code>；<code>:858</code> 读取 <code>supersat</code>；<code>:879</code> 读取 <code>cloud_adapt_ts</code>；<code>:906-911</code> 校验 <code>microphys</code>；<code>:921-926</code> 校验 <code>scavenging</code>；<code>traceur.def.watercycle.GCM5:7-8</code> 给出 <code>h2o_ice</code>/<code>h2o_vap</code>。</p>
+<h3 id="2-辐射先使用当前-rice">2. 辐射先使用当前 <code>rice</code></h3>
+<p><code>physiq</code> 在 <code>watercloud</code> 前调用 <code>callradite</code>。该辐射调用以 <code>rdust</code>、<code>rice</code>、<code>nuice</code> 为 <code>INOUT</code>，用于当前步辐射和 <code>taucloudtes</code> 等量。随后 <code>watercloud</code> 使用同一组半径数组并更新它们，更新后的 <code>rice</code> 再供本步 <code>callsedim</code>、诊断和下一步辐射使用。</p>
+<p>复现风险：不能把 <code>watercloud</code> 提前到辐射前，否则 <code>rice</code> 的时间层会改变。<code>physiq-water-cycle-callpoints.md</code> 明确把时序写成“本步辐射用上一步留下的 <code>rice</code>，水云随后更新供后续沉降/诊断和下一步辐射”。</p>
+<h3 id="3-watercloud-分派云方案">3. <code>watercloud</code> 分派云方案</h3>
+<p><code>physiq_mod.F:1831</code> 在 <code>IF (water)</code> 内调用 <code>watercloud</code>。<code>watercloud_mod.F:315-349</code> 的关键分支是：</p>
+<ul>
+<li><code>microphys=.true.</code>：调用 <code>improvedclouds</code>。传入整物理步长 <code>ptimestep</code>，自适应子步在 <code>improvedclouds</code> 内部处理。该路径使用原始网格平均 <code>pt</code>/<code>pq</code>，不使用 <code>CLFvarying</code> 改写后的 <code>pteff</code>/<code>pqeff</code>。</li>
+<li><code>microphys=.false.</code>：在外层 <code>imicro</code> 子步循环里调用 <code>simpleclouds</code>。该路径可接收 <code>CLFvarying</code> 后的云内有效 <code>pteff</code>/<code>pqeff</code>，每个子步把已有 <code>pdt</code>/<code>pdq</code> 累加成阶梯输入。</li>
+</ul>
+<p><code>watercloud</code> 返回 <code>pdqcloud</code>、<code>pdtcloud</code>、<code>rice</code>、<code>nuice</code>、<code>rsedcloud</code>、<code>rhocloud</code>、<code>totcloudfrac</code>。随后它统一执行非负保护、<code>watersat</code> 过饱和限制（<code>microphys</code> 且 <code>supersat=false</code>）、<code>updaterice_micro</code>/<code>updaterice_typ</code> 半径更新、<code>rsedcloud=max(rice*(1+nuice_sed)^3, rdust)</code>，并在 <code>CLFvarying</code> 时把云内 tendency 乘回 <code>cloudfrac</code>。</p>
+<p>源码依据：<code>watercloud_mod.F:316</code> 调用 <code>improvedclouds</code>；<code>:349</code> 调用 <code>simpleclouds</code>；<code>:564</code> 调用 <code>watersat</code> 做 <code>supersat=false</code> 检查；<code>:618</code> 调用 <code>updaterice_micro</code>；<code>:638</code> 调用 <code>updaterice_typ</code>；<code>:665</code> 计算 <code>rsedcloud</code>；<code>:677</code> 进入 <code>CLFvarying</code> 缩放。</p>
+<h3 id="4-简化云与完整微物理的差别">4. 简化云与完整微物理的差别</h3>
+<p><code>simpleclouds</code> 是瞬时饱和调整：先用 <code>pq + pdq*dt</code> 和 <code>pt + pdt*dt</code> 得到局地状态，调用 <code>watersat</code>，若水汽超过 <code>zqsat</code> 就把超量全部转成水冰；若不饱和，就让现有水冰升华但不超过冰量。潜热用温度二次式：</p>
+<pre class="text"><code>lw = (2834.3 - 0.28*(T-To) - 0.004*(T-To)^2) * 1000</code></pre>
+<p><code>improvedclouds</code> 是完整微物理：先计算 <code>zqsat</code> 和可凝结量，再在每个格点/层内做子步循环。若 <code>satu &gt;= 1</code>，用 <code>updaterccn</code>、尘埃 log-normal bin、<code>nuclea</code> 把可用尘埃激活为 CCN；若 CCN 数量足够，用 <code>updaterice_micro</code>、<code>sig_h2o</code>、<code>growthrate</code> 和隐式 <code>dMice</code> 公式处理冰增长/升华；冰耗尽时释放 CCN 回尘埃。<code>cloud_adapt_ts</code> 为真时，<code>adapt_imicro</code> 会按可凝结量和经验幂律更新子步数。</p>
+<p>待确认：<code>improvedclouds</code> 中 <code>seq</code> 的单位匹配、<code>nuice_sed</code> 同时用于成核分布方差和沉降的物理含义仍以子页的待确认项为准；本页不把它们写成已确认事实。</p>
+<h3 id="5-饱和与凝结温度公式">5. 饱和与凝结温度公式</h3>
+<p><code>watersat</code> 给定温度 <code>T</code> 和压力 <code>P</code>，使用硬编码分子量比：</p>
+<pre class="text"><code>epsi = 18 / 44
+psat = 100 * 10^(2.07023 - 0.00320991*T - 2484.896/T + 3.56654*log10(T))
+if psat &gt; P:
+  qsat = 1
+else:
+  qsat = epsi*psat/(P - (1-epsi)*psat)
+  qsat = max(qsat, 1e-30)</code></pre>
+<p><code>tcondwater</code> 给定压力和总水混合比 <code>q</code>，先算：</p>
+<pre class="text"><code>x = log10(max(q, 1e-16) * p / (100 * 0.41))
+tcond = 252.846556
+      + 23.9229653*x
+      + 2.21333897*x^2
+      + 0.179978042*x^3
+      + 0.0100068018*x^4
+      + 0.000255145044*x^5</code></pre>
+<p>复现风险：<code>epsi=18/44</code> 和 <code>0.41</code> 都把干大气近似为 CO2；若要复现非纯 CO2 平均分子量情形，不能只改外部 <code>mmean</code>，因为这两个助手没有读取 <code>mmean</code>。<code>tcondwater</code> 的拟合适用范围也未在源码注释中明确。</p>
+<h3 id="6-physiq-注入-tendency">6. <code>physiq</code> 注入 tendency</h3>
+<p><code>watercloud</code> 返回后，<code>physiq</code> 按固定顺序注入：</p>
+<ol type="1">
+<li><code>activice=true</code> 时，<code>pdt += zdtcloud</code>。若 <code>activice=false</code>，水云仍改水汽/水冰 tracer，但不把潜热反馈进温度。</li>
+<li>无条件注入 <code>h2o_vap</code> 和 <code>h2o_ice</code> 的 <code>zdqcloud</code>。</li>
+<li><code>hdo=true</code> 时注入 <code>hdo_vap</code> 和 <code>hdo_ice</code>。</li>
+<li><code>microphys=true</code> 时注入 <code>ccn_mass</code> 和 <code>ccn_number</code>，并对成对质量/数浓度做负值保护。</li>
+<li><code>scavenging=true</code> 时注入 <code>dust_mass</code> 和 <code>dust_number</code>，并做同样的成对负值保护。</li>
+</ol>
+<p>源码依据：<code>physiq_mod.F:1837-1908</code>。复现时不能打乱这个顺序，尤其是 CCN 和尘埃的成对保护，否则单精度舍入导致的负值修正会不同。</p>
+<h3 id="7-与沉降辐射和诊断的关系">7. 与沉降、辐射和诊断的关系</h3>
+<p>水冰沉降不在 <code>watercloud</code> 内完成，而在 <code>physiq</code> 第 9b 段调用 <code>callsedim</code>。<code>callsedim</code> 使用 <code>watercloud</code> 更新出的 <code>rice</code>、<code>rsedcloud</code>、<code>rhocloud</code>，返回 <code>zdqsed</code> 和 <code>zdqssed</code>，再注入大气 <code>pdq</code> 和地表 <code>dqsurf</code>。因此顺序是“水云先凝结/升华并更新半径，沉降再用这些半径沉降”。</p>
+<p>诊断通常在 <code>zq = pq + pdq*ptimestep</code> 后进行，使用包含水云、沉降等全部 tendency 的更新态。<code>physiq</code> 里可见 <code>watersat</code> 用于诊断过饱和度，<code>write_output</code> 输出 <code>h2o_ice</code>、<code>h2o_vap</code>、<code>h2o_ice_s</code>、<code>rice</code>、<code>zdqcloud_ice</code>、<code>zdqcloud_vap</code> 和二者之和。XIOS XML 还定义 <code>mtot</code>、<code>icetot</code>、<code>reffice</code>、<code>Nccntot</code>、<code>Mccntot</code>、<code>flux_ssice</code>、<code>watercap</code>、各坡面地表水冰等字段；是否进入文件取决于 <code>file_def_physics.xml</code> 是否引用。</p>
+<h3 id="8-vdifc-地表水汽交换">8. <code>vdifc</code> 地表水汽交换</h3>
+<p><code>vdifc</code> 的水汽段由 <code>if ((water).and.(iq.eq.igcm_h2o_vap))</code> 控制。它对每个坡面把地表水冰 <code>pqsurf(h2o_ice,islope)</code> 除以 <code>cos(slope)</code> 转成真实坡面面积上的储量，然后用 <code>make_tsub</code> 在有霜/永久冰盖时按地表温度变化细分子步。</p>
+<p>每个子步中，<code>vdifc</code> 构造隐式三对角扩散系数。地表边界调用 <code>watersat(1,ztsrf,pplev(:,1),qsat)</code>，把近地层水汽拉向地表温度下的饱和混合比：</p>
+<pre class="text"><code>zq1temp = zc(1) + zd(1)*qsat
+zdqsdif_surf = rho * dryness * zcd * (zq1temp - qsat)</code></pre>
+<p>这里正值表示向上升华，负值表示向地表沉积。<code>old_wsublimation_scheme</code> 决定地表交换系数用动量导度 <code>zcdv</code> 还是热导度 <code>zcdh</code>；<code>dryness</code> 线性缩放地表水汽导度。若 <code>latentheat_surfwater</code> 为真，地表潜热通量会反馈到 <code>pdtsrf</code>。</p>
+<p>输出侧，<code>vdifc</code> 更新 <code>pdqsdif(h2o_ice)</code>、<code>dwatercap_dif</code>、<code>pdtsrf</code>、<code>zq(h2o_vap)</code>，并对坡面量成对做 <code>/cos</code> 和 <code>*cos</code> 投影。<code>watercaptag</code> 永久冰盖上超出当前霜量的升华会走 <code>dwatercap_dif</code>。</p>
+<h3 id="9-soilwater-吸附和地下冰耦合">9. <code>soilwater</code> 吸附和地下冰耦合</h3>
+<p>当 <code>adsorption_soil=true</code>，<code>vdifc_mod.F:1052</code> 逐点逐坡面调用 <code>soilwater</code>。<code>soilwater</code> 维护 regolith 中三类地下 tracer：<code>h2o_vap_soil</code>、<code>h2o_ice_soil</code>、<code>h2o_ads_vap</code>。</p>
+<p>它在首次调用时分配 SAVE 数组并读取 <code>pqsoil</code> 初值；每步根据孔隙冰饱和度更新扩散系数，用 <code>choice_ads</code> 选择吸附/解吸方案，用嵌套迭代处理单层吸附饱和、地下凝结/升华和冰层关闭。返回给 <code>vdifc</code> 的关键量是 <code>zdqsdifrego</code>（地下到大气水汽通量）和 <code>zq1temp2</code>（耦合后的近地水汽边界值）。当孔隙冰饱和度超过 <code>choke_fraction=0.8</code> 时，<code>soilwater</code> 会按通量方向关闭相邻层间扩散。</p>
+<p>待确认：<code>choice_ads</code> 在 <code>comsoil_h</code> 中声明为实数但代码用 <code>==0/1/2</code> 比较；注释里“3 means no adsorption”与实际 <code>choice_ads==0</code> 不一致。<code>latitude_deg</code>、<code>H2O</code>/<code>H2O_depth</code> 等地图变量有遗留痕迹。复现地下水储库时应优先参考 <code>soilwater.md</code> 的待确认和风险列表。</p>
+<h3 id="10-水冰热惯量反馈">10. 水冰热惯量反馈</h3>
+<p><code>waterice_tifeedback</code> 不直接改 tracer，也不直接改地温；它只计算 <code>newtherm_i(ngrid,nsoil,nslope)</code>，随后由 <code>soil</code> 地温求解使用。<code>physiq_mod.F:737</code> 和 <code>:2487</code> 在 <code>surfaceice_tifeedback.or.poreice_tifeedback</code> 时调用该例程。</p>
+<p>两条路径互斥：</p>
+<ul>
+<li><code>surfaceice_tifeedback=true</code>：把地表水冰质量 <code>qsurf(h2o_ice)</code> 除以 <code>rho_ice</code> 得到厚度。冰厚超过土壤总深度或 <code>watercaptag=true</code> 时，整列热惯量设为 <code>inert_h2o_ice</code>；冰薄于第一层时保留 <code>inertiedat</code>；中间厚度时，上方设冰热惯量，边界层用串联导热公式过渡，下方保留风化层热惯量。</li>
+<li><code>poreice_tifeedback=true</code>：用 <code>sqrt(inertiedat^2 + porosity_reg*poreice*inertie_purewaterice^2)</code> 抬高热惯量。</li>
+</ul>
+<p>复现风险：<code>surfaceice_tifeedback</code> 还依赖 <code>water</code> 与 <code>callsoil</code>；<code>poreice_tifeedback</code> 依赖 <code>adsorption_soil</code>。<code>inert_h2o_ice</code> 可由配置覆盖，样例 GCM6 用 800，而源码默认是 2400；孔隙冰路径的 <code>inertie_purewaterice=2100</code> 是例程内部硬编码值，不能混用。</p>
+<h2 id="状态变量">状态变量</h2>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>来源</th>
+<th>单位</th>
+<th>含义</th>
+<th>生命周期</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pq(:,:,igcm_h2o_vap)</code></td>
+<td><code>physiq</code> tracer</td>
+<td>kg/kg</td>
+<td>大气水汽混合比</td>
+<td>主时间步状态</td>
+</tr>
+<tr>
+<td><code>pq(:,:,igcm_h2o_ice)</code></td>
+<td><code>physiq</code> tracer</td>
+<td>kg/kg</td>
+<td>大气水冰混合比</td>
+<td>主时间步状态</td>
+</tr>
+<tr>
+<td><code>pdq</code>, <code>pdt</code></td>
+<td><code>physiq</code></td>
+<td>kg/kg/s, K/s</td>
+<td>当前物理步累积 tendency</td>
+<td>主时间步内累积</td>
+</tr>
+<tr>
+<td><code>zdqcloud</code>, <code>zdtcloud</code></td>
+<td><code>watercloud_mod</code> / <code>physiq</code></td>
+<td>kg/kg/s, K/s</td>
+<td>水云微物理 tendency</td>
+<td>每步输出，模块数组也传给化学/诊断</td>
+</tr>
+<tr>
+<td><code>rice</code>, <code>nuice</code></td>
+<td><code>physiq</code> / <code>watercloud</code></td>
+<td>m, -</td>
+<td>水冰有效半径和有效方差</td>
+<td>跨阶段复用</td>
+</tr>
+<tr>
+<td><code>rsedcloud</code>, <code>rhocloud</code></td>
+<td><code>watercloud</code></td>
+<td>m, kg/m3</td>
+<td>沉降半径和云密度</td>
+<td>供 <code>callsedim</code></td>
+</tr>
+<tr>
+<td><code>pqsurf(:,h2o_ice,:)</code></td>
+<td>地表状态</td>
+<td>kg/m2</td>
+<td>地表水冰/霜储量</td>
+<td>跨时间步</td>
+</tr>
+<tr>
+<td><code>pdqsdif(:,h2o_ice,:)</code></td>
+<td><code>vdifc</code></td>
+<td>kg/m2/s</td>
+<td>地表水冰升华/沉积 tendency</td>
+<td>当前步输出</td>
+</tr>
+<tr>
+<td><code>dwatercap_dif</code></td>
+<td><code>vdifc</code></td>
+<td>kg/m2/s</td>
+<td>永久冰盖消耗 tendency</td>
+<td>当前步输出</td>
+</tr>
+<tr>
+<td><code>qsoil</code> / <code>pqsoil</code></td>
+<td><code>soilwater</code></td>
+<td>见子页</td>
+<td>地下水汽、地下冰、吸附水</td>
+<td>SAVE/地下状态</td>
+</tr>
+<tr>
+<td><code>pore_icefraction</code></td>
+<td><code>soilwater</code> / <code>physiq</code></td>
+<td>-</td>
+<td>孔隙冰填充率</td>
+<td>传给热惯量反馈</td>
+</tr>
+<tr>
+<td><code>inertiesoil_tifeedback</code></td>
+<td><code>waterice_tifeedback</code></td>
+<td>J m-2 K-1 s-1/2</td>
+<td>水冰反馈后的土壤热惯量</td>
+<td>传给 <code>soil</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="配置开关">配置开关</h2>
+<table>
+<thead>
+<tr>
+<th>配置项</th>
+<th>文件</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>water</code></td>
+<td><code>callphys.def.*</code> / <code>conf_phys.F</code></td>
+<td>水循环总开关；关掉后跳过 <code>watercloud</code> 和 <code>vdifc</code> 水汽专段。</td>
+</tr>
+<tr>
+<td><code>microphys</code></td>
+<td>同上</td>
+<td>选择 <code>improvedclouds</code>，否则走 <code>simpleclouds</code>。</td>
+</tr>
+<tr>
+<td><code>activice</code></td>
+<td>同上</td>
+<td>水冰是否辐射活跃；也控制 <code>zdtcloud</code> 是否注入温度。</td>
+</tr>
+<tr>
+<td><code>supersat</code></td>
+<td>同上</td>
+<td><code>false</code> 时 <code>watercloud</code> 额外用 <code>watersat</code> 限制过饱和。</td>
+</tr>
+<tr>
+<td><code>cloud_adapt_ts</code></td>
+<td>同上</td>
+<td>开启 <code>improvedclouds</code> 内自适应子步；源码要求 <code>temp_dependent_m=true</code>。</td>
+</tr>
+<tr>
+<td><code>scavenging</code></td>
+<td>同上</td>
+<td>水云微物理是否把尘埃作为 CCN 捕获并注入尘埃 tendency；依赖 <code>microphys</code>。</td>
+</tr>
+<tr>
+<td><code>sedimentation</code></td>
+<td>同上</td>
+<td>是否调用 <code>callsedim</code> 处理水冰沉降。</td>
+</tr>
+<tr>
+<td><code>CLFvarying</code> / <code>CLFfixval</code></td>
+<td>同上</td>
+<td>次网格云分数处理；影响 <code>watercloud</code> 前后有效态和 tendency 缩放。</td>
+</tr>
+<tr>
+<td><code>latentheat_surfwater</code></td>
+<td>同上</td>
+<td>地表水冰升华/沉积潜热是否反馈到地表温度。</td>
+</tr>
+<tr>
+<td><code>old_wsublimation_scheme</code></td>
+<td>同上</td>
+<td><code>vdifc</code> 地表交换用 <code>zcdv</code> 还是 <code>zcdh</code>。</td>
+</tr>
+<tr>
+<td><code>caps</code>、<code>watercaptag</code>、<code>albedo_h2o_*</code>、<code>inert_h2o_ice</code></td>
+<td>同上 / <code>surfdat_h</code></td>
+<td>永久水冰盖、霜反照率和水冰热惯量。</td>
+</tr>
+<tr>
+<td><code>adsorption_soil</code>、<code>choice_ads</code>、<code>ads_*</code></td>
+<td><code>comsoil_h</code> / <code>callphys.def.*</code></td>
+<td>是否调用 <code>soilwater</code> 及其吸附方案。</td>
+</tr>
+<tr>
+<td><code>surfaceice_tifeedback</code>、<code>poreice_tifeedback</code></td>
+<td><code>callphys.def.*</code></td>
+<td>是否启用地表冰或孔隙冰热惯量反馈。</td>
+</tr>
+<tr>
+<td><code>hdo</code>、<code>hdofrac</code></td>
+<td><code>callphys.def.*</code></td>
+<td>是否计算 HDO tracer 和分馏。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="数据依赖">数据依赖</h2>
+<table>
+<thead>
+<tr>
+<th>数据</th>
+<th>来源</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>callphys.def.*</code></td>
+<td><code>deftank</code></td>
+<td>水循环开关、默认值覆盖、地表水冰参数。</td>
+</tr>
+<tr>
+<td><code>traceur.def.*</code></td>
+<td><code>deftank</code></td>
+<td>水、CCN、尘埃、HDO tracer 集合。</td>
+</tr>
+<tr>
+<td>XIOS XML</td>
+<td><code>deftank/xios</code></td>
+<td>水循环诊断字段定义和文件输出选择。</td>
+</tr>
+<tr>
+<td>土壤层深/热惯量</td>
+<td><code>comsoil_h</code> / start 状态</td>
+<td><code>soilwater</code> 扩散网格和 <code>waterice_tifeedback</code> 热惯量反馈。</td>
+</tr>
+<tr>
+<td>地表/坡面状态</td>
+<td><code>qsurf</code>, <code>pqsurf</code>, <code>def_slope_mean</code>, <code>subslope_dist</code></td>
+<td>地表水冰储量、坡面投影和坡面平均。</td>
+</tr>
+<tr>
+<td>尘埃/CCN tracer</td>
+<td><code>tracer_mod</code> / <code>pq</code></td>
+<td>微物理成核、清除和半径反演。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与其他主题的耦合">与其他主题的耦合</h2>
+<table>
+<thead>
+<tr>
+<th>其他主题</th>
+<th>耦合方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="radiation.html">辐射</a></td>
+<td><code>activice</code> 时水冰参与辐射；<code>callradite</code> 使用 <code>rice</code>/<code>nuice</code>，并把水冰光学厚度用于诊断。</td>
+</tr>
+<tr>
+<td><a href="dust-cycle.html">尘埃循环</a></td>
+<td>尘埃是水冰成核 CCN 来源；<code>scavenging</code> 使尘埃被水云清除；<code>callsedim</code> 同时处理尘埃和水冰沉降。</td>
+</tr>
+<tr>
+<td><a href="co2-cycle.html">CO2 循环</a></td>
+<td>CO2 云可使用水冰作为 CCN；CO2 凝结/坐标更新与水循环在 <code>physiq</code> 中相邻但独立。完整串联见后续 CO2 主题页。</td>
+</tr>
+<tr>
+<td>边界层/土壤</td>
+<td><code>vdifc</code> 控制水汽地表交换，<code>soilwater</code> 控制地下储库，<code>soil</code> 消费热惯量反馈。</td>
+</tr>
+<tr>
+<td>化学</td>
+<td><code>calchim</code> 接收 <code>zdqcloud</code>/<code>zdqscloud</code>，但具体非均相化学用途超出本页核验范围。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出结果">输出结果</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdq(:,:,h2o_vap/h2o_ice)</code></td>
+<td><code>physiq</code> 主状态</td>
+<td>大气水汽/水冰 tendency，包含水云、扩散、沉降等过程累积。</td>
+</tr>
+<tr>
+<td><code>pdt</code></td>
+<td><code>physiq</code> 主状态</td>
+<td>水云潜热和地表水潜热等温度 tendency。</td>
+</tr>
+<tr>
+<td><code>dqsurf</code> / <code>pdqsdif</code></td>
+<td>地表状态</td>
+<td>水冰沉降和地表升华/沉积通量。</td>
+</tr>
+<tr>
+<td><code>dwatercap_dif</code></td>
+<td>永久冰盖储库</td>
+<td>永久水冰盖消耗。</td>
+</tr>
+<tr>
+<td><code>rice</code>, <code>rsedcloud</code>, <code>rhocloud</code></td>
+<td>沉降、诊断、下步辐射</td>
+<td>水冰粒子半径、沉降半径、云密度。</td>
+</tr>
+<tr>
+<td><code>flux_ssice</code>, <code>flux_rego</code></td>
+<td>XIOS / <code>write_output</code></td>
+<td>地下冰或 regolith 与大气/霜之间的水通量。</td>
+</tr>
+<tr>
+<td><code>h2o_vap</code>, <code>h2o_ice</code>, <code>h2o_ice_s</code>, <code>watercap</code>, <code>reffice</code>, <code>mtot</code>, <code>icetot</code></td>
+<td>XIOS</td>
+<td>大气、地表和柱积分水循环诊断。</td>
+</tr>
+<tr>
+<td><code>zdqcloud_ice</code>, <code>zdqcloud_vap</code>, <code>zdqcloud</code></td>
+<td><code>write_output</code></td>
+<td>水云微物理 tendency 诊断。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="伪代码总览">伪代码总览</h2>
+<pre class="text"><code>for each physics timestep:
+  call radiation with current rice/nuice/rdust
+
+  if water:
+    call watercloud:
+      if CLFvarying: tcondwater(total water) -&gt; cloudfrac
+      if microphys:
+        improvedclouds:
+          watersat -&gt; saturation
+          if saturated: nuclea/updaterccn -&gt; CCN activation
+          if CCN present: growthrate/sig_h2o/updaterice_micro -&gt; ice growth or sublimation
+          if ice exhausted: release CCN back to dust
+      else:
+        for imicro substeps:
+          simpleclouds:
+            watersat -&gt; qsat
+            condense excess vapor or sublime existing ice
+      enforce non-negative H2O/HDO/CCN/dust
+      if not supersat: watersat -&gt; remove excess vapor
+      update rice, rsedcloud, rhocloud
+      if CLFvarying: multiply cloud tendency by cloudfrac
+
+    if activice: pdt += zdtcloud
+    pdq(h2o_vap/h2o_ice) += zdqcloud
+    if hdo: pdq(hdo_vap/hdo_ice) += zdqcloud
+    if microphys: pdq(ccn_mass/number) += zdqcloud with pairwise guards
+    if scavenging: pdq(dust_mass/number) += zdqcloud with pairwise guards
+
+  if sedimentation:
+    callsedim using rice/rsedcloud/rhocloud
+    pdq += zdqsed
+    dqsurf += zdqssed
+
+  in vdifc for h2o_vap:
+    for each slope:
+      convert surface ice by /cos(slope)
+      make_tsub if frost or watercap
+      for each substep:
+        watersat(surface T, surface pressure) -&gt; qsat
+        solve implicit vapor diffusion with lower boundary qsat
+        if adsorption_soil: soilwater -&gt; regolith flux and boundary vapor
+        else if subsurface ice active: SSI flux branch
+        update surface ice, watercap tendency, surface temperature
+      project output back by *cos(slope)
+
+  if surfaceice_tifeedback or poreice_tifeedback:
+    waterice_tifeedback -&gt; new soil thermal inertia
+    soil uses new thermal inertia
+
+  diagnostics:
+    zq = pq + pdq*ptimestep
+    write water vapor/ice, surface ice, radius, cloud tendencies, subsurface fluxes</code></pre>
+<h2 id="源码疑点与待确认项">源码疑点与待确认项</h2>
+<ul>
+<li><code>vdifc_mod.F:901-902</code> 的非水汽 tracer 段守卫写成 <code>(.not. water).or.(.not. iq.eq.igcm_h2o_vap).or.(.not. iq.eq.igcm_hdo_vap)</code>。按布尔逻辑，对任意 <code>iq</code> 至少一个“不等于”条件为真，整体近似恒真。推断它可能想排除 <code>h2o_vap</code>/<code>hdo_vap</code>，但源码实际未这样写；因为 <code>h2o_vap</code> 后续由专段覆盖，净效应仍需对照历史版本确认。复现时应按源码字面执行。</li>
+<li><code>watersat</code>/<code>tcondwater</code> 硬编码 <code>18/44</code> 或 <code>0.41</code>，没有读取实时平均分子量；非纯 CO2 平均分子量影响未在这两个助手中体现。</li>
+<li><code>improvedclouds_mod.F90</code> 中 Kelvin 项 <code>seq</code> 的单位量纲和 <code>mh2o</code> 用法需对照 <code>microphys_h</code> 定义继续核验；本页只按子页记录其源码行为。</li>
+<li><code>soilwater.F90</code> 中 <code>choice_ads</code> 用浮点等值比较，并且注释与实际“无吸附”取值存在不一致；地下水复现应记录实际配置和编译器。</li>
+<li><code>soilwater</code> 的非收敛路径会 <code>stop</code>，长积分极端条件下可能直接中止模型。</li>
+<li><code>waterice_tifeedback</code> 两个反馈机制用 <code>IF ... ELSE IF</code> 互斥；若两个开关都为真，实际走 <code>surfaceice_tifeedback</code>，不应写成二者叠加。</li>
+<li><code>calchim</code> 接收 <code>zdqcloud</code>/<code>zdqscloud</code> 的具体化学用途未在本任务核验，需化学模块页确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../routines/physiq-water-cycle-callpoints.html">physiq 水循环调用点</a></li>
+<li><a href="../modules/phymars/watercloud_mod.html">watercloud_mod</a></li>
+<li><a href="../modules/phymars/simpleclouds_mod.html">simpleclouds_mod</a></li>
+<li><a href="../modules/phymars/improvedclouds_mod.html">improvedclouds_mod</a></li>
+<li><a href="../modules/phymars/water-saturation-helpers.html">water-saturation-helpers</a></li>
+<li><a href="../routines/vdifc-water-surface-exchange.html">vdifc 水汽地表交换段</a></li>
+<li><a href="../modules/phymars/soilwater.html">soilwater</a></li>
+<li><a href="../modules/phymars/waterice_tifeedback_mod.html">waterice_tifeedback_mod</a></li>
+<li><a href="../architecture/water-cycle-config.html">水循环配置</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

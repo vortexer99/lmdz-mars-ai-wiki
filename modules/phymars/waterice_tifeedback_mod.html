@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>waterice_tifeedback_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/waterice_tifeedback_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="waterice_tifeedback_modf90">waterice_tifeedback_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\waterice_tifeedback_mod.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>该文件定义 <code>waterice_tifeedback_mod</code> 模块，含唯一 subroutine <code>waterice_tifeedback</code>。职责是：根据地表水冰覆盖量或土壤孔隙冰填充率，<strong>重算一套土壤热惯量廓线 <code>newtherm_i(ngrid,nsoil,nslope)</code></strong>，供 <code>soil</code> 例程在求解地温时替代默认热惯量 <code>inertiedat</code>。这是水冰对地表/地下热状态的“热惯量反馈”。</p>
+<p>源码头注释说明两种机制（互斥，当前不能同时开启）：</p>
+<ul>
+<li><code>surfaceice_tifeedback</code>：地表存在足够厚的块状水冰时，构造三层热惯量（冰层 + 过渡层 + 下伏风化层）。物理依据 Madeleine et al. (2009, Icarus)。</li>
+<li><code>poreice_tifeedback</code>：孔隙填充冰，按 Siegler et al. (2012, JGR) 公式 <code>sqrt(I_reg² + porosity*pore_filling*I_pureice²)</code> 抬高热惯量。</li>
+</ul>
+<p>历史：JBM 为纯冰编写（2008-2012），LL 于 2024 移入模块/改 .F90 并加入孔隙冰路径。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>waterice_tifeedback_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>容器模块</td>
+</tr>
+<tr>
+<td><code>waterice_tifeedback</code></td>
+<td>subroutine</td>
+<td>25</td>
+<td>按水冰覆盖/孔隙冰重算土壤热惯量廓线</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>rho_ice</code></td>
+<td>水冰密度（kg·m⁻³），把地表冰量 <code>icecover</code>（kg·m⁻²）换算为厚度 <code>icedepth</code>（m）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>layer</code></td>
+<td>各土壤层深度（m），用于定位冰/风化层边界</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>inertiedat</code></td>
+<td>默认土壤热惯量廓线 <code>(ngrid,nsoil)</code>，无冰层与孔隙冰公式的基底值</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>comsoil_h</code></td>
+<td><code>porosity_reg</code></td>
+<td>风化层孔隙率（PARAMETER=0.45，<code>comsoil_h.F90:41</code>），孔隙冰公式权重</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>watercaptag</code></td>
+<td>永久水冰盖标志（logical），为真时整列设为冰热惯量</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>surfdat_h</code></td>
+<td><code>inert_h2o_ice</code></td>
+<td>地表水冰热惯量（默认 2400 J·m⁻²·K⁻¹·s⁻¹ᐟ²，<code>conf_phys.F:1012</code>）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>poreice_tifeedback</code></td>
+<td>孔隙冰反馈开关（默认 .false.，<code>conf_phys.F:1145</code>）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>surfaceice_tifeedback</code></td>
+<td>地表冰反馈开关（默认 .false.，<code>conf_phys.F:780</code>）</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>—</td>
+<td>—</td>
+<td>本例程不调用其他例程，仅含算术、<code>sqrt</code> 与循环</td>
+</tr>
+</tbody>
+</table>
+<p>调用方（核验）：</p>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>位置</th>
+<th>上下文</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>physiq_mod.F</code></td>
+<td><code>:737</code></td>
+<td>firstcall/初始化土壤前，<code>IF (surfaceice_tifeedback.or.poreice_tifeedback)</code> 内调用，输出 <code>inertiesoil_tifeedback</code> 传给 <code>soil</code></td>
+</tr>
+<tr>
+<td><code>physiq_mod.F</code></td>
+<td><code>:2487</code></td>
+<td>主物理步中再次调用（地温反馈更新）</td>
+</tr>
+</tbody>
+</table>
+<p>调用实参（核验 <code>physiq_mod.F:737-739</code>）：<code>icecover = qsurf(:,igcm_h2o_ice,:)</code>、<code>poreice = pore_icefraction</code>，输出 <code>newtherm_i = inertiesoil_tifeedback</code>，随后该热惯量传入 <code>soil(...)</code>（<code>:741</code>）。</p>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>水平格点数</td>
+</tr>
+<tr>
+<td><code>nsoil</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>土壤层数（传 <code>nsoilmx</code>）</td>
+</tr>
+<tr>
+<td><code>nslope</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>—</td>
+<td>次网格坡面数</td>
+</tr>
+<tr>
+<td><code>icecover(ngrid,nslope)</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>kg·m⁻²</td>
+<td>地表水冰量（传 <code>qsurf(:,igcm_h2o_ice,:)</code>）</td>
+</tr>
+<tr>
+<td><code>poreice(ngrid,nsoil,nslope)</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>1（分数）</td>
+<td>孔隙冰填充率（传 <code>pore_icefraction</code>）</td>
+</tr>
+</tbody>
+</table>
+<p>注意：<code>ngrid/nsoil/nslope</code> 及 <code>icecover/poreice/newtherm_i</code> 在声明区未写 <code>intent</code>（见“写法特点”），但按用途 <code>icecover</code>、<code>poreice</code> 为输入、<code>newtherm_i</code> 为输出。</p>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>newtherm_i(ngrid,nsoil,nslope)</code></td>
+<td>调用方</td>
+<td>real</td>
+<td>J·m⁻²·K⁻¹·s⁻¹ᐟ²</td>
+<td>新土壤热惯量廓线，传给 <code>soil</code> 求地温</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>无 common block，不写文件，无诊断打印。</li>
+<li>所有 module 依赖均为只读（<code>rho_ice</code>、<code>layer</code>、<code>inertiedat</code>、<code>porosity_reg</code>、<code>watercaptag</code>、<code>inert_h2o_ice</code>、两个开关）。</li>
+<li>无 SAVE 变量、无 firstcall；纯计算，给定输入即给定输出。</li>
+<li>局部变量 <code>inertie_purewaterice = 2100</code> 在声明时初始化（纯水冰热惯量，仅孔隙冰路径用）。注意此值（2100）与地表冰 <code>inert_h2o_ice</code>（默认 2400）不同，前者硬编码、后者可配置。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>先把 <code>newtherm_i</code> 全置 0。</li>
+<li><strong>若 <code>surfaceice_tifeedback</code> 为真</strong>（地表块状冰路径），对每个坡面、每个格点：
+<ul>
+<li>冰厚 <code>icedepth = icecover/rho_ice</code>（m）。</li>
+<li>若 <code>icedepth &gt;= layer(nsoil)</code> 或 <code>watercaptag(ig)</code> 为真（冰极厚或永久冰盖）：整列 <code>newtherm_i = inert_h2o_ice</code>。</li>
+<li>否则若 <code>icedepth &lt; layer(1)</code>（冰极薄，忽略）：整列 <code>newtherm_i = inertiedat</code>。</li>
+<li>否则（冰介于其间）：
+<ul>
+<li>找冰/风化层边界 <code>iref</code>：第一个满足 <code>layer(ik) &lt;= icedepth &lt; layer(ik+1)</code> 的 <code>ik+1</code>。</li>
+<li>边界以上各层 <code>ik=1..iref-1</code> 设为 <code>inert_h2o_ice</code>（纯冰）。</li>
+<li>边界层 <code>iref</code> 用热传导串联公式取过渡值：<code>sqrt( (layer(iref)-layer(iref-1)) / ( (icedepth-layer(iref-1))/inert_h2o_ice² + (layer(iref)-icedepth)/inertiedat(ig,ik)² ) )</code>。</li>
+<li>边界以下各层 <code>ik=iref+1..nsoil</code> 保留 <code>inertiedat</code>。</li>
+</ul></li>
+</ul></li>
+<li><strong>否则若 <code>poreice_tifeedback</code> 为真</strong>（孔隙冰路径），对每个坡面整层向量化： <code>newtherm_i(:,:,islope) = sqrt(inertiedat(:,:)² + porosity_reg*poreice(:,:,islope)*inertie_purewaterice²)</code>。</li>
+<li>两个开关都为假时，<code>newtherm_i</code> 保持全 0（调用方此时不会用它，见复现风险）。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>subroutine waterice_tifeedback(ngrid, nsoil, nslope, icecover, poreice, newtherm_i):
+    newtherm_i = 0
+
+    if surfaceice_tifeedback:
+        for islope, ig:
+            icedepth = icecover(ig,islope) / rho_ice
+            if icedepth &gt;= layer(nsoil) or watercaptag(ig):
+                newtherm_i(ig,:,islope) = inert_h2o_ice           # 整列纯冰
+            else if icedepth &lt; layer(1):
+                newtherm_i(ig,:,islope) = inertiedat(ig,:)        # 冰太薄，忽略
+            else:
+                iref = first ik+1 where layer(ik) &lt;= icedepth &lt; layer(ik+1)
+                newtherm_i(ig, 1:iref-1, islope) = inert_h2o_ice  # 冰层
+                newtherm_i(ig, iref, islope) =                    # 过渡层（串联）
+                    sqrt( (layer(iref)-layer(iref-1)) /
+                          ( (icedepth-layer(iref-1))/inert_h2o_ice^2
+                          + (layer(iref)-icedepth)/inertiedat^2 ) )
+                newtherm_i(ig, iref+1:nsoil, islope) = inertiedat # 下伏风化层
+
+    else if poreice_tifeedback:
+        for islope:
+            newtherm_i(:,:,islope) =
+                sqrt(inertiedat^2 + porosity_reg*poreice(:,:,islope)*inertie_purewaterice^2)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>水循环</td>
+<td>地表/地下水冰对土壤热惯量的反馈：改变地温日/季节循环，进而影响地表冰的凝结/升华与 CO2 凝结。是水循环与地表能量收支的耦合点</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>自由格式 Fortran（<code>.F90</code>），续行行尾 <code>&amp;</code>。</li>
+<li><strong>形参未声明 <code>intent</code></strong>：<code>ngrid/nsoil/nslope/icecover/poreice/newtherm_i</code> 只用维度声明，无 <code>intent(in/out)</code>。复现时按用途判定方向。</li>
+<li>局部 <code>inertie_purewaterice=2100</code> 与可配置的 <code>inert_h2o_ice</code>（默认 2400）是两个不同的热惯量值，分属孔隙冰路径与地表冰路径，勿混用。</li>
+<li>过渡层公式是基于热传导的“串联电阻”式平均（按层内冰段/风化段的 1/I² 加权）。</li>
+<li>两个反馈机制互斥（<code>IF ... ELSE IF</code>），源码注释明确“can not run with both options”。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>例程只算热惯量，不改任何 tracer/温度/质量；其输出 <code>newtherm_i</code> 经 <code>soil</code> 才影响地温。</li>
+<li>触发条件：<code>surfaceice_tifeedback</code> 或 <code>poreice_tifeedback</code> 至少一个为真；二者互斥（同真时只走 surface 分支，因为 <code>IF</code> 在前）。调用方 <code>physiq_mod.F:735</code> 用 <code>.or.</code> 守卫，因此两个都假时不会调用本例程（<code>newtherm_i</code> 全 0 不会被使用）。</li>
+<li><code>surfaceice_tifeedback</code> 还要求 <code>water</code> 与 <code>callsoil</code> 同时为真（核验 <code>conf_phys.F:786-797</code> 的中止检查）。</li>
+<li>边界层过渡公式中 <code>inertiedat(ig,ik)</code> 的 <code>ik</code> 是紧邻其上的 <code>DO ik=1,iref-1</code> 循环（<code>:115-117</code>）正常结束后的残留值。按 Fortran 标准，正常结束的 DO 循环索引变量取 <code>(iref-1)+1 = iref</code>，因此该处实际等价于 <code>inertiedat(ig,iref)</code>，即边界层处的风化层热惯量。复现需照源码字面用 <code>ik</code>，结果与 <code>iref</code> 一致。</li>
+<li><code>icedepth</code> 用 <code>rho_ice</code>（水冰密度）换算；<code>layer</code> 是土壤层深度数组。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>过渡层公式 <code>newtherm_i(ig,iref,islope)=sqrt(...inertiedat(ig,ik)...)</code>（<code>:119-120</code>）中的 <code>ik</code>：此处 <code>ik</code> 的来源是紧邻其上的 <code>DO ik=1,iref-1</code> 循环（<code>:115-117</code>），<strong>不是</strong>边界查找循环。按 Fortran 标准，<code>DO ik=1,iref-1</code> 正常结束（未 EXIT）后循环变量取终止值 <code>ik=iref</code>。因此 <code>inertiedat(ig,ik)</code> 实际等于 <code>inertiedat(ig,iref)</code>，即边界层处的风化层热惯量，物理上合理。这是依赖"DO 循环结束后索引变量值"的隐式写法，可读性差但结果正确。推断：等价于显式写 <code>inertiedat(ig,iref)</code>；复现时可直接用 <code>iref</code>，与源码字面行为一致。</li>
+<li>形参缺 <code>intent</code> 是否在某些编译器下有副作用；当前按惯例理解为 in/in/out。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="soil.html">soil.md</a>：土壤热扩散求解，本例程输出的消费者（<code>physiq_mod.F:741</code>）。</li>
+<li><a href="../../routines/physiq-water-cycle-callpoints.html">physiq 水循环调用点</a>（TASK-0039）：本例程的调用上下文。</li>
+<li><a href="water-saturation-helpers.html">water-saturation-helpers</a>（TASK-0032，已写）：水饱和基础公式。</li>
+<li><a href="../../themes/water-cycle.html">水循环父级主题页</a>（TASK-0010）。</li>
+<li>待确认页：<code>comsoil_h</code>（定义 <code>layer</code>、<code>inertiedat</code>、<code>porosity_reg</code>）。</li>
+<li><a href="surfdat_h.html">surfdat_h</a>：定义 <code>inert_h2o_ice</code> 和 <code>watercaptag</code>。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

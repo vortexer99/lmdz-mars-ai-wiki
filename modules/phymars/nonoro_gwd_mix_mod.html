@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nonoro_gwd_mix_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/nonoro_gwd_mix_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="nonoro_gwd_mix_modf90">nonoro_gwd_mix_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\nonoro_gwd_mix_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>nonoro_gwd_mix_mod.F90</code> 定义非地形重力波诱导混合模块 <code>nonoro_gwd_mix_mod</code>。它不是 <code>nonoro_gwd_ran_mod.F90</code> 中的 FLott 非地形重力波动量拖曳本体，而是在 <code>physiq_mod.F</code> 的 <code>calllott_nonoro</code> 分支内、且 <code>calljliu_gwimix</code> 为真时额外调用的混合方案：根据当前温度、风、位温和 tracer 场构造离散重力波，计算 EP flux 随高度的耗散、临界层和饱和，再把得到的涡混合通量转成温度、纬向风、经向风和 tracer tendency。</p>
+<p>源码中的实际输出有一个重要不对称：<code>d_u</code>、<code>d_t</code> 和 <code>d_pq</code> 会经过 AR(1) 记忆项后返回调用方；<code>d_v</code> 在最终阶段被强制设为 0，相关 <code>dv_eddymix_gwd</code> 更新和诊断输出被注释掉。因此复现时不能仅根据接口名假设经向风混合 tendency 被启用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nonoro_gwd_mix_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>保存非地形重力波诱导混合开关、记忆数组和入口例程</td>
+</tr>
+<tr>
+<td><code>du_eddymix_gwd</code></td>
+<td>allocatable save array</td>
+<td>5</td>
+<td>纬向风混合 tendency 的跨步记忆项</td>
+</tr>
+<tr>
+<td><code>dv_eddymix_gwd</code></td>
+<td>allocatable save array</td>
+<td>6</td>
+<td>经向风混合 tendency 记忆数组；当前主例程不更新有效值</td>
+</tr>
+<tr>
+<td><code>dh_eddymix_gwd</code></td>
+<td>allocatable save array</td>
+<td>7</td>
+<td>位温混合 tendency 的跨步记忆项</td>
+</tr>
+<tr>
+<td><code>dq_eddymix_gwd</code></td>
+<td>allocatable save array</td>
+<td>8</td>
+<td>tracer 混合 tendency 的跨步记忆项</td>
+</tr>
+<tr>
+<td><code>de_eddymix_rto</code></td>
+<td>allocatable save array</td>
+<td>9</td>
+<td>总扩散系数 <code>d_eddy_mix_tot</code> 的 AR(1) 记忆项</td>
+</tr>
+<tr>
+<td><code>df_eddymix_flx</code></td>
+<td>allocatable save array</td>
+<td>10</td>
+<td>已分配并参与重启读取的通量记忆数组；当前文件未写入</td>
+</tr>
+<tr>
+<td><code>calljliu_gwimix</code></td>
+<td>logical save</td>
+<td>11</td>
+<td>控制是否在 <code>physiq</code> 中启用本混合方案</td>
+</tr>
+<tr>
+<td><code>NONORO_GWD_MIX</code></td>
+<td>subroutine</td>
+<td>19</td>
+<td>主计算入口，返回混合造成的温度、风和 tracer tendency</td>
+</tr>
+<tr>
+<td><code>ini_nonoro_gwd_mix</code></td>
+<td>subroutine</td>
+<td>772</td>
+<td>按 <code>ngrid/nlayer/nq</code> 分配模块保存数组</td>
+</tr>
+<tr>
+<td><code>end_nonoro_gwd_mix</code></td>
+<td>subroutine</td>
+<td>789</td>
+<td>释放模块保存数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code>, <code>pi</code>, <code>r</code>, <code>rcp</code></td>
+<td>重力加速度、圆周率、气体常数和 Exner 指数；参与高度、Brunt-Vaisala 频率、温度换算</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td><code>getin_p</code></td>
+<td>首调用时读取 <code>nonoro_gwd_*</code> 和 <code>nonoro_gwimixing_*</code> 调参键</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>vertical_layers_mod</code></td>
+<td><code>presnivs</code></td>
+<td>用参考半层压力决定可复现的发射层 <code>LAUNCH</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>cell_area</code></td>
+<td>用格点面积限制最小可解析水平波数 <code>kstar</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>write_output_mod</code></td>
+<td><code>write_output</code></td>
+<td>输出风切变、混合扩散系数、U/V 混合通量和 <code>du_eddymix_gwd</code> 诊断</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin_p</code></td>
+<td><code>ioipsl_getin_p_mod</code></td>
+<td>206-230</td>
+<td>读取 <code>epflux_max</code>、<code>sat</code>、<code>rdiss</code>、<code>kmax/kmin</code>、<code>xlaunch</code>、<code>eff/eff1/vdl</code></td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>外部物理错误处理</td>
+<td>236, 239</td>
+<td>检查 <code>DTIME &lt;= DELTAT</code> 和 <code>nlayer &gt;= NW</code>，失败时中止</td>
+</tr>
+<tr>
+<td><code>write_output</code></td>
+<td><code>write_output_mod</code></td>
+<td>551, 665, 716-717, 749</td>
+<td>写出诊断变量</td>
+</tr>
+<tr>
+<td><code>ini_nonoro_gwd_mix</code></td>
+<td>本文件</td>
+<td><code>phys_state_var_init_mod.F90:180-181</code></td>
+<td>物理状态初始化时分配本模块数组</td>
+</tr>
+<tr>
+<td><code>end_nonoro_gwd_mix</code></td>
+<td>本文件</td>
+<td><code>phys_state_var_init_mod.F90:180</code></td>
+<td>重新分配前释放旧数组</td>
+</tr>
+<tr>
+<td><code>NONORO_GWD_MIX</code></td>
+<td>本文件</td>
+<td><code>physiq_mod.F:1784-1793</code></td>
+<td>在 <code>calllott_nonoro</code> 且 <code>calljliu_gwimix</code> 为真时计算混合 tendency</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code>, <code>nlayer</code>, <code>nq</code></td>
+<td><code>physiq</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>水平格点数、垂直层数和 tracer 数</td>
+</tr>
+<tr>
+<td><code>DTIME</code></td>
+<td><code>physiq</code> 的 <code>ptimestep</code></td>
+<td>real scalar</td>
+<td>s</td>
+<td>物理时间步</td>
+</tr>
+<tr>
+<td><code>cpnew</code>, <code>rnew</code></td>
+<td><code>physiq</code> 当前大气热力属性</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>J kg-1 K-1 / J kg-1 K-1</td>
+<td>层内比热和气体常数，用于 Brunt-Vaisala 频率与密度</td>
+</tr>
+<tr>
+<td><code>pp</code></td>
+<td><code>physiq</code> 的 <code>zplay</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>Pa</td>
+<td>全层压力</td>
+</tr>
+<tr>
+<td><code>zmax_therm</code></td>
+<td><code>physiq</code> 的 <code>zmax_th</code></td>
+<td>real <code>(ngrid)</code></td>
+<td>m</td>
+<td>热羽最大高度；当前源码接口保留但未实际使用</td>
+</tr>
+<tr>
+<td><code>pt</code>, <code>pu</code>, <code>pv</code></td>
+<td><code>physiq</code> 状态</td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K, m/s, m/s</td>
+<td>当前温度、纬向风、经向风</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td><code>physiq</code> tracer 状态</td>
+<td>real <code>(ngrid,nlayer,nq)</code></td>
+<td>tracer 混合比</td>
+<td>被混合的 tracer 场</td>
+</tr>
+<tr>
+<td><code>pht</code></td>
+<td><code>physiq</code> 的 <code>zh</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>源码按位温使用</td>
+<td>位温或位温相关场</td>
+</tr>
+<tr>
+<td><code>pdt</code>, <code>pdu</code>, <code>pdv</code>, <code>pdq</code>, <code>pdht</code></td>
+<td><code>physiq</code> 已累积 tendency</td>
+<td>real arrays</td>
+<td>K/s, m/s2, tracer/s, 位温/s</td>
+<td>本方案用 <code>state + DTIME*tendency</code> 构造当前背景</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>d_t</code></td>
+<td><code>physiq</code> 中加到 <code>pdt</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>K/s</td>
+<td>重力波混合导致的温度 tendency，由位温 tendency 换算</td>
+</tr>
+<tr>
+<td><code>d_u</code></td>
+<td><code>physiq</code> 中加到 <code>pdu</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m/s2</td>
+<td>重力波混合导致的纬向风 tendency</td>
+</tr>
+<tr>
+<td><code>d_v</code></td>
+<td><code>physiq</code> 中加到 <code>pdv</code></td>
+<td>real <code>(ngrid,nlayer)</code></td>
+<td>m/s2</td>
+<td>接口返回经向风 tendency，但源码最终设为 0</td>
+</tr>
+<tr>
+<td><code>d_pq</code></td>
+<td><code>physiq</code> 中加到 <code>pdq</code></td>
+<td>real <code>(ngrid,nlayer,nq)</code></td>
+<td>tracer/s</td>
+<td>tracer 混合 tendency</td>
+</tr>
+<tr>
+<td><code>du_eddymix_gwd</code>, <code>dh_eddymix_gwd</code>, <code>dq_eddymix_gwd</code>, <code>de_eddymix_rto</code></td>
+<td>模块保存状态</td>
+<td>allocatable save arrays</td>
+<td>同对应 tendency / m2 s-1</td>
+<td>AR(1) 平滑记忆，供下一步继续使用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>calljliu_gwimix</code> 由 <code>conf_phys.F:371-373</code> 通过 <code>getin_p("calljliu_gwimix", calljliu_gwimix)</code> 读取，默认 <code>.false.</code>。</li>
+<li><code>ini_nonoro_gwd_mix</code> 分配 <code>du_eddymix_gwd/dv_eddymix_gwd/dh_eddymix_gwd/dq_eddymix_gwd/de_eddymix_rto/df_eddymix_flx</code>；<code>end_nonoro_gwd_mix</code> 对应释放。</li>
+<li>这些模块变量均声明为 OpenMP <code>THREADPRIVATE</code>，包含开关、记忆数组和首调用调参变量。</li>
+<li>首次进入 <code>NONORO_GWD_MIX</code> 会向标准输出打印激活信息和调参值，并读取多个 <code>callphys.def</code> 键。</li>
+<li>诊断输出包括 <code>zonal_shear</code>、<code>nonoro_d_mixing_tot</code>、<code>nonoro_u_mixing_tot</code>、<code>nonoro_v_mixing_tot</code> 和 <code>du_eddymix_gwd</code>。</li>
+<li><code>phyetat0_mod.F90</code> 会尝试从 <code>startphy_file</code> 读取 <code>du_eddymix_gwd</code>、<code>dh_eddymix_gwd</code>、<code>dv_eddymix_gwd</code>、<code>dq_eddymix_gwd</code>、<code>de_eddymix_rto</code> 和 <code>df_eddymix_flx</code>；若没有重启文件字段则清零。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>首调用时读取调参键，设置默认 <code>epflux_max=5.E-4</code>、<code>sat=1.5</code>、<code>rdiss=0.07</code>、<code>kmax=1.E-4</code>、<code>kmin=7.E-6</code>、<code>xlaunch=0.6</code>、<code>eff=0.1</code>、<code>eff1=0.1</code>、<code>vdl=1.5</code>，并检查物理时间步和层数。</li>
+<li>用传入状态加上已累积 tendency 得到背景 <code>tt/uu/vv/zq/hh</code>，再用 <code>rho = pp/(rnew*tt)</code> 计算密度。</li>
+<li>在半层上构造压力、对数压力高度、半层风和 Brunt-Vaisala 频率；用 <code>presnivs</code> 和 <code>xlaunch</code> 决定可复现的发射层 <code>LAUNCH</code>。</li>
+<li>对 <code>NW=NK*NP*NO=8</code> 个离散重力波，用温度和风场派生的 <code>MOD(...)</code> 数值构造水平波数、方位角、相速、内禀频率和发射层 EP flux。</li>
+<li>从 <code>LAUNCH</code> 向上推进 EP flux：每层同时考虑守恒、耗散、临界层变号截断和饱和上限，得到 <code>wwp_vertical_tot</code>。</li>
+<li>对每个波和格点寻找饱和/破碎层 <code>LLSATURATION</code>，再计算饱和层上方和下方的涡混合系数 <code>d_eddy_mix_p_ll</code> 与 <code>d_eddy_mix_m_ll</code>。</li>
+<li>用涡混合系数乘以垂直梯度，形成 U、V、位温和 tracer 的混合通量；对所有波求和后得到半层通量。</li>
+<li>在低层对 <code>LAUNCH</code> 以下的几层做通量补偿，使总混合通量闭合。</li>
+<li>对通量做垂直差分得到 <code>d_u</code>、<code>d_h</code> 和 <code>d_pq</code>，再通过 <code>DTIME/DELTAT/REAL(NW)</code> 与上一时刻记忆项做 AR(1) 平滑。</li>
+<li>将 <code>d_h</code> 转换为温度 tendency <code>d_t</code>；将 <code>d_v</code> 强制清零；更新模块记忆数组供下一步使用。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if firstcall:
+    read nonoro_gwd_* and nonoro_gwimixing_* parameters
+    abort if DTIME &gt; 24 h or nlayer &lt; 8
+
+background = current state + DTIME * accumulated tendencies
+compute density, half-level pressure, log-pressure height, half-level wind, BV
+LAUNCH = highest reference half-level satisfying HREF(level)/HREF(surface) &gt; xlaunch
+
+for each wave jw and grid column:
+    derive azimuth, wavenumber, phase speed and launch EP flux from background fields
+
+for level from LAUNCH to nlayer-1:
+    update intrinsic frequency
+    limit EP flux by dissipation, critical-level sign change and saturation
+
+find each wave&#39;s saturation/breaking layer
+compute eddy diffusivity above and below the breaking layer
+convert diffusivity times vertical gradients into U/V/H/tracer fluxes
+close low-level flux below LAUNCH
+
+d_u, d_h, d_pq = vertical divergence of fluxes
+apply AR(1) smoothing using saved module arrays
+d_t = d_h * (pressure / surface_half_pressure)**rcp
+d_v = 0
+save updated memory arrays</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>非地形重力波</td>
+<td>在 <code>calllott_nonoro</code> 分支内、FLott 随机非地形 GW 方案之后追加 J. Liu GW-induced mixing tendency</td>
+</tr>
+<tr>
+<td>主物理时间步 <code>physiq</code></td>
+<td><code>physiq</code> 把 <code>d_t_mix/d_u_mix/d_v_mix/zdq_mix</code> 累加到 <code>pdt/pdu/pdv/pdq</code></td>
+</tr>
+<tr>
+<td>tracer 输运 / 混合</td>
+<td>对所有 <code>nq</code> tracer 计算垂直混合通量并返回 <code>d_pq</code></td>
+</tr>
+<tr>
+<td>重启状态</td>
+<td>多个 <code>*_eddymix_*</code> 记忆数组由 <code>phyetat0_mod.F90</code> 读取或清零</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>模块级保存数组和多个调参变量均为 <code>THREADPRIVATE</code>，并通过 <code>ini_nonoro_gwd_mix</code> 分配。</li>
+<li>波参数的“随机性”来自当前背景场的 <code>MOD(TT(...), 1.)</code> 和 <code>MOD(UU**2+VV**2, 1.)</code>，不是 Fortran 随机数发生器；注释说明这是为了可复现性。</li>
+<li><code>DELTAT=24*3600</code> 是方案生命周期时间尺度；输出 tendency 用 <code>DTIME/DELTAT/REAL(NW)</code> 缩放并混合旧记忆项。</li>
+<li><code>cell_area</code> 通过 <code>kstar=pi/sqrt(cell_area)</code> 限制最小水平波数，避免波长超过水平分辨率。</li>
+<li>源码中存在多处遗留注释和拼写问题，如 “may be need to delet”、<code>df_eddymix_flx</code> 分配但未在本文件写入；这些不影响本文按当前源码字面记录。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>必须同时开启上游 <code>calllott_nonoro</code> 和本方案 <code>calljliu_gwimix</code>；仅设置 <code>calljliu_gwimix=.true.</code> 不会越过 <code>physiq</code> 外层 <code>IF (calllott_nonoro)</code>。</li>
+<li><code>calljliu_gwimix</code> 默认 <code>.false.</code>，需要在运行配置中显式覆盖。</li>
+<li><code>nonoro_gwd_epflux_max</code>、<code>nonoro_gwd_sat</code>、<code>nonoro_gwd_rdiss</code>、<code>nonoro_gwd_kmax</code>、<code>nonoro_gwd_kmin</code>、<code>nonoro_gwd_xlaunch</code>、<code>nonoro_gwimixing_eff</code>、<code>nonoro_gwimixing_eff1</code>、<code>nonoro_gwimixing_vdl</code> 会改变波发射、耗散和混合强度。</li>
+<li><code>nlayer</code> 必须不少于 <code>NW=8</code>，物理时间步不能超过 24 小时，否则 <code>abort_physic</code> 中止。</li>
+<li>重启可重复性依赖 <code>du_eddymix_gwd/dh_eddymix_gwd/dq_eddymix_gwd/de_eddymix_rto</code> 等记忆数组是否从 start 文件恢复；缺失时 <code>phyetat0_mod.F90</code> 会清零。</li>
+<li>不要把 <code>d_v</code> 当作当前启用的经向风混合 tendency；源码在返回前设为 0。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>df_eddymix_flx</code> 在本文件中只分配/释放，并在 <code>phyetat0_mod.F90</code> 中尝试读取；未在本次源码核验中发现写入位置。</li>
+<li><code>zmax_therm</code> 接口参数当前未参与计算；是否为保留的热对流源高度接口需结合历史版本确认。</li>
+<li><code>d_t</code> 从 <code>d_h</code> 转换时使用 <code>(PP(ii,:) / PH(ii,1))**rcp</code>，其中 <code>PH(ii,1)</code> 是由底层全层压力外推得到的半层压力；该换算是否符合目标位温定义需结合 <code>zh/zdh</code> 上游定义进一步确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a>：本模块所属目录。</li>
+<li><a href="comcstfi_h.html">comcstfi_h</a>：提供 <code>g/r/rcp/pi</code> 等公共物理常数。</li>
+<li><a href="iostart.html">iostart</a>：<code>phyetat0_mod.F90</code> 读取 start/restart 字段时使用的 I/O 层。</li>
+<li><a href="write_output_mod.html">write_output_mod.md</a>：通用诊断输出入口。</li>
+<li><a href="nonoro_gwd_ran_mod.html">nonoro_gwd_ran_mod.md</a>：同一 <code>calllott_nonoro</code> 分支中的非地形 GW 动量拖曳方案。</li>
+<li><a href="phyetat0_mod.html">phyetat0_mod.md</a>：本模块重启记忆数组的读取和清零逻辑。</li>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod</a>，本模块数组分配入口。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

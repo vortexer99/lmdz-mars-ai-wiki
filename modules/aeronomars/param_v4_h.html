@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>param_v4_h - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/param_v4_h.md</span>
+    </nav>
+    <article class="content">
+<h1 id="param_v4_hf90">param_v4_h.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\param_v4_h.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>param_v4_h.F90</code> 定义 <code>param_v4_h</code>，是热层 EUV、E107 光吸收、热层化学和电离效率路径共享的状态模块。它集中声明光谱区间数、吸收体数、热层柱含量/光吸收查找表、E107 年表、解离/电离效率、反应速率系数、光解输出数组，以及 <code>paramfoto_compact</code> 写入的大批物种产生/损失/最小时间尺度缓存。</p>
+<p>本文件自身不读外部文件、不调用其他例程；实际数据由 <a href="param_read.html">param_read</a>、<a href="param_read_e107.html">param_read_e107</a>、<a href="chemthermos_readini.html">chemthermos_readini</a>、<code>jthermcalc*</code> 和 <code>paramfoto_compact</code> 等例程写入或消费。<code>physiq_mod.F</code> 在 <code>callthermos</code> 初始化分支调用本模块的 <code>fill_data_thermos</code> 与 <code>allocate_param_thermos(nlayer)</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>param_v4_h</code></td>
+<td>module</td>
+<td style="text-align: right;">1（<code>END MODULE</code> 440）</td>
+<td>热层参数、查找表、反应速率和产损数组共享状态模块</td>
+</tr>
+<tr>
+<td><code>ninter</code>,<code>nabs</code>,<code>nz2</code>,<code>ninter2</code></td>
+<td>integer parameters</td>
+<td style="text-align: right;">5-8</td>
+<td>EUV 光谱区间、吸收体、查表高度和旧版 16 区间维度</td>
+</tr>
+<tr>
+<td><code>kboltzman</code>,<code>n_avog</code>,<code>gg</code>,<code>masa</code>,<code>radio</code></td>
+<td>real*8 parameters</td>
+<td style="text-align: right;">9-13</td>
+<td>热层计算使用的物理常数；<code>jthermcalc_util</code> 和 <code>physiq_mod</code> 读取其中部分常数</td>
+</tr>
+<tr>
+<td><code>nreact</code>,<code>tapas</code></td>
+<td>integer parameters</td>
+<td style="text-align: right;">14-15</td>
+<td>热层化学反应数和固定表层数；<code>nreact=93</code> 控制产损矩阵第二维</td>
+</tr>
+<tr>
+<td><code>crscabsi2</code>,<code>c1_16</code>,<code>c17_24</code>...<code>c36</code>,<code>jabsifotsintpar</code></td>
+<td>real module arrays</td>
+<td style="text-align: right;">17-31</td>
+<td>吸收截面、柱含量聚合表和光吸收/透过率查找表</td>
+</tr>
+<tr>
+<td><code>e107</code>,<code>date_e107</code>,<code>e107_tab</code>,<code>coefit0</code>...<code>coefit4</code></td>
+<td>real module arrays/scalar</td>
+<td style="text-align: right;">32-36</td>
+<td>E107 标量、669 行年表和 E107 拟合系数</td>
+</tr>
+<tr>
+<td><code>rcoef</code></td>
+<td>real*8 module array</td>
+<td style="text-align: right;">45</td>
+<td>61 个热层反应的 3 项 Arrhenius 系数；由 <code>chemthermos_readini</code> 写入、<code>paramfoto_compact</code> 消费</td>
+</tr>
+<tr>
+<td><code>efdis*</code>,<code>efion*</code></td>
+<td>real module arrays</td>
+<td style="text-align: right;">50-62</td>
+<td>解离效率、电离效率和电离通道分支比</td>
+</tr>
+<tr>
+<td><code>jfotsout</code>,<code>jdistot</code>,<code>jdistot_b</code>,<code>jion</code></td>
+<td><code>REAL,SAVE,ALLOCATABLE</code> arrays</td>
+<td style="text-align: right;">65-69</td>
+<td>光吸收、总解离和电离输出缓存；显式 <code>THREADPRIVATE</code></td>
+</tr>
+<tr>
+<td><code>P*</code>,<code>L*</code>,<code>*tot</code>,<code>tmin*</code> arrays</td>
+<td><code>REAL*8,SAVE,ALLOCATABLE</code> arrays</td>
+<td style="text-align: right;">73-208</td>
+<td>热层化学物种产生项、损失项、总产损和最小时间尺度缓存；显式 <code>THREADPRIVATE</code></td>
+</tr>
+<tr>
+<td><code>fill_data_thermos</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">219（<code>END SUBROUTINE</code> 287）</td>
+<td>填入内置吸收截面、代表波长和 CO2 截面表</td>
+</tr>
+<tr>
+<td><code>allocate_param_thermos</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">289（<code>END SUBROUTINE</code> 438）</td>
+<td>按 <code>nlayer</code> 分配光解、电离和热层化学产损数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>本模块不 <code>use</code> 其他模块</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td><code>fill_data_thermos</code> 和 <code>allocate_param_thermos</code> 只做数组赋值/分配，不调用外部例程</td>
+</tr>
+<tr>
+<td><code>allocate</code></td>
+<td>Fortran intrinsic</td>
+<td>296-436</td>
+<td>分配本模块的 allocatable 共享数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlayer</code></td>
+<td>调用方 <code>physiq_mod</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>物理垂直层数，决定所有热层缓存数组第一/第三维</td>
+</tr>
+</tbody>
+</table>
+<p><code>fill_data_thermos</code> 无哑元输入，使用源码内硬编码数据。</p>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>crscabsi2</code></td>
+<td><code>jthermcalc*</code>/EUV 计算路径</td>
+<td>real <code>(nabs,16)</code></td>
+<td>cm2（按注释 cross section）</td>
+<td>13 个吸收体中部分物种在 16 个短波区间上的吸收截面</td>
+</tr>
+<tr>
+<td><code>freccen</code></td>
+<td><a href="hrtherm.html">hrtherm</a></td>
+<td>real <code>(ninter)</code></td>
+<td>nm（按代表波长语义）</td>
+<td>36 个 EUV 代表波长，<code>hrtherm</code> 用于加热率归一化</td>
+</tr>
+<tr>
+<td><code>co2crsc195</code>,<code>co2crsc295</code></td>
+<td>E107/光吸收计算路径</td>
+<td>real <code>(9)</code></td>
+<td>cm2</td>
+<td>CO2 在 195 K 与 295 K 下的截面表</td>
+</tr>
+<tr>
+<td><code>jfotsout</code>,<code>jdistot</code>,<code>jdistot_b</code>,<code>jion</code></td>
+<td><code>jthermcalc*</code>、<a href="hrtherm.html">hrtherm</a>、热层化学路径</td>
+<td>allocatable arrays</td>
+<td>mixed</td>
+<td>光吸收、解离和电离缓存</td>
+</tr>
+<tr>
+<td><code>P*</code>,<code>L*</code>,<code>*tot</code>,<code>tmin*</code> arrays</td>
+<td><code>paramfoto_compact</code> 和 <a href="chemthermos.html">chemthermos</a></td>
+<td>allocatable arrays</td>
+<td>mixed</td>
+<td>物种反应源项、损失项、总量和时间尺度缓存</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>fill_data_thermos</code> 写入模块级数组 <code>crscabsi2</code>、<code>freccen</code>、<code>co2crsc195</code>、<code>co2crsc295</code>；不分配内存、不做 I/O。</li>
+<li><code>allocate_param_thermos(nlayer)</code> 分配 <code>jfotsout(ninter,nabs,nlayer)</code>、<code>jdistot(nabs,nlayer)</code>、<code>jdistot_b(nabs,nlayer)</code>、<code>jion(nabs,nlayer,4)</code>，以及全部 <code>P*</code>/<code>L*</code>/<code>*tot</code>/<code>tmin*</code> 数组。</li>
+<li><code>jfotsout/jdistot/jdistot_b/jion</code> 和全部产损/时间尺度 allocatable 数组都有 <code>SAVE</code>，并通过 <code>!$OMP THREADPRIVATE</code> 声明为线程私有。</li>
+<li><code>rcoef(61,3)</code> 是普通 <code>real*8</code> module array；源码中未对 <code>rcoef</code> 写 <code>SAVE</code> 或 <code>THREADPRIVATE</code>。它的生命周期是模块作用域，OpenMP 线程私有语义未在本文件显式声明。</li>
+<li>本模块没有 deallocate 例程；释放策略不在本文件中体现。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><strong>静态参数声明</strong>：定义光谱、吸收体、查表高度、反应数和常数等维度/物理参数。</li>
+<li><strong>声明共享查表与运行状态</strong>：包括柱含量表、E107 表、效率表、反应速率系数、光解输出和产损缓存。</li>
+<li><strong>标注线程私有缓存</strong>：光解输出数组和热层化学产损/时间尺度 allocatable 数组均设为 <code>THREADPRIVATE</code>。</li>
+<li><strong><code>fill_data_thermos</code> 内置填表</strong>：写入部分 <code>crscabsi2(species,1:16)</code>，设置 <code>freccen(1:36)</code> 为 <code>3.4 ... 600.</code>，并填入 195 K/295 K CO2 截面。</li>
+<li><strong><code>allocate_param_thermos(nlayer)</code> 分配运行缓存</strong>：先分配光解/电离输出，再按 <code>nlayer,nreact</code> 或 <code>nlayer</code> 分配所有物种源汇和最小时间尺度数组。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>module param_v4_h:
+  declare dimensions/constants
+  declare EUV/E107 lookup arrays, reaction rates and efficiency arrays
+  declare allocatable photochemical output arrays as SAVE THREADPRIVATE
+  declare allocatable production/loss/tmin arrays as SAVE THREADPRIVATE
+
+fill_data_thermos():
+  set selected crscabsi2(absorber,1:16) hard-coded cross sections
+  set freccen(1:36) representative wavelengths
+  set co2crsc195(1:9) and co2crsc295(1:9)
+
+allocate_param_thermos(nlayer):
+  allocate jdistot, jdistot_b, jion, jfotsout using nabs/ninter/nlayer
+  for every thermal species:
+    allocate Pspecies(nlayer,nreact), Lspecies(nlayer,nreact)
+    allocate Pspecies_tot(nlayer), Lspecies_tot(nlayer), tminspecies(nlayer)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热层初始化</td>
+<td><code>physiq_mod</code> 在 <code>callthermos</code> 初始化段调用 <code>fill_data_thermos</code> 和 <code>allocate_param_thermos(nlayer)</code></td>
+</tr>
+<tr>
+<td>E107/EUV 参数读取</td>
+<td><a href="param_read_e107.html">param_read_e107</a> 和 <a href="param_read.html">param_read</a> 写入本模块表格、效率和年表数组</td>
+</tr>
+<tr>
+<td>热层 EUV 加热</td>
+<td><a href="hrtherm.html">hrtherm</a> 读取 <code>ninter/nabs/jfotsout/fluxtop/freccen</code>，其中 <code>freccen</code> 由本模块内置填表</td>
+</tr>
+<tr>
+<td>热层化学反应速率</td>
+<td><a href="chemthermos_readini.html">chemthermos_readini</a> 写入 <code>rcoef(61,3)</code>；<code>paramfoto_compact</code> 消费并写 <code>ch2..ch87</code> 与产损数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>.F90</code> 自由格式模块，但保留旧式 <code>real*8</code> 和大量全局共享状态。</li>
+<li>数据与状态混合在同一模块：既有常数/查表，也有随 <code>nlayer</code> 分配的运行缓存。</li>
+<li>大量数组只在本文件声明，实际写入/读取分散在多个 <code>.F</code>/<code>.F90</code> 文件中；复现时必须沿 use/call 链追踪。</li>
+<li>线程私有仅覆盖 allocatable 光解和产损缓存；<code>rcoef</code>、静态查表和效率数组不是显式 <code>THREADPRIVATE</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>调用 <code>param_read_e107</code> 或 <code>jthermcalc_e107</code> 前，当前 <code>physiq_mod</code> 初始化顺序先调用 <code>fill_data_thermos</code> 和 <code>allocate_param_thermos(nlayer)</code>；缺少分配会导致 <code>jfotsout</code> 等数组不可用。</li>
+<li><code>freccen</code> 不是外部文件输入，而是 <code>fill_data_thermos</code> 的 36 个硬编码代表波长；<a href="hrtherm.html">hrtherm</a> 的 <code>jergs</code> 公式直接除以它。</li>
+<li><code>rcoef</code> 维度固定为 <code>61,3</code>，与 <code>chemthermos_reactionrates.def</code> 和 <code>chemthermos_readini</code> 的 <code>do i=1,61</code> 绑定。</li>
+<li><code>nreact=93</code> 大于 <code>rcoef</code> 的 61 个配置反应；产损数组第二维按 93 分配，不能用 <code>rcoef</code> 行数替代。</li>
+<li>本文件没有释放例程；重复初始化或动态改变 <code>nlayer</code> 的复现程序需自行处理已分配数组。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>tapas=42</code> 在当前已读路径中的具体消费方未在本任务内展开。</li>
+<li><code>jdistot_b</code> 与 <code>jdistot</code> 的物理差异需结合 <code>paramfoto_compact</code> 或 <code>jthermcalc*</code> 消费方确认。</li>
+<li>静态表数组（如 <code>c1_16</code>、<code>coefit*</code>、<code>efdis*</code>）未显式 <code>SAVE/THREADPRIVATE</code>；并行复现需按 Fortran module 变量和 MPI 广播路径理解其可见性。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="param_read_e107.html">param_read_e107</a>：当前热层初始化使用的 E107 参数读取路径，写入本模块大量数组。</li>
+<li><a href="param_read.html">param_read</a>：旧版 <code>param_v5</code> 读取路径，也写入本模块数组。</li>
+<li><a href="chemthermos_readini.html">chemthermos_readini</a>：读取 <code>chemthermos_reactionrates.def</code> 到 <code>rcoef(61,3)</code>。</li>
+<li><a href="hrtherm.html">hrtherm</a>：读取 <code>jfotsout/fluxtop/freccen</code> 计算 EUV 光吸收加热率。</li>
+<li><a href="../phymars/physiq_mod.html">physiq_mod</a>：调用 <code>fill_data_thermos</code>、<code>allocate_param_thermos</code> 和 <code>param_read_e107</code> 的初始化入口。</li>
+<li><a href="jthermcalc_e107_mod.html">jthermcalc_e107_mod.F</a>：被调方文件页（TASK-0190），写入 <code>jfotsout</code>。</li>
+<li><a href="paramfoto_compact.html">paramfoto_compact</a>：消费本模块的热层化学速率、光解输出和产损数组。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

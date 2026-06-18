@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>jthermcalc_util - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/aeronomars/jthermcalc_util.md</span>
+    </nav>
+    <article class="content">
+<h1 id="jthermcalc_utilf">jthermcalc_util.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\aeronomars\jthermcalc_util.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/aeronomars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>热层光吸收计算的共享工具模块：提供柱密度积分（<code>column</code>，含球面大气光学路径几何）、快速查表线性插值（<code>interfast</code>）、几何光程计算（<code>espesor_optico_A</code>）、网格索引查找（<code>grid_R8</code>）以及一个遗留的太阳通量太阳周期修正例程（<code>flujo</code>，无调用方）。被 <code>jthermcalc.F</code> 和 <code>jthermcalc_e107_mod.F</code> 共同依赖。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>jthermcalc_util</code></td>
+<td>module</td>
+<td>第 1 行</td>
+<td>模块定义，含 5 个过程</td>
+</tr>
+<tr>
+<td><code>column</code></td>
+<td>subroutine</td>
+<td>第 10 行</td>
+<td>计算 13 种物种的柱密度（cm⁻²），含球面大气光学路径</td>
+</tr>
+<tr>
+<td><code>interfast</code></td>
+<td>subroutine</td>
+<td>第 338 行</td>
+<td>在柱密度查找表中做快速线性插值，返回权重和索引</td>
+</tr>
+<tr>
+<td><code>espesor_optico_A</code></td>
+<td>subroutine</td>
+<td>第 397 行</td>
+<td>几何光学路径厚度计算（球面大气）</td>
+</tr>
+<tr>
+<td><code>grid_R8</code></td>
+<td>function</td>
+<td>第 635 行</td>
+<td>在单调递增网格中查找值所在区间索引</td>
+</tr>
+<tr>
+<td><code>flujo</code></td>
+<td>subroutine</td>
+<td>第 707 行</td>
+<td>遗留太阳通量 11 年太阳周期修正（无调用方）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<h3 id="column">column</h3>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracer_mod</code></td>
+<td><code>igcm_o, igcm_co2, igcm_o2, igcm_h2, igcm_h2o_vap, igcm_h2o2, igcm_co, igcm_h, igcm_o3, igcm_n2, igcm_n, igcm_no, igcm_no2, mmol</code></td>
+<td>热层化学物种的 GCM tracer 索引和分子量</td>
+<td></td>
+</tr>
+<tr>
+<td><code>param_v4_h</code></td>
+<td><code>radio, gg, masa, kboltzman, n_avog</code></td>
+<td>火星半径、表面重力、质量、玻尔兹曼常数、阿伏伽德罗常数</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="espesor_optico_a">espesor_optico_A</h3>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>param_v4_h</code></td>
+<td><code>radio</code></td>
+<td>火星半径（km）</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="flujo">flujo</h3>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comsaison_h</code></td>
+<td><code>dist_sol</code></td>
+<td>日火距离（AU）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>param_v4_h</code></td>
+<td><code>ninter, fluxtop, ct1, ct2, p1, p2</code></td>
+<td>光谱区间数和通量修正参数</td>
+<td></td>
+</tr>
+<tr>
+<td><code>callkeys_mod</code></td>
+<td><code>solvarmod</code></td>
+<td>太阳活动开关</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>espesor_optico_A</code></td>
+<td>本模块内部</td>
+<td>第 198 行（由 <code>column</code> 调用）</td>
+<td>计算球面大气中各层沿光线的几何路径长度</td>
+</tr>
+<tr>
+<td><code>grid_R8</code></td>
+<td>本模块内部</td>
+<td>第 465/498/545/548/551/558/597/611 行（由 <code>espesor_optico_A</code> 调用）</td>
+<td>在高度网格中查找索引</td>
+</tr>
+</tbody>
+</table>
+<h2 id="column-子例程">column 子例程</h2>
+<h3 id="输入">输入</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ig</code></td>
+<td>调用方</td>
+<td><code>integer</code></td>
+<td>-</td>
+<td>格点索引</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td>调用方</td>
+<td><code>integer</code></td>
+<td>-</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>chemthermod</code></td>
+<td>调用方</td>
+<td><code>integer</code></td>
+<td>-</td>
+<td>热层化学模式；≥1 启用 O₃，≥2 启用 N 物种</td>
+</tr>
+<tr>
+<td><code>rm</code></td>
+<td>调用方</td>
+<td><code>real*8(nlayer, nesptherm)</code></td>
+<td>cm⁻³</td>
+<td>各物种数密度矩阵</td>
+</tr>
+<tr>
+<td><code>nesptherm</code></td>
+<td>调用方</td>
+<td><code>integer</code></td>
+<td>-</td>
+<td>考虑的物种数</td>
+</tr>
+<tr>
+<td><code>tx</code></td>
+<td>调用方</td>
+<td><code>real(nlayer)</code></td>
+<td>K</td>
+<td>温度剖面</td>
+</tr>
+<tr>
+<td><code>iz</code></td>
+<td>调用方</td>
+<td><code>real(nlayer+1)</code></td>
+<td>待确认（km）</td>
+<td>各层界面高度</td>
+</tr>
+<tr>
+<td><code>zenit</code></td>
+<td>调用方</td>
+<td><code>real</code></td>
+<td>°</td>
+<td>太阳天顶角</td>
+</tr>
+</tbody>
+</table>
+<h3 id="输出">输出</h3>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>co2colx</code></td>
+<td>调用方</td>
+<td><code>real(nlayer)</code></td>
+<td>cm⁻²</td>
+<td>CO₂ 柱密度</td>
+</tr>
+<tr>
+<td><code>o2colx</code></td>
+<td>调用方</td>
+<td><code>real(nlayer)</code></td>
+<td>cm⁻²</td>
+<td>O₂ 柱密度</td>
+</tr>
+<tr>
+<td><code>o3pcolx</code></td>
+<td>调用方</td>
+<td><code>real(nlayer)</code></td>
+<td>cm⁻²</td>
+<td>O(³P) 柱密度</td>
+</tr>
+<tr>
+<td><code>h2colx</code></td>
+<td>调用方</td>
+<td><code>real(nlayer)</code></td>
+<td>cm⁻²</td>
+<td>H₂ 柱密度</td>
+</tr>
+<tr>
+<td><code>h2ocolx</code></td>
+<td>调用方</td>
+<td><code>real(nlayer)</code></td>
+<td>cm⁻²</td>
+<td>H₂O 柱密度</td>
+</tr>
+<tr>
+<td><code>h2o2colx</code></td>
+<td>调用方</td>
+<td><code>real(nlayer)</code></td>
+<td>cm⁻²</td>
+<td>H₂O₂ 柱密度</td>
+</tr>
+<tr>
+<td><code>o3colx</code></td>
+<td>调用方</td>
+<td><code>real(nlayer)</code></td>
+<td>cm⁻²</td>
+<td>O₃ 柱密度</td>
+</tr>
+<tr>
+<td><code>n2colx</code></td>
+<td>调用方</td>
+<td><code>real(nlayer)</code></td>
+<td>cm⁻²</td>
+<td>N₂ 柱密度</td>
+</tr>
+<tr>
+<td><code>ncolx</code></td>
+<td>调用方</td>
+<td><code>real(nlayer)</code></td>
+<td>cm⁻²</td>
+<td>N 柱密度</td>
+</tr>
+<tr>
+<td><code>nocolx</code></td>
+<td>调用方</td>
+<td><code>real(nlayer)</code></td>
+<td>cm⁻²</td>
+<td>NO 柱密度</td>
+</tr>
+<tr>
+<td><code>cocolx</code></td>
+<td>调用方</td>
+<td><code>real(nlayer)</code></td>
+<td>cm⁻²</td>
+<td>CO 柱密度</td>
+</tr>
+<tr>
+<td><code>hcolx</code></td>
+<td>调用方</td>
+<td><code>real(nlayer)</code></td>
+<td>cm⁻²</td>
+<td>H 柱密度</td>
+</tr>
+<tr>
+<td><code>no2colx</code></td>
+<td>调用方</td>
+<td><code>real(nlayer)</code></td>
+<td>cm⁻²</td>
+<td>NO₂ 柱密度</td>
+</tr>
+</tbody>
+</table>
+<h3 id="核心逻辑">核心逻辑</h3>
+<ol type="1">
+<li><strong>重力计算</strong>（第 134–137 行）：<code>grav(i) = gg * masa / (radio + iz(i))²</code>，随高度递减。</li>
+<li><strong>标高计算</strong>（第 140–158 行）：在顶层用 <code>kT/(mg)</code> 计算各物种标高 <code>H*</code>。O₃ 需 <code>chemthermod ≥ 1</code>；N₂/N/NO/NO₂ 需 <code>chemthermod ≥ 2</code>。</li>
+<li><strong>数密度提取</strong>（第 160–194 行）：从 <code>rm</code> 矩阵按热层化学槽位索引（<code>i_co2=1, i_co=2, i_o=3, ...</code>）提取各物种密度，同样受 <code>chemthermod</code> 门控。</li>
+<li><strong>柱密度积分</strong>（第 196–329 行）：从顶向下逐层调用 <code>espesor_optico_A</code> 获取光学路径长度：
+<ul>
+<li>若返回 <code>ilayesp(nlayesp) == -1</code>（无日照），所有柱密度置 <code>1e25</code>（光学厚极限）。</li>
+<li>顶层（<code>jj == nlayer</code>）使用标高 × 数密度 × 路径长度积分；SZA ≤ 60° 用 <code>1/cos(SZA)</code> 平面近似，SZA &gt; 60° 用球面弦长。</li>
+<li>其余层用梯形积分：<code>esp(j) × (density(jj) + density(jj+1)) / 2</code>。</li>
+</ul></li>
+</ol>
+<h2 id="interfast-子例程">interfast 子例程</h2>
+<h3 id="输入-1">输入</h3>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>类型/维度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>p</code></td>
+<td><code>real*8(nlayer)</code></td>
+<td>待插值的大气柱密度（单调递增）</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>integer</code></td>
+<td>层数</td>
+</tr>
+<tr>
+<td><code>pin</code></td>
+<td><code>real*8(nl)</code></td>
+<td>查找表柱密度网格</td>
+</tr>
+<tr>
+<td><code>nl</code></td>
+<td><code>integer</code></td>
+<td>查找表维度</td>
+</tr>
+<tr>
+<td><code>limdown</code></td>
+<td><code>real*8</code></td>
+<td>下界阈值（1e-20）</td>
+</tr>
+<tr>
+<td><code>limup</code></td>
+<td><code>real*8</code></td>
+<td>上界阈值（1e26）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="输出-1">输出</h3>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>类型/维度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>wm</code></td>
+<td><code>real*8(nlayer)</code></td>
+<td>下节点权重</td>
+</tr>
+<tr>
+<td><code>wp</code></td>
+<td><code>real*8(nlayer)</code></td>
+<td>上节点权重（<code>1 - wm</code>）</td>
+</tr>
+<tr>
+<td><code>nm</code></td>
+<td><code>integer(nlayer)</code></td>
+<td>最近下节点索引</td>
+</tr>
+</tbody>
+</table>
+<h3 id="核心逻辑-1">核心逻辑</h3>
+<ol type="1">
+<li>可选健全性检查（<code>extra_sanity_checks=.false.</code>，编译时常量关闭）。</li>
+<li>遍历每层：若 <code>p(n1)</code> 超出 <code>[limdown, limup]</code> 则权重置零。</li>
+<li>否则在 <code>pin</code> 表中从上次位置 <code>nini</code> 起顺序搜索包含 <code>p(n1)</code> 的区间，计算线性权重 <code>wm = |pin(n) - p| / (pin(n+1) - pin(n))</code>。</li>
+</ol>
+<h2 id="espesor_optico_a-子例程">espesor_optico_A 子例程</h2>
+<h3 id="核心逻辑-2">核心逻辑</h3>
+<p>计算从高度 <code>z</code> 出发、太阳天顶角 <code>szadeg</code> 方向的光线穿过的各层几何路径长度（球面大气）。三个区间：</p>
+<ul>
+<li><strong>SZA &lt; 60°</strong>：简单 <code>Δz / cos(SZA)</code> 平面平行近似。</li>
+<li><strong>60° ≤ SZA ≤ 90°</strong>：球面弦长 <code>√((R+z_top)² - (R+z_min)²) - √((R+z_bot)² - (R+z_min)²)</code>。</li>
+<li><strong>SZA &gt; 90°</strong>：光线先向下到达最低点 <code>z_min</code>，再向上穿过；分 5 个区域处理。若 <code>z_min &lt; iz(1)</code>（地表以下），标记 <code>ilayesp = -1</code> 表示无日照。</li>
+</ul>
+<h2 id="grid_r8-函数">grid_R8 函数</h2>
+<p>在单调递增网格 <code>zgrid(nz)</code> 中查找 <code>z</code> 所在区间索引。越界时钳位并打印警告（不中止），网格非递增或维度 &lt; 2 时 <code>stop</code>。搜索从中间点开始线性扫描。</p>
+<h2 id="flujo-子例程">flujo 子例程</h2>
+<p>遗留太阳通量 11 年周期修正：用 <code>date</code>（年份，钳位到 1985–2001）和正弦函数 <code>sin(2π/11 × (date - 1985 - π))</code> 对前 24 个光谱区间的 <code>fluxtop</code> 做修正，末尾加 <code>(1.52/dist_sol)²</code> 日火距离修正。<strong>当前源码中未发现任何调用方。</strong></p>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><strong>读</strong>：<code>param_v4_h::radio</code>（火星半径）、<code>gg</code>/<code>masa</code>（重力和质量）、<code>kboltzman</code>/<code>n_avog</code>（物理常数）；<code>tracer_mod::igcm_*</code>（tracer 索引）、<code>mmol</code>（分子量）。</li>
+<li><strong>写</strong>：<code>column</code> 无模块级副作用，只写调用方提供的输出参数；<code>interfast</code> 同理。</li>
+<li><strong>标准输出</strong>：<code>espesor_optico_A</code> 在 SZA &gt; 90° 且 <code>z_min</code> 接近 <code>z</code> 时打印舍入警告（第 549–551 行）；<code>grid_R8</code> 越界时打印警告（第 659–670 行）。</li>
+</ul>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热层化学与加热</td>
+<td>提供 <code>column</code>（柱密度积分）和 <code>interfast</code>（查表插值）两个核心工具，被 <code>jthermcalc</code> 和 <code>jthermcalc_e107</code> 共同依赖</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 77 风格（<code>.F</code> 扩展名但使用 <code>module</code>/<code>end module</code> 结构）。</li>
+<li>热层化学物种槽位索引硬编码（<code>i_co2=1, i_co=2, i_o=3, ..., i_n2=17</code>），注释要求必须与 <code>chemthermos.F90</code> 保持一致。</li>
+<li>注释掉的旧索引方案（第 116–128 行）显示历史重构痕迹。</li>
+<li><code>column</code> 的 <code>iz</code> 维度为 <code>nlayer+1</code>（界面高度），与其他热层例程的 <code>iz(nlayer)</code> 不同。</li>
+<li><code>interfast</code> 的 <code>extra_sanity_checks</code> 为编译时常量（<code>.false.</code>），开启后做单调性和索引范围检查。</li>
+<li><code>flujo</code> 中 <code>date</code> 钳位范围 1985–2001 对应一个太阳周期，参考文献 Gonzalez-Galindo et al. 2005。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>column</code> 依赖 <code>tracer_mod</code> 中 <code>igcm_*</code> 索引正确映射到化学 tracer 列表，若 <code>traceur.def</code> 改变需同步更新。</li>
+<li><code>espesor_optico_A</code> 的 <code>iz</code> 需要 <code>nlayer+1</code> 个界面高度值（从底到顶单调递增），单位为 km。</li>
+<li><code>interfast</code> 要求输入 <code>pin</code> 单调递增，输入 <code>p</code> 也需单调递增（<code>extra_sanity_checks</code> 可校验）。</li>
+<li><code>column</code> 返回 <code>1e25</code> 作为无日照标志（<code>espesor_optico_A</code> 返回 <code>ilayesp=-1</code>），调用方需正确处理该极端值。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>iz</code> 在 <code>column</code> 中的物理含义与单位（km？几何高度还是位势高度？）。<code>column</code> 的 <code>iz</code> 维度为 <code>nlayer+1</code>，而 <code>jthermcalc</code>/<code>jthermcalc_e107</code> 传入的 <code>iz</code> 维度为 <code>nlayer</code>——需确认调用方如何处理维度差异。</li>
+<li><code>flujo</code> 是否确实已废弃（源码中未发现任何调用方），是否可从模块中移除。</li>
+<li><code>espesor_optico_A</code> 中 SZA &gt; 90° 的 5 区域划分是否在所有高度和 SZA 组合下都能正确覆盖（注释提及 SZA 接近 90° 时存在舍入误差风险）。</li>
+<li><code>grid_R8</code> 越界时钳位到端点而非中止——是否可能导致下游计算的静默误差。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="jthermcalc.html">jthermcalc.F</a>（TASK-0189，基础版调用方）</li>
+<li><a href="jthermcalc_e107_mod.html">jthermcalc_e107_mod.F</a>（TASK-0190，E107 增强版调用方）</li>
+<li><a href="hrtherm.html">hrtherm.F</a>（间接上游）</li>
+<li><a href="chemthermos.html">chemthermos.F90</a>（热层化学主例程，物种槽位索引一致性要求）</li>
+<li><a href="param_v4_h.html">param_v4_h.F90</a>（TASK-0200，物理常数和火星参数）</li>
+<li><a href="../phymars/tracer_mod.html">tracer_mod.F90</a>（tracer 索引和分子量）</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

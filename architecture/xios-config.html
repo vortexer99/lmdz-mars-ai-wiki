@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>xios-config - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a class="active" href="project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>architecture/xios-config.md</span>
+    </nav>
+    <article class="content">
+<h1 id="xios-输出配置体系">XIOS 输出配置体系</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\deftank\xios\iodef.xml                 (29 行, 根入口)
+LMDZ.MARS\deftank\xios\context_pcm_physics.xml   (94 行, 上下文)
+LMDZ.MARS\deftank\xios\field_def_physics.xml     (1344 行, 变量定义)
+LMDZ.MARS\deftank\xios\file_def_physics.xml      (239 行, 输出文件)</code></pre>
+<p>运行时 4 个文件必须同时存在于工作目录（源码依据：<code>deftank/README:31-33</code>）。</p>
+<h2 id="类型">类型</h2>
+<p>输出配置——定义 GCM 物理过程的所有可通过 XIOS 输出的变量、输出文件格式和时间策略。</p>
+<h2 id="作用">作用</h2>
+<p>源码依据（<code>field_def_physics.xml:1-4</code> 注释）：</p>
+<blockquote>
+<p>Definition of all existing variables that can be outputed from Martian physics</p>
+</blockquote>
+<p>这四个 XML 文件是 LMDZ.MARS GCM 通过 <strong>XIOS 库</strong>（eXtensible Input/Output Server）将物理诊断量写入 NetCDF 文件的唯一配置入口。它们控制：</p>
+<ol type="1">
+<li><strong>哪些变量可被输出</strong>（<code>field_def_physics.xml</code> 定义所有可用 field）。</li>
+<li><strong>变量写入哪些文件</strong>（<code>file_def_physics.xml</code> 组合 field 成 output file）。</li>
+<li><strong>输出频率和聚合方式</strong>（instantaneous / average / minimum / maximum）。</li>
+<li><strong>空间轴和网格定义</strong>（<code>context_pcm_physics.xml</code> 定义 dom_glo、altitude、presnivs 等）。</li>
+<li><strong>XIOS 运行时参数</strong>（<code>iodef.xml</code> 控制 buffer、server 模式、日志级别）。</li>
+</ol>
+<h2 id="4-个文件的关系">4 个文件的关系</h2>
+<pre class="text"><code>iodef.xml (根入口, XIOS context)
+  ├── context id=&quot;xios&quot;         ← buffer/server/verbosity 参数
+  └── context id=&quot;LMDZ&quot; (src=&quot;./context_pcm_physics.xml&quot;)
+       ├── domain_definition     ← dom_glo 2D rectilinear
+       ├── axis_definition       ← altitude, presnivs, soil_layers, interlayer, ...
+       ├── scalar_definition
+       ├── grid_definition       ← grid_3d, grid_soil, grid_2d, scalarpoint, ...
+       ├── field_definition (src=&quot;./field_def_physics.xml&quot;)   ← 所有可用变量
+       └── file_definition  (src=&quot;./file_def_physics.xml&quot;)    ← 输出文件组合</code></pre>
+<h2 id="关键字段">关键字段</h2>
+<h3 id="iodefxmlxios-运行时参数">iodef.xml（XIOS 运行时参数）</h3>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>示例值</th>
+<th>含义</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>print_file</code></td>
+<td><code>true</code></td>
+<td>是否将 XIOS 自身日志写入独立文件</td>
+<td>XIOS 调试</td>
+</tr>
+<tr>
+<td><code>buffer_size</code></td>
+<td><code>85000000</code></td>
+<td>输出缓冲区大小（字节）</td>
+<td>内存占用/性能</td>
+</tr>
+<tr>
+<td><code>buffer_server_factor_size</code></td>
+<td><code>2</code></td>
+<td>服务端缓冲倍数</td>
+<td>detached server 模式</td>
+</tr>
+<tr>
+<td><code>using_server</code></td>
+<td><code>false</code></td>
+<td>是否使用 detached server/client 模式</td>
+<td>MPI 拓扑</td>
+</tr>
+<tr>
+<td><code>info_level</code></td>
+<td><code>100</code></td>
+<td>XIOS 日志级别（0=无, 100=详细）</td>
+<td>调试输出</td>
+</tr>
+</tbody>
+</table>
+<p>源码依据：<code>iodef.xml:6-23</code>。</p>
+<h3 id="context_pcm_physicsxml空间轴与网格">context_pcm_physics.xml（空间轴与网格）</h3>
+<table>
+<thead>
+<tr>
+<th>轴/网格</th>
+<th>单位</th>
+<th>含义</th>
+<th>设置位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>altitude</code></td>
+<td>km</td>
+<td>模型层伪高度（由 <code>z2sig.def</code> 决定）</td>
+<td>代码中 <code>wxios_add_vaxis</code></td>
+</tr>
+<tr>
+<td><code>presnivs</code></td>
+<td>Pa</td>
+<td>层中点气压</td>
+<td>代码中 <code>xios_set_axis_attr</code></td>
+</tr>
+<tr>
+<td><code>interlayer</code></td>
+<td>km</td>
+<td>界面层高度（= altitude 层数 +1）</td>
+<td>代码</td>
+</tr>
+<tr>
+<td><code>soil_layers</code></td>
+<td>m</td>
+<td>土壤层深度</td>
+<td>代码</td>
+</tr>
+<tr>
+<td><code>subslope</code></td>
+<td>—</td>
+<td>亚格点坡度分类</td>
+<td>代码</td>
+</tr>
+<tr>
+<td><code>controle_axe</code></td>
+<td>—</td>
+<td>控制向量（n_glo=100）</td>
+<td>静态</td>
+</tr>
+<tr>
+<td><code>dom_glo</code></td>
+<td>—</td>
+<td>全球 2D rectilinear 域</td>
+<td>静态</td>
+</tr>
+<tr>
+<td><code>grid_3d</code> / <code>grid_2d</code> / <code>grid_soil</code> / <code>scalarpoint</code></td>
+<td>—</td>
+<td>组合网格</td>
+<td>切换 <code>axis id</code> 可改输出轴为 presnivs</td>
+</tr>
+</tbody>
+</table>
+<p>源码依据：<code>context_pcm_physics.xml:6-86</code>；轴值在代码中由 <code>xios_output_mod.F90:55-66</code> 的 <code>xios_set_axis_attr</code> 调用设置。</p>
+<blockquote>
+<p>复现要点：<code>context_pcm_physics.xml:46-50</code> 的 <code>grid_3d</code> 默认使用 <code>altitude</code> 轴；若改为 <code>presnivs</code>（注释行已预留），所有 3D 输出将变为气压坐标。</p>
+</blockquote>
+<h3 id="field_def_physicsxml变量定义">field_def_physics.xml（变量定义）</h3>
+<p>所有变量按 4 个 <code>field_group</code> 组织（源码依据：XML 结构）：</p>
+<table>
+<thead>
+<tr>
+<th>field_group</th>
+<th>grid_ref</th>
+<th>变量数</th>
+<th>主要主题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fields_0D</code></td>
+<td><code>scalarpoint</code></td>
+<td>~50</td>
+<td>Ls、逃逸通量（H/H₂/D）、示踪物全球质量（化学 + 离子）、CO₂ 守恒</td>
+</tr>
+<tr>
+<td><code>fields_2D</code></td>
+<td><code>dom_glo</code></td>
+<td>~250</td>
+<td>地表（ps/tsurf/albedo/emis）、辐射通量、尘埃循环、水循环、CO₂ 循环、热参数、亚表层示踪、坡度变体（slope01-07）</td>
+</tr>
+<tr>
+<td><code>fields_3D</code></td>
+<td><code>dom_glo + altitude</code></td>
+<td>~350</td>
+<td>温度/风/密度/气压、加热率（dtrad/sw/lw/q15um/nir/uv/cond）、所有示踪物（CO₂/H₂O/化学/离子）的 mass/vmr/num、尘埃/风暴/山顶尘埃参数、水云、CO₂ 凝结</td>
+</tr>
+<tr>
+<td><code>fields_soil</code></td>
+<td><code>dom_glo + soil_layers</code></td>
+<td>~50</td>
+<td>土壤温度（含 7 个 slope 变体）、热惯性、水密度、亚表层水汽饱和、吸附水、扩散系数</td>
+</tr>
+</tbody>
+</table>
+<p><strong>变量定义通用属性</strong>（源码依据：<code>field_def_physics.xml:6-8</code>）：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode xml"><code class="sourceCode xml"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">field_definition</span><span class="ot"> prec=</span><span class="st">&quot;4&quot;</span><span class="ot"> freq_op=</span><span class="st">&quot;1ts&quot;</span><span class="ot"> enabled=</span><span class="st">&quot;true&quot;</span>&gt;</span></code></pre></div>
+<ul>
+<li><code>prec="4"</code>：单精度（4 字节）</li>
+<li><code>freq_op="1ts"</code>：默认操作频率 = 1 个物理时间步</li>
+<li><code>enabled="true"</code>：默认启用（但需被 file_def 引用才实际输出）</li>
+</ul>
+<p><strong>重复 field id 现象</strong>：XML 中存在多个重复 id（如 <code>mass_o2plus</code>/<code>mass_coplus</code> 在第 106、112-116 行重复；<code>h2o_ice_s</code> 第 481-486 行；<code>IRtoVIScoef</code> 第 336-341 行；<code>rdsdustN</code> 第 1128-1133 行）。推断：XIOS 可能用最后一次定义覆盖，或是历史合并冲突遗留。</p>
+<h3 id="file_def_physicsxml输出文件">file_def_physics.xml（输出文件）</h3>
+<p>6 个预定义输出文件，仅 File 1 默认启用（源码依据：各 <code>&lt;file enabled=...&gt;</code> 属性）：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>id</th>
+<th>output_freq</th>
+<th>操作</th>
+<th>状态</th>
+<th>主要用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>1</strong></td>
+<td><code>histins</code></td>
+<td><code>12ts</code></td>
+<td>instant</td>
+<td><strong>enabled</strong></td>
+<td>标准瞬时输出（每 12 物理时间步）</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>diurnalave</code></td>
+<td><code>1d</code></td>
+<td>average</td>
+<td>disabled</td>
+<td>日平均气象场</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>outdaily4pem</code></td>
+<td><code>1d</code></td>
+<td>average</td>
+<td>disabled</td>
+<td>亚表层冰（PEM）日平均（无坡度）</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>outyearly4pem</code></td>
+<td><code>1y</code></td>
+<td>average + minimum</td>
+<td>disabled</td>
+<td>PEM 年平均 + CO₂/水冰年最小（无坡度）</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>outdaily4pem_s</code></td>
+<td><code>1d</code></td>
+<td>average</td>
+<td>disabled</td>
+<td>PEM 日平均（含 7 坡度）</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>outyearly4pem_s</code></td>
+<td><code>1y</code></td>
+<td>average + minimum</td>
+<td>disabled</td>
+<td>PEM 年统计（含 7 坡度）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>File 1 (histins) 输出的变量</strong>（源码依据：<code>file_def_physics.xml:10-52</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>变量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0D</td>
+<td><code>Ls</code></td>
+</tr>
+<tr>
+<td>2D</td>
+<td><code>area</code>(once), <code>ps</code>, <code>tsurf</code>, <code>co2ice</code>, <code>fluxsurf_dn_sw</code>(as ISR), <code>fluxtop_lw</code>(as OLR)</td>
+</tr>
+<tr>
+<td>3D</td>
+<td><code>temp</code>, <code>u</code>, <code>v</code>, <code>dustq</code>, <code>dustN</code>, <code>h2o_vap</code>, <code>h2o_ice</code></td>
+</tr>
+<tr>
+<td>soil</td>
+<td><code>soiltemp</code>(as tsoil), <code>inertiedat</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Field 引用别名</strong>：<code>&lt;field field_ref="fluxsurf_dn_sw" name="ISR" /&gt;</code> 允许输出时用 <code>ISR</code> 替代原 field id，方便后处理。</p>
+<p><strong>操作类型</strong>：</p>
+<ul>
+<li><code>instant</code>：每 <code>freq_op</code> 输出一帧瞬时值</li>
+<li><code>average</code>：在 <code>output_freq</code> 周期内平均</li>
+<li><code>minimum</code>：在 <code>output_freq</code> 周期内取最小</li>
+</ul>
+<h2 id="被读取的位置">被读取的位置</h2>
+<table>
+<thead>
+<tr>
+<th>读取例程</th>
+<th>文件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>XIOS 库自身</td>
+<td>外部库（LMDZ.COMMON 通过 <code>USE xios</code> 链接）</td>
+<td>运行时解析 iodef.xml</td>
+</tr>
+<tr>
+<td><code>initialize_xios_output</code></td>
+<td><code>libf/phymars/xios_output_mod.F90:19</code></td>
+<td>初始化轴、域、日历、关闭定义阶段</td>
+</tr>
+<tr>
+<td><code>send_xios_field</code></td>
+<td><code>libf/phymars/xios_output_mod.F90:12</code></td>
+<td>发送 0D/1D/2D/3D 场到 XIOS</td>
+</tr>
+<tr>
+<td><code>write_output</code></td>
+<td><code>libf/phymars/write_output_mod.F90:28+</code></td>
+<td>通过 <code>xios_is_active_field</code> 检查变量是否在某个 file_def 中被引用，再决定是否发送</td>
+</tr>
+<tr>
+<td><code>finalize_xios_output</code></td>
+<td><code>libf/phymars/xios_output_mod.F90:155</code></td>
+<td>关闭 XIOS 上下文</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>源码依据（<code>write_output_mod.F90:46-49</code> 注释）： "only send the field to xios if the user asked for it" — 这意味着<strong>仅在 field_def 中定义但未被任何 file_def 引用的变量不会被实际计算/发送</strong>，有性能优化作用。</p>
+</blockquote>
+<h2 id="影响的计算流程">影响的计算流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>尘埃循环</td>
+<td><code>dustq</code>/<code>dustN</code>/<code>dustliftday</code>/<code>rds_lapserate</code> 等字段覆盖尘埃全生命周期诊断</td>
+</tr>
+<tr>
+<td>水循环</td>
+<td><code>h2o_vap</code>/<code>h2o_ice</code>/<code>watercap</code>/<code>flux_ssice</code> 等字段覆盖水汽/冰/亚表层水诊断</td>
+</tr>
+<tr>
+<td>CO₂ 循环</td>
+<td><code>co2ice</code>/<code>perennial_co2ice</code>/<code>co2condens_pdtc</code> 等字段</td>
+</tr>
+<tr>
+<td>辐射计算</td>
+<td><code>fluxsurf_lw/sw</code>/<code>fluxtop_lw/sw</code>/<code>dtrad</code>/<code>sw_htrt</code>/<code>lw_htrt</code> 等</td>
+</tr>
+<tr>
+<td>化学/离子</td>
+<td><code>c_co</code>/<code>c_o3</code>/<code>num_co2plus</code> 等 ~70 个列密度和数密度字段</td>
+</tr>
+<tr>
+<td>重力波</td>
+<td><code>nonoro_u_epflux_tot</code>/<code>du_nonoro_gwd</code> 等非地形重力波诊断</td>
+</tr>
+<tr>
+<td>亚表层冰</td>
+<td><code>fields_soil</code> 组覆盖土壤温度/水密度/扩散/吸附</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要求">复现要求</h2>
+<ul>
+<li><strong>4 个 XML 文件必须同名且同目录</strong>：<code>iodef.xml</code> 通过 <code>src="./context_pcm_physics.xml"</code> 相对路径引用上下文，context 又引用 field_def 和 file_def。任何改名都会导致 XIOS 初始化失败。</li>
+<li><strong><code>histins</code> 默认每 12 物理时间步</strong>：若 <code>iphysiq</code> 改变（<code>run.def</code> 中），实际输出频率随之改变。重新实现后处理工具时必须识别 <code>output_freq="12ts"</code> 语义。</li>
+<li><strong>3D 输出默认使用 <code>altitude</code> 轴</strong>（<code>context_pcm_physics.xml:49</code>）：后处理读取 NetCDF 时 z 轴单位是 km 而非 Pa；切换为气压坐标需编辑 XML。</li>
+<li><strong><code>buffer_size = 85 MB</code></strong>：若增加大量 field 或提高频率可能需要增大此值（源码依据：<code>iodef.xml:12</code>）。</li>
+<li><strong><code>using_server=false</code> 为默认模式</strong>：MPI 拓扑与 detached server 模式完全不同，不能混用启动脚本。</li>
+<li><strong>field id 重复现象</strong>：<code>mass_o2plus</code>、<code>h2o_ice_s</code> 等 id 在 XML 中重复定义——XIOS 行为取决于库版本（推断：后定义覆盖前定义）。复现时若依赖这些字段，必须确认实际生效的是哪个定义。</li>
+<li><strong>复现风险</strong>：<code>file_def_physics.xml</code> 中 File 2-6 全部 <code>enabled="false"</code>——若用户误启用多个文件且 <code>output_freq</code> 冲突，可能产生极大的重复输出。</li>
+<li><strong>复现风险</strong>：<code>field_def_physics.xml:46-50</code> 的注释 <code>&lt;!--&lt;axis id="presnivs" /&gt; --&gt;</code> 是切换输出垂直轴的唯一入口；若误操作同时启用两个 axis，XIOS 会报错。</li>
+<li><strong>复现风险</strong>：坡度变体（<code>_slope01</code> 到 <code>_slope07</code>）仅在 <code>nslope &gt; 1</code> 时被物理模块填充；若 <code>nslope = 1</code> 仍引用 slope 字段，输出全零。</li>
+</ul>
+<h2 id="已核验边界与外部依赖风险">已核验边界与外部依赖风险</h2>
+<ul>
+<li><strong>重复 field id 是配置层事实</strong>：<code>field_def_physics.xml</code> 中 <code>mass_o2plus</code>、<code>IRtoVIScoef</code>、<code>h2o_ice_s</code>、<code>rdsdustN</code> 均出现重复 <code>field id</code>（见第 106/112、336/339、481/484、1128/1131 行）。本仓库未包含 XIOS 解析器测试或固定版本说明，因此不要假设“静默覆盖”一定成立；生产运行前应先去重或用目标 XIOS 版本做一次最小启动测试。</li>
+<li><strong>PEM 无坡度与坡度输出不应直接同时启用</strong>：<code>outdaily4pem</code> 与 <code>outdaily4pem_s</code> 的 <code>name</code> 同为 <code>xoutdaily4pem</code>，<code>outyearly4pem</code> 与 <code>outyearly4pem_s</code> 的 <code>name</code> 同为 <code>xoutyearly4pem</code>（<code>file_def_physics.xml:85-168</code>）。若要同一运行启用两组文件，需要先改名，否则输出文件名冲突/覆盖行为取决于 XIOS 运行时。</li>
+<li><strong><code>using_server=true</code> 不是自包含开关</strong>：<code>iodef.xml:17-19</code> 只声明 detached server/client 模式开关；仓库内未发现配套的 XIOS server 启动脚本。若启用该模式，需要在外部 MPI/XIOS 启动方式中提供 server 进程，不能只改 XML。</li>
+<li><strong><code>presnivs</code> 切换只改变垂直轴引用，不改变 field id 语义</strong>：<code>context_pcm_physics.xml:48-49</code> 在 <code>grid_3d</code> 内二选一引用 <code>presnivs</code> 或 <code>altitude</code>；两个轴值都由 <code>xios_output_mod.F90:55-58</code> 在初始化时填充。<code>file_def_physics.xml</code> 仍通过 <code>field_ref</code> 引用同一批 field，因此变量 id 不变，变化的是 3D 输出的垂直坐标物理含义和单位。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="config-system.html">config-system.md</a>：def 配置体系总览。</li>
+<li><a href="z2sig-config.html">z2sig-config.md</a>：垂直网格定义（XIOS <code>altitude</code> 轴值的源头）。</li>
+<li><a href="../modules/phymars/xios_output_mod.html">xios_output_mod</a>：XIOS Fortran 封装模块。</li>
+<li><a href="../modules/phymars/write_output_mod.html">write_output_mod</a>：<code>write_output</code> 统一接口。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

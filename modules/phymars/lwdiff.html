@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lwdiff - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/lwdiff.md</span>
+    </nav>
+    <article class="content">
+<h1 id="lwdifff">lwdiff.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\lwdiff.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>lwdiff.F</code> 定义 <code>lwdiff_mod</code> 模块，提供长波 LTE 辐射中 CO2 15 微米带外的红外散射通量汇总例程 <code>lwdiff</code>。源码注释把谱带分成两类：索引 1 和 2 的 CO2 15 微米带中，尘埃只作为灰色非散射介质参与；索引 3 到 <code>nir</code> 的带外谱段中，尘埃被当作灰色散射介质处理。</p>
+<p>本例程只处理第二类带外谱段。它从 <code>lwflux.F</code> 接收地表/顶层 Planck 值、半层 Planck 差分、每层每谱带的总光学厚度、单次散射反照率和不对称因子；随后把每个 LTE 层拆成两个扩散子层，调用 <a href="flusv.html">flusv</a> 计算向上/向下红外散射通量，并把所有 <code>iir=3:nir</code> 谱带的贡献累加回 <code>PFLUC</code>。<code>lwflux.F</code> 在第 201 行调用本例程，之后继续计算每层辐射收支。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lwdiff_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>封装长波带外红外散射通量汇总例程。</td>
+</tr>
+<tr>
+<td><code>lwdiff</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">7</td>
+<td>为 <code>iir=3:nir</code> 的长波带外谱段构造双倍扩散子层，调用 <code>flusv</code> 并输出层界散射通量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>nir</code>, <code>npademx</code>, <code>nabsmx</code>, <code>nflev</code>, <code>ndlon</code>, <code>ndlo2</code></td>
+<td>提供红外谱带数、辐射列维度和垂直层维度；数组声明直接使用 <code>nir</code>、<code>nflev</code>、<code>ndlon</code>、<code>ndlo2</code>。</td>
+<td><code>npademx</code>、<code>nabsmx</code> 在本文件内未见读取。</td>
+</tr>
+<tr>
+<td><code>yomlw_h</code></td>
+<td><code>nlaylte</code></td>
+<td>提供 LTE 长波垂直层数；循环、<code>NDD=nlaylte*2</code> 和输出层界回填均使用它。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>把 Planck 通量量除以 <code>pi</code>，转换为传给 <code>flusv</code> 的黑体亮度量。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>flusv_mod</code></td>
+<td><code>flusv</code></td>
+<td>对每个带外谱带求解双流红外散射通量。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>flusv</code></td>
+<td><code>flusv_mod</code> / <code>flusv.F</code></td>
+<td><code>lwdiff.F</code> 第 199 行</td>
+<td>以 <code>nsf=0</code>、<code>NDD=nlaylte*2</code> 求解带外谱带的 hemispheric constant 双流通量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kdlon</code></td>
+<td><code>lwflux</code></td>
+<td><code>integer</code></td>
+<td>column</td>
+<td>本次向量化处理的水平列数，循环范围为 <code>1:kdlon</code>。</td>
+</tr>
+<tr>
+<td><code>kflev</code></td>
+<td><code>lwflux</code></td>
+<td><code>integer</code></td>
+<td>layer</td>
+<td>调用方传入的垂直层数，参与 <code>PDBSL</code> 和 <code>PFLUC</code> 的形状声明；实际循环上界使用 <code>nlaylte</code>。</td>
+</tr>
+<tr>
+<td><code>pbsur</code></td>
+<td><code>lwflux</code></td>
+<td><code>real(ndlo2,nir)</code></td>
+<td>Planck 通量量</td>
+<td>每个红外谱带的地表 Planck 量；在本例程中按 <code>pbsur/pi</code> 传给 <code>flusv</code> 的 <code>bsol</code>。</td>
+</tr>
+<tr>
+<td><code>pbtop</code></td>
+<td><code>lwflux</code></td>
+<td><code>real(ndlo2,nir)</code></td>
+<td>Planck 通量量</td>
+<td>每个红外谱带的大气顶 Planck 量；用于构造扩散子层顶端亮度 <code>ZZBHDD(:,1)</code>。</td>
+</tr>
+<tr>
+<td><code>pdbsl</code></td>
+<td><code>lwflux</code></td>
+<td><code>real(ndlo2,nir,kflev*2)</code></td>
+<td>Planck 差分量</td>
+<td>每层拆成两个半层后的 Planck 差分；源码按反向索引 <code>NDD-J1+2</code> 从顶向下重建 <code>ZZBHDD</code>。</td>
+</tr>
+<tr>
+<td><code>tautotal</code></td>
+<td><code>lwflux</code></td>
+<td><code>real(ndlon,nflev,nir)</code></td>
+<td>optical depth</td>
+<td>每层每红外谱带的总光学厚度；每层被拆成两个子层，各取 <code>0.5*tautotal</code>。</td>
+</tr>
+<tr>
+<td><code>omegtotal</code></td>
+<td><code>lwflux</code></td>
+<td><code>real(ndlon,nflev,nir)</code></td>
+<td>-</td>
+<td>每层每红外谱带的单次散射反照率；两个子层复制同一层值。</td>
+</tr>
+<tr>
+<td><code>gtotal</code></td>
+<td><code>lwflux</code></td>
+<td><code>real(ndlon,nflev,nir)</code></td>
+<td>-</td>
+<td>每层每红外谱带的散射不对称因子；两个子层复制同一层值。</td>
+</tr>
+<tr>
+<td><code>pemis</code></td>
+<td><code>lwflux</code></td>
+<td><code>real(ndlo2)</code></td>
+<td>-</td>
+<td>地表发射率，原样传给 <code>flusv</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pfluc</code></td>
+<td><code>lwflux</code> 的 <code>fluxdiff</code></td>
+<td><code>real(ndlo2,2,kflev+1)</code></td>
+<td>flux</td>
+<td>带外散射通量贡献；第 1 分量累加向上通量，第 2 分量以负号写入向下通量，供 <code>lwflux</code> 后续辐射收支使用。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p><code>lwdiff.F</code> 不定义保存型 module 变量，不读写文件，不读取运行时配置，也不打印诊断。它读取 <code>dimradmars_mod</code>、<code>yomlw_h</code>、<code>comcstfi_h</code> 的共享常数/维度，并把结果写入调用方传入的 <code>PFLUC</code> 数组。所有中间亮度、光学性质和通量数组均为局部工作数组。</p>
+<p>一个源码细节是 <code>PFLUC</code> 只在 <code>jk=1:nlaylte</code> 初始化为零，而最终回填循环写 <code>J2=1:nlaylte+1</code>。调用方 <code>lwflux.F</code> 在调用前已把 <code>fluxdiff(:,1:2,nlaylte+1)</code> 置零；复现或单独调用 <code>lwdiff</code> 时需要保留这个接口前提。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>对 <code>jl=1:kdlon</code>、<code>jk=1:nlaylte</code> 初始化 <code>PFLUC(:,1:2,jk)</code>，并清零若干局部调整/扩散工作数组。</li>
+<li>设置扩散子层数 <code>NDD=nlaylte*2</code>，清零累计的带外向上/向下通量数组 <code>ZFAHDD</code> 和 <code>ZFDHDD</code>。</li>
+<li>对每个 CO2 15 微米带外红外谱带 <code>iir=3:nir</code> 循环。</li>
+<li>以 <code>PBTOP(:,iir)/pi</code> 作为最顶端黑体亮度，沿 <code>J1=2:NDD+1</code> 用 <code>PDBSL(:,iir,NDD-J1+2)/pi</code> 反向差分重建每个扩散子层界面的 <code>ZZBHDD</code>；同时设置地表亮度 <code>ZZBSDD=PBSUR(:,iir)/pi</code>。</li>
+<li>对每个 LTE 层把 <code>tautotal</code> 拆成两个相等光学厚度子层，并把 <code>omegtotal</code>、<code>gtotal</code> 复制到这两个子层。源码用 <code>J2DD1/J2DD2</code> 把物理层顺序反向映射到 <code>flusv</code> 的顶到底层序。</li>
+<li>调用 <code>flusv(KDLON,0,NDD,ZOMEGADD,ZGDD,ZTAUDD,PEMIS,ZZBHDD,ZZBSDD,ZZFAHDD,ZZFDHDD)</code>，使用 <code>nsf=0</code> 的直接 hemispheric constant 通量公式。</li>
+<li>将该谱带返回的 <code>ZZFAHDD/ZZFDHDD</code> 累加到跨谱带累计数组 <code>ZFAHDD/ZFDHDD</code>。</li>
+<li>谱带循环结束后，把扩散子层界面 <code>J2DD=(nlaylte-J2+1)*2+1</code> 映射回 LTE 层界面，并写入 <code>PFLUC(:,1,J2)+=ZFAHDD(:,J2DD)</code>、<code>PFLUC(:,2,J2)-=ZFDHDD(:,J2DD)</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>initialize PFLUC(:, :, 1:nlaylte)
+NDD = nlaylte * 2
+zero accumulated upward/downward fluxes on NDD+1 interfaces
+
+for infrared band iir from 3 to nir:
+  ZZBHDD(:,1) = PBTOP(:,iir) / pi
+  for sublayer interface J1 = 2..NDD+1:
+    ZZBHDD(:,J1) = ZZBHDD(:,J1-1) - PDBSL(:,iir,NDD-J1+2) / pi
+  ZZBSDD(:) = PBSUR(:,iir) / pi
+
+  for each LTE layer J2:
+    map the layer to two reversed diffusion sublayers
+    ZTAUDD(:,sub1:sub2) = tautotal(:,J2,iir) * 0.5
+    ZOMEGADD(:,sub1:sub2) = omegtotal(:,J2,iir)
+    ZGDD(:,sub1:sub2) = gtotal(:,J2,iir)
+
+  call flusv with nsf=0 on NDD diffusion sublayers
+  accumulate returned upward/downward fluxes over the band loop
+
+for LTE interface J2 = 1..nlaylte+1:
+  map interface back to diffusion index J2DD
+  PFLUC(:,1,J2) += accumulated_upward_flux(:,J2DD)
+  PFLUC(:,2,J2) -= accumulated_downward_flux(:,J2DD)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">辐射计算</a></td>
+<td><code>lwflux</code> 长波 LTE 通量流程中的带外散射计算阶段；位于 Planck 预处理和总光学性质准备之后、每层辐射收支计算之前。</td>
+</tr>
+<tr>
+<td><a href="index.html">phymars 核心物理模块目录</a></td>
+<td>属于 <code>libf\phymars</code> 的长波辐射辅助文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 文件，模块内只有一个子例程。</li>
+<li>谱带循环显式跳过 <code>iir=1:2</code>，与源码注释中 CO2 15 微米带非散射处理相匹配。</li>
+<li>每个物理层被拆成两个扩散子层，光学厚度对半分，<code>omega</code> 和 <code>g</code> 直接复制。</li>
+<li><code>flusv</code> 的调用固定传入 <code>nsf=0</code>，因此当前路径不进入 <code>flusv</code> 的 8 点 source-function 积分分支。</li>
+<li>局部变量 <code>J2BOT/J2TOP</code> 以及若干工作数组在当前源码中没有后续读取，可能是旧版算法或调试路径残留。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>nlaylte</code> 必须与调用链中的 <code>kflev</code> 数组维度一致；源码循环使用 <code>nlaylte</code>，而形参数组用 <code>kflev</code> 声明。</li>
+<li><code>kdlon</code> 不应超过 <code>ndlon</code>/<code>ndlo2</code> 静态数组容量。</li>
+<li><code>PDBSL</code> 的半层顺序必须与 <code>lwb.F</code> 生成的 <code>dbsublay</code> 一致；<code>lwdiff</code> 使用 <code>NDD-J1+2</code> 反向读取它来重建自顶向下界面亮度。</li>
+<li><code>tautotal</code>、<code>omegtotal</code>、<code>gtotal</code> 在 <code>iir=3:nir</code> 上必须已经由上游气溶胶/气体光学流程填好；本例程不做缺测或范围保护。</li>
+<li>复现风险：<code>PFLUC(:,:,nlaylte+1)</code> 的初值依赖调用方预先清零；源码内只初始化到 <code>nlaylte</code>。</li>
+<li>复现风险：<code>flusv</code> 内部对 <code>omega</code>、<code>g</code>、<code>tau</code> 的数值奇异情况保护有限，带外光学性质若导致 <code>gama2=0</code> 或三对角分母接近零，风险会传递到本例程。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>dimradmars_mod</code> 中 <code>npademx</code>、<code>nabsmx</code> 在本文件内未使用，是否属于历史 use 列表残留需由源码维护者确认。</li>
+<li><code>ZADJD/ZADJU/ZDISD/ZDISU/ZDBDT/ZFD/ZFDN/ZFU/ZFUP/ZGLAYD/ZGLAYU/ZBHDD/ZBSDD</code> 等局部数组在当前例程主体中未参与最终计算；本页只记录现状，不建议修改源码。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../themes/radiation.html">radiation</a></li>
+<li><a href="index.html">phymars/index</a></li>
+<li><a href="flusv.html">flusv</a></li>
+<li><a href="lwb.html">lwb</a></li>
+<li><a href="lwflux.html">lwflux</a></li>
+<li><a href="lwi.html">lwi</a></li>
+<li><a href="lwtt.html">lwtt</a></li>
+<li><a href="lwu.html">lwu</a></li>
+<li><a href="lwmain_mod.html">lwmain_mod</a> - 长波 LTE 主调度入口；通过 <code>lwflux</code> 间接进入本例程。</li>
+<li><a href="dimradmars_mod.html">dimradmars_mod</a> - 提供红外谱带、Pade 近似和辐射列维度常数。</li>
+<li><a href="yomlw_h.html">yomlw_h.md</a>：长波辐射共享参数。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

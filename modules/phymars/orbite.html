@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>orbite - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/orbite.md</span>
+    </nav>
+    <article class="content">
+<h1 id="orbitef">orbite.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\orbite.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>orbite.F</code> 定义 <code>orbite_mod</code>，只提供 <code>orbite</code> 一个例程。它把太阳经度 <code>Ls</code> 转换成当前太阳-行星距离 <code>dist_sol</code> 和太阳赤纬 <code>declin</code>，是 <code>physiq_mod.F</code> 中辐射几何准备的一步。</p>
+<p>当前主路径中，<code>physiq_mod.F</code> 先用 <code>solarlong</code> 得到共享状态 <code>zls</code>，再在 <code>callrad</code> 分支中调用 <code>orbite(zls,dist_sol,declin)</code>。随后 <code>declin</code> 进入 <code>solang</code> 或 <code>mucorr</code> 计算 <code>mu0/fract</code>，<code>dist_sol</code> 则用于辐射、坡面直接辐射、近红外 CO2 吸收和热层等路径的太阳通量缩放。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>orbite_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装太阳经度到日火距离和太阳赤纬的换算例程。</td>
+</tr>
+<tr>
+<td><code>orbite</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>由输入 <code>pls</code> 计算输出 <code>pdist_sol</code> 与 <code>pdecli</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>planete_h</code></td>
+<td><code>e_elips</code>, <code>p_elips</code>, <code>obliquit</code>, <code>lsperi</code></td>
+<td>提供轨道偏心率、半通径、转轴倾角和近日点太阳经度。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>pi</code></td>
+<td>把 <code>obliquit</code> 从度转换为弧度。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>本文件不调用其他自定义例程，只使用 <code>cos</code>、<code>sin</code>、<code>asin</code> 等 Fortran intrinsic。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="上游调用点">上游调用点</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>源码位置</th>
+<th>调用条件</th>
+<th>传入 / 接收关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>physiq_mod.F</code></td>
+<td><code>libf/phymars/physiq_mod.F:90</code>, <code>1010</code></td>
+<td><code>callrad</code> 为真时，在完成 <code>zls</code> 计算后调用。</td>
+<td>传入 <code>zls</code>，输出写入 <code>comsaison_h::dist_sol</code> 和 <code>comsaison_h::declin</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pls</code></td>
+<td><code>physiq_mod.F</code> 中的 <code>zls</code>，由 <code>solarlong</code> 或初始日分支给出</td>
+<td>real scalar, intent(in)</td>
+<td>rad</td>
+<td>太阳经度 Ls。</td>
+</tr>
+<tr>
+<td><code>e_elips</code></td>
+<td><code>planete_h</code>，由 <code>iniorbit</code> 或 1D 初始化轨道参数设置</td>
+<td>real saved scalar</td>
+<td>-</td>
+<td>轨道偏心率。</td>
+</tr>
+<tr>
+<td><code>p_elips</code></td>
+<td><code>planete_h::iniorbit</code></td>
+<td>real saved scalar</td>
+<td>AU</td>
+<td>椭圆半通径；源码注释称 ellipse parameter。</td>
+</tr>
+<tr>
+<td><code>lsperi</code></td>
+<td><code>planete_h::iniorbit</code> 或 1D 初始化</td>
+<td>real saved scalar</td>
+<td>rad</td>
+<td>近日点太阳经度。</td>
+</tr>
+<tr>
+<td><code>obliquit</code></td>
+<td><code>planete_h</code></td>
+<td>real saved scalar</td>
+<td>degree</td>
+<td>行星转轴倾角，进入赤纬公式前乘 <code>pi/180.</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdist_sol</code></td>
+<td><code>physiq_mod.F</code> 的 <code>dist_sol</code>，即 <code>comsaison_h::dist_sol</code></td>
+<td>real scalar, intent(out)</td>
+<td>AU</td>
+<td>当前太阳-行星距离。</td>
+</tr>
+<tr>
+<td><code>pdecli</code></td>
+<td><code>physiq_mod.F</code> 的 <code>declin</code>，即 <code>comsaison_h::declin</code></td>
+<td>real scalar, intent(out)</td>
+<td>rad</td>
+<td>当前太阳赤纬。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本文件没有本地 <code>SAVE</code> 变量、module 状态、common block、文件 I/O 或诊断输出。</li>
+<li><code>orbite</code> 只读取 <code>planete_h</code> 和 <code>comcstfi_h</code> 中的共享常数/轨道状态，并通过两个 <code>intent(out)</code> 参数返回结果。</li>
+<li>上游 <code>physiq_mod.F</code> 把输出写入 <code>comsaison_h::dist_sol/declin</code>；这些共享状态随后被辐射、近红外 CO2、坡面和热层路径读取。</li>
+<li><code>planete_h::iniorbit</code> 在源码行 73-100 计算 <code>e_elips</code>、<code>p_elips</code> 和 <code>lsperi</code>；若绕过该初始化，<code>orbite</code> 读到的轨道状态可能未定义或过期。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>接收当前太阳经度 <code>pls</code>，不对角度范围做归一化。</li>
+<li>用椭圆轨道公式计算太阳-行星距离：</li>
+</ol>
+<pre class="text"><code>pdist_sol = p_elips / (1 + e_elips * cos(pls - lsperi))</code></pre>
+<ol start="3" type="1">
+<li>用倾角和太阳经度计算太阳赤纬：</li>
+</ol>
+<pre class="text"><code>pdecli = asin(sin(pls) * sin(obliquit * pi / 180.))</code></pre>
+<ol start="4" type="1">
+<li>直接返回两个标量；没有额外限幅、异常处理或日志输出。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>orbite(pls):
+    distance = p_elips / (1 + e_elips * cos(pls - lsperi))
+    declination = asin(sin(pls) * sin(obliquit * pi / 180))
+    return distance, declination</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>轨道 / 季节换算</td>
+<td>把 <code>solarlong</code> 给出的 <code>zls</code> 转换成距离太阳的 AU 值和太阳赤纬。</td>
+</tr>
+<tr>
+<td>太阳几何</td>
+<td><code>declin</code> 是 <code>solang</code> 与 <code>mucorr</code> 计算 <code>mu0/fract</code> 的上游输入。</td>
+</tr>
+<tr>
+<td>辐射调用链</td>
+<td><code>dist_sol</code> 进入 <code>callradite</code> 和其他太阳通量缩放路径，用于按 <code>1/dist_sol^2</code> 调整 1 AU 太阳常数。</td>
+</tr>
+<tr>
+<td>近红外 CO2 吸收</td>
+<td><code>nirco2abs</code> 接收 <code>dist_sol/mu0/fract/declin</code> 计算近红外 CO2 加热率。</td>
+</tr>
+<tr>
+<td>坡面和热层路径</td>
+<td><code>physiq</code> 坡面直接辐射和 <code>thermosphere</code> 调用也读取 <code>dist_sol</code>，坡面参数还读取 <code>declin</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 <code>.F</code> 文件，但内容是一个 module 和一个 contained subroutine。</li>
+<li>输入/输出均为单精度 <code>REAL</code> 标量。</li>
+<li><code>obliquit</code> 在 <code>planete_h</code> 中以度保存，本例程在赤纬公式中显式乘 <code>pi/180.</code>；<code>pls</code> 和 <code>lsperi</code> 则按弧度参与三角函数。</li>
+<li>公式没有对 <code>1 + e_elips*cos(pls-lsperi)</code> 做分母保护，也没有对 <code>asin</code> 参数做限幅；复现时应保留源码行为。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>调用前必须确保 <code>planete_h</code> 中的 <code>e_elips/p_elips/lsperi/obliquit</code> 已经按当前运行的轨道参数初始化。</li>
+<li><code>p_elips</code> 在 <code>planete_h::iniorbit</code> 中除以 <code>unitastr</code>，因此 <code>pdist_sol</code> 返回 AU；不要再重复换算。</li>
+<li><code>pls</code> 必须是弧度。<code>solarlong</code> 输出 <code>zls</code> 时也使用弧度。</li>
+<li>若使用 1D/testphys 的古气候或自定义轨道输入，要确认 <code>peri_day</code>、<code>lsperi</code>、<code>e_elips</code> 与 <code>p_elips</code> 的更新路径一致；本页只确认 <code>orbite</code> 字面读取 <code>planete_h</code> 变量。</li>
+<li><code>dist_sol</code> 和 <code>declin</code> 在 <code>physiq_mod.F</code> 中只在 <code>callrad</code> 分支下由 <code>orbite</code> 更新；关闭辐射时仍读取这两个量的自定义流程需要单独设置或确认上一次值。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>1D 古气候初始化中自定义 <code>eccentric</code>/<code>Lsperi</code> 后，是否所有运行路径都会同步得到与 <code>iniorbit</code> 一致的 <code>p_elips</code>；需要结合 <code>init_testphys1d_mod.F90</code> 和 <code>tabfi.F</code> 的初始化顺序逐步核对。</li>
+<li><code>asin</code> 输入的极端数值保护不在本文件中处理；当前源码依赖轨道参数范围使公式保持在有效区间。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a>：本模块所属目录。</li>
+<li><a href="comsaison_h.html">comsaison_h</a>：保存 <code>dist_sol/declin/zls/mu0/fract/local_time</code> 的共享状态。</li>
+<li><a href="mucorr.html">mucorr</a>：非日变化分支用 <code>declin</code> 计算日平均 <code>mu0/fract</code>。</li>
+<li><a href="nirco2abs.html">nirco2abs</a>：近红外 CO2 加热率使用 <code>dist_sol</code>、<code>declin</code>、<code>mu0</code> 和 <code>fract</code>。</li>
+<li><a href="../../themes/radiation.html">radiation</a>：辐射主题页，记录太阳几何和太阳通量缩放的下游用途。</li>
+<li><a href="call_dayperi.html">call_dayperi</a>：1D/testphys 轨道输入中由 <code>Lsperi</code> 反推 <code>peri_day</code> 的辅助例程。</li>
+<li><a href="solarlong.html">solarlong.md</a>：负责把 sol 日期换算为 <code>zls</code>。</li>
+<li><a href="planete_h.html">planete_h</a>：保存并初始化 <code>e_elips/p_elips/lsperi/obliquit</code> 等轨道状态。</li>
+<li><a href="solang.html">solang.md</a>：日变化分支用 <code>declin</code> 计算瞬时太阳角。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

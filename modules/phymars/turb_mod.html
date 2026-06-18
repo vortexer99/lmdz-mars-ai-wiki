@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>turb_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/turb_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="turb_modf90">turb_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\turb_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>turb_mod.F90</code> 是 <code>phymars</code> 中湍流、边界层和热羽流路径共享的状态数组模块。它本身不计算湍流闭合，也不读取配置文件；它只声明并按当前 <code>ngrid/nlayer</code> 分配 TKE、混合长度、摩擦速度、自由对流速度、热通量诊断和 sensible heat flux 等数组，供 <code>phys_state_var_init_mod.F90</code> 统一初始化，再由 restart、1D 初始化、垂直扩散、Yamada4、热羽流接口和 surface-layer/PBL 诊断路径读写。</p>
+<p>复现时应把本文件视为“共享缓存和生命周期入口”，而不是湍流主求解器。实际 TKE 或交换系数演化在 <code>vdif_kc.F</code>、<code>yamada4.F</code>、<code>vdifc_mod.F</code>、<code>calltherm_interface_mod.F90</code>、<code>pbl_parameters_mod.F90</code> 和 <code>vdif_cd_mod.F90</code> 等文件中完成；<code>turb_mod</code> 负责保证这些过程在相同维度下访问同一批 module-level 数组。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>turb_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>保存湍流和 PBL 共享状态数组，并提供分配/释放例程。</td>
+</tr>
+<tr>
+<td><code>q2</code></td>
+<td>saved allocatable real array</td>
+<td>4</td>
+<td>界面层 TKE，维度为 <code>(ngrid,nlayer+1)</code>。</td>
+</tr>
+<tr>
+<td><code>l0</code></td>
+<td>saved allocatable real array</td>
+<td>5</td>
+<td>每列混合长度/湍流长度尺度缓存，维度为 <code>(ngrid)</code>。</td>
+</tr>
+<tr>
+<td><code>ustar</code></td>
+<td>saved allocatable real array</td>
+<td>6</td>
+<td>每列摩擦速度缓存，维度为 <code>(ngrid)</code>。</td>
+</tr>
+<tr>
+<td><code>wstar</code></td>
+<td>saved allocatable real array</td>
+<td>7</td>
+<td>每列自由对流速度尺度，主要由热羽流/边界层路径反馈。</td>
+</tr>
+<tr>
+<td><code>tstar</code></td>
+<td>saved allocatable real array</td>
+<td>8</td>
+<td>每列温度尺度缓存。</td>
+</tr>
+<tr>
+<td><code>hfmax_th</code></td>
+<td>saved allocatable real array</td>
+<td>9</td>
+<td>热羽流/扩散合成后的最大热通量诊断缓存。</td>
+</tr>
+<tr>
+<td><code>zmax_th</code></td>
+<td>saved allocatable real array</td>
+<td>10</td>
+<td>热羽流最大高度诊断缓存。</td>
+</tr>
+<tr>
+<td><code>sensibFlux</code></td>
+<td>saved allocatable real array</td>
+<td>11</td>
+<td>surface-layer sensible heat flux 缓存。</td>
+</tr>
+<tr>
+<td><code>turb_resolved</code></td>
+<td>logical module variable</td>
+<td>12</td>
+<td>显式解析湍流标志；源码注释说明主要供 LES 使用，GCM/mesoscale 默认 <code>.false.</code>。</td>
+</tr>
+<tr>
+<td><code>ini_turb_mod</code></td>
+<td>subroutine</td>
+<td>20</td>
+<td>按 <code>ngrid,nlayer</code> 分配全部共享数组。</td>
+</tr>
+<tr>
+<td><code>end_turb_mod</code></td>
+<td>subroutine</td>
+<td>35</td>
+<td>若数组已分配，则逐个释放。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>本文件没有 <code>use</code> 语句。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td><code>ini_turb_mod</code> 和 <code>end_turb_mod</code> 只执行 <code>allocate/deallocate</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="被调用位置">被调用位置</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phys_state_var_init</code></td>
+<td><code>phys_state_var_init_mod.F90</code></td>
+<td>通过 <code>use turb_mod, only: ini_turb_mod,end_turb_mod</code> 并在共享数组初始化序列中调用</td>
+<td>在物理初始化阶段释放旧湍流数组并按当前网格重新分配。</td>
+</tr>
+<tr>
+<td><code>init_testphys1d</code></td>
+<td><code>dyn1d/init_testphys1d_mod.F90</code></td>
+<td><code>use turb_mod, only: q2</code></td>
+<td>1D 初始化路径把 <code>q2</code> 置零。</td>
+</tr>
+<tr>
+<td><code>testphys1d</code></td>
+<td><code>dyn1d/testphys1d.F90</code></td>
+<td><code>use turb_mod, only: q2</code></td>
+<td>1D 主循环把 TKE 状态传入 <code>physiq</code>。</td>
+</tr>
+<tr>
+<td><code>phyetat0</code></td>
+<td><code>phyetat0_mod.F90</code></td>
+<td>restart 读取路径</td>
+<td>从 <code>startfi.nc</code> 恢复 <code>q2</code>，并按可选字段恢复 <code>wstar</code>。</td>
+</tr>
+<tr>
+<td><code>physdem1</code></td>
+<td><code>phyredem.F90</code></td>
+<td>restart 写出路径</td>
+<td>写出 <code>q2</code>，并在 <code>calltherm</code> 开启时写出 <code>wstar</code>。</td>
+</tr>
+<tr>
+<td><code>vdifc</code> / <code>vdif_kc</code> / <code>yamada4</code></td>
+<td><code>vdifc_mod.F</code>、<code>vdif_kc.F</code>、<code>yamada4.F</code></td>
+<td>垂直扩散和湍流闭合路径</td>
+<td>读写 <code>q2</code>、<code>l0</code>、<code>ustar</code>、<code>wstar</code>、<code>sensibFlux</code> 等湍流/PBL 状态。</td>
+</tr>
+<tr>
+<td><code>calltherm_interface</code></td>
+<td><code>calltherm_interface_mod.F90</code></td>
+<td>热羽流接口</td>
+<td>读取 <code>q2/sensibFlux</code>，更新或反馈 <code>wstar/hfmax_th/zmax_th</code> 相关诊断。</td>
+</tr>
+<tr>
+<td><code>pbl_parameters</code> / <code>vdif_cd</code></td>
+<td><code>pbl_parameters_mod.F90</code>、<code>vdif_cd_mod.F90</code></td>
+<td>surface-layer 与 PBL 参数路径</td>
+<td>使用 <code>turb_resolved</code> 或 <code>wstar</code> 相关量判断/修正近地层参数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>phys_state_var_init</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>当前物理列数。</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>phys_state_var_init</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>当前大气垂直层数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q2</code></td>
+<td>湍流闭合、restart、1D/3D <code>physiq</code> 路径</td>
+<td>real <code>(ngrid,nlayer+1)</code></td>
+<td>model units</td>
+<td>界面层 TKE 状态，垂直维度比层中心多 1。</td>
+</tr>
+<tr>
+<td><code>l0</code></td>
+<td>Yamada4/混合长度路径</td>
+<td>real <code>(ngrid)</code></td>
+<td>m 或方案内部尺度</td>
+<td>每列混合长度缓存。</td>
+</tr>
+<tr>
+<td><code>ustar</code>, <code>tstar</code></td>
+<td>surface-layer/PBL 路径</td>
+<td>real <code>(ngrid)</code></td>
+<td>m/s, K-like</td>
+<td>摩擦速度和温度尺度缓存。</td>
+</tr>
+<tr>
+<td><code>wstar</code></td>
+<td>热羽流、surface-layer、restart</td>
+<td>real <code>(ngrid)</code></td>
+<td>m/s</td>
+<td>自由对流速度尺度，常带有一步反馈含义。</td>
+</tr>
+<tr>
+<td><code>hfmax_th</code>, <code>zmax_th</code></td>
+<td>热羽流/PBL 诊断</td>
+<td>real <code>(ngrid)</code></td>
+<td>mixed</td>
+<td>最大热通量与热羽流高度诊断缓存。</td>
+</tr>
+<tr>
+<td><code>sensibFlux</code></td>
+<td>surface-layer 与热羽流接口</td>
+<td>real <code>(ngrid)</code></td>
+<td>W/m2</td>
+<td>地表感热通量缓存。</td>
+</tr>
+<tr>
+<td><code>turb_resolved</code></td>
+<td>PBL/LES 条件判断</td>
+<td>logical scalar</td>
+<td>-</td>
+<td>标记湍流是否已显式解析。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>q2/l0/ustar/wstar/tstar/hfmax_th/zmax_th/sensibFlux</code> 都是 <code>SAVE, ALLOCATABLE</code> module arrays，并在源码中声明为 OpenMP <code>THREADPRIVATE</code>。</li>
+<li><code>turb_resolved</code> 默认 <code>.false.</code>，源码注释说明它主要供 LES 使用；它没有出现在本文件的 <code>THREADPRIVATE</code> 声明中。</li>
+<li><code>ini_turb_mod</code> 只分配数组，不写初值。<code>q2</code>、<code>wstar</code> 等值必须由 restart 读取、1D 初始化、缺省路径或后续物理方案填充。</li>
+<li><code>end_turb_mod</code> 对每个数组先检查 <code>allocated(...)</code> 再释放，可被初始化编排例程重复调用。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>接收当前物理网格列数 <code>ngrid</code> 和大气层数 <code>nlayer</code>。</li>
+<li>分配 <code>q2(ngrid,nlayer+1)</code>，保留界面层 TKE 的 <code>nlayer+1</code> 维度。</li>
+<li>分配 <code>l0/ustar/wstar/tstar/hfmax_th/zmax_th/sensibFlux(ngrid)</code>。</li>
+<li>释放阶段逐个检查数组是否已分配，并释放对应缓存。</li>
+<li>不设置任何数组默认值，也不触发实际湍流、热羽流或 surface-layer 计算。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>ini_turb_mod(ngrid, nlayer)
+  allocate q2(ngrid, nlayer + 1)
+  allocate l0(ngrid), wstar(ngrid), ustar(ngrid), tstar(ngrid)
+  allocate hfmax_th(ngrid), zmax_th(ngrid), sensibFlux(ngrid)
+
+end_turb_mod()
+  for each turb_mod array:
+    if allocated(array):
+      deallocate(array)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>物理状态初始化</td>
+<td><code>phys_state_var_init_mod</code> 调用 <code>end_turb_mod/ini_turb_mod</code>，把湍流共享数组纳入统一生命周期。</td>
+</tr>
+<tr>
+<td>垂直扩散与 TKE</td>
+<td><code>vdifc</code>、<code>vdif_kc</code>、<code>yamada4</code> 等路径读写 <code>q2</code>、<code>l0</code> 和 near-surface 湍流量。</td>
+</tr>
+<tr>
+<td>热羽流反馈</td>
+<td><code>calltherm_interface_mod</code> 使用 <code>q2/sensibFlux</code> 并更新 <code>wstar/hfmax_th/zmax_th</code> 相关诊断。</td>
+</tr>
+<tr>
+<td>restart 兼容</td>
+<td><code>phyetat0_mod</code> 恢复 <code>q2/wstar</code>，<code>phyredem</code> 写出 <code>q2/wstar</code>，使 PBL/TKE 状态跨运行延续。</td>
+</tr>
+<tr>
+<td>1D 测试物理</td>
+<td><code>dyn1d</code> 初始化路径显式设置 <code>q2=0.</code>，随后把它传入 <code>physiq</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>文件很短，只有一个 module、两个生命周期例程和一组共享数组。</li>
+<li><code>q2</code> 使用 <code>(ngrid,nlayer+1)</code>，与层界面而非层中心对齐；这是复现和重写接口时最容易错配的维度。</li>
+<li><code>ini_turb_mod</code> 不清零数组。新运行或无 restart 路径必须在其他初始化层保证后续读取前已赋值。</li>
+<li>数组是 <code>THREADPRIVATE</code>，但 <code>turb_resolved</code> 不是；并行路径下不要假定所有本模块变量具有相同线程副本语义。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>不要把 <code>turb_mod.F90</code> 误认作湍流闭合主程序；它只提供共享状态和分配释放入口。</li>
+<li><code>q2</code> 必须按 <code>nlayer+1</code> 分配和传递，否则会破坏界面层 TKE 与层中心变量之间的对应关系。</li>
+<li>如果绕过 <code>phys_state_var_init</code> 单独调用下游方案，需要先调用 <code>ini_turb_mod</code> 并填充必要数组。</li>
+<li>使用 OpenMP 时要确认 <code>THREADPRIVATE</code> 数组在正确的并行上下文中分配、初始化和读取。</li>
+<li><code>wstar/hfmax_th/zmax_th/sensibFlux</code> 带有跨过程反馈含义，尤其 <code>wstar</code> 会影响后续 surface-layer gustiness 相关计算。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>turb_resolved</code> 未出现在 <code>THREADPRIVATE</code> 声明中；并行 LES 或 mesoscale 路径是否需要统一广播/同步该标志，需要结合调用方并行上下文继续确认。</li>
+<li>无 restart 且非 1D 显式置零路径下，<code>q2/wstar/sensibFlux</code> 等数组的第一次数值来源需要结合 <code>phyetat0_mod</code>、<code>physiq_mod.F</code> 和配置路径继续核对。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod</a></li>
+<li><a href="phyetat0_mod.html">phyetat0_mod</a></li>
+<li><a href="phyredem.html">phyredem</a></li>
+<li><a href="calltherm_interface_mod.html">calltherm_interface_mod</a></li>
+<li><a href="pbl_parameters_mod.html">pbl_parameters_mod</a></li>
+<li><a href="vdif_cd_mod.html">vdif_cd_mod</a></li>
+<li><a href="vdif_kc.html">vdif_kc</a></li>
+<li><a href="../../architecture/testphys1d-config.html">testphys1d-config</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

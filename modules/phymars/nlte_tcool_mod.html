@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nlte_tcool_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/nlte_tcool_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="nlte_tcool_modf">nlte_tcool_mod.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\nlte_tcool_mod.F</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>nlte_tcool_mod.F</code> 实现 <code>nltemodel=2</code> 使用的 CO2 15 微米 NLTE 快速冷却率方案。<code>physiq_mod.F</code> 在 <code>callnlte</code> 且 <code>nltemodel.eq.2</code> 时把 GCM 层压强、温度、高度和 CO2/N2/CO/O 混合比传入 <code>nlte_tcool</code>，本模块在内部把每个水平格点的 GCM 垂直剖面重采样到 NLTE 主网格和 CTS 延伸网格，调用 <a href="nlte_calc.html">nlte_calc</a> 与 <a href="nlte_aux.html">nlte_aux</a> 提供的 Curtis matrix、escape probability、插值、LU 求解和平滑工具，最后把 K/day 的 <code>q15umco2_gcm</code> 回填给调用方；<code>physiq_mod.F</code> 随后除以 86400 转为 K/s。</p>
+<p>该文件还提供错误终止子程序 <code>ERRORS</code>。<code>nlte_calc.F</code> 中若干例程 <code>use nlte_tcool_mod, only: errors</code>，说明这里的错误处理不是只供本文件内部使用。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nlte_tcool_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>封装 <code>nlte_tcool</code>、NLTE 网格构造、CZA 求解、CTS 顶层冷却、单位换算和错误终止例程。</td>
+</tr>
+<tr>
+<td><code>nlte_tcool</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">30</td>
+<td>主入口；逐水平格点计算 CO2 15 微米 NLTE 冷却率，并输出到 GCM 垂直网格。</td>
+</tr>
+<tr>
+<td><code>NLTEdlvr11_ZGRID</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">209</td>
+<td>从 GCM 剖面构建 NLTE 主网格、细网格、CTS 网格和 CTS 细网格，并写入 <code>nlte_commons_h</code> 共享状态。</td>
+</tr>
+<tr>
+<td><code>NLTEdlvr11_CZALU</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">499</td>
+<td>组装并求解 vibrational temperature / source function 相关线性系统，生成 <code>hr110/hr210/hr310/hr410/hr121</code>。</td>
+</tr>
+<tr>
+<td><code>NLTEdlvr11_FB626CTS</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1295</td>
+<td>在 CTS 延伸网格上计算 626 组分的 <code>hr110CTS</code>，用于顶层冷却率拼接。</td>
+</tr>
+<tr>
+<td><code>hrkday_convert</code></td>
+<td>function</td>
+<td style="text-align: right;">1389</td>
+<td>把体积冷却功率换算为 K/day 的因子，使用 <code>daysec*n_avog/(cp*1.e4*mmean)</code>。</td>
+</tr>
+<tr>
+<td><code>ERRORS</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">1415</td>
+<td>根据 <code>ierr</code> 打印具体 NLTE 错误来源，并调用 <code>abort_physic("nlte_tcool",...)</code> 终止。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>conc_mod</code></td>
+<td><code>cpnew</code>, <code>mmean</code></td>
+<td><code>nlte_tcool</code> 从 GCM 格点读取平均分子量和热容，供 K/day 换算。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>nlte_paramdef_h</code></td>
+<td><code>nl</code>, <code>nltot</code>, <code>nl_cts</code> 等</td>
+<td>提供 NLTE 主网格、CTS 网格、谱线和物理常数维度。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>nlte_commons_h</code></td>
+<td><code>input_cza</code>, <code>jlowerboundary</code>, <code>jtopCTS</code>, <code>pl</code>, <code>pl_cts</code>, <code>hr*</code>, <code>c*</code>, <code>vc*</code>, <code>taustar*</code>, <code>t/nt/co2/n2/co/o3p</code> 等</td>
+<td>作为 NLTE 计算的主要共享状态区；本文件大量读写网格、碰撞率、矩阵、源项和冷却率数组。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>time_phylmdz_mod</code></td>
+<td><code>daysec</code></td>
+<td><code>hrkday_convert</code> 使用每 sol 秒数。</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>param_v4_h</code></td>
+<td><code>n_avog</code></td>
+<td><code>hrkday_convert</code> 使用阿伏伽德罗常数。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NLTEdlvr11_ZGRID</code></td>
+<td>本文件</td>
+<td>93-97</td>
+<td>把当前 GCM 列转换到 NLTE 主网格和 CTS 网格。</td>
+</tr>
+<tr>
+<td><code>interdp_ESCTVCISO</code></td>
+<td><code>nlte_aux.F</code></td>
+<td>101</td>
+<td>将同位素 Tstar/VC 表插值到 NLTE 主网格。</td>
+</tr>
+<tr>
+<td><code>MZESC110</code>, <code>MZTUD110</code>, <code>MZESC121</code>, <code>MZTVC121</code>, <code>MZMC121</code></td>
+<td><code>nlte_calc.F</code></td>
+<td>104, 112, 711, 717-718</td>
+<td>计算 escape probability、Curtis matrix、Tstar/VC 等光学量。</td>
+</tr>
+<tr>
+<td><code>leetvt</code></td>
+<td><code>nlte_aux.F</code></td>
+<td>108</td>
+<td>读取或恢复历史谱线相关 vibrational temperature 缓存。</td>
+</tr>
+<tr>
+<td><code>zero*v/zero*m</code>, <code>unit</code>, <code>diago</code>, <code>mulmmf90</code>, <code>resmmf90</code>, <code>LUdec</code>, <code>sypvmv</code> 等</td>
+<td><code>nlte_aux.F</code></td>
+<td>多处</td>
+<td>清零、矩阵代数和线性系统求解。</td>
+</tr>
+<tr>
+<td><code>GETK_dlvr11</code></td>
+<td><code>nlte_setup.F</code></td>
+<td>748, 1335</td>
+<td>按当前层温度更新 k19/k20/k21/k33 碰撞速率族。</td>
+</tr>
+<tr>
+<td><code>interhunt*</code>, <code>interdp_limits</code></td>
+<td><code>nlte_aux.F</code></td>
+<td>330-338, 375-377, 410-421, 472-476, 189-192</td>
+<td>在 GCM、NLTE、CTS 和对数压强坐标之间插值。</td>
+</tr>
+<tr>
+<td><code>suaviza</code></td>
+<td><code>nlte_aux.F</code></td>
+<td>195</td>
+<td>对回插到 GCM 网格的冷却率剖面平滑。</td>
+</tr>
+<tr>
+<td><code>abort_physic</code></td>
+<td>物理层公共终止例程</td>
+<td>295-296, 1666-1667</td>
+<td>对无法修复的边界或 NLTE 错误执行终止。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngridgcm</code></td>
+<td><code>physiq_mod.F</code></td>
+<td>integer</td>
+<td>-</td>
+<td>水平格点数。</td>
+</tr>
+<tr>
+<td><code>n_gcm</code></td>
+<td><code>physiq_mod.F</code></td>
+<td>integer</td>
+<td>-</td>
+<td>GCM 垂直层数。</td>
+</tr>
+<tr>
+<td><code>p_gcm(ngridgcm,n_gcm)</code></td>
+<td><code>physiq_mod.F::zplay*9.869e-6</code></td>
+<td>real array</td>
+<td>atm</td>
+<td>层中心压强；<code>physiq</code> 从 Pa 换算为 atm 后传入。</td>
+</tr>
+<tr>
+<td><code>t_gcm(ngridgcm,n_gcm)</code></td>
+<td><code>physiq_mod.F::pt</code></td>
+<td>real array</td>
+<td>K</td>
+<td>层中心温度。</td>
+</tr>
+<tr>
+<td><code>z_gcm(ngridgcm,n_gcm)</code></td>
+<td><code>physiq_mod.F::zzlay</code></td>
+<td>real array</td>
+<td>m</td>
+<td>层中心高度；本模块入口处除以 1000 变为 km。</td>
+</tr>
+<tr>
+<td><code>co2vmr_gcm</code>, <code>n2vmr_gcm</code>, <code>covmr_gcm</code>, <code>o3pvmr_gcm</code></td>
+<td><code>physiq_mod.F</code> 由 tracer 和 <code>mmean/mmol</code> 生成</td>
+<td>real arrays</td>
+<td>mol/mol</td>
+<td>CO2、N2、CO、O 体积分数。</td>
+</tr>
+<tr>
+<td><code>mmean</code>, <code>cpnew</code></td>
+<td><code>conc_mod</code></td>
+<td><code>ngridgcm x n_gcm</code></td>
+<td>g/mol、J/kg/K 推断</td>
+<td><code>hrkday_convert</code> 的平均分子量和热容输入。</td>
+</tr>
+<tr>
+<td><code>NLTEDAT</code> 初始化表</td>
+<td><a href="nlte_setup.html">nlte_setup</a></td>
+<td>共享数组</td>
+<td>多种</td>
+<td><code>GETK_dlvr11</code>、Tstar/VC 和历史谱线缓存必须已初始化。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型 / 维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q15umco2_gcm(ngridgcm,n_gcm)</code></td>
+<td><code>physiq_mod.F::zdtnlte</code></td>
+<td>real array</td>
+<td>K/day</td>
+<td>CO2 15 微米 NLTE 冷却率；<code>physiq_mod.F</code> 行 1055-1056 转为 K/s。</td>
+</tr>
+<tr>
+<td><code>ierr</code></td>
+<td>调用方</td>
+<td>integer</td>
+<td>-</td>
+<td>每个水平格点进入计算时置 0；若错误处理没有终止，可由调用方检查。</td>
+</tr>
+<tr>
+<td><code>varerr</code></td>
+<td>调用方</td>
+<td>real*8</td>
+<td>依错误而定</td>
+<td>与 <code>ierr</code> 对应的错误数值。</td>
+</tr>
+<tr>
+<td><code>jlowerboundary</code>, <code>jtopboundary</code>, <code>jtopCTS</code></td>
+<td><code>nlte_commons_h</code></td>
+<td>integers</td>
+<td>-</td>
+<td>本次 GCM 列在 NLTE 主网格和 CTS 网格中的有效 GCM 层索引。</td>
+</tr>
+<tr>
+<td><code>pl/t/co2/...</code>, <code>pl_cts/t_cts/co2_cts/...</code>, <code>hr*</code>, <code>vt*</code>, <code>el*</code></td>
+<td><code>nlte_commons_h</code></td>
+<td>arrays</td>
+<td>多种</td>
+<td>中间网格、数密度、振动态、源项和冷却率共享状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li><code>nlte_tcool</code> 对每个水平格点循环时会重写 <code>nlte_commons_h</code> 中的主网格和 CTS 网格状态，包括 <code>pl/t/nt/co2/n2/co/o3p</code>、<code>pl_cts/t_cts/nt_cts/co2_cts/...</code>、<code>jlowerboundary/jtopboundary/jtopCTS</code>、<code>hrkday_factor*</code>、<code>hr*</code>、<code>vt*</code>、<code>el*</code> 等。</li>
+<li><code>input_cza</code> 在同一列内先被设为 0，再设为 1，分别执行两次 <code>NLTEdlvr11_CZALU</code>；第一次生成振动温度缓存，第二次计算 CZA 相关通道。</li>
+<li>多处 <code>write(*,*)</code> 输出温度越界、顶边界修正和错误诊断；严重错误最终进入 <code>abort_physic</code>。</li>
+<li><code>NLTEdlvr11_ZGRID</code> 当 GCM 顶层不足以覆盖 <code>Ptop_atm</code> 或 CTS 顶层时，会把 <code>jtopboundary</code> 或 <code>jtopCTS</code> 改为 <code>n_gcm</code> 并继续；底边界压强不满足时直接终止。</li>
+<li><code>ERRORS</code> 是模块内公开子程序，被 <code>nlte_calc.F</code> 通过 <code>use nlte_tcool_mod, only: errors</code> 复用。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>nlte_tcool</code> 逐水平格点复制当前列的压强、温度、成分、高度、<code>mmean</code> 和 <code>cpnew</code>；高度从 m 转为 km。</li>
+<li>调用 <code>NLTEdlvr11_ZGRID</code>：根据 <code>Pbottom_atm/Ptop_atm</code> 找到 NLTE 主模型的 GCM 层范围，构造 <code>nl</code> 层主网格、<code>nzy</code> 细网格、从 <code>zl(nl-1)</code> 开始的 <code>nl_cts</code> CTS 网格以及 <code>nzy_cts</code> CTS 细网格。</li>
+<li>在主网格和 CTS 网格上插值压强、温度、混合比、平均分子量、热容，并由 <code>nt=7.339e+21*p/t</code> 转为数密度；同时计算 <code>hrkday_factor</code> 和 <code>hrkday_factor_cts</code>。</li>
+<li>调用 Tstar/VC、MZESC、MZTUD、历史谱线和矩阵工具，先以 <code>input_cza=0</code> 求解基本振动温度，再以 <code>input_cza=1</code> 求解包含 CZA 通道的冷却率。</li>
+<li><code>NLTEdlvr11_CZALU</code> 在每个 NLTE 层调用 <code>GETK_dlvr11(t(i))</code>，用 CO2/N2/CO/O 数密度、k19/k20/k21/k33 碰撞速率和 Einstein 系数组装多组耦合线性系统；通过矩阵消元与 <code>LUdec</code> 求得 <code>el11/el21/el31/el41</code>，可选求 <code>el12</code>，然后生成 <code>hr110/hr210/hr310/hr410/hr121</code> 并换算到 K/day。</li>
+<li><code>NLTEdlvr11_FB626CTS</code> 在 CTS 网格调用 <code>GETK_dlvr11(t_cts(i))</code>，计算 626 组分高层 <code>hr110CTS</code>。</li>
+<li>主网格总冷却率为 <code>hr110+hr210+hr310+hr410+hr121</code>；第 <code>nl-1</code> 点与 <code>hr110CTS(1)</code> 取平均，CTS 后续点接到 <code>q15umco2_nltot</code>，超出实际 CTS 的点置零。</li>
+<li>以 <code>-log(p)</code> 坐标把 <code>q15umco2_nltot</code> 从 NLTE/CTS 组合网格插回原 GCM 网格的 <code>jlowerboundary:jtopCTS</code> 范围，对结果平滑后写入 <code>q15umco2_gcm</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>for ig in 1..ngridgcm:
+  copy GCM column fields into 1-D work arrays
+  convert z from m to km
+
+  NLTEdlvr11_ZGRID:
+    find jlowerboundary where p &lt;= Pbottom_atm
+    find jtopboundary where p &lt;= Ptop_atm, or clamp to n_gcm
+    build NLTE main grid zl/pl/t/species/number densities
+    build fine grid zy/py/ty/co2y
+    build CTS grid from zl(nl-1), limited by GCM top
+    build CTS fine grid and jtopCTS
+
+  interpolate Tstar and VC tables to NLTE grids
+  compute escape probability / Curtis matrix terms
+  input_cza = 0; NLTEdlvr11_CZALU()
+  input_cza = 1; NLTEdlvr11_CZALU()
+  NLTEdlvr11_FB626CTS()
+
+  q_total(1:nl) = hr110 + hr210 + hr310 + hr410 + hr121
+  merge q_total(nl-1) with first CTS value
+  append remaining CTS values, zero unused CTS extension
+  interpolate q_total back to the original GCM pressure grid
+  smooth the interpolated profile
+  write q15umco2_gcm(ig,:)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NLTE 15 微米 CO2 冷却</td>
+<td>作为 <code>nltemodel=2</code> 的核心冷却率计算器，依赖 <code>nlte_setup.F</code> 初始化的表和碰撞速率公式、<code>nlte_calc.F</code> 的光学矩阵构造、<code>nlte_aux.F</code> 的插值与线性代数工具。</td>
+</tr>
+<tr>
+<td>辐射倾向合成</td>
+<td><code>physiq_mod.F</code> 把本模块输出的 <code>zdtnlte</code> 转为 K/s 后参与后续辐射倾向和 <code>blendrad</code> 合成。</td>
+</tr>
+<tr>
+<td>高层大气参数化</td>
+<td>通过 CTS 延伸网格把主 NLTE 网格顶端以上的高层 626 组分冷却率拼接回 GCM 网格。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>固定格式 Fortran 文件，但实际外层是 <code>MODULE nlte_tcool_mod</code>，内部包含多个旧 1-D 模型例程。</li>
+<li>大量物理工作数组不通过参数传递，而是放在 <code>nlte_commons_h</code> 中作为共享状态；调用顺序错误会直接改变后续结果。</li>
+<li><code>NLTEdlvr11_CZALU</code> 使用两阶段 <code>input_cza</code> 模式：第一次计算并保存振动温度，第二次使用该振动温度处理额外通道。</li>
+<li>源码注释承认 CTS 外推网格在 <code>nl_cts_real &lt; nl_cts</code> 时会按最后两层压强比继续外推；这是复现时需要保持的历史行为。</li>
+<li>错误编号集中在 <code>ERRORS</code>，但很多内部错误路径会先返回 <code>ierr</code>，主入口随即调用 <code>ERRORS</code> 并终止。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>调用 <code>nlte_tcool</code> 前必须先在 <code>physiq_mod.F</code> 初始化阶段执行 <a href="nlte_setup.html">nlte_setup</a>，否则 Tstar/VC 表、历史谱线缓存和 <code>GETK_dlvr11</code> 所需常数不完整。</li>
+<li>输入压强必须是 atm；<code>physiq_mod.F</code> 明确用 <code>zplay*9.869e-6</code> 从 Pa 转为 atm。</li>
+<li>输入高度必须在 <code>nlte_tcool</code> 入口处按源码行为从 m 转为 km；如果外部已传 km，会导致 NLTE 网格高度范围错误。</li>
+<li>GCM 顶层若达不到 <code>Ptop_atm</code> 或 CTS 顶层，源码会夹到 <code>n_gcm</code> 继续；底边界达不到 <code>Pbottom_atm</code> 则会终止。</li>
+<li><code>q15umco2_gcm</code> 在本模块内是 K/day；耦合到物理倾向时必须像 <code>physiq_mod.F</code> 一样除以 86400。</li>
+<li><code>nl_cts_real</code> 必须至少能支持访问 <code>pl_cts(nl_cts_real-1)</code> 和 <code>taustar11_cts(2)</code>；源码没有显式保护极小 CTS 有效层数。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>hrkday_convert</code> 注释称输入冷却功率单位为 <code>erg s-1 cm-3</code>，但 <code>cpmean_nlte</code> 和 <code>mmean_nlte</code> 的精确单位约定需要结合 <code>conc_mod</code> 和上游热容定义继续核验。</li>
+<li><code>NLTEdlvr11_FB626CTS</code> 末尾计算 <code>slopeTstar110/maxslope</code>，但本文件没有继续使用 <code>maxslope</code>；保留意图需要外部方案文档确认。</li>
+<li><code>NLTEdlvr11_CZALU</code> 中 <code>itt_cza=13/15</code> 分支的物理选择来自 <code>nlte_paramdef_h</code> 和 IAA/CSIC 方案，本文只按源码控制流记录。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phymars 目录</a></li>
+<li><a href="nlte_setup.html">nlte_setup</a></li>
+<li><a href="nlte_paramdef_h.html">nlte_paramdef_h</a></li>
+<li><a href="nlte_commons_h.html">nlte_commons_h</a></li>
+<li><a href="nlte_aux.html">nlte_aux</a></li>
+<li><a href="nlte_calc.html">nlte_calc</a></li>
+<li><a href="nltecool.html">nltecool</a></li>
+<li><a href="nlteparams_h.html">nlteparams_h</a></li>
+<li><a href="nlthermeq.html">nlthermeq</a></li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

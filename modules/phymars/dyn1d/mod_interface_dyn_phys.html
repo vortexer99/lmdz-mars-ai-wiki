@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mod_interface_dyn_phys - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../../index.html">主页</a>
+        <a href="../../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../../libf-overview.html">模块</a>
+        <a href="../../../themes/index.html">主题</a>
+        <a href="../../../routines/index.html">例程</a>
+        <a href="../../../reference/file-index.html">文件索引</a>
+        <a href="../../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dyn1d/mod_interface_dyn_phys.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dyn1dmod_interface_dyn_physf90">dyn1d/mod_interface_dyn_phys.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d\mod_interface_dyn_phys.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>dyn1d/mod_interface_dyn_phys.F90</code> 在当前源码树中不是独立实现，而是一行相对路径：</p>
+<pre class="text"><code>../../../../LMDZ.COMMON/libf/dynphy_lonlat/mod_interface_dyn_phys.F90</code></pre>
+<p>它把 1D <code>testphys1d</code> 构建路径中的 <code>mod_interface_dyn_phys</code> 解析到公共 <code>dynphy_lonlat</code> 动力-物理接口辅助模块。目标模块不执行完整的动力到物理字段转换；它只保存并行物理列与动力网格 <code>(i,j)</code> 的索引映射，并提供初始化例程。非并行编译时该初始化例程是空例程。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">目标行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_interface_dyn_phys.F90</code></td>
+<td>path stub</td>
+<td style="text-align: right;">dyn1d line 1</td>
+<td>指向 <code>LMDZ.COMMON/libf/dynphy_lonlat/mod_interface_dyn_phys.F90</code>。</td>
+</tr>
+<tr>
+<td><code>mod_interface_dyn_phys</code></td>
+<td>module</td>
+<td style="text-align: right;">common line 4</td>
+<td>保存动力-物理接口的并行索引映射。</td>
+</tr>
+<tr>
+<td><code>index_i(:)</code></td>
+<td>integer, allocatable, save</td>
+<td style="text-align: right;">common line 5</td>
+<td>对每个本地物理列记录动力网格的 <code>i</code> 索引。</td>
+</tr>
+<tr>
+<td><code>index_j(:)</code></td>
+<td>integer, allocatable, save</td>
+<td style="text-align: right;">common line 6</td>
+<td>对每个本地物理列记录动力网格的 <code>j</code> 索引。</td>
+</tr>
+<tr>
+<td><code>Init_interface_dyn_phys</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">common line 12 或 51</td>
+<td>初始化 <code>index_i/index_j</code>；非 <code>CPP_PARA</code> 时为空例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="并行分支算法">并行分支算法</h2>
+<p><code>CPP_PARA</code> 打开时，<code>Init_interface_dyn_phys</code> 使用 <code>mod_phys_lmdz_mpi_data</code> 和 <code>dimensions.h</code> 中的本地网格信息构造映射：</p>
+<ol type="1">
+<li>分配 <code>index_i(klon_mpi)</code> 和 <code>index_j(klon_mpi)</code>。</li>
+<li>从 <code>k=1</code> 开始写本地物理列序号。</li>
+<li>若当前 MPI 子域包含北极动力点 <code>is_north_pole_dyn</code>，第一个物理列映射到 <code>(1,1)</code>；否则把北边界行 <code>jj_begin</code> 的 <code>i=ii_begin..iim</code> 写入映射。</li>
+<li>对内部纬向行 <code>j=jj_begin+1..jj_end-1</code>，把所有 <code>i=1..iim</code> 写入映射。</li>
+<li>若当前子域包含南极动力点 <code>is_south_pole_dyn</code>，最后一列映射到 <code>(1,jj_end)</code>；否则把南边界行 <code>jj_end</code> 的 <code>i=1..ii_end</code> 写入映射。</li>
+</ol>
+<p>这个映射处理了经向周期和极点压缩：极点只映射到一个代表点 <code>(1, pole_j)</code>，非极点边界按本地 <code>i</code> 范围展开。</p>
+<h2 id="非并行分支">非并行分支</h2>
+<p>未定义 <code>CPP_PARA</code> 时：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> Init_interface_dyn_phys</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="co">! dummy routine for seq case</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">END SUBROUTINE</span> Init_interface_dyn_phys</span></code></pre></div>
+<p>因此顺序 1D <code>testphys1d</code> 路径调用该例程不会分配 <code>index_i/index_j</code>，也不会改变任何状态。</p>
+<h2 id="dyn1d-使用路径">dyn1d 使用路径</h2>
+<p><a href="init_testphys1d_mod.html">init_testphys1d_mod</a> 在初始化几何和物理状态前调用：</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">call init_interface_dyn_phys</span></span></code></pre></div>
+<p>在 1D 顺序运行中，这通常只是为了接口兼容而调用空例程；在并行/XIOS 构建组合中，若 <code>CPP_PARA</code> 有效，则该调用可提前建立物理列到动力网格的索引映射，供公共 <code>dynphy_lonlat</code> 并行接口路径使用。</p>
+<h2 id="与完整动力-物理转换的边界">与完整动力-物理转换的边界</h2>
+<p>完整的风、温度、压力、tracer tendency 转换不在本文件中实现，而是在公共 <code>dynphy_lonlat/calfis.F</code> 和 <code>calfis_p.F</code> 等文件中进行。<code>mod_interface_dyn_phys</code> 只提供并行列索引映射，不能单独说明 <code>physiq</code> 全部输入/输出转换。</p>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>dyn1d 本地文件只是路径 stub；实际实现以 <code>LMDZ.COMMON/libf/dynphy_lonlat/mod_interface_dyn_phys.F90</code> 为准。</li>
+<li>非 <code>CPP_PARA</code> 编译下 <code>init_interface_dyn_phys</code> 是空例程；不要期待它在普通 1D 运行中填充几何或物理数组。</li>
+<li><code>CPP_PARA</code> 下 <code>klon_mpi</code> 必须与由 <code>ii_begin/ii_end/jj_begin/jj_end</code>、极点标志推导出的本地物理列数量一致，否则 <code>index_i/index_j</code> 写入会越界或漏填。</li>
+<li>该模块没有释放例程；<code>index_i/index_j</code> 一旦分配，在进程生命周期内保持。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 <code>testphys1d</code> 默认构建是否定义 <code>CPP_PARA</code> 需要结合编译脚本确认；页面仅按源码条件分支记录。</li>
+<li>Windows 工作树把 dyn1d 入口呈现为一行路径文本；原始类 Unix 工作树中它可能是符号链接。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn1d/index.md</a> - dyn1d 子目录索引。</li>
+<li><a href="init_testphys1d_mod.html">init_testphys1d_mod</a> - 调用 <code>init_interface_dyn_phys</code> 的 1D 初始化入口。</li>
+<li><a href="mod_const_mpi.html">mod_const_mpi</a> - 并行 communicator 初始化。</li>
+<li><a href="parallel_lmdz.html">parallel_lmdz.F90</a> - 并行运行时状态来源。</li>
+<li><a href="testphys1d.html">testphys1d.F90</a> - 1D 主程序。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

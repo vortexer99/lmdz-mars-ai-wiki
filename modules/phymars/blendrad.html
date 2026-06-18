@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>blendrad - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/blendrad.md</span>
+    </nav>
+    <article class="content">
+<h1 id="blendradf">blendrad.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\blendrad.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>libf/phymars — Mars 物理参数化模块</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>blendrad.F 将辐射传输的四路倾向（短波 LTE <code>zdtsw</code>、长波 LTE <code>zdtlw</code>、近红外 CO₂ <code>zdtnirco2</code>、非局域热平衡 NLTE <code>zdtnlte</code>）合并为单一净大气加热率 <code>dtrad</code>。核心工作是用一条以压力为自变量的平滑 sigmoid 函数（alpha）在 LTE 与 NLTE 贡献之间做连续过渡，避免在切换高度产生数值不连续。该文件仅在 <code>callnlte=.true.</code> 时被调用；当 NLTE 未启用时，调用方 <code>physiq_mod</code> 直接将四路相加。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>blendrad_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>包装模块，仅含 <code>blendrad</code> 子程序</td>
+</tr>
+<tr>
+<td><code>blendrad</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>合并 LTE/NLTE 辐射倾向的唯一入口</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>yomlw_h</code></td>
+<td><code>nlaylte</code></td>
+<td>LTE 计算层数上限（由 <code>nlthermeq</code> 计算并存储）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>nlteparams_h</code></td>
+<td><code>ptrans</code>, <code>zwi</code></td>
+<td>过渡中心压力 0.1 Pa；<code>zwi = 2/zw = 4.0</code>（zw=0.5 标高半宽）</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<p>无。blendrad 是纯数值计算，不调用其他子程序。</p>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>physiq_mod</code> 调用参数</td>
+<td>integer</td>
+<td>—</td>
+<td>水平网格点数</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>physiq_mod</code> 调用参数</td>
+<td>integer</td>
+<td>—</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td><code>physiq_mod</code> 局部变量 <code>zplay</code></td>
+<td>real(ngrid, nlayer)</td>
+<td>Pa</td>
+<td>各层气压</td>
+</tr>
+<tr>
+<td><code>zdtsw</code></td>
+<td><code>callradite</code> 输出</td>
+<td>real(ngrid, nlayer)</td>
+<td>K/s</td>
+<td>短波 LTE 加热率（仅前 <code>nlaylte</code> 层有效）</td>
+</tr>
+<tr>
+<td><code>zdtlw</code></td>
+<td><code>callradite</code> 输出</td>
+<td>real(ngrid, nlayer)</td>
+<td>K/s</td>
+<td>长波 LTE 加热率（仅前 <code>nlaylte</code> 层有效）</td>
+</tr>
+<tr>
+<td><code>zdtnirco2</code></td>
+<td><code>callradite</code> 输出</td>
+<td>real(ngrid, nlayer)</td>
+<td>K/s</td>
+<td>近红外 CO₂ 吸收加热率（全层有效）</td>
+</tr>
+<tr>
+<td><code>zdtnlte</code></td>
+<td><code>callradite</code> 输出</td>
+<td>real(ngrid, nlayer)</td>
+<td>K/s</td>
+<td>NLTE 加热率（全层有效，低层可能为零）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dtrad</code></td>
+<td><code>physiq_mod</code> 后续用于温度倾向积分</td>
+<td>real(ngrid, nlayer)</td>
+<td>K/s</td>
+<td>合并后的净大气辐射加热率</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p>无直接副作用。blendrad 是纯函数式子程序：输入 → 输出，不修改任何 module 变量、不写文件、不产生诊断输出。</p>
+<p>间接依赖的共享状态：</p>
+<ul>
+<li><code>nlaylte</code>（<code>yomlw_h</code>，<code>integer,save</code>）：由 <code>nlthermeq</code> 在辐射调用时计算，标识 LTE 计算的有效层数上限。</li>
+<li><code>ptrans</code>、<code>zwi</code>（<code>nlteparams_h</code>，<code>real,parameter</code>）：编译期常数，不可运行时修改。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><p><strong>第一层循环（行 45–53）</strong>：遍历 <code>l = 1</code> 到 <code>nlaylte</code>（LTE 有效层）。对每个网格点：</p>
+<ul>
+<li>计算过渡权重 <code>alpha = 1 / (1 + (pplay/ptrans)^zwi)</code>。这是以 <code>z = -ln(p)</code> 为自变量的 sigmoid <code>0.5*(1+tanh((z-ztrans)/zw))</code> 的等价简化形式。</li>
+<li>合并倾向：<code>dtrad = (1-alpha)*(zdtsw+zdtlw) + zdtnirco2 + alpha*zdtnlte</code>。</li>
+<li>低压（高海拔）处 alpha→1，LTE 贡献被抑制，NLTE 主导；高压（低海拔）处 alpha→0，LTE 主导。</li>
+</ul></li>
+<li><p><strong>第二层循环（行 56–60）</strong>：遍历 <code>l = nlaylte+1</code> 到 <code>nlayer</code>（LTE 计算范围之外）。直接 <code>dtrad = zdtnirco2 + zdtnlte</code>，无 LTE 贡献。</p></li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>for each layer l = 1 to nlaylte:          # LTE 有效范围
+    for each grid point ig:
+        alpha = 1 / (1 + (pplay[ig,l] / 0.1)^4.0)   # sigmoid 过渡
+        dtrad[ig,l] = (1 - alpha) * (zdtsw[ig,l] + zdtlw[ig,l])   # LTE 部分被 alpha 调制
+                     + zdtnirco2[ig,l]                              # CO2 近红外（始终保留）
+                     + alpha * zdtnlte[ig,l]                        # NLTE 部分由 alpha 加权
+
+for each layer l = nlaylte+1 to nlayer:   # LTE 范围之外
+    for each grid point ig:
+        dtrad[ig,l] = zdtnirco2[ig,l] + zdtnlte[ig,l]   # 纯 NLTE</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">radiation</a></td>
+<td>辐射倾向合并的最后一环；在 <code>callradite</code> 计算完四路倾向后由 <code>physiq_mod</code> 调用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><strong>固定格式 Fortran</strong>：使用列 1 的 <code>c</code> 注释和列 7 的续行符 <code>&amp;</code>，符合传统 F77 风格。</li>
+<li><strong>两循环拆分</strong>：注释说明是为了减少计算量（第二循环不计算 alpha），但也指出在向量机上合并为单循环可能更快。</li>
+<li><strong>编译期常数</strong>：<code>ptrans</code> 和 <code>zwi</code> 在 <code>nlteparams_h</code> 中用 <code>parameter</code> 声明，不可运行时调整。</li>
+<li><strong><code>nlaylte</code> 动态值</strong>：由 <code>nlthermeq</code> 根据大气状态计算，存储在 <code>yomlw_h</code> 的 <code>save</code> 变量中，每次辐射调用可能不同。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>alpha 公式的物理含义：<code>z = -ln(p)</code> 是"标高高度"，<code>ptrans = 0.1 Pa</code>（约 80 km）是过渡中心，<code>zw = 0.5</code> 标高是过渡半宽。在 <code>p = ptrans</code> 处 alpha = 0.5；在 <code>p = ptrans * exp(2)</code> ≈ 0.74 Pa 处 alpha ≈ 0.12；在 <code>p = ptrans / exp(2)</code> ≈ 0.014 Pa 处 alpha ≈ 0.88。</li>
+<li><code>nlaylte</code> 的值取决于大气温度廓线（由 <code>nlthermeq</code> 计算），不同模拟可能不同。</li>
+<li>当 <code>callnlte = .false.</code> 时，blendrad 不被调用，<code>dtrad = zdtsw + zdtlw + zdtnirco2</code>（行 1310–1314）。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>nlaylte</code> 的具体计算逻辑在 <code>nlthermeq</code> 中，该文件尚未有专页，当前由 radiation 主题页覆盖。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../themes/radiation.html">radiation</a> — 辐射计算主题页</li>
+<li><a href="nlthermeq.html">nlthermeq</a></li>
+<li><a href="../../reference/file-index.html">file-index</a> — 文件索引</li>
+<li><a href="../../reference/symbol-index.html">symbol-index</a> — 符号索引</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dimradmars_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/dimradmars_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="dimradmars_modf90">dimradmars_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dimradmars_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf/phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>dimradmars_mod.F90</code> 定义模块 <code>dimradmars_mod</code>，是 Mars 物理包中辐射维度、辐射共享场、气溶胶 scatterer 名称表和离散光学查找表的集中状态模块。它本身不执行辐射传输，也不读取外部光学文件；它负责保存 <code>callradite</code>、短波/长波辐射、<code>suaer</code>、<code>aeroptproperties</code>、<code>aeropacity</code>、<code>updatereffrad</code> 等路径共同使用的数组维度和表。</p>
+<p>初始化分两层：<code>phys_state_var_init_mod</code> 调用 <code>ini_dimradmars_mod</code> 按 <code>ngrid/nlayer/nslope</code> 分配辐射场数组；<code>conf_phys</code> 在读到 <code>naerkind</code> 后调用 <code>ini_scatterers</code> 分配气溶胶第三维和查找表，再填充 <code>name_iaer</code>。因此复现辐射链路时，不能只看辐射主程序，还要保证本模块的初始化顺序、<code>naerkind</code> 和 <code>name_iaer</code> 与配置一致。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td>module</td>
+<td style="text-align: right;">1</td>
+<td>辐射维度、气溶胶 scatterer 和光学查找表共享模块。</td>
+</tr>
+<tr>
+<td><code>NFLEV</code> / <code>ndomainsz</code> / <code>NDLON</code> / <code>NDLO2</code></td>
+<td>saved module variables</td>
+<td style="text-align: right;">10-13</td>
+<td>长短波辐射和重力波等子域工作数组使用的垂直层数、水平子域长度和辐射列维度。</td>
+</tr>
+<tr>
+<td><code>naerkind</code></td>
+<td>saved module variable</td>
+<td style="text-align: right;">23</td>
+<td>当前运行的气溶胶辐射属性种类数；由 <code>conf_phys</code> 读取 <code>callphys.def</code> 后写入。</td>
+</tr>
+<tr>
+<td><code>name_iaer(:)</code></td>
+<td>saved allocatable module variable</td>
+<td style="text-align: right;">26</td>
+<td>每类 scatterer 的名称表；由 <code>ini_scatterers</code> 分配清空，再由 <code>conf_phys</code> 按开关组合填充。</td>
+</tr>
+<tr>
+<td><code>iaer_dust_conrath</code> 等 <code>iaer_*</code></td>
+<td>integer module variables</td>
+<td style="text-align: right;">30-45</td>
+<td>尘埃、水冰、CO2 冰等 scatterer 的索引槽位。</td>
+</tr>
+<tr>
+<td><code>iaerdust(:)</code></td>
+<td>saved allocatable module variable</td>
+<td style="text-align: right;">48</td>
+<td>尘埃类 scatterer 索引表，由 <code>aeropacity</code> 识别名称后写入，供尘埃缩放路径使用。</td>
+</tr>
+<tr>
+<td><code>file_id(:,:)</code></td>
+<td>saved allocatable module variable</td>
+<td style="text-align: right;">53</td>
+<td>每类 scatterer 的 VIS/IR 外部光学表文件名，由 <code>suaer</code> 写入。</td>
+</tr>
+<tr>
+<td><code>longrefir(:)</code> / <code>longrefvis(:)</code></td>
+<td>saved allocatable module variables</td>
+<td style="text-align: right;">59</td>
+<td>每类 scatterer 的红外/可见参考波长。</td>
+</tr>
+<tr>
+<td><code>nir</code> / <code>nuco2</code> / <code>NSUN</code></td>
+<td>integer parameters</td>
+<td style="text-align: right;">64-77</td>
+<td>长波红外带数、CO2 带数和短波太阳带数；当前 <code>nir=4</code>、<code>nuco2=2</code>、<code>NSUN=2</code>。</td>
+</tr>
+<tr>
+<td><code>long*ir</code> / <code>long*co2</code> / <code>long*vis</code></td>
+<td>real parameters</td>
+<td style="text-align: right;">66-79</td>
+<td>长波和短波谱段边界。</td>
+</tr>
+<tr>
+<td><code>sunfr(2)</code></td>
+<td>saved module variable</td>
+<td style="text-align: right;">82</td>
+<td>两个太阳短波带的能量份额：<code>0.274490</code> 和 <code>0.725509</code>。</td>
+</tr>
+<tr>
+<td><code>nsizemax</code></td>
+<td>integer parameter</td>
+<td style="text-align: right;">97</td>
+<td>光学数据库支持的最大离散粒径数；当前为 <code>60</code>。</td>
+</tr>
+<tr>
+<td><code>npademx</code> / <code>nabsmx</code> / <code>nt_pademx</code></td>
+<td>integer parameters</td>
+<td style="text-align: right;">106-108</td>
+<td>长波 Pade 近似相关维度常数。</td>
+</tr>
+<tr>
+<td><code>flux_1AU</code></td>
+<td>real parameter</td>
+<td style="text-align: right;">113</td>
+<td>坡面辐射使用的 1 AU 太阳常数，<code>1370 W m-2</code>。</td>
+</tr>
+<tr>
+<td><code>dtrad</code>, <code>fluxrad_sky</code>, <code>fluxrad</code>, <code>albedo</code>, <code>totcloudfrac</code>, <code>aerosol</code>, <code>nueffdust</code></td>
+<td>saved allocatable module arrays</td>
+<td style="text-align: right;">118-127</td>
+<td>辐射加热率、地表辐射通量、反照率、云量、气溶胶层光学厚度和尘埃有效方差。</td>
+</tr>
+<tr>
+<td><code>tauvis</code></td>
+<td>saved module variable</td>
+<td style="text-align: right;">153</td>
+<td>参考可见光尘埃光学厚度，可由配置或控制表路径写入。</td>
+</tr>
+<tr>
+<td><code>QVISsQREF</code>, <code>omegavis</code>, <code>gvis</code>, <code>QIRsQREF</code>, <code>omegaIR</code>, <code>gIR</code></td>
+<td>saved allocatable module arrays</td>
+<td style="text-align: right;">154-159</td>
+<td>VIS/IR 离散粒径光学查找表；由 <code>suaer</code> 填充，供 <code>aeroptproperties</code> 插值/卷积。</td>
+</tr>
+<tr>
+<td><code>nsize</code>, <code>radiustab</code>, <code>QREFvis</code>, <code>QREFir</code>, <code>omegaREFvis</code>, <code>omegaREFir</code></td>
+<td>saved allocatable module arrays</td>
+<td style="text-align: right;">165-175</td>
+<td>每类 aerosol 的离散粒径数、半径轴和参考波长光学属性。</td>
+</tr>
+<tr>
+<td><code>ini_dimradmars_mod</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">183</td>
+<td>按 <code>ngrid/nlayer/nslope</code> 设置辐射维度并分配主辐射状态数组。</td>
+</tr>
+<tr>
+<td><code>end_dimradmars_mod</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">206</td>
+<td>释放主辐射状态数组。</td>
+</tr>
+<tr>
+<td><code>ini_dimradmars_mod_slope_var</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">219</td>
+<td>只重分配坡面相关辐射数组。</td>
+</tr>
+<tr>
+<td><code>end_dimradmars_mod_slope_var</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">232</td>
+<td>释放坡面相关辐射数组。</td>
+</tr>
+<tr>
+<td><code>ini_scatterers</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">243</td>
+<td>按 <code>ngrid/nlayer/naerkind</code> 分配气溶胶场和光学查找表，并清空 <code>name_iaer</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>本文件没有 <code>use</code> 语句；只声明自身共享状态和初始化/释放例程。</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无</td>
+<td>-</td>
+<td>-</td>
+<td>本文件内没有 <code>call</code> 语句；所有例程只分配、释放或清空本模块数组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>ini_dimradmars_mod</code>, <code>ini_dimradmars_mod_slope_var</code>, <code>ini_scatterers</code> 实参</td>
+<td>integer scalar</td>
+<td>grid columns</td>
+<td>物理列数，决定数组第一维。</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>ini_dimradmars_mod</code>, <code>ini_scatterers</code> 实参</td>
+<td>integer scalar</td>
+<td>layers</td>
+<td>大气层数，决定 <code>dtrad/aerosol/nueffdust</code> 等垂直维。</td>
+</tr>
+<tr>
+<td><code>nslope</code></td>
+<td><code>ini_dimradmars_mod</code>, <code>ini_dimradmars_mod_slope_var</code> 实参</td>
+<td>integer scalar</td>
+<td>slope classes</td>
+<td>坡面维度，决定 <code>albedo/fluxrad/fluxrad_sky</code> 第三或第二维。</td>
+</tr>
+<tr>
+<td><code>naerkind</code></td>
+<td><code>conf_phys</code> 写入后由 <code>ini_scatterers</code> 读取</td>
+<td>integer scalar</td>
+<td>-</td>
+<td>当前运行启用的 scatterer 种类数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NFLEV</code>, <code>ndomainsz</code>, <code>NDLON</code>, <code>NDLO2</code></td>
+<td>长波/短波辐射、部分子域例程</td>
+<td>integer scalars</td>
+<td>grid/layers</td>
+<td>子域和辐射工作数组维度。</td>
+</tr>
+<tr>
+<td><code>albedo(ngrid,2,nslope)</code></td>
+<td>辐射/坡面路径</td>
+<td>real array</td>
+<td>-</td>
+<td>两个短波带、每个坡面类别的地表反照率。</td>
+</tr>
+<tr>
+<td><code>dtrad(ngrid,nlayer)</code></td>
+<td>物理主循环</td>
+<td>real array</td>
+<td>K s-1</td>
+<td>净大气辐射加热率。</td>
+</tr>
+<tr>
+<td><code>fluxrad_sky(ngrid,nslope)</code></td>
+<td>地表能量收支</td>
+<td>real array</td>
+<td>W m-2</td>
+<td>天空辐射被地表吸收的通量。</td>
+</tr>
+<tr>
+<td><code>fluxrad(ngrid,nslope)</code></td>
+<td>地表能量收支</td>
+<td>real array</td>
+<td>W m-2</td>
+<td>净地表辐射通量。</td>
+</tr>
+<tr>
+<td><code>totcloudfrac(ngrid)</code></td>
+<td>云/辐射诊断路径</td>
+<td>real array</td>
+<td>-</td>
+<td>柱总云量。</td>
+</tr>
+<tr>
+<td><code>aerosol(ngrid,nlayer,naerkind)</code></td>
+<td>辐射传输输入</td>
+<td>real array</td>
+<td>-</td>
+<td>每层每类气溶胶在参考波长处的光学厚度。</td>
+</tr>
+<tr>
+<td><code>nueffdust(ngrid,nlayer)</code></td>
+<td><code>updatereffrad</code> / 辐射半径路径</td>
+<td>real array</td>
+<td>-</td>
+<td>尘埃有效方差缓存。</td>
+</tr>
+<tr>
+<td><code>name_iaer(naerkind)</code></td>
+<td><code>suaer</code>, <code>aeropacity</code>, <code>updatereffrad</code></td>
+<td>character array</td>
+<td>-</td>
+<td>scatterer 名称顺序。</td>
+</tr>
+<tr>
+<td><code>QVISsQREF</code>, <code>QIRsQREF</code>, <code>omega*</code>, <code>g*</code>, <code>QREF*</code>, <code>radiustab</code>, <code>nsize</code></td>
+<td><code>suaer</code> 写入，<code>aeroptproperties</code> 读取</td>
+<td>mixed arrays</td>
+<td>mixed</td>
+<td>离散光学属性查找表。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>大部分状态带 <code>SAVE</code>，并通过 <code>!$OMP THREADPRIVATE</code> 声明为线程私有：维度缓存、<code>naerkind/name_iaer</code>、<code>iaerdust</code>、<code>file_id</code>、参考波长、辐射场、气溶胶场和光学查找表都属于共享模块状态。</li>
+<li><code>ini_dimradmars_mod</code> 直接分配 <code>albedo/dtrad/fluxrad_sky/fluxrad/nueffdust/totcloudfrac</code>，但没有先判断是否已分配；重复调用前应先执行相应释放例程或确认尚未分配。</li>
+<li><code>ini_scatterers</code> 对 <code>aerosol</code> 会先释放再按当前 <code>naerkind</code> 重新分配；对 <code>name_iaer</code>、光学表等非 domain-dependent 表只在尚未分配时分配，并在末尾把 <code>name_iaer(:)</code> 清空。</li>
+<li><code>suaer</code> 会写 <code>file_id/longref*/radiustab/QVISsQREF/.../nsize</code>，<code>aeropacity</code> 会写 <code>aerosol/iaerdust</code>，<code>updatereffrad</code> 会写 <code>nueffdust</code>。本模块是这些副作用的承载者。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li><code>ini_dimradmars_mod(ngrid,nlayer,nslope)</code> 把 <code>nflev</code> 设为 <code>nlayer</code>，把 <code>ndomainsz</code> 设为 <code>(ngrid-1)/20 + 1</code>，并令 <code>ndlon=ndomainsz</code>、<code>ndlo2=ndlon</code>。</li>
+<li>同一入口按运行维度分配辐射主状态：<code>albedo(ngrid,2,nslope)</code>、<code>dtrad(ngrid,nlayer)</code>、<code>fluxrad_sky(ngrid,nslope)</code>、<code>fluxrad(ngrid,nslope)</code>、<code>nueffdust(ngrid,nlayer)</code> 和 <code>totcloudfrac(ngrid)</code>。</li>
+<li><code>ini_dimradmars_mod_slope_var</code> 只分配坡面相关的 <code>albedo/fluxrad_sky/fluxrad</code>，用于坡面维度后续调整路径。</li>
+<li><code>ini_scatterers(ngrid,nlayer)</code> 先重建 <code>aerosol(ngrid,nlayer,naerkind)</code>；随后按 <code>naerkind</code>、<code>nsun=2</code>、<code>nir=4</code>、<code>nsizemax=60</code> 分配名称、参考波长、气溶胶索引和 VIS/IR 光学查找表。</li>
+<li><code>ini_scatterers</code> 末尾清空 <code>name_iaer(:)</code>，后续必须由 <code>conf_phys</code> 按 <code>doubleq/active/rdstorm/topflows/water/co2clouds/submicron</code> 等开关填入可被 <code>suaer</code>、<code>aeropacity</code> 和 <code>updatereffrad</code> 匹配的名称。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>ini_dimradmars_mod(ngrid, nlayer, nslope):
+    nflev = nlayer
+    ndomainsz = (ngrid - 1) / 20 + 1
+    ndlon = ndomainsz
+    ndlo2 = ndlon
+    allocate albedo, dtrad, fluxrad_sky, fluxrad, nueffdust, totcloudfrac
+
+ini_scatterers(ngrid, nlayer):
+    if aerosol allocated:
+        deallocate aerosol
+    allocate aerosol(ngrid, nlayer, naerkind)
+
+    allocate name_iaer, longref*, iaerdust, file_id if needed
+    allocate VIS tables as (nsun, naerkind, nsizemax)
+    allocate IR tables as (nir, naerkind, nsizemax)
+    allocate nsize/radiustab/QREF*/omegaREF* if needed
+    name_iaer(:) = &quot;&quot;</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../themes/radiation.html">辐射</a></td>
+<td>提供短波/长波谱带维度、辐射通量/加热率数组、气溶胶光学厚度和光学查找表。</td>
+</tr>
+<tr>
+<td><a href="../../themes/dust-cycle.html">尘埃循环</a></td>
+<td>保存尘埃 scatterer 名称、<code>iaerdust</code> 索引、<code>tauvis</code>、<code>aerosol</code> 和尘埃有效方差。</td>
+</tr>
+<tr>
+<td><a href="../../themes/water-cycle.html">水循环</a></td>
+<td><code>h2o_ice</code> scatterer 的名称和光学表通过本模块进入辐射。</td>
+</tr>
+<tr>
+<td><a href="../../themes/co2-cycle.html">CO2 循环</a></td>
+<td><code>co2_ice</code> scatterer 的名称和光学表通过本模块进入辐射。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li>本模块是纯状态模块，没有 <code>use</code> 依赖和外部调用；复杂性主要来自初始化时序和大量 <code>SAVE</code>/<code>THREADPRIVATE</code> 可分配数组。</li>
+<li><code>nir=4</code> 的长波带在注释中明确不是按波长单调排序：第 1 带为 CO2 15 um 中心带，第 2 带为 CO2 wings，第 3 带为 9 um 区间，第 4 带为 far IR。</li>
+<li><code>QIRsQREF</code> 注释写明红外消光效率比也相对 <code>longrefvis</code>，这解释了 <code>suaer</code> 和 <code>aeroptproperties</code> 中跨 VIS/IR 参考波长的归一化约定。</li>
+<li><code>nsizemax=60</code> 是编译期上限；外部光学属性表的离散粒径数必须落在该上限内。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>初始化顺序必须保持：先由配置路径确定 <code>naerkind</code>，再调用 <code>ini_scatterers</code> 分配第三维和表，随后填入 <code>name_iaer</code>，再让 <code>suaer</code> 读外部光学表。</li>
+<li><code>name_iaer</code> 的字符串必须与下游 <code>SELECT CASE</code> 支持的名称一致，否则 <code>suaer/aeropacity/updatereffrad</code> 不会按预期填表或计算。</li>
+<li>若改变 <code>ngrid</code> 或 <code>nlayer</code>，必须重新分配相应数组；尤其 <code>aerosol</code> 会在 <code>ini_scatterers</code> 中重建。</li>
+<li>若外部光学数据库粒径数超过 <code>nsizemax=60</code>，需要修改本模块参数并重新编译。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>ndomainsz=(ngrid-1)/20+1</code> 是当前源码启用的水平拆分公式；注释中仍保留 <code>ngrid</code> 和 <code>/5</code> 两种历史候选，未在本任务中确认这些候选对应的旧运行场景。</li>
+<li><code>ini_scatterers</code> 对非 <code>aerosol</code> 查找表只在未分配时分配；如果运行中改变 <code>naerkind</code> 后再次调用，除 <code>aerosol</code> 外的表是否需要先释放重建需由初始化流程保证。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="conf_phys.html">conf_phys</a> - 读取 <code>naerkind</code> 并填充 <code>name_iaer</code>。</li>
+<li><a href="phys_state_var_init_mod.html">phys_state_var_init_mod</a> - 物理状态初始化阶段调用本模块分配入口。</li>
+<li><a href="suaer.html">suaer</a> - 读取外部光学属性表并填充本模块查找表。</li>
+<li><a href="aeroptproperties.html">aeroptproperties</a> - 读取本模块查找表并按粒径分布插值得到三维光学参数。</li>
+<li><a href="aeropacity_mod.html">aeropacity_mod</a> - 写入 <code>aerosol</code> 和 <code>iaerdust</code>，生成气溶胶层光学厚度。</li>
+<li><a href="updatereffrad_mod.html">updatereffrad_mod</a> - 读取 <code>name_iaer</code> 并写 <code>nueffdust</code> 等半径相关状态。</li>
+<li><a href="lwb.html">lwb</a>, <a href="lwdiff.html">lwdiff</a>, <a href="lwflux.html">lwflux</a>, <a href="lwi.html">lwi</a>, <a href="lwtt.html">lwtt</a>, <a href="lwu.html">lwu</a> - 长波辐射使用本模块维度常数。</li>
+<li><a href="swr_fouquart.html">swr_fouquart</a>, <a href="swr_toon.html">swr_toon</a> - 短波辐射使用本模块短波带、太阳能量份额和气溶胶维度。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>drag_noro_mod - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar">
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>modules/phymars/drag_noro_mod.md</span>
+    </nav>
+    <article class="content">
+<h1 id="drag_noro_modf90">drag_noro_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\drag_noro_mod.F90</code></pre>
+<h2 id="所属目录--模块">所属目录 / 模块</h2>
+<pre class="text"><code>libf\phymars</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>drag_noro_mod.F90</code> 定义 <code>drag_noro_mod</code> 模块和 <code>drag_noro</code> 子程序，是 <code>calldrag_noro_mod.F90</code> 与 <code>orodrag_mod.F90::ORODRAG</code> 之间的地形重力波包装层。它不读取配置，也不决定哪些全局格点启用方案；上游 <code>calldrag_noro</code> 已按 <code>ndomainsz</code> 切分子域，并用 <code>zstd &gt; oro_gwd_zstdthread</code> 填好 <code>kgwd/kdx/ktest</code>。</p>
+<p>本例程的职责是把当前子域的温度、风和压力垂直顺序翻转为 <code>ORODRAG</code> 需要的排列，按静力关系构造 <code>zgeom</code>，调用 <code>ORODRAG</code> 计算地形重力波 tendency，再把 tendency 翻回原始层序并乘以 <code>ptimestep</code> 形成每个物理步长的增量。文件名中的 <code>noro</code> 不应理解为非地形重力波；源码注释写明它是 sub-grid scale orographic scheme，下游调用的是 <code>ORODRAG</code>。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>drag_noro_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>封装地形重力波拖曳的垂直重排和 <code>ORODRAG</code> 调用层</td>
+</tr>
+<tr>
+<td><code>drag_noro</code></td>
+<td>subroutine</td>
+<td>7</td>
+<td>对一个 <code>ndomainsz</code> 子域执行地形重力波拖曳，返回温度/风增量、低层风和低层 stress</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimradmars_mod</code></td>
+<td><code>ndomainsz</code></td>
+<td>固定本例程局部数组第一维；<code>ngrid</code> 是当前子域实际点数，数组仍按 <code>ndomainsz</code> 声明。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>orodrag_mod</code></td>
+<td><code>orodrag</code></td>
+<td>下游地形重力波参数化核心，返回 <code>pdudt/pdvdt/pdtdt</code> tendency。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comcstfi_h</code></td>
+<td><code>g</code>, <code>r</code></td>
+<td><code>r</code> 用于静力积分构造 <code>zgeom</code>，<code>g</code> 用于把风 tendency 垂直积分为 stress。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块 / 文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ORODRAG</code></td>
+<td><code>orodrag_mod.F90</code></td>
+<td>行 129-132</td>
+<td>接收翻转后的压力、温度、风、地形统计量和筛选索引，计算地形重力波对风和温度的 tendency。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngrid</code></td>
+<td><code>calldrag_noro</code> 当前子域</td>
+<td>integer scalar</td>
+<td>grid points</td>
+<td>当前子域实际列数，最大为 <code>ndomainsz</code>。</td>
+</tr>
+<tr>
+<td><code>nlayer</code></td>
+<td><code>physiq</code> / <code>calldrag_noro</code></td>
+<td>integer scalar</td>
+<td>-</td>
+<td>大气垂直层数。</td>
+</tr>
+<tr>
+<td><code>ptimestep</code></td>
+<td><code>physiq</code></td>
+<td>real scalar</td>
+<td>s</td>
+<td>物理时间步长；本例程用它把 tendency 转为本步增量。</td>
+</tr>
+<tr>
+<td><code>pplay</code></td>
+<td><code>calldrag_noro</code> 子域拷贝</td>
+<td>real <code>(ndomainsz,nlayer)</code></td>
+<td>Pa</td>
+<td>全层压力。</td>
+</tr>
+<tr>
+<td><code>pplev</code></td>
+<td><code>calldrag_noro</code> 子域拷贝</td>
+<td>real <code>(ndomainsz,nlayer+1)</code></td>
+<td>Pa</td>
+<td>半层压力。</td>
+</tr>
+<tr>
+<td><code>pvar</code></td>
+<td><code>surfdat_h:zstd</code> 子域切片</td>
+<td>real <code>(ndomainsz)</code></td>
+<td>m</td>
+<td>次网格地形标准差；传给 <code>ORODRAG</code>。</td>
+</tr>
+<tr>
+<td><code>psig</code></td>
+<td><code>surfdat_h:zsig</code> 子域切片</td>
+<td>real <code>(ndomainsz)</code></td>
+<td>-</td>
+<td>次网格坡度统计量；传给 <code>ORODRAG</code>。</td>
+</tr>
+<tr>
+<td><code>pgam</code></td>
+<td><code>surfdat_h:zgam</code> 子域切片</td>
+<td>real <code>(ndomainsz)</code>, intent(inout)</td>
+<td>-</td>
+<td>地形各向异性参数；本文件不直接赋值，但按 <code>inout</code> 传入 <code>ORODRAG</code> 链。</td>
+</tr>
+<tr>
+<td><code>pthe</code></td>
+<td><code>surfdat_h:zthe</code> 子域切片</td>
+<td>real <code>(ndomainsz)</code></td>
+<td>rad 或角度制待源数据确认</td>
+<td>地形主轴角；本文件仅透传。</td>
+</tr>
+<tr>
+<td><code>kgwd</code>, <code>kgwdim</code>, <code>kdx</code>, <code>ktest</code></td>
+<td><code>calldrag_noro</code> 筛选结果</td>
+<td>integer scalar / arrays</td>
+<td>-</td>
+<td>标记当前子域中哪些格点进入地形 GW 计算。</td>
+</tr>
+<tr>
+<td><code>t</code>, <code>u</code>, <code>v</code></td>
+<td><code>calldrag_noro</code> 子域拷贝</td>
+<td>real <code>(ndomainsz,nlayer)</code></td>
+<td>K, m/s, m/s</td>
+<td>温度、纬向风、经向风，按原始物理层序传入。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pulow</code>, <code>pvlow</code></td>
+<td><code>calldrag_noro</code> 局部数组</td>
+<td>real <code>(ndomainsz)</code></td>
+<td>m/s</td>
+<td><code>ORODRAG</code> 返回的低层纬向/经向风。</td>
+</tr>
+<tr>
+<td><code>pustr</code>, <code>pvstr</code></td>
+<td><code>calldrag_noro</code> 局部数组</td>
+<td>real <code>(ndomainsz)</code></td>
+<td>源码按 <code>g * tendency * pressure thickness</code> 累加</td>
+<td>本例程对每层风 tendency 垂直积分得到的低层 stress 摘要。</td>
+</tr>
+<tr>
+<td><code>d_t</code></td>
+<td><code>calldrag_noro</code>，随后除以 <code>ptimestep</code> 写回 <code>pdtgw</code></td>
+<td>real <code>(ndomainsz,nlayer)</code></td>
+<td>K</td>
+<td>地形 GW 对温度的每步增量。</td>
+</tr>
+<tr>
+<td><code>d_u</code></td>
+<td><code>calldrag_noro</code>，随后除以 <code>ptimestep</code> 写回 <code>pdugw</code></td>
+<td>real <code>(ndomainsz,nlayer)</code></td>
+<td>m/s</td>
+<td>地形 GW 对纬向风的每步增量。</td>
+</tr>
+<tr>
+<td><code>d_v</code></td>
+<td><code>calldrag_noro</code>，随后除以 <code>ptimestep</code> 写回 <code>pdvgw</code></td>
+<td>real <code>(ndomainsz,nlayer)</code></td>
+<td>m/s</td>
+<td>地形 GW 对经向风的每步增量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<ul>
+<li>本文件没有 <code>save</code> 变量、<code>THREADPRIVATE</code> 声明、文件 I/O、日志输出或配置读取。</li>
+<li><code>pgam</code> 在接口上是 <code>intent(inout)</code>，本文件没有直接写它，但会把它传给 <code>ORODRAG</code> 及其下游链路。</li>
+<li><code>pulow/pvlow/pustr/pvstr/d_t/d_u/d_v</code> 和局部 tendency 数组在进入主计算前清零；若 <code>kgwd=0</code> 或 <code>ktest</code> 全部关闭，下游返回值仍从零态开始。</li>
+<li><code>pustr/pvstr</code> 在 <code>ORODRAG</code> 返回后由本文件逐层累加，使用翻转后的半层压力厚度 <code>inv_pplev(i,k+1)-inv_pplev(i,k)</code>。</li>
+</ul>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>对当前子域 <code>i=1..ngrid</code> 初始化低层风、stress、增量数组和 <code>ORODRAG</code> tendency 工作数组为 0。</li>
+<li>将温度、风、全层压力和半层压力按垂直方向翻转：
+<ul>
+<li><code>inv_pt(i,k)=t(i,nlayer-k+1)</code></li>
+<li><code>inv_pu/inv_pv/inv_pplay</code> 同理；</li>
+<li><code>inv_pplev(i,k)=pplev(i,nlayer+1-k+1)</code>，最后令 <code>inv_pplev(i,nlayer+1)=pplev(i,1)</code>。</li>
+</ul></li>
+<li>用 <code>r*T*log(p ratio)</code> 构造 <code>zgeom</code>。源码注释称其为 <code>g*dz</code> 和 geopotential height；由于公式未除以 <code>g</code>，这里更接近位势差量而不是几何高度米。</li>
+<li>调用 <code>ORODRAG(ngrid,nlayer,kgwd,kgwdim,kdx,ktest,ptimestep,inv_pplev,inv_pplay,zgeom,inv_pt,inv_pu,inv_pv,pvar,psig,pgam,pthe,...)</code>。</li>
+<li>将 <code>pdudt/pdvdt/pdtdt</code> 翻回原始层序，并乘以 <code>ptimestep</code> 得到 <code>d_u/d_v/d_t</code>；同时把风 tendency 乘以 <code>g</code> 和半层压力厚度累加到 <code>pustr/pvstr</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>drag_noro(current_subdomain):
+    zero pulow, pvlow, pustr, pvstr
+    zero d_t, d_u, d_v and pdudt, pdvdt, pdtdt
+
+    for k in 1..nlayer:
+        source_k = nlayer - k + 1
+        inv_pt(:,k) = t(:,source_k)
+        inv_pu(:,k) = u(:,source_k)
+        inv_pv(:,k) = v(:,source_k)
+        inv_pplay(:,k) = pplay(:,source_k)
+        inv_pplev(:,k) = pplev(:,nlayer + 2 - k)
+    inv_pplev(:,nlayer+1) = pplev(:,1)
+
+    zgeom(:,nlayer) = r * inv_pt(:,nlayer) * log(inv_pplev(:,nlayer+1) / inv_pplay(:,nlayer))
+    for k from nlayer-1 down to 1:
+        zgeom(:,k) = zgeom(:,k+1)
+                   + r * average(inv_pt(:,k), inv_pt(:,k+1))
+                     * log(inv_pplay(:,k+1) / inv_pplay(:,k))
+
+    ORODRAG(... inverted fields, topography statistics, kgwd/kdx/ktest ...)
+
+    for k in 1..nlayer:
+        original_k = nlayer + 1 - k
+        d_u(:,original_k) = ptimestep * pdudt(:,k)
+        d_v(:,original_k) = ptimestep * pdvdt(:,k)
+        d_t(:,original_k) = ptimestep * pdtdt(:,k)
+        pustr(:) += g * pdudt(:,k) * (inv_pplev(:,k+1)-inv_pplev(:,k))
+        pvstr(:) += g * pdvdt(:,k) * (inv_pplev(:,k+1)-inv_pplev(:,k))</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>主物理时间步 <code>physiq</code></td>
+<td><code>physiq_mod.F</code> 在 <code>calllott</code> 为真时调用 <code>calldrag_noro</code>，后者再调用本例程；本例程返回的增量最终被除以 <code>ptimestep</code> 后累加到 <code>pdu/pdv/pdt</code>。</td>
+</tr>
+<tr>
+<td>地形重力波 / 次网格地形拖曳</td>
+<td>本例程是 <code>ORODRAG</code> 的输入适配层，负责层序、位势量和单位转换。</td>
+</tr>
+<tr>
+<td>子域并行/分块</td>
+<td>数组形状来自 <code>ndomainsz</code>，但只循环 <code>ngrid</code> 个当前子域有效点。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<ul>
+<li><code>.F90</code> 自由格式模块，局部自动数组统一按 <code>ndomainsz</code> 和 <code>nlayer</code> 声明。</li>
+<li>垂直层序翻转是硬性接口约定；<code>ORODRAG</code> 的输入数组、返回 tendency 和 stress 积分都使用翻转后的层序。</li>
+<li>源码将 <code>t</code> 注释为 <code>m/s</code> 是注释错误；接口语义和下游公式显示它是全层温度，单位 K。</li>
+<li><code>ptimestep</code> 在本文件中参与 tendency 到 increment 的转换；上游 <code>calldrag_noro</code> 随后再除回 tendency。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现 <code>drag_noro</code> 时必须保留垂直翻转和翻回映射；直接把原始层序送入 <code>ORODRAG</code> 会改变地形 GW 廓线计算。</li>
+<li><code>zgeom</code> 的公式是 <code>r*T*log(p ratio)</code> 累加；不要在未检查 <code>ORODRAG</code> 期望单位前把它改写成几何高度米。</li>
+<li><code>d_t/d_u/d_v</code> 是每步增量，不是 tendency；调用方 <code>calldrag_noro</code> 会除以 <code>ptimestep</code>。</li>
+<li><code>pvar/psig/pgam/pthe</code> 必须由上游按子域起点预切片，并与 <code>kdx/ktest</code> 的局部编号对齐。</li>
+<li><code>ngrid</code> 是当前子域有效点数，不一定等于 <code>ndomainsz</code>；最后一个子域尤其需要按 <code>ngrid</code> 限制循环。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>pthe</code> 的角度单位需从地形预处理或 <code>surfdat_h</code> 填充路径继续确认；本文件只透传。</li>
+<li><code>zgeom</code> 在注释中称为 geopotential height，但公式没有除以 <code>g</code>；本页按源码公式记录为位势相关量，未推断下游物理单位。</li>
+<li><code>pgam</code> 被声明为 <code>intent(inout)</code>，但是否会被 <code>ORODRAG</code>/<code>OROSETUP</code> 修改需在 <code>orodrag_mod.F90</code> 和 <code>orosetup.F90</code> 专页中继续核验。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="calldrag_noro_mod.html">calldrag_noro_mod</a>：上游调度层，读取 <code>oro_gwd_zstdthread</code> 并分子域调用本例程。</li>
+<li><a href="index.html">phymars/index</a>：phymars 目录总览。</li>
+<li><a href="orodrag_mod.html">orodrag_mod</a>：地形 GW 参数化核心，调用 <code>OROSETUP/GWSTRESS/GWPROFIL</code> 并返回风温 tendency。</li>
+<li><a href="gwstress_mod.html">gwstress_mod</a>：<code>ORODRAG</code> 内底层应力初始化步骤。</li>
+<li><a href="gwprofil_mod.html">gwprofil_mod</a>：<code>ORODRAG</code> 内 stress 廓线重算步骤。</li>
+<li><a href="sugwd.html">sugwd</a>：地形 GW 调参常量初始化。</li>
+<li><a href="yoegwd_h.html">yoegwd_h</a>：地形 GW 共享状态定义。</li>
+</ul>
+
+    </article>
+  </main>
+</body>
+</html>
