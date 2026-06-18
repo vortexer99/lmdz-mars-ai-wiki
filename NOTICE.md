@@ -10,6 +10,18 @@ It does not contain the LMDZ.MARS source code. It may mention source file paths,
 
 Upstream LMDZ.MARS is distributed under the CeCILL Free Software License Agreement version 2. Copies of the upstream English and French license texts are included in `UPSTREAM-LICENSES/`.
 
+Official Mars PCM overview: [Overview of the Mars PCM](https://lmdz-forge.lmd.jussieu.fr/mediawiki/Planets/index.php/Overview_of_the_Mars_PCM)
+
+Official Subversion checkout instructions:
+
+```bash
+svn checkout https://svn.lmd.jussieu.fr/Planeto/trunk --depth empty
+cd trunk
+svn update LMDZ.COMMON LMDZ.MARS
+```
+
+The local `LMDZ.MARS` source snapshot documented by this wiki does not include `.git` or `.svn` metadata, so this repository cannot state an exact upstream revision from the local copy. The bundled local `changelog.txt` extends through 2026-06-05.
+
 This repository includes generated Pagefind static search assets. Pagefind is distributed under the MIT License; a copy is included in `UPSTREAM-LICENSES/Pagefind-LICENSE.txt`.
 
 All upstream copyrights, trademarks, project names, and author credits remain with their respective holders.

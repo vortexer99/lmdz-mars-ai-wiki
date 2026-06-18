@@ -20,6 +20,18 @@ Open `index.html` locally, or publish this repository with GitHub Pages from the
 
 LMDZ.MARS is the Mars Planetary Climate Model physics package. The upstream source tree used as the documentation target includes `Licence_CeCILL_V2-en.txt` and `Licence_CeCILL_V2-fr.txt`; copies are included under `UPSTREAM-LICENSES/`.
 
+Official Mars PCM overview: [Overview of the Mars PCM](https://lmdz-forge.lmd.jussieu.fr/mediawiki/Planets/index.php/Overview_of_the_Mars_PCM)
+
+Official Subversion checkout instructions:
+
+```bash
+svn checkout https://svn.lmd.jussieu.fr/Planeto/trunk --depth empty
+cd trunk
+svn update LMDZ.COMMON LMDZ.MARS
+```
+
+The local `LMDZ.MARS` source snapshot documented by this wiki does not include `.git` or `.svn` metadata, so this repository cannot state an exact upstream revision from the local copy. The bundled local `changelog.txt` extends through 2026-06-05.
+
 This repository is not an official LMDZ.MARS distribution and is not affiliated with or endorsed by the LMDZ.MARS maintainers.
 
 ## License Notes
