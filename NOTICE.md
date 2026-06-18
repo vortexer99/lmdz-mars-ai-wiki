@@ -6,6 +6,8 @@ It does not contain the LMDZ.MARS source code. It may mention source file paths,
 
 Upstream LMDZ.MARS is distributed under the CeCILL Free Software License Agreement version 2. Copies of the upstream English and French license texts are included in `UPSTREAM-LICENSES/`.
 
+This repository includes generated Pagefind static search assets. Pagefind is distributed under the MIT License; a copy is included in `UPSTREAM-LICENSES/Pagefind-LICENSE.txt`.
+
 All upstream copyrights, trademarks, project names, and author credits remain with their respective holders.
 
 This is an unofficial documentation artifact. For authoritative code, licensing, scientific interpretation, and model usage, refer to the upstream LMDZ.MARS project and its maintainers.

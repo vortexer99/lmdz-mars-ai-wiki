@@ -9,7 +9,7 @@ Open `index.html` locally, or publish this repository with GitHub Pages from the
 ## Scope
 
 - Static HTML pages generated from local wiki notes.
-- CSS assets required by the generated HTML.
+- CSS and Pagefind static search assets required by the generated HTML.
 - Minimal repository metadata and upstream license notices.
 
 ## Upstream Project
@@ -23,3 +23,5 @@ This repository is not an official LMDZ.MARS distribution and is not affiliated 
 The generated wiki prose and site structure in this repository are released under CC BY 4.0 by the documentation author, unless a page states otherwise.
 
 LMDZ.MARS source code, names, facts, APIs, configuration identifiers, and any short source-derived references remain subject to the upstream LMDZ.MARS license and rights of the upstream authors. See `NOTICE.md` and `UPSTREAM-LICENSES/`.
+
+Static site search is provided by Pagefind 1.5.2 under the MIT License. Its license text is included under `UPSTREAM-LICENSES/`.
