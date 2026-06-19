@@ -36,8 +36,11 @@ This repository is not an official LMDZ.MARS distribution and is not affiliated 
 
 ## License Notes
 
-The generated wiki prose and site structure in this repository are released under CC BY 4.0 by the documentation author, unless a page states otherwise.
+本仓库中的生成性 wiki 说明文字、导航结构和 HTML 文档内容，除非页面另有说明，由文档作者按 CC BY 4.0 发布。  
+Unless otherwise noted, the generated wiki prose, navigation structure, and HTML documentation content in this repository are released by the documentation author under CC BY 4.0.
 
-LMDZ.MARS source code, names, facts, APIs, configuration identifiers, and any short source-derived references remain subject to the upstream LMDZ.MARS license and rights of the upstream authors. See `NOTICE.md` and `UPSTREAM-LICENSES/`.
+本许可不重新授权上游 LMDZ.MARS 源代码、名称、事实、API、配置标识符、短源码派生引用、上游文档、数据集、项目名称、商标或第三方材料；这些内容仍受上游 LMDZ.MARS 许可和上游作者权利约束。详见 `NOTICE.md` 和 `UPSTREAM-LICENSES/`。  
+This license does not relicense upstream LMDZ.MARS source code, names, facts, APIs, configuration identifiers, short source-derived references, upstream documentation, datasets, project names, trademarks, or third-party materials. Those materials remain subject to the upstream LMDZ.MARS license and rights of the upstream authors. See `NOTICE.md` and `UPSTREAM-LICENSES/`.
 
+站点搜索使用 Pagefind 1.5.2，按 MIT License 发布；许可文本保存在 `UPSTREAM-LICENSES/`。  
 Static site search is provided by Pagefind 1.5.2 under the MIT License. Its license text is included under `UPSTREAM-LICENSES/`.

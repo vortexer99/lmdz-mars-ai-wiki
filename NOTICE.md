@@ -8,7 +8,14 @@ This repository publishes generated HTML documentation derived from source revie
 
 It does not contain the LMDZ.MARS source code. It may mention source file paths, routine names, configuration keys, formulas, and short source-derived facts for documentation and navigation.
 
+生成性 wiki 说明文字、导航结构和 HTML 文档内容，除非页面另有说明，由文档作者按 CC BY 4.0 发布。  
+Unless otherwise noted, the generated wiki prose, navigation structure, and HTML documentation content are released by the documentation author under CC BY 4.0.
+
+上游 LMDZ.MARS 按 CeCILL Free Software License Agreement version 2 发布；本仓库在 `UPSTREAM-LICENSES/` 中保留了上游英文和法文许可文本副本。  
 Upstream LMDZ.MARS is distributed under the CeCILL Free Software License Agreement version 2. Copies of the upstream English and French license texts are included in `UPSTREAM-LICENSES/`.
+
+本仓库不重新授权上游 LMDZ.MARS 源代码、上游文档、数据集、项目名称、商标或第三方材料；所有上游版权、商标、项目名称和作者署名仍归各自权利人所有。  
+This repository does not relicense upstream LMDZ.MARS source code, upstream documentation, datasets, project names, trademarks, or third-party materials. All upstream copyrights, trademarks, project names, and author credits remain with their respective holders.
 
 Official Mars PCM overview: [Overview of the Mars PCM](https://lmdz-forge.lmd.jussieu.fr/mediawiki/Planets/index.php/Overview_of_the_Mars_PCM)
 
@@ -22,8 +29,7 @@ svn update LMDZ.COMMON LMDZ.MARS
 
 The local `LMDZ.MARS` source snapshot documented by this wiki does not include `.git` or `.svn` metadata. It was compared against the official SVN history: local `changelog.txt` and `deftank/xios/file_def_physics.xml` match r4249/r4258 and do not match r4259. The official log shows no other `LMDZ.MARS` subtree changes from r4249 through r4258, so the documented source content can be labeled `r4258-equivalent` (same content throughout r4249-r4258). It does not include the r4259 change from 2026-06-11 for XIOS/PEM output variable names.
 
+本仓库包含生成的 Pagefind 静态搜索资产。Pagefind 按 MIT License 发布；许可副本位于 `UPSTREAM-LICENSES/Pagefind-LICENSE.txt`。  
 This repository includes generated Pagefind static search assets. Pagefind is distributed under the MIT License; a copy is included in `UPSTREAM-LICENSES/Pagefind-LICENSE.txt`.
-
-All upstream copyrights, trademarks, project names, and author credits remain with their respective holders.
 
 This is an unofficial documentation artifact. For authoritative code, licensing, scientific interpretation, and model usage, refer to the upstream LMDZ.MARS project and its maintainers.
