@@ -1,0 +1,129 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>advtrac-serial-parallel - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/advtrac-serial-parallel.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="advtrac-串并行对照">advtrac 串并行对照</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d\advtrac.F90
+dyn3dpar\advtrac_p.F90</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。tracer advection 开启时由 leapfrog 调度；并行构建使用 <code>_p</code> 版本。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>advtrac</code> 是 tracer 输送调度层，不是单一数值格式。它根据 tracer 配置选择 Van Leer、PPM、Prather、<code>advn</code>、<code>pentes_ini</code> 等路径，并在必要时做质量平均、时间步适配和 isotope 检查。<a href="../modules/dyn3d/advtrac.html">dyn3d/advtrac</a> 是串行文件页；<a href="caladvtrac-tracer-loop.html">caladvtrac 到 tracer advection 循环</a> 进一步展开 <code>iapp_tracvl</code> 累计门控、<code>nqperes/iadv</code> 顶层循环、串行 <code>caladvtrac</code> wrapper 和并行 <code>advtrac_p</code> 直调边界。</p>
+<h2 id="对照表">对照表</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>串行 <code>advtrac.F90</code></th>
+<th>并行 <code>advtrac_p.F90</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>行数</td>
+<td>407</td>
+<td>531</td>
+</tr>
+<tr>
+<td>主例程</td>
+<td><code>advtrac</code></td>
+<td><code>advtrac_p</code></td>
+</tr>
+<tr>
+<td>质量处理</td>
+<td><code>massbar</code></td>
+<td>并行质量/halo 兼容处理</td>
+</tr>
+<tr>
+<td>Van Leer</td>
+<td><code>vlsplt</code>、饱和分支</td>
+<td><code>vlspltgen_p</code>、<code>vlsplt_p</code></td>
+</tr>
+<tr>
+<td>其他格式</td>
+<td><code>advn</code>, <code>pentes_ini</code>, <code>prather</code>, <code>ppm3d</code></td>
+<td>同类格式加并行交换和计时</td>
+</tr>
+<tr>
+<td>isotope</td>
+<td><code>check_isotopes_seq</code></td>
+<td>并行检查和同步点更多</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调度顺序">调度顺序</h2>
+<ol type="1">
+<li>根据当前质量和通量准备 advection 所需的 staggered mass。</li>
+<li>按 tracer 的 <code>iadv</code> 或 scheme 标识进入不同输送格式。</li>
+<li>Van Leer 路径调用 split transport；饱和分支调用 <code>vlspltqs</code> 或并行通用 <code>vlspltgen_p</code> 的饱和内核。</li>
+<li>PPM/Prather/advn 路径调用 common 大内核或 moments 内核。</li>
+<li>对 isotope 或父子 tracer 做一致性检查。</li>
+<li>必要时调用 <code>adaptdt</code> 调整输送步长。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现 tracer 结果必须先确定 tracer 配置中的 scheme；只读 <code>advtrac</code> 不能知道每个 tracer 的最终路径。</li>
+<li>并行版的 halo/swap 点是数值等价的关键，不能仅比较内核名。</li>
+<li><a href="ppm3d-entry-contract.html">ppm3d 入口契约</a> 说明 PPM 串行可达性和并行不可达状态。</li>
+<li><a href="advn-dispatcher-order.html">advn 调度顺序</a> 说明 advn 的 x-y-z-y-x split 和 iadv=12/13 调用关系。</li>
+<li><a href="../modules/dyn3dpar/vlspltgen_p.html">vlspltgen_p</a>、<a href="../modules/dyn3d_common/prather.html">prather</a>、<a href="../modules/dyn3d_common/pentes_ini.html">pentes_ini</a> 是本页的关键子页。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="vlsplt-serial-family-tracers.html">vlsplt 串行父子 tracer</a></li>
+<li><a href="vlsplt-serial-split-kernels.html">vlsplt 串行 split 内核</a></li>
+<li><a href="../modules/dyn3d/advtrac.html">dyn3d/advtrac</a></li>
+<li><a href="caladvtrac-tracer-loop.html">caladvtrac 到 tracer advection 循环</a></li>
+<li><a href="ppm3d-entry-contract.html">ppm3d 入口契约</a></li>
+<li><a href="advn-dispatcher-order.html">advn 调度顺序</a></li>
+<li><a href="vlsplt-serial-parallel-delta.html">vlsplt 串并行 Van Leer 差异对照</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>iadv</code> 数字到 scheme 名称的完整表需要 <code>infotrac.F90</code> hard task 补齐。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

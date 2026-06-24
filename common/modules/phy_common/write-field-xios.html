@@ -1,0 +1,127 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>write-field-xios - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/phy_common/write-field-xios.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="xioswrite_field-输出封装组页">XIOS/write_field 输出封装组页</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\xios_writefield.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\write_field_phy.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\write_field.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\wxios.F90</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。Mars 物理诊断默认路径常见于 <code>phymars</code> 自有 <code>writediag*</code>，但 COMMON 物理侧支持 XIOS 和 fallback <code>write_field</code>；启用相应编译/运行输出路径时经过。</p>
+<h2 id="文件清单">文件清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>主要符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xios_writefield.F90</code></td>
+<td>294</td>
+<td><code>xios_writefield2d</code>, <code>xios_writefield3d</code></td>
+<td>物理列 2D/3D 场临时创建 XIOS context/file/field 并发送；单文件细节见 <a href="xios_writefield.html">xios_writefield</a>。</td>
+</tr>
+<tr>
+<td><code>write_field_phy.F90</code></td>
+<td>37</td>
+<td><code>write_field_phy</code></td>
+<td>gather 物理列到全局，再 <code>Grid1Dto2D_glo</code> 并调用 <code>misc:WriteField</code>。</td>
+</tr>
+<tr>
+<td><code>misc/write_field.F90</code></td>
+<td>326</td>
+<td><code>WriteField</code>, <code>write_field1D/2D/3D</code></td>
+<td>老式 NetCDF 字段快速写出，维护字段名到 file index 的表。</td>
+</tr>
+<tr>
+<td><code>misc/wxios.F90</code></td>
+<td>664</td>
+<td><code>wxios_init</code>, <code>wxios_domain_param</code>, <code>wxios_set_cal</code> 等</td>
+<td>XIOS context、calendar、domain、axis、field 等包装；单文件细节见 <a href="../misc/wxios.html">wxios</a>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="xios_writefield-流程"><code>xios_writefield</code> 流程</h2>
+<ol type="1">
+<li>generic <code>xios_writefield</code> 根据 rank 调用 2D 或 3D 版本。</li>
+<li>检查字段是否已登记在 <code>FieldName/FieldIt</code> 表中；首次字段会创建 <code>context_lmdz_&lt;name&gt;</code>。</li>
+<li>root 读取 <code>xios_writefield_nlon/nlat</code>，广播到物理并行域。</li>
+<li>初始化 XIOS context、D360 calendar、start/time origin 和 timestep。</li>
+<li>根据 <code>grid_type</code> 选择 regular lon-lat domain 或 unstructured domaingroup。</li>
+<li>对 3D 字段额外创建 vertical axis。</li>
+<li>每次写出前 <code>Gather_omp</code>，regular grid 还调用 <code>grid1Dto2D_mpi</code>，最后 <code>xios_send_field</code>。</li>
+</ol>
+<h2 id="write_field_phy-和-miscwrite_field"><code>write_field_phy</code> 和 <code>misc/write_field</code></h2>
+<ul>
+<li><code>write_field_phy</code> 是物理列到旧 <code>WriteField</code> 的桥：<code>Gather(Field,New_Field)</code> 后只在 root 把 1D 物理列转成全局 2D 网格。</li>
+<li><code>misc/write_field.F90</code> 管理字段表：若名字不存在则 <code>CreateNewField</code>，然后按 1D/2D/3D 维度写变量。</li>
+<li>文件名和变量名由字段名派生，<code>int2str</code> 支撑多字段编号。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>xios_writefield</code> 的 field/context 是按变量名懒创建；第一次调用和后续调用逻辑不同。</li>
+<li>unstructured grid 且 <code>output_native_grid</code> 为假时，field 的 <code>domain_ref</code> 会切到 <code>regular_domain</code>，让 XIOS 做插值输出。</li>
+<li><code>wxios_domain_param</code> 使用物理并行 gather/bcast 收集经纬度和 mask，再写入 XIOS domain。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>本地 COMMON 6.3 与 LMDZ.MARS 源码未见 <code>xios_writefield</code> 直接调用点；外部 physics 包或用户 patch 是否调用需另行确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phy_common 总览</a></li>
+<li><a href="xios_writefield.html">xios_writefield</a></li>
+<li><a href="../misc/index.html">misc 总览</a></li>
+<li><a href="../misc/wxios.html">wxios</a></li>
+<li><a href="geometry-grid-layers.html">geometry-grid-layers</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

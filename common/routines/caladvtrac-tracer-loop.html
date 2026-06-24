@@ -1,0 +1,333 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>caladvtrac-tracer-loop - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/caladvtrac-tracer-loop.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="caladvtrac-到-tracer-advection-循环">caladvtrac 到 tracer advection 循环</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\caladvtrac.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\advtrac.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\advtrac_p.F90</code></pre>
+<p>页面状态：TASK-0181 完成。</p>
+<p>Mars 运行参与度：<code>条件经过</code>。Mars 3D 动力步在 <code>forward .OR. leapf</code> 时会进入 tracer 输送；串行链路经过 <code>caladvtrac</code>，并行链路直接从 <code>leapfrog_p</code> 调 <code>advtrac_p</code>。实际是否输送单个 tracer 由 <code>infotrac_init</code> 生成的 <code>iadv(:)</code> 和 <code>iapp_tracvl</code> 累计步门控决定。</p>
+<h2 id="入口位置">入口位置</h2>
+<p>串行 <code>leapfrog.F</code> 在 <code>caldyn</code> 之后、<code>addfi/integrd</code> 之前调用 <code>caladvtrac</code>：</p>
+<pre class="text"><code>leapfrog
+  -&gt; caldyn
+  -&gt; if forward OR leapf:
+       caladvtrac(q,pbaru,pbarv,p,masse,dq,teta,flxw,pk)
+  -&gt; addfi
+  -&gt; integrd</code></pre>
+<p>并行 <code>leapfrog_p.F</code> 在相同时间推进位置调用 <code>advtrac_p</code>，没有 <code>caladvtrac_p</code> 包装层：</p>
+<pre class="text"><code>leapfrog_p
+  -&gt; caldyn_p
+  -&gt; if forward OR leapf:
+       advtrac_p(pbaru,pbarv,p,masse,q,iapptrac,teta,flxw,pk)
+  -&gt; integrd_p</code></pre>
+<p>因此串行 <code>caladvtrac</code> 的 <code>dq</code> 计算和 Earth 水汽后处理不能直接套用到并行路径；并行版在 <code>advtrac_p</code> 内部处理 <code>qminimum_p</code>、halo 和守恒重标定。</p>
+<h2 id="数据契约">数据契约</h2>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>维度</th>
+<th>来源</th>
+<th>消费</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q</code></td>
+<td><code>(ip1jmp1,llm,nqtot)</code></td>
+<td>prognostic tracer mixing ratio/state</td>
+<td><code>advtrac/advtrac_p</code> 原地更新。</td>
+</tr>
+<tr>
+<td><code>pbaru</code>, <code>pbarv</code></td>
+<td>U/V staggered mass flux</td>
+<td><code>caldyn/caldyn_p</code></td>
+<td>在 <code>advtrac*</code> 中累计到 <code>pbaruc/pbarvc</code>，第 <code>iapp_tracvl</code> 步用于输送。</td>
+</tr>
+<tr>
+<td><code>p</code></td>
+<td><code>(ip1jmp1,llmp1)</code></td>
+<td><code>pression</code> 生成的层界压力</td>
+<td>Earth <code>dq/qminimum</code>、饱和路径 <code>vlspltqs</code>。</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td><code>(ip1jmp1,llm)</code></td>
+<td><code>caldyn/caldyn_p</code> 质量</td>
+<td>初次累计时复制到 <code>massem</code>，也是守恒重标定的质量权重。</td>
+</tr>
+<tr>
+<td><code>dq</code></td>
+<td><code>(ip1jmp1,llm,nqtot)</code></td>
+<td>串行 <code>caladvtrac</code> 输出</td>
+<td>仅 Earth 水汽物理 tendency 路径使用；Mars 路径不计算。</td>
+</tr>
+<tr>
+<td><code>flxw</code></td>
+<td><code>(ip1jmp1,llm)</code></td>
+<td><code>advtrac*</code> 输出</td>
+<td>诊断/离线 mass flux；等于累计垂直通量 <code>wg/iapp_tracvl</code>。</td>
+</tr>
+<tr>
+<td><code>teta</code>, <code>pk</code></td>
+<td><code>(ip1jmp1,llm)</code></td>
+<td>动力状态</td>
+<td>传给饱和水汽 split 路径。</td>
+</tr>
+</tbody>
+</table>
+<p><code>nqtot</code> 来自 <code>infotrac</code>，是动力数组的总 tracer 维度；若 moments 格式扩展存在，它可能大于真实 tracer 数。当前 6.3 标准初始化会把可运行 <code>iadv</code> 限制到 <code>0/10/14</code>，因此 Mars 标准路径通常不会进入 PPM、Prather 或 <code>advn</code> 保留分支。</p>
+<h2 id="串行流程">串行流程</h2>
+<h3 id="1-进入-caladvtrac">1. 进入 <code>caladvtrac</code></h3>
+<p><code>caladvtrac</code> 先根据 <code>force_conserv_tracer</code> 可选保存每个 tracer 的全局总量：</p>
+<pre class="text"><code>if force_conserv_tracer:
+  for iq = 1..nqtot:
+    totaltracer_old(iq) = planetary_tracer_amount_from_mass(masse,q(:,:,iq))</code></pre>
+<p>这个保存发生在调用 <code>advtrac</code> 之前。Mars 若在 <code>run.def</code> 中开启 <code>force_conserv_tracer</code>，会走这条路径；默认值由 <code>conf_gcm</code> 设为 <code>.false.</code>。</p>
+<h3 id="2-earth-专用-dq-快照">2. Earth 专用 <code>dq</code> 快照</h3>
+<p>只有 <code>planet_type=="earth"</code> 时，<code>caladvtrac</code> 把 <code>q(:,:,1:nqtot)</code> 复制到 <code>dq</code>，后续用于计算物理侧水汽/liquid tendency。Mars 的 <code>planet_type=="mars"</code> 不进入此分支，<code>dq</code> 不在这里被构造成输送 tendency。</p>
+<h3 id="3-调用-advtrac">3. 调用 <code>advtrac</code></h3>
+<p><code>advtrac</code> 内部有持久状态：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>属性</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iadvtr</code></td>
+<td><code>SAVE</code>, 初值 0</td>
+<td>已累计的动力步数；返回给 <code>caladvtrac</code> 的 <code>iapptrac</code>。</td>
+</tr>
+<tr>
+<td><code>pbaruc</code>, <code>pbarvc</code></td>
+<td><code>SAVE</code></td>
+<td>累计水平质量通量。</td>
+</tr>
+<tr>
+<td><code>massem</code></td>
+<td><code>SAVE</code></td>
+<td>本轮 tracer advection 开始时的空气质量。</td>
+</tr>
+</tbody>
+</table>
+<p>每次调用都会把当前步的 <code>pbaru/pbarv</code> 加到 <code>pbaruc/pbarvc</code>。当 <code>iadvtr==0</code> 时复制 <code>masse</code> 到 <code>massem</code>，表示这轮 tracer 输送使用的初始质量。随后 <code>iadvtr=iadvtr+1</code>，并把 <code>iapptrac=iadvtr</code> 传回调用者。</p>
+<h3 id="4-iapp_tracvl-门控">4. <code>iapp_tracvl</code> 门控</h3>
+<p>只有当 <code>iadvtr == iapp_tracvl</code> 时才真正输送 tracer。<code>iapp_tracvl</code> 在 <code>conf_gcm.F90</code> 中默认等于 <code>iperiod</code>，再由 <code>getin("iapp_tracvl")</code> 覆盖。</p>
+<p>未达到门控步时：</p>
+<pre class="text"><code>advtrac:
+  只累计 pbaruc/pbarvc 和 iadvtr
+caladvtrac:
+  if Earth: dq = 0
+  if Mars: 不做 dq 后处理</code></pre>
+<p>达到门控步时：</p>
+<pre class="text"><code>groupe(massem,pbaruc,pbarvc) -&gt; pbarug,pbarvg,wg
+flxw = wg / iapp_tracvl
+检查 DP/P 是否超过 0.5
+计算并按 day_step 输出 CFL[xyz]max
+massbar(massem) -&gt; massebx/masseby
+按 iadv(iq) 循环输送父 tracer
+清零 iadvtr，下一轮重新累计</code></pre>
+<p><code>flxw</code> 是平均到单个动力步的垂直质量通量诊断；下游不要把它再除以 <code>iapp_tracvl</code>。</p>
+<h2 id="nqperesiadv-循环"><code>nqperes/iadv</code> 循环</h2>
+<p>串行 <code>advtrac</code> 只循环 <code>iq=1,nqperes</code>，也就是由 <code>infotrac_init</code> 判定为直接由空气输送的父 tracer。子 tracer 的处理由 Van Leer family 逻辑通过父子比例递归完成，而不是在顶层 <code>advtrac</code> 对全部 <code>nqtot</code> 逐个直接调用内核。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;"><code>iadv(iq)</code></th>
+<th>当前分支</th>
+<th>当前 6.3 标准可达性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;"><code>0</code></td>
+<td><code>cycle</code>，不输送</td>
+<td>可达。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>10</code></td>
+<td><code>vlsplt(q,2.,massem,wg,pbarug,pbarvg,dtvr,iq)</code></td>
+<td>Mars 标准主路径。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>14</code></td>
+<td><code>vlspltqs(q,2.,massem,wg,pbarug,pbarvg,dtvr,p,pk,teta,iq)</code></td>
+<td>仅 <code>iq==1</code> 可通过白名单。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>12</code>, <code>13</code></td>
+<td><code>adaptdt -&gt; advn(...,mode=1/2)</code></td>
+<td>源码保留；<code>infotrac_init</code> 标准白名单阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>20</code></td>
+<td><code>pentes_ini</code></td>
+<td>源码保留；白名单阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>30</code></td>
+<td><code>adaptdt -&gt; prather</code></td>
+<td>源码保留；白名单阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>11</code>, <code>16</code>, <code>17</code>, <code>18</code></td>
+<td><code>adaptdt -&gt; interpre -&gt; ppm3d -&gt; interpost</code></td>
+<td>源码保留；白名单阻断。</td>
+</tr>
+</tbody>
+</table>
+<p><code>infotrac_init</code> 的关键约束是：</p>
+<ul>
+<li><code>iadv</code> 只能是 <code>0</code>、<code>10</code> 或 <code>14</code>，其他值会 <code>abort_gcm</code>。</li>
+<li><code>iadv==14</code> 只允许第一个 tracer。</li>
+<li>子 tracer 必须使用 <code>iadv==10</code>。</li>
+<li>子 tracer 的父 tracer 只能使用 <code>10</code> 或 <code>14</code>。</li>
+</ul>
+<p>这解释了为什么 <code>advtrac.F90</code> 内仍有 PPM/Prather/advn 分支，但当前 Mars 6.3 标准运行不会自然进入这些分支。</p>
+<h2 id="并行流程差异">并行流程差异</h2>
+<p><code>advtrac_p</code> 把串行 <code>caladvtrac</code> 的部分职责内联进并行调度：</p>
+<ol type="1">
+<li>可选保存 <code>totaltracer_old(:)</code>，调用 <code>planetary_tracer_amount_from_mass_p</code>。</li>
+<li>按 <code>ij_begin/ij_end</code>、<code>pole_nord/pole_sud</code> 计算 U/V 局部范围，累计 <code>pbaruc/pbarvc</code>。</li>
+<li><code>iadvtr==0</code> 时复制本地 <code>masse</code> 到 <code>massem</code>。</li>
+<li><code>iadvtr==iapp_tracvl</code> 时调用 <code>groupe_p</code>，随后注册 <code>pbarug/pbarvg/massem/wg/teta_tmp/p_tmp/pk_tmp/q</code> 的 halo。</li>
+<li>切换到 <code>jj_nb_vanleer</code> 分布，调用 <code>vlspltgen_p(q,iadv,...)</code>。</li>
+<li>源码中保留的旧分支在 <code>GOTO 1234</code> 后不可达。</li>
+<li>Earth 条件下调用 <code>qminimum_p(q,2,finmasse)</code>；Mars 不进入。</li>
+<li>若开启 <code>force_conserv_tracer</code>，按并行总量比值重标定本地 <code>q(ij_begin:ij_end,:,:)</code>。</li>
+<li>对 <code>q</code> 和 <code>flxw</code> 注册 <code>jj_nb_caldyn</code> halo，并切回 caldyn 分布。</li>
+<li><code>iadvtr=0</code>，下一轮重新累计。</li>
+</ol>
+<p>并行 <code>leapfrog_p</code> 中还有一个 <code>adjust</code> 计时逻辑：当 <code>iapptrac==iapp_tracvl</code> 且处于 <code>forward/leapf</code>、物理步数超过 2、<code>AdjustCount&gt;30</code> 时触发 timer average。这使用的是 <code>advtrac_p</code> 返回的 <code>iapptrac</code>，不是额外的输送开关。</p>
+<h2 id="mars-边界">Mars 边界</h2>
+<p>Mars 3D 标准路径的主要事实：</p>
+<ul>
+<li><code>conf_gcm</code> 会读取 <code>planet_type</code>、<code>iapp_tracvl</code> 和 <code>force_conserv_tracer</code>；Mars 运行通常设置 <code>planet_type=="mars"</code>。</li>
+<li><code>caladvtrac</code> 中 Earth 专用 <code>dq</code>、<code>qminimum</code> 和水汽 tendency 构造不会在 Mars 分支执行。</li>
+<li>Mars tracer 输送仍会使用 COMMON <code>advtrac/advtrac_p</code> 的质量通量累计、<code>iapp_tracvl</code> 门控、Van Leer split 和可选守恒重标定。</li>
+<li><code>flxw</code> 是 tracer 输送轮次产生的垂直质量通量平均值，可被离线/诊断路径消费。</li>
+<li>若 <code>force_conserv_tracer=.true.</code>，每次实际 tracer advection 后会把每个 tracer 乘以 <code>old_total/new_total</code>；若 <code>new_total</code> 极小或为 0，源码没有在此处显式防护，需由配置和 tracer 物理约束避免。</li>
+</ul>
+<h2 id="复现顺序">复现顺序</h2>
+<ol type="1">
+<li>从 <code>run.def</code> 记录 <code>iperiod</code>、<code>iapp_tracvl</code>、<code>force_conserv_tracer</code>、<code>planet_type</code>、<code>offline</code>。</li>
+<li>从 <code>traceur.def</code> 经 <code>infotrac_init</code> 得到 <code>nqtot</code>、<code>nqperes</code>、<code>iadv(:)</code>、父子 tracer 表。</li>
+<li>在每个动力步保存进入 <code>caladvtrac/advtrac_p</code> 的 <code>pbaru/pbarv/masse/q</code>；不要只保存第 <code>iapp_tracvl</code> 步。</li>
+<li>对第 1 个累计步复制 <code>masse -&gt; massem</code>，对每步累加 <code>pbaruc/pbarvc</code>。</li>
+<li>到第 <code>iapp_tracvl</code> 步，执行 <code>groupe/groupe_p</code> 得到 <code>pbarug/pbarvg/wg</code>，并设置 <code>flxw=wg/iapp_tracvl</code>。</li>
+<li>按 <code>iq=1..nqperes</code> 与 <code>iadv(iq)</code> 进入 Van Leer 或饱和路径；当前 Mars 标准只应看到 <code>0/10/14</code>。</li>
+<li>若并行，必须复现 <code>jj_nb_vanleer</code> halo、band 范围、极点 rank 和返回 <code>jj_nb_caldyn</code> 的 halo。</li>
+<li>若开启 <code>force_conserv_tracer</code>，最后按质量积分总量比值整体重标定 <code>q</code>。</li>
+</ol>
+<h2 id="已核对源码点">已核对源码点</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th style="text-align: right;">行数</th>
+<th>关键点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dyn3d/caladvtrac.F</code></td>
+<td style="text-align: right;">139</td>
+<td>串行 wrapper、Earth <code>dq/qminimum</code>、<code>force_conserv_tracer</code> 前后总量。</td>
+</tr>
+<tr>
+<td><code>dyn3d/advtrac.F90</code></td>
+<td style="text-align: right;">407</td>
+<td><code>iadvtr</code> 累计、<code>iapp_tracvl</code> 门控、<code>nqperes/iadv</code> 循环、CFL 诊断。</td>
+</tr>
+<tr>
+<td><code>dyn3dpar/advtrac_p.F90</code></td>
+<td style="text-align: right;">531</td>
+<td>并行累计、halo、<code>vlspltgen_p</code> 当前可达路径、<code>GOTO 1234</code> 后旧分支不可达。</td>
+</tr>
+<tr>
+<td><code>dyn3d/leapfrog.F</code></td>
+<td style="text-align: right;">-</td>
+<td><code>forward .OR. leapf</code> 时调用 <code>caladvtrac</code>。</td>
+</tr>
+<tr>
+<td><code>dyn3dpar/leapfrog_p.F</code></td>
+<td style="text-align: right;">-</td>
+<td><code>forward .OR. leapf</code> 时直接调用 <code>advtrac_p</code>。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common/infotrac.F90</code></td>
+<td style="text-align: right;">-</td>
+<td><code>iadv</code> 白名单、<code>nqperes</code> 和父子 tracer 约束。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>目标 Mars 生产 <code>traceur.def</code> 中 <code>iadv</code> 的实际分布是否全部为 <code>10</code> 或 <code>0</code>，以及是否存在父子 tracer family。</li>
+<li><code>force_conserv_tracer</code> 在 Mars 生产中是否启用；源码默认关闭，但运行配置可覆盖。</li>
+<li>当某个 tracer 总量接近 0 时，守恒重标定是否需要运行侧保护或物理侧最小值约束。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../themes/transport-advection.html">Transport And Advection</a></li>
+<li><a href="advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
+<li><a href="../modules/dyn3d_common/infotrac.html">infotrac</a></li>
+<li><a href="infotrac-advection-schemes.html">infotrac advection schemes</a></li>
+<li><a href="leapfrog-dynamics-transport.html">leapfrog dynamics transport</a></li>
+<li><a href="dynamics-control-logic-gates.html">dynamics control logic gates</a></li>
+<li><a href="../modules/dyn3d/vlsplt.html">vlsplt</a></li>
+<li><a href="../modules/dyn3dpar/vlsplt_p.html">vlsplt_p</a></li>
+<li><a href="../modules/dyn3dpar/vlspltgen_p.html">vlspltgen_p</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

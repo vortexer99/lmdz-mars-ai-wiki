@@ -1,0 +1,329 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>infotrac - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d_common/infotrac.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="infotracf90">infotrac.F90</h1>
+<p>页面状态：TASK-0051 完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\infotrac.F90</code>。</p>
+<p>Mars 运行参与度：必经 + 接口兼容。Mars 3D 主运行、Mars <code>newstart/start2archive</code> 工具链和 1D/testphys 路径都依赖 <code>infotrac</code> 给出的 tracer 数量、名称、advection 标识和父子关系。3D GCM 入口调用 <code>infotrac_init</code>；1D/testphys 路径通过 MARS <code>dyn1d</code> 转发文件使用同一模块状态，但局部读取并写入 <code>nqtot/tname/nqperes/nqfils</code>。</p>
+<h2 id="文件定位">文件定位</h2>
+<p><code>infotrac</code> 是 COMMON 动力侧 tracer 元数据模块，不做实际输送。它的核心作用是把运行目录中的 <code>traceur.def</code> 解析成全局 <code>SAVE</code> 状态，供动力数组分配、Mars physics 接口、restart/archive 变量名、history 输出和输送调度共同使用。</p>
+<p>6.3 另有 <a href="../misc/readTracFiles_mod.html">readTracFiles_mod</a> 这个新 tracer parser；但源码核对显示 <code>infotrac.F90</code> 本身没有 <code>USE readTracFiles_mod</code>，仍在 <code>infotrac_init</code> 内直接解析 <code>traceur.def</code>。因此本页按 <code>infotrac.F90</code> 现有主链说明，<code>readTracFiles_mod</code> 作为相邻 parser 页面处理。</p>
+<h2 id="公开状态">公开状态</h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>维度/类型</th>
+<th>含义</th>
+<th>主要消费者</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nqtot</code></td>
+<td>integer</td>
+<td>动力数组中的 tracer 总数，包含真实 tracer 和可能的 moments 附加条目</td>
+<td><code>gcm/gcm_p</code> 分配 <code>q</code>，<code>leapfrog*</code>、<code>calfis*</code>、restart/history 循环</td>
+</tr>
+<tr>
+<td><code>nqo</code></td>
+<td>integer</td>
+<td>Earth/INCA 水相数；Mars/planetary 分支置 0</td>
+<td>isotope 初始化边界</td>
+</tr>
+<tr>
+<td><code>nbtr</code></td>
+<td>integer</td>
+<td>physics 侧 tracer/species 数；现代 planetary 格式中可包含非动态 species</td>
+<td><code>nqtrue</code> 过滤和说明输出</td>
+</tr>
+<tr>
+<td><code>tname(:)</code></td>
+<td>character</td>
+<td>restart、archive、physics 形参使用的短名</td>
+<td><code>dynetat0/dynredem</code>、Mars <code>newstart/start2archive/lect_start_archive</code></td>
+</tr>
+<tr>
+<td><code>ttext(:)</code></td>
+<td>character</td>
+<td>history/dynav 输出用长名</td>
+<td><code>inithist/writehist/initdynav/writedynav</code></td>
+</tr>
+<tr>
+<td><code>iadv(:)</code></td>
+<td>integer</td>
+<td>每个动力 tracer 的输送 scheme</td>
+<td><code>advtrac/advtrac_p/vlspltgen_p</code></td>
+</tr>
+<tr>
+<td><code>niadv(:)</code></td>
+<td>integer</td>
+<td>physics/真实 tracer 序号到动力 <code>nqtot</code> 序号的映射</td>
+<td><code>calfis/calfis_p</code></td>
+</tr>
+<tr>
+<td><code>nqfils/nqdesc/iqfils/iqpere</code></td>
+<td>arrays</td>
+<td>父子 tracer 和全部后代表</td>
+<td>Van Leer family transport、Mars 1D family 检查</td>
+</tr>
+<tr>
+<td><code>ok_isotopes/ok_iso_verif/iqiso/index_trac</code></td>
+<td>mixed</td>
+<td>isotope 识别、检查开关和映射表</td>
+<td><code>advtrac</code>、<code>qminimum</code>、isotope 检查例程</td>
+</tr>
+<tr>
+<td><code>type_trac</code></td>
+<td>character(len=4)</td>
+<td>tracer 类型门控；非 Earth 分支被设为 <code>plnt</code></td>
+<td><code>conf_gcm/conf_gcm_p</code> 与初始化日志</td>
+</tr>
+</tbody>
+</table>
+<p><code>qperemin</code> 和 <code>masseqmin</code> 都是 <code>1.e-16</code>，用于父子 tracer 比例输送时避免父 tracer 或质量过小导致除零。</p>
+<h2 id="入口例程">入口例程</h2>
+<table>
+<thead>
+<tr>
+<th>例程</th>
+<th>源码范围</th>
+<th>当前角色</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>infotrac_init</code></td>
+<td>line 74-893</td>
+<td>主入口。读取 <code>traceur.def</code>，计算 <code>nqtot</code>，分配 <code>tname/ttext/iadv/niadv</code>，构造 family 和 isotope 状态。</td>
+</tr>
+<tr>
+<td><code>infotrac_isoinit</code></td>
+<td>line 897-1096</td>
+<td>识别水同位素命名关系，分配 <code>iqiso/index_trac</code>，读取 <code>ok_iso_verif/ok_init_iso</code>。</td>
+</tr>
+<tr>
+<td><code>iniadvtrac</code></td>
+<td>line 1102-1224</td>
+<td>Mars/generic 旧兼容例程，源码注释称和 <code>infotrac_init</code> 做类似工作、待清理合并；现代 3D 主入口不以它为标准初始化路径。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="初始化流程">初始化流程</h2>
+<pre class="text"><code>planet_type/type_trac gate
+  -&gt; open traceur.def
+  -&gt; read nqtrue or ModernTrac-v1 nbtr + dynamic tracers
+  -&gt; read hadv/vadv/name/carrier
+  -&gt; expand nqtrue to nqtot for schemes 20/30
+  -&gt; fill tname/ttext/iadv/niadv
+  -&gt; enforce current scheme whitelist
+  -&gt; build parent/son tables
+  -&gt; detect isotope tables and getin flags</code></pre>
+<h3 id="traceurdef-分支"><code>traceur.def</code> 分支</h3>
+<table>
+<thead>
+<tr>
+<th>分支</th>
+<th>缺文件行为</th>
+<th>读取语义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Earth <code>lmdz/repr/coag</code></td>
+<td>警告后默认 <code>nqtrue=4</code></td>
+<td>第一行为 tracer 数，后续读取 <code>hadv/vadv/name[/carrier]</code>。</td>
+</tr>
+<tr>
+<td>Earth <code>inca</code></td>
+<td><code>nqo</code> 默认 2</td>
+<td>INCA 初始化给出 <code>nbtr</code>，<code>nqtrue=nbtr+nqo</code>。</td>
+</tr>
+<tr>
+<td>Mars/planetary old format</td>
+<td>abort</td>
+<td>第一行 <code>nqtrue</code>，后续可接受多种列顺序；缺省 <code>hadv/vadv=10</code>，缺省 carrier 为 <code>air</code>。</td>
+</tr>
+<tr>
+<td>Mars/planetary <code>#ModernTrac-v1</code></td>
+<td>abort</td>
+<td>第一段读 <code>nbtr</code>，随后用 <code>is_dyn=0</code> 过滤非动态 species，再读 <code>hadv=</code>, <code>vadv=</code>, <code>tnom_transp=</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>Mars/planetary 分支不能依赖 Earth 的默认 tracer 列表。复现 Mars 运行时，<code>traceur.def</code> 的存在性、格式和 <code>is_dyn</code> 标记会直接决定 <code>nqtot</code>。</p>
+<h3 id="nqtrue---nqtot"><code>nqtrue -&gt; nqtot</code></h3>
+<p><code>nqtrue</code> 是 <code>traceur.def</code> 给出的动态真实 tracer 数。<code>nqtot</code> 是动力数组真正分配的总数：</p>
+<table>
+<thead>
+<tr>
+<th><code>hadv/vadv</code></th>
+<th style="text-align: right;"><code>nqtot</code> 增量</th>
+<th>后续状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>都小于 20</td>
+<td style="text-align: right;"><code>+1</code></td>
+<td>普通 tracer。</td>
+</tr>
+<tr>
+<td>都等于 20</td>
+<td style="text-align: right;"><code>+4</code></td>
+<td>主 tracer 加 3 个 <code>-20</code> moments 条目。</td>
+</tr>
+<tr>
+<td>都等于 30</td>
+<td style="text-align: right;"><code>+10</code></td>
+<td>主 tracer 加 9 个 <code>-30</code> moments 条目。</td>
+</tr>
+<tr>
+<td>一边 20/30 另一边不匹配</td>
+<td style="text-align: right;">abort</td>
+<td><code>Bad choice of advection schema - 1</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>6.3 随后又执行白名单检查，只允许 <code>iadv=10</code>、<code>iadv=14</code> 和 <code>iadv=0</code>，并要求 <code>iadv=14</code> 只用于第 1 个 tracer。因此 PPM/Prather/moments 分支在代码中保留为 contract 和历史兼容，但 Mars 当前可运行配置若触发它们会在初始化阶段被挡住。</p>
+<h2 id="family-和-isotope">Family 和 isotope</h2>
+<p><code>tnom_transp(iq)</code> 是父子关系的来源：</p>
+<table>
+<thead>
+<tr>
+<th>carrier</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>air</code></td>
+<td>tracer 直接由空气输送，<code>iqpere(iq)=0</code>，<code>nqperes</code> 加一。</td>
+</tr>
+<tr>
+<td>已出现的 tracer 名</td>
+<td>当前 tracer 是该父 tracer 的子 tracer，写入 <code>iqpere/iqfils/nqfils</code>。</td>
+</tr>
+<tr>
+<td>找不到父 tracer</td>
+<td><code>abort_gcm('infotrac_init','Un traceur est orphelin',1)</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>直接子表构造完成后，源码沿父链回溯，累计 <code>nqdesc</code> 和 <code>nqdesc_tot</code>，让 Van Leer family transport 能找到全部后代。随后强制子 tracer 使用 <code>iadv=10</code>，有子 tracer 的父 tracer只能使用 <code>10</code> 或 <code>14</code>。</p>
+<p><code>infotrac_isoinit</code> 只按字符串规则识别水 isotope：<code>eau</code>、<code>HDO</code>、<code>O18</code>、<code>O17</code>、<code>HTO</code>。Mars 若没有符合命名的水同位素 family，相关表会保持空/零状态；若存在，则会检查各 phase 的 isotope 和子 tracer 数量一致，并读取 <code>ok_iso_verif</code>、<code>ok_init_iso</code>。</p>
+<h2 id="mars-消费链">Mars 消费链</h2>
+<table>
+<thead>
+<tr>
+<th>消费方</th>
+<th>使用内容</th>
+<th>复现影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../dyn3d/gcm.html">dyn3d/gcm</a>, <a href="../dyn3dpar/gcm.html">dyn3dpar/gcm</a></td>
+<td>调用 <code>infotrac_init</code> 后按 <code>nqtot</code> 分配 <code>q</code></td>
+<td>tracer 维度先于 start/restart 读取确定。</td>
+</tr>
+<tr>
+<td><code>dynetat0/dynredem</code></td>
+<td><code>nqtot/tname/ttext/type_trac</code></td>
+<td>restart 变量名由当前 <code>tname(:)</code> 决定；缺失 tracer 可被置零。</td>
+</tr>
+<tr>
+<td><code>advtrac/advtrac_p</code></td>
+<td><code>nqtot/iadv/ok_iso_verif</code></td>
+<td>advection scheme 和 isotope 检查门控来自本模块。</td>
+</tr>
+<tr>
+<td><a href="../dynphy_lonlat/calfis.html">calfis</a>, <a href="../dynphy_lonlat/calfis_p.html">calfis_p</a></td>
+<td><code>nqtot/niadv/tname</code></td>
+<td>physics tendency 与动力 tracer 序号的桥接。</td>
+</tr>
+<tr>
+<td>history/dynav</td>
+<td><code>nqtot/ttext</code></td>
+<td>tracer 输出字段长名来自初始化结果。</td>
+</tr>
+<tr>
+<td>Mars <code>newstart/start2archive/lect_start_archive</code></td>
+<td><code>infotrac_init/nqtot/tname</code></td>
+<td>archive/restart 中 tracer 名称必须和当前配置对齐。</td>
+</tr>
+<tr>
+<td>Mars 1D/testphys</td>
+<td><code>nqtot/tname/nqperes/nqfils</code></td>
+<td>通过转发模块复用状态，但不走完整 <code>infotrac_init</code> 主链。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现检查点">复现检查点</h2>
+<ol type="1">
+<li>保留运行时 <code>traceur.def</code>，不要只记录 <code>nqtot</code>。<code>tname</code> 和 family 关系来自文件内容。</li>
+<li>Mars/planetary 缺 <code>traceur.def</code> 会 abort；这和 Earth 默认 <code>nqtrue=4</code> 不同。</li>
+<li><code>nbtr</code>、<code>nqtrue</code> 和 <code>nqtot</code> 不能混用。<code>q</code> 的维度必须用 <code>nqtot</code>。</li>
+<li><code>tname(:)</code> 是 restart/archive 变量名契约。旧 restart 中缺少当前 tracer 名时，可能读入零场。</li>
+<li>当前初始化白名单会阻止很多 <code>advtrac</code> 中仍保留的历史 scheme；排查 PPM/Prather 是否可达时，先看 <code>infotrac_init</code> 是否允许对应 <code>iadv</code>。</li>
+<li>如果使用父子 tracer，父 tracer 必须先于子 tracer 出现在 <code>traceur.def</code>，且子 tracer 只能走 <code>iadv=10</code>。</li>
+<li>isotope 检查不是只靠命名自动启用；<code>ok_iso_verif</code> 还要由 <code>getin</code> 控制。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../routines/infotrac-state-contract.html">infotrac 状态契约</a></li>
+<li><a href="../../routines/infotrac-traceur-def.html">traceur.def 读取逻辑</a></li>
+<li><a href="../../routines/infotrac-advection-schemes.html">infotrac advection scheme</a></li>
+<li><a href="../../routines/infotrac-family-isotopes.html">父子 tracer 与 isotope</a></li>
+<li><a href="../../routines/infotrac-mars-consumers.html">MARS/COMMON 消费方</a></li>
+<li><a href="../../routines/mars-dyn1d-common-forwarding.html">Mars dyn1d COMMON 转发</a></li>
+<li><a href="../../routines/advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
+<li><a href="../../routines/vlsplt-serial-family-tracers.html">vlsplt 串行父子 tracer</a></li>
+<li><a href="../dyn3dpar/vlspltgen_p.html">vlspltgen_p</a></li>
+<li><a href="../misc/readTracFiles_mod.html">readTracFiles_mod</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

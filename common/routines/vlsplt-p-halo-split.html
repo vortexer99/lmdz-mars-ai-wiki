@@ -1,0 +1,324 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vlsplt-p-halo-split - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/vlsplt-p-halo-split.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="vlsplt_p-并行-halo-注册边界带内区计算和-band-依赖">vlsplt_p 并行 halo 注册、边界带/内区计算和 band 依赖</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3dpar\vlsplt_p.F: L1-201（vlsplt_p 主例程）
+dyn3dpar\vlsplt_p.F: L204-588（vlx_p）
+dyn3dpar\vlsplt_p.F: L591-1036（vly_p）
+dyn3dpar\vlsplt_p.F: L1040-1260（vlz_p）
+dyn3dpar\vlsplt_p.F: L1293-1335（minmaxq_p）
+dyn3dpar\mod_hallo.F90（Register_Hallo/SendRequest/WaitRecvRequest/WaitSendRequest）
+dyn3dpar\parallel_lmdz.F90（ij_begin/ij_end/pole_nord/pole_sud）
+dyn3dpar\bands.F90（band 分布和 ij_begin/ij_end 来源）</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。Mars 并行 <code>advtrac_p</code> 中 <code>iadv=10</code> 路径经过 <code>vlsplt_p</code> 或经 <code>vlspltgen_p</code> 间接调用 <code>vlx_p/vly_p/vlz_p</code>。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>vlsplt_p</code> 是 <code>vlsplt</code> 的并行版本。它将本地 band 切分为"边界带"和"内区"，先算边界带、发起 halo 通信、再算内区，用计算-通信重叠掩盖 MPI 延迟。三个方向内核 <code>vlx_p/vly_p/vlz_p</code> 都接收 band 范围参数，并使用 OpenMP <code>DO SCHEDULE(STATIC,OMP_CHUNK)</code> 并行化。</p>
+<h2 id="vlsplt_p-主例程halo-重叠调度">vlsplt_p 主例程：halo 重叠调度</h2>
+<h3 id="本地-band-范围">本地 band 范围</h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">USE</span> parallel_lmdz</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>ijb <span class="kw">=</span> ij_begin</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>ije <span class="kw">=</span> ij_<span class="kw">end</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (pole_nord) ijb <span class="kw">=</span> ijb <span class="kw">+</span> iip1    <span class="co">! 北极进程跳过极点行</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (pole_sud)  ije <span class="kw">=</span> ije <span class="kw">-</span> iip1    <span class="co">! 南极进程跳过极点行</span></span></code></pre></div>
+<p><code>ij_begin/ij_end</code> 来自 <code>parallel_lmdz</code>，由 <code>bands.F90</code> 的 <code>SetDistrib</code> 按负载均衡设定。极点进程缩进一行以避免在极点行做 E-W 输送。</p>
+<h3 id="mw-扩展维度">mw 扩展维度</h3>
+<p>与串行 <code>vlsplt</code> 的 <code>mw(ip1jmp1,llm+1)</code> 不同，并行版的垂直通量数组为 <code>mw(ip1jmp1,llm+1,nqtot)</code>，为每个 tracer 保留独立的垂直通量。</p>
+<h3 id="五步-split-与-halo-重叠">五步 split 与 halo 重叠</h3>
+<p>并行版不是一次性算完整个方向再交换 halo，而是把每个 E-W 和垂直方向调用拆成"边界带 + 内区"两段，中间插入异步 halo 交换：</p>
+<pre><code>! 第一步 vlx_p：先算边界带
+vlx_p(zq, zm, mu, ij_begin, ij_begin+2*iip1-1, iq)   ! 左边界 2 行
+vlx_p(zq, zm, mu, ij_end-2*iip1+1, ij_end, iq)       ! 右边界 2 行
+
+! 注册 halo 并异步发送
+Register_Hallo(zq, ip1jmp1, llm, 2, 2, 2, 2, MyRequest1)
+Register_Hallo(zm, ip1jmp1, llm, 1, 1, 1, 1, MyRequest1)
+SendRequest(MyRequest1)
+
+! 计算内区（与通信重叠）
+vlx_p(zq, zm, mu, ij_begin+2*iip1, ij_end-2*iip1, iq)
+
+! 等待 halo 完成
+WaitRecvRequest(MyRequest1)</code></pre>
+<p>第二步 <code>vly_p</code> 不需要 halo 交换，因为 N-S 方向的数据依赖完全在 band 内部。</p>
+<p>第三步 <code>vlz_p</code> 使用与第一步相同的"边界带 + halo + 内区"模式，使用 <code>MyRequest2</code>：</p>
+<pre><code>vlz_p(..., ij_begin, ij_begin+2*iip1-1, iq)
+vlz_p(..., ij_end-2*iip1+1, ij_end, iq)
+Register_Hallo(zq, ..., MyRequest2)
+Register_Hallo(zm, ..., MyRequest2)
+SendRequest(MyRequest2)
+vlz_p(..., ij_begin+2*iip1, ij_end-2*iip1, iq)
+WaitRecvRequest(MyRequest2)</code></pre>
+<p>第四步 <code>vly_p</code> 再次无 halo。</p>
+<p>第五步（最终 vlx_p）直接用 <code>ij_begin, ij_end</code> 全范围调用，因为此时 halo 已到位：</p>
+<pre><code>vlx_p(zq, zm, mu, ij_begin, ij_end, iq)</code></pre>
+<p>最后回写 <code>q</code> 并调用 <code>WaitSendRequest</code> 确保发送完成。</p>
+<h3 id="halo-注册参数">halo 注册参数</h3>
+<p><code>Register_Hallo(field, dim1, dim2, halo_s, halo_n, halo_e, halo_w, request)</code> 中的 halo 宽度参数：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>halo 宽度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zq</code></td>
+<td>2, 2, 2, 2</td>
+<td>tracer 场，四周各 2 行 halo</td>
+</tr>
+<tr>
+<td><code>zm</code></td>
+<td>1, 1, 1, 1</td>
+<td>质量场，四周各 1 行 halo</td>
+</tr>
+</tbody>
+</table>
+<p>zq 需要 2 行 halo 是因为 Van Leer 斜率计算需要左右各两个格点的信息；zm 只需 1 行因为质量更新只涉及相邻格点。</p>
+<h3 id="为什么边界带宽是-2iip1">为什么边界带宽是 2*iip1</h3>
+<p>E-W 方向每行有 <code>iip1</code> 个格点（含周期端点），2 行 halo 对应 <code>2*iip1</code> 个连续元素。先算边界 2 行意味着计算覆盖 <code>[ij_begin, ij_begin+2*iip1-1]</code> 和 <code>[ij_end-2*iip1+1, ij_end]</code>，这些格点的 Van Leer 模板需要的邻居数据在本 rank 内已可用。通信完成后，内区 <code>[ij_begin+2*iip1, ij_end-2*iip1]</code> 可以使用从邻居收到的 halo 数据。</p>
+<h2 id="vlx_pe-w-方向内核">vlx_p：E-W 方向内核</h2>
+<h3 id="签名差异">签名差异</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">RECURSIVE</span> <span class="kw">SUBROUTINE</span> vlx_p(q, pente_max, masse, u_m, ijb_x, ije_x, iq)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">USE</span> Parallel_lmdz</span></code></pre></div>
+<p>与串行 <code>vlx</code> 相比，增加 <code>ijb_x/ije_x</code> 参数限定计算范围，使主例程可以分段调用。</p>
+<h3 id="极点行排除">极点行排除</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>ijb <span class="kw">=</span> ijb_x</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>ije <span class="kw">=</span> ije_x</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (pole_nord <span class="op">.and.</span> ijb<span class="op">==</span><span class="dv">1</span>) ijb <span class="kw">=</span> ijb <span class="kw">+</span> iip1</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (pole_sud <span class="op">.and.</span> ije<span class="op">==</span>ip1jmp1) ije <span class="kw">=</span> ije <span class="kw">-</span> iip1</span></code></pre></div>
+<p>北极进程（拥有全局第 1 行）和南极进程（拥有全局最后一行）跳过极点行，因为极点没有确定的经度方向。</p>
+<h3 id="omp-并行化">OMP 并行化</h3>
+<p>所有主要循环使用 <code>c$OMP DO SCHEDULE(STATIC,OMP_CHUNK)</code> 和 <code>c$OMP END DO NOWAIT</code>。<code>OMP_CHUNK</code> 来自 <code>parallel_lmdz</code>，控制静态调度的块大小。<code>NOWAIT</code> 允许循环间重叠。</p>
+<h3 id="数值计算">数值计算</h3>
+<p>与串行 <code>vlx</code> 完全相同的 Van Leer 斜率限制、上游通量和 Semi-Lagrangian CFL &gt; 1 累积逻辑。周期包裹使用相同的 <code>mod(i-2+iim,iim)+1</code> 公式。</p>
+<h3 id="父子-tracer">父子 tracer</h3>
+<p>父子 tracer 的 <code>masseq/Ratio</code> 计算和递归调用与串行版相同，但所有循环限定在 <code>[ijb, ije]</code> 范围内，递归调用传递原始的 <code>ijb_x/ije_x</code>。</p>
+<h2 id="vly_pn-s-方向内核">vly_p：N-S 方向内核</h2>
+<h3 id="签名">签名</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">RECURSIVE</span> <span class="kw">SUBROUTINE</span> vly_p(q, pente_max, masse, masse_adv_v, iq)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">USE</span> parallel_lmdz</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="kw">USE</span> comconst_mod, <span class="kw">ONLY</span>: pi</span></code></pre></div>
+<p>vly_p 不接收 <code>ijb_x/ije_x</code> 参数，而是直接使用 <code>parallel_lmdz</code> 的 <code>ij_begin/ij_end</code> 和 <code>pole_nord/pole_sud</code>。</p>
+<h3 id="omp-threadprivate">OMP THREADPRIVATE</h3>
+<p>vly_p 有大量 <code>SAVE</code> 变量需要 <code>THREADPRIVATE</code>：</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="dt">SAVE</span> temps0,...,temps5, first, testcpu</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP THREADPRIVATE(temps0,...,temps5, first, testcpu)</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="dt">SAVE</span> sinlon, coslon, sinlondlon, coslondlon</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP THREADPRIVATE(sinlon, coslon, sinlondlon, coslondlon)</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="dt">SAVE</span> airej2, airejjm</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP THREADPRIVATE(airej2, airejjm)</span></span></code></pre></div>
+<p>这些几何量和计时变量每个线程需要独立副本。串行版 vly 只需 <code>SAVE first, testcpu</code>。</p>
+<h3 id="扩展-band-范围">扩展 band 范围</h3>
+<p>vly_p 在计算斜率时需要扩展 band 范围以获取邻居数据：</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">! v 点斜率：扩展 2*iip1</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>ijb <span class="kw">=</span> ij_begin <span class="kw">-</span> <span class="dv">2</span><span class="kw">*</span>iip1</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>ije <span class="kw">=</span> ij_<span class="kw">end</span> <span class="kw">+</span> iip1</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="co">! 标量点斜率：扩展 iip1</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>ijb <span class="kw">=</span> ij_begin <span class="kw">-</span> iip1</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>ije <span class="kw">=</span> ij_<span class="kw">end</span> <span class="kw">+</span> iip1</span></code></pre></div>
+<p>这些扩展区域的数据来自之前 vlx_p 阶段的 halo 交换。</p>
+<h3 id="极点条件处理">极点条件处理</h3>
+<p>与串行 vly 无条件处理两个极点不同，并行版按进程位置条件处理：</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (pole_nord) <span class="kw">then</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>   <span class="co">! 仅北极进程计算北极 qpns 和 dyq</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (pole_sud) <span class="kw">then</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>   <span class="co">! 仅南极进程计算南极 qpsn 和 dyq</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<p>sin/cos 投影和归零逻辑与串行版相同，但只在拥有对应极点的进程上执行。注释 <code>c ym tout cela ne sert pas a grand chose</code> 表示极点 dyq 最终仍被归零，投影计算是残留代码。</p>
+<h3 id="通量和散度更新范围">通量和散度更新范围</h3>
+<p>通量计算使用 <code>ij_begin-iip1</code> 到 <code>ij_end</code>（考虑 v 点偏移），散度更新使用 <code>ij_begin</code> 到 <code>ij_end</code>，均受极点条件调整。极点 SSUM 累积也条件化：</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (pole_nord) <span class="kw">then</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>   convpn <span class="kw">=</span> SSUM(iim, qbyv(<span class="dv">1</span>,l), <span class="dv">1</span>)</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>   <span class="co">! ... 北极质量更新 ...</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (pole_sud) <span class="kw">then</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>   convps <span class="kw">=</span> <span class="kw">-</span>SSUM(iim, qbyv(ip1jm<span class="kw">-</span>iim,l), <span class="dv">1</span>)</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>   <span class="co">! ... 南极质量更新 ...</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<h2 id="vlz_p垂直方向内核">vlz_p：垂直方向内核</h2>
+<h3 id="签名-1">签名</h3>
+<div class="sourceCode" id="cb13"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">RECURSIVE</span> <span class="kw">SUBROUTINE</span> vlz_p(q, pente_max, masse, w, ijb_x, ije_x, iq)</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">USE</span> Parallel_lmdz</span></code></pre></div>
+<p>与 vlx_p 一样接收 <code>ijb_x/ije_x</code> 参数。</p>
+<h3 id="动态分配的工作数组">动态分配的工作数组</h3>
+<div class="sourceCode" id="cb14"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="dt">REAL</span>, <span class="dt">DIMENSION(:,:,:)</span>, <span class="dt">ALLOCATABLE</span>, <span class="dt">SAVE</span> <span class="dt">::</span> wq</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="dt">REAL</span>, <span class="dt">DIMENSION(:,:,:)</span>, <span class="dt">ALLOCATABLE</span>, <span class="dt">SAVE</span> <span class="dt">::</span> Ratio</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="dt">LOGICAL</span>, <span class="dt">SAVE</span> <span class="dt">::</span> first <span class="kw">=</span> <span class="cn">.TRUE.</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP THREADPRIVATE(first)</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (first) <span class="kw">THEN</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>   first <span class="kw">=</span> <span class="cn">.FALSE.</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>   <span class="co">!$OMP MASTER</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>   <span class="kw">ALLOCATE</span>(wq(ip1jmp1, llm<span class="kw">+</span><span class="dv">1</span>, nqtot))</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>   <span class="kw">ALLOCATE</span>(Ratio(ip1jmp1, llm, nqtot))</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>   <span class="co">!$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>   <span class="co">!$OMP BARRIER</span></span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="kw">END IF</span></span></code></pre></div>
+<p>与串行版的栈上固定数组不同，并行版使用 <code>ALLOCATABLE, SAVE</code> 数组，在首次调用时由 <code>OMP MASTER</code> 线程分配。<code>OMP BARRIER</code> 确保所有线程等待分配完成。注释解释这样做是因为这些变量需要被所有线程可见。</p>
+<h3 id="其他工作数组">其他工作数组</h3>
+<div class="sourceCode" id="cb15"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="dt">REAL</span>, <span class="dt">SAVE</span> <span class="dt">::</span> dzq(ip1jmp1,llm), dzqw(ip1jmp1,llm), adzqw(ip1jmp1,llm)</span></code></pre></div>
+<p>这些数组是共享的 <code>SAVE</code> 工作区，不是隐式 <code>THREADPRIVATE</code>。并行正确性依赖每次 <code>vlz_p</code> 调用只在当前 <code>[ijb, ije]</code> band 上读写，并由 <code>OMP DO</code> 把同一数组的不同 <code>ij/l</code> 片段分给线程；<code>dzq</code> 的垂直边界由 <code>OMP MASTER</code> 写入后用 <code>BARRIER</code> 同步，内部层由前面的 OMP 循环覆盖后再读。</p>
+<h3 id="omp-master--barrier-模式">OMP MASTER + BARRIER 模式</h3>
+<p>垂直边界条件由主线程设置：</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP MASTER</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> ij<span class="kw">=</span>ijb,ije</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>   dzq(ij,<span class="dv">1</span>) <span class="kw">=</span> <span class="fl">0.</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>   dzq(ij,llm) <span class="kw">=</span> <span class="fl">0.</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span></code></pre></div>
+<p>零通量边界 <code>wq(ij,llm+1,iq)=0</code> 和 <code>wq(ij,1,iq)=0</code> 也用相同模式。</p>
+<h3 id="父子-tracer-中的-barrier">父子 tracer 中的 BARRIER</h3>
+<div class="sourceCode" id="cb17"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co">! 父子 Ratio/masseq 计算</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP DO SCHEDULE(STATIC,OMP_CHUNK)</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> l<span class="kw">=</span><span class="dv">1</span>,llm</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>   <span class="kw">DO</span> ij<span class="kw">=</span>ijb,ije</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>      masseq(ij,l,iq2) <span class="kw">=</span> <span class="bu">max</span>(masse(ij,l,iq)<span class="kw">*</span>q(ij,l,iq), masseqmin)</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>      ...</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>      w(ij,l,iq2) <span class="kw">=</span> wq(ij,l,iq)   <span class="co">! 注意：写入 w 而非 wq</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>   <span class="kw">enddo</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="kw">enddo</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> DO NOWAIT</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>...</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span></code></pre></div>
+<p>这里有一个值得注意的修正：<code>w(ij,l,iq2) = wq(ij,l,iq)</code>，将父 tracer 的垂直通量 <code>wq</code> 赋给子 tracer 的 <code>w</code> 输入。注释 <code>correction bug le 15mai2015</code> 标记了这个修正。递归调用 <code>vlz_p</code> 使用 <code>w</code>（而非 <code>wq</code>）作为通量输入，因此需要将父代的 <code>wq</code> 转写到子代的 <code>w</code>。</p>
+<p>递归调用后的通量散度更新前有额外 <code>!$OMP BARRIER</code>，确保所有线程的 <code>wq</code> 已就绪。</p>
+<h2 id="与串行-vlsplt-的关键差异">与串行 vlsplt 的关键差异</h2>
+<table>
+<thead>
+<tr>
+<th>特征</th>
+<th>串行 vlsplt</th>
+<th>并行 vlsplt_p</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>计算范围</td>
+<td>全域 <code>iip2</code> 到 <code>ip1jm</code></td>
+<td>band 范围 <code>ij_begin</code> 到 <code>ij_end</code></td>
+</tr>
+<tr>
+<td>halo 交换</td>
+<td>无</td>
+<td>vlx_p/vlz_p 前后 Register_Hallo + SendRequest</td>
+</tr>
+<tr>
+<td>通信重叠</td>
+<td>无</td>
+<td>边界带先算 → halo 发送 → 内区计算 → 等待</td>
+</tr>
+<tr>
+<td>极点处理</td>
+<td>无条件</td>
+<td><code>pole_nord/pole_sud</code> 条件分支</td>
+</tr>
+<tr>
+<td>OMP</td>
+<td>无</td>
+<td><code>DO SCHEDULE(STATIC,OMP_CHUNK)</code></td>
+</tr>
+<tr>
+<td>THREADPRIVATE</td>
+<td>无</td>
+<td>vly_p 几何量和计时变量、vlz_p 的 <code>first/testcpu/temps*</code></td>
+</tr>
+<tr>
+<td>工作数组分配</td>
+<td>栈上固定数组</td>
+<td>vlz_p 的 wq/Ratio 动态分配</td>
+</tr>
+<tr>
+<td>E-W split 调用</td>
+<td>单次全域</td>
+<td>三次分段（边界+内区）</td>
+</tr>
+<tr>
+<td>极点 dyq</td>
+<td>GOTO 8888 跳过</td>
+<td>注释掉 GOTO + 条件处理</td>
+</tr>
+<tr>
+<td>垂直通量维度</td>
+<td><code>mw(llm+1)</code></td>
+<td><code>mw(llm+1,nqtot)</code> 每 tracer</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>halo 宽度 <code>2,2,2,2</code> 对 <code>zq</code> 和 <code>1,1,1,1</code> 对 <code>zm</code> 是正确通信的关键。改错 halo 宽度会导致边界附近斜率计算用过期数据。</li>
+<li><code>ij_begin/ij_end</code> 来自 <code>parallel_lmdz</code>，由 <code>bands.F90</code> 的 <code>SetDistrib</code> 根据负载均衡计算。不同 band 分布会导致不同的边界带范围。</li>
+<li>边界带宽 <code>2*iip1</code> 必须与 halo 宽度 2 行一致。如果 halo 宽度变化，边界带范围也必须相应调整。</li>
+<li>vly_p 不需要 halo 交换是因为 N-S 方向的数据已在前一步 vlx_p 后的 halo 中就绪。如果 band 分布发生变化（如非连续 band），vly_p 也可能需要 halo。</li>
+<li>vlz_p 的 <code>OMP MASTER</code> 分配模式要求所有线程到达 <code>BARRIER</code> 后才能使用 <code>wq/Ratio</code>。如果去掉 <code>BARRIER</code> 会导致未分配访问。</li>
+<li><code>WaitSendRequest</code> 在主例程最后调用（L197-198），确保发送缓冲在子例程返回前不被释放。如果提前返回或跳过这一步，MPI 可能访问已释放的内存。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3dpar/vlspltgen_p.html">vlspltgen_p 通用 tracer split 调度</a></li>
+<li><a href="vlsplt-serial-family-tracers.html">vlsplt 串行父子 tracer 和饱和路径</a></li>
+<li><a href="vlsplt-serial-split-kernels.html">vlsplt 串行 split 内核</a></li>
+<li><a href="../modules/dyn3dpar/mod_hallo.html">mod_hallo 模块</a></li>
+<li><a href="../modules/dyn3dpar/bands.html">并行 band 分布</a></li>
+<li><a href="../modules/dyn3dpar/parallel_lmdz.html">parallel_lmdz 模块</a></li>
+<li><a href="advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
+<li><a href="vlsplt-serial-parallel-delta.html">vlsplt 串并行 Van Leer 差异对照</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Mars 并行运行中典型 band 数和 halo 通信量。</li>
+<li><code>mw(ip1jmp1,llm+1,nqtot)</code> 相比串行的 <code>mw(ip1jmp1,llm+1)</code> 是否有性能影响（缓存）。</li>
+<li>vly_p 中 <code>pole_nord/pole_sud</code> 在单进程（mpi_size=1）时是否都为 <code>.true.</code>。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

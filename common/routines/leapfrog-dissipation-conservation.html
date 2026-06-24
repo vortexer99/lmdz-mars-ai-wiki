@@ -1,0 +1,110 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>leapfrog-dissipation-conservation - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/leapfrog-dissipation-conservation.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="leapfrog-耗散sponge-和守恒修正">leapfrog 耗散、sponge 和守恒修正</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\leapfrog.F
+LMDZ.MARS\libf\dynphy_lonlat\phymars\leapfrog_nogcm.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。COMMON 6.3 完整 GCM 路径按 <code>dissip_period</code> 和 <code>apdiss</code> 执行耗散；MARS nogcm 变体去掉 <code>apdiss</code> 和完整耗散段。</p>
+<h2 id="apdiss-门控">apdiss 门控</h2>
+<p>完整 <code>leapfrog.F</code> 中 <code>apdiss</code> 在每次 label 2 开始时先置 <code>.FALSE.</code>，再按时间步设置：</p>
+<ul>
+<li><code>purmats</code>：<code>MOD(itau,dissip_period)==0</code> 且非 forward。</li>
+<li>非 <code>purmats</code>：<code>MOD(itau+1,dissip_period)==0</code> 且非 forward。</li>
+<li>若 <code>llm==1</code> 或 <code>dissip_period==0</code>，强制 <code>.FALSE.</code>。</li>
+</ul>
+<p>nogcm 源码注释明确删除 <code>apdiss</code>，没有耗散调用。</p>
+<h2 id="耗散调用顺序">耗散调用顺序</h2>
+<p>当 <code>apdiss</code> 为真：</p>
+<ol type="1">
+<li>若 <code>callsponge</code>，先调用 <code>sponge(ucov,vcov,teta,ps,dtdiss,mode_sponge)</code>。</li>
+<li><code>covcont</code> 和 <code>enercin</code> 计算耗散前动能 <code>ecin0</code>。</li>
+<li><code>tpot2t</code> 得到温度 <code>temp</code>。</li>
+<li><code>dissip(vcov,ucov,teta,p,dvdis,dudis,dtetadis)</code> 计算耗散增量。</li>
+<li><code>ucov=ucov+dudis</code>，<code>vcov=vcov+dvdis</code>。</li>
+<li><code>dudis/dvdis</code> 除以 <code>dtdiss</code>，转成 <code>(m/s)/s</code> tendency。</li>
+</ol>
+<h2 id="conservative-dissipation">conservative dissipation</h2>
+<p><code>dissip_conservative</code> 是 <code>SAVE</code> 逻辑量，默认 <code>.true.</code>。启用时，耗散后重新计算动能 <code>ecin</code>，把动能损失转成热力修正：</p>
+<ol type="1">
+<li><code>dtec=(ecin0-ecin)/cpdet(temp)</code>。</li>
+<li><code>temp=temp+dtec</code>。</li>
+<li><code>t2tpot</code> 把温度修正转回 <code>ztetaec</code>。</li>
+<li>用 <code>ztetaec</code> 更新 <code>teta</code> 的相关 tendency/状态。</li>
+</ol>
+<p>这段保证小尺度风场耗散掉的动能以热力形式回到系统，减少能量不守恒。</p>
+<h2 id="pressure-和极点处理">pressure 和极点处理</h2>
+<p>完整 GCM 在耗散相关段前已经刷新过 <code>p/masse</code>。耗散段末尾还有一段极点 pressure 处理代码被 <code>if (1 == 0)</code> 包住，不会执行；因此当前活跃路径不做该段极点平均。</p>
+<h2 id="nogcm-差异">nogcm 差异</h2>
+<p>MARS <code>phymars/leapfrog_nogcm.F</code>：</p>
+<ul>
+<li>不 <code>USE logic_mod</code> 中的 <code>apdiss</code>。</li>
+<li>不按 <code>dissip_period</code> 设置耗散门。</li>
+<li>不调用 <code>sponge</code>、<code>dissip</code>、<code>covcont</code>、<code>enercin</code>。</li>
+<li>保留 <code>dudis/dvdis/dtetadis</code> 数组和 <code>comdissnew.h</code> include，主要是接口/输出兼容。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>耗散只在非 forward 步可能发生；复现单步时必须知道当前 <code>forward/leapf/purmats</code> 状态。</li>
+<li><code>sponge</code> 在 <code>dissip</code> 前执行，因此顶层阻尼会改变进入水平耗散的状态。</li>
+<li><code>dudis/dvdis</code> 在加到风场后才除以 <code>dtdiss</code>，用于后续诊断/输出时是 tendency。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>conservative dissipation 对 <code>dtetadis</code> 的完整写回细节需要在 <code>dissip.F</code> 文件页或 hard 父页中逐行核对。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="dissip-serial-parallel.html">dissip 串并行对照</a></li>
+<li><a href="common-dissip-mars-chain.html">Mars 水平耗散链路</a></li>
+<li><a href="common-energy-vorticity-operators.html">动能、Bernoulli、位势涡度与位势高度算子</a></li>
+<li><a href="common-dissipation-stencil-families.html">水平微分/耗散 stencil family 深度页</a></li>
+<li><a href="sponge-serial-parallel.html">sponge 串并行对照</a></li>
+<li><a href="top-bound-serial-parallel.html">top_bound 串并行对照</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

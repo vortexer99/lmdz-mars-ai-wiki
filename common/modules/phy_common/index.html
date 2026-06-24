@@ -1,0 +1,222 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>index - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/phy_common/index.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="phy_common-总览">phy_common 总览</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common</code></pre>
+<h2 id="职责">职责</h2>
+<p><code>phy_common</code> 提供物理侧公共基础设施：物理列并行分布、MPI/OpenMP transfer、物理几何和垂直层状态、XIOS/write_field 封装、打印控制和物理侧 abort。它位于动力-物理接口之后，为行星物理包提供统一的网格、并行和输出支撑。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 物理初始化、物理输出或 COMMON 物理侧并行抽象被使用时经过；具体文件是否进入 Mars 标准路径取决于 phymars 调用和编译宏。</code></pre>
+<h2 id="当前覆盖页面">当前覆盖页面</h2>
+<table>
+<thead>
+<tr>
+<th>页面</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="mod_phys_lmdz_para.html">mod_phys_lmdz_para</a></td>
+<td>物理侧并行抽象入口，串联 MPI/OMP data 和 transfer。</td>
+</tr>
+<tr>
+<td><a href="mpi-data-transfer.html">mpi-data-transfer</a></td>
+<td>MPI 物理列分布和 MPI transfer 接口族。</td>
+</tr>
+<tr>
+<td><a href="mod_phys_lmdz_mpi_transfert.html">mod_phys_lmdz_mpi_transfert</a></td>
+<td>MPI transfer hard 父文件页，覆盖 8 个泛型、94 个 specific procedures、SCATTERV/GATHERV/REDUCE 和局部 1D/2D 转换。</td>
+</tr>
+<tr>
+<td><a href="omp-data-transfer.html">omp-data-transfer</a></td>
+<td>OMP 物理列分布和线程内 transfer 接口族。</td>
+</tr>
+<tr>
+<td><a href="mod_phys_lmdz_transfert_para.html">mod_phys_lmdz_transfert_para</a></td>
+<td>MPI/OMP 组合 transfer wrapper，覆盖 <code>bcast/scatter/gather/scatter2D/gather2D/reduce_sum</code> 泛型、顺序和临时数组契约。</td>
+</tr>
+<tr>
+<td><a href="mod_phys_lmdz_omp_transfert.html">mod_phys_lmdz_omp_transfert</a></td>
+<td>OMP transfer hard 父文件页，覆盖共享 buffer、同步指令、列形状契约和高维 broadcast。</td>
+</tr>
+<tr>
+<td><a href="parallel-transfer-6d.html">parallel-transfer-6d</a></td>
+<td>6.3 5D/6D broadcast 泛型和 OMP buffer/race 修复。</td>
+</tr>
+<tr>
+<td><a href="physics_distribution_mod.html">physics_distribution_mod</a></td>
+<td>grid、parallel、<code>dimphy</code> 三段初始化封装。</td>
+</tr>
+<tr>
+<td><a href="mod_grid_phy_lmdz.html">mod_grid_phy_lmdz</a></td>
+<td>全局物理网格规模、<code>klon_glo</code> 和 <code>Grid1Dto2D_glo/Grid2Dto1D_glo</code> 映射。</td>
+</tr>
+<tr>
+<td><a href="geometry-grid-layers.html">geometry-grid-layers</a></td>
+<td>局部几何、regular lon-lat、垂直层和 1D/2D 网格映射。</td>
+</tr>
+<tr>
+<td><a href="geometry_mod.html">geometry_mod</a></td>
+<td>物理列局部经纬度、边界、面积、输出面积和全局 cell index 状态。</td>
+</tr>
+<tr>
+<td><a href="grid-coordinate-state.html">grid-coordinate-state</a></td>
+<td>全局 regular lon-lat 坐标轴和物理侧 threadprivate 垂直层状态。</td>
+</tr>
+<tr>
+<td><a href="ioipsl_getin_p_mod.html">ioipsl_getin_p_mod</a></td>
+<td>6.3 <code>is_master</code> getin wrapper 和 broadcast 契约。</td>
+</tr>
+<tr>
+<td><a href="write-field-xios.html">write-field-xios</a></td>
+<td>物理侧 XIOS 和旧 write_field 输出封装。</td>
+</tr>
+<tr>
+<td><a href="xios_writefield.html">xios_writefield</a></td>
+<td><code>CPP_XIOS</code> 下的临时 field dump 封装，覆盖 native/regular/unstructured domain 分支。</td>
+</tr>
+<tr>
+<td><a href="print-control-abort.html">print-control-abort</a></td>
+<td>物理侧打印控制、<code>lunout/prt_level/debug</code> 和 abort 组页。</td>
+</tr>
+<tr>
+<td><a href="abort_physic.html">abort_physic</a></td>
+<td>物理侧统一错误终止入口、IOIPSL close/getin dump 和 MPI abort 分支。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="目录文件分组">目录文件分组</h2>
+<table>
+<thead>
+<tr>
+<th>分组</th>
+<th>文件</th>
+<th>Mars 运行参与度</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>并行抽象</td>
+<td><code>mod_phys_lmdz_para.F90</code>, <code>mod_phys_lmdz_transfert_para.F90</code></td>
+<td>条件经过</td>
+<td>上层物理并行入口和 MPI/OMP transfer 组合封装；<code>mod_phys_lmdz_transfert_para.F90</code> 已由 <a href="mod_phys_lmdz_transfert_para.html">mod_phys_lmdz_transfert_para</a> 展开。</td>
+</tr>
+<tr>
+<td>MPI data/transfer</td>
+<td><code>mod_phys_lmdz_mpi_data.F90</code>, <code>mod_phys_lmdz_mpi_transfert.F90</code></td>
+<td>条件经过</td>
+<td>MPI rank 物理列分布和通信包装；<code>mod_phys_lmdz_mpi_transfert.F90</code> 已由 <a href="mod_phys_lmdz_mpi_transfert.html">mod_phys_lmdz_mpi_transfert</a> 展开。</td>
+</tr>
+<tr>
+<td>OMP data/transfer</td>
+<td><code>mod_phys_lmdz_omp_data.F90</code>, <code>mod_phys_lmdz_omp_transfert.F90</code></td>
+<td>条件经过</td>
+<td>OpenMP 线程物理列分布和线程内 transfer；<code>mod_phys_lmdz_omp_transfert.F90</code> hard 父文件页已完成。</td>
+</tr>
+<tr>
+<td>网格/几何/垂直层</td>
+<td><code>mod_grid_phy_lmdz.F90</code>, <code>geometry_mod.F90</code>, <code>regular_lonlat_mod.F90</code>, <code>vertical_layers_mod.F90</code>, <code>physics_distribution_mod.F90</code></td>
+<td>条件经过</td>
+<td>初始化和保存全局物理网格、物理列几何、边界、面积、垂直坐标和 1D/2D 映射；<code>geometry_mod.F90</code> 由 <a href="geometry_mod.html">geometry_mod</a> 展开，regular lon-lat 与垂直层由 <a href="grid-coordinate-state.html">grid-coordinate-state</a> 展开。</td>
+</tr>
+<tr>
+<td>输出</td>
+<td><code>xios_writefield.F90</code>, <code>write_field_phy.F90</code></td>
+<td>条件经过</td>
+<td>物理侧 XIOS/write_field 输出封装；组页见 <a href="write-field-xios.html">write-field-xios</a>，<code>xios_writefield.F90</code> 细节见 <a href="xios_writefield.html">xios_writefield</a>。</td>
+</tr>
+<tr>
+<td>控制/错误</td>
+<td><code>init_print_control_mod.F90</code>, <code>print_control_mod.F90</code>, <code>abort_physic.F90</code></td>
+<td>条件经过</td>
+<td>打印控制由 <a href="print-control-abort.html">print-control-abort</a> 组页覆盖；<code>abort_physic.F90</code> 的终止分支由 <a href="abort_physic.html">abort_physic</a> 展开。</td>
+</tr>
+<tr>
+<td>getin 转发</td>
+<td><code>ioipsl_getin_p_mod.F90</code></td>
+<td>接口兼容</td>
+<td>6.3 使用 <code>is_master</code> 的物理侧 getin 包装，和 misc/ioipsl getin 系统相关。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="典型初始化链">典型初始化链</h2>
+<pre class="text"><code>inigeomphy_mod
+  -&gt; physics_distribution_mod:init_physics_distribution
+      -&gt; mod_grid_phy_lmdz:init_grid_phy_lmdz
+      -&gt; mod_phys_lmdz_para:init_phys_lmdz_para
+          -&gt; mod_phys_lmdz_mpi_data:init_phys_lmdz_mpi_data
+          -&gt; mod_phys_lmdz_omp_data:Init_phys_lmdz_omp_data
+      -&gt; dimphy:Init_dimphy
+  -&gt; regular_lonlat_mod:init_regular_lonlat
+  -&gt; geometry_mod:init_geometry
+  -&gt; vertical_layers_mod:init_vertical_layers</code></pre>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>klon_glo</code> 是全局物理列数，去掉重复极点经度；<code>klon_mpi</code> 是当前 MPI rank 的列数；<code>klon_omp</code> 是当前 OpenMP 线程的列数。</li>
+<li><code>mod_grid_phy_lmdz</code> 只保存全局网格规模和 1D/2D 映射；经纬度、面积和边界数组由 <code>regular_lonlat_mod</code> 与 <code>geometry_mod</code> 保存。</li>
+<li><code>geometry_mod</code> 和 <code>vertical_layers_mod</code> 的关键数组是 <code>THREADPRIVATE</code>，必须在 OpenMP parallel 区内初始化。</li>
+<li>MPI/OMP transfer 组页用于快速定位；MPI transfer、OMP transfer 和 para wrapper hard 父文件页均已完成。</li>
+<li>输出和打印控制由本目录的专页展开，目录页只保留职责分组。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>xios_writefield.F90</code> 当前本地源码未见直接调用点；外部 physics 包或用户 patch 是否使用需运行/配置侧继续核实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../libf-overview.html">libf 总览</a></li>
+<li><a href="../dynphy_lonlat/index.html">dynphy_lonlat 总览</a></li>
+<li><a href="../dynphy_lonlat/inigeomphy_mod.html">inigeomphy_mod</a></li>
+<li><a href="../../reference/common-consumer-map.html">COMMON 使用方映射表</a></li>
+<li><a href="../misc/ioipsl-getin-system.html">IOIPSL getin 系统</a></li>
+<li><a href="abort_physic.html">abort_physic</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

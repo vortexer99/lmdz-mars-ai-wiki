@@ -1,0 +1,197 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ioipsl-build-mars-contract - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a class="active" href="project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>architecture/ioipsl-build-mars-contract.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="ioipsl-build-和-mars-io-构建契约">IOIPSL build 和 Mars I/O 构建契约</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\ioipsl\README
+LMDZ.COMMON-6.3\LMDZ.COMMON\ioipsl\install_*.bash
+LMDZ.COMMON-6.3\LMDZ.COMMON\makelmdz_fcm
+LMDZ.COMMON-6.3\LMDZ.COMMON\bld.cfg
+LMDZ.COMMON-6.3\LMDZ.COMMON\arch\arch-*.path</code></pre>
+<p>Mars 运行参与度：<code>构建期条件经过</code>。Mars 可执行文件运行时不执行 <code>ioipsl/install_*.bash</code> 或 <code>makelmdz_fcm</code>；但 Mars GCM 是否带 IOIPSL history、是否带 XIOS、include/lib 从哪里来、<code>CPP_IOIPSL</code>/<code>CPP_XIOS</code> 是否定义，都由这些构建文件决定。</p>
+<h2 id="ioipsl-在-mars-构建中的角色">IOIPSL 在 Mars 构建中的角色</h2>
+<p>IOIPSL 对 Mars 运行链路主要提供三类能力：</p>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>COMMON 使用位置</th>
+<th>构建条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>history/dynav/flux storage 输出</td>
+<td><code>inithist*</code>, <code>writehist*</code>, <code>initdynav*</code>, <code>writedynav*</code>, <code>initfluxsto*</code>, <code>fluxstokenc*</code> 等在 <code>CPP_IOIPSL</code> 下调用 IOIPSL</td>
+<td><code>makelmdz_fcm -io ioipsl/mix/xios</code> 都会加入 <code>CPP_IOIPSL</code>。</td>
+</tr>
+<tr>
+<td>配置读取 <code>getin</code></td>
+<td><code>ioipsl_getin_p_mod</code> 在 <code>CPP_IOIPSL</code> 下转到外部 IOIPSL <code>getin</code>，否则转到 COMMON fallback <code>ioipsl_getincom</code></td>
+<td>当前 FCM 构建入口默认 <code>io=ioipsl</code>。</td>
+</tr>
+<tr>
+<td>XIOS 共存</td>
+<td><code>xios_writefield</code>, <code>wxios</code>, 并行/物理侧输出封装</td>
+<td><code>-io mix</code> 或 <code>-io xios</code> 加入 <code>CPP_XIOS</code>，且当前脚本注释明确 XIOS 仍 implied IOIPSL。</td>
+</tr>
+</tbody>
+</table>
+<p>因此 Mars 实跑时“经过”的不是安装脚本本身，而是安装脚本生成的 <code>ioipsl/modipsl/lib</code> 链接、<code>arch.path</code> 的 IOIPSL 变量、以及编译后启用的 <code>CPP_IOIPSL</code>/<code>CPP_XIOS</code> 分支。</p>
+<h2 id="install-脚本族">install 脚本族</h2>
+<p><code>ioipsl/README</code> 说明这些脚本是安装 IOIPSL 的示例入口，建议把 IOIPSL 安装在 LMDZ 同级目录以便跟踪版本。脚本族分为两类：</p>
+<table>
+<thead>
+<tr>
+<th>脚本类型</th>
+<th>示例</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>通用编译器示例</td>
+<td><code>install_ioipsl_gfortran.bash</code>, <code>install_ioipsl_ifort.bash</code>, <code>install_ioipsl_pgf90.bash</code>, <code>install_ioipsl_MesoPSL.bash</code></td>
+<td>从 <code>nf-config --prefix</code> 或脚本变量取得 NetCDF 根目录，现场写 IOIPSL 的 <code>arch-&lt;name&gt;.env/.fcm/.path</code>，再构建。</td>
+</tr>
+<tr>
+<td>机器脚本</td>
+<td><code>install_ioipsl_occigen.bash</code>, <code>install_ioipsl_jeanzay.bash</code>, <code>install_ioipsl_irene-amd.bash</code>, <code>install_ioipsl_mesu.bash</code>, <code>install_ioipsl_ciclad-ifort.bash</code>, <code>install_ioipsl_centos-ifort.bash</code></td>
+<td>复用或复制 <code>LMDZ.COMMON/arch/arch-&lt;machine&gt;.*</code>，按机器名调用 <code>makeioipsl_fcm -arch &lt;machine&gt;</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>共同流程：</p>
+<ol type="1">
+<li>可选参数 <code>rev</code> 指定 IOIPSL SVN revision；无参数默认 <code>HEAD</code>。</li>
+<li>删除旧的 <code>../../IOIPSL</code> 和当前目录下 <code>modipsl</code>。</li>
+<li>回到 <code>LMDZ.COMMON</code> 同级目录，执行 IOIPSL SVN checkout 到 <code>IOIPSL</code>。</li>
+<li>写入或复制 IOIPSL <code>arch</code> 配置。</li>
+<li>运行 <code>./makeioipsl_fcm -arch &lt;arch&gt; -job 8 &gt; makeioipsl.out 2&gt;&amp;1</code>。</li>
+<li>检查 <code>lib/libioipsl.a</code> 是否存在；不存在则提示查看 <code>makeioipsl.out</code> 并退出。</li>
+<li>回到 <code>LMDZ.COMMON/ioipsl</code>，创建 <code>modipsl/lib</code> 和 <code>modipsl/bin</code>，把 <code>../../../../IOIPSL/lib/libioipsl.a</code>、<code>../../../../IOIPSL/inc/*</code>、<code>../../../../IOIPSL/bin/*</code> 链接进来。</li>
+</ol>
+<p>机器差异：</p>
+<ul>
+<li><code>occigen</code> 脚本先复制 <code>arch-X64_OCCIGEN.env/.path/.fcm</code>，再用 <code>sed</code> 从 IOIPSL <code>makeioipsl_fcm</code> 移除一次 <code>$HDF5_LIBDIR $HDF5_LIB</code>。</li>
+<li><code>mesu</code> 脚本采用 <code>modipsl/model IOIPSL_PLUS</code> 路径，成功产物检查位置是 <code>modipsl/lib/libioipsl.a</code>，和多数脚本的 <code>IOIPSL/lib/libioipsl.a</code> 不同。</li>
+<li>通用 <code>gfortran/ifort/pgf90</code> 脚本现场生成 IOIPSL arch 文件，注释要求用户按本机 NetCDF 和 GCM arch 文件调整。</li>
+</ul>
+<h2 id="makelmdz_fcm--io-契约"><code>makelmdz_fcm -io</code> 契约</h2>
+<p>当前源码中 <code>makelmdz_fcm</code> 默认：</p>
+<pre class="text"><code>io=ioipsl</code></pre>
+<p>帮助文本只列出：</p>
+<pre class="text"><code>-io ioipsl/mix/xios</code></pre>
+<p>对应分支：</p>
+<table>
+<thead>
+<tr>
+<th><code>-io</code> 值</th>
+<th>CPP key</th>
+<th>include/lib</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ioipsl</code></td>
+<td><code>CPP_IOIPSL</code></td>
+<td><code>${IOIPSL_INCDIR}</code>, <code>${IOIPSL_LIBDIR}</code>, <code>${IOIPSL_LIB}</code></td>
+</tr>
+<tr>
+<td><code>mix</code></td>
+<td><code>CPP_IOIPSL CPP_XIOS</code></td>
+<td>IOIPSL + XIOS include/lib</td>
+</tr>
+<tr>
+<td><code>xios</code></td>
+<td><code>CPP_IOIPSL CPP_XIOS CPP_IOIPSL_NO_OUTPUT</code></td>
+<td>IOIPSL + XIOS include/lib</td>
+</tr>
+</tbody>
+</table>
+<p>源码核对结果：当前 <code>makelmdz_fcm</code> 没有发现 <code>-io noioipsl</code> 的帮助文本或分支。COMMON 中确实有无外部 IOIPSL 时可用的 fallback <code>ioipsl_getincom</code>，但这不等于当前 FCM 脚本提供了 <code>noioipsl</code> 模式。复现 Mars 构建时应以源码可见的 <code>ioipsl/mix/xios</code> 为准。</p>
+<h2 id="archpath-链接契约"><code>arch.path</code> 链接契约</h2>
+<p>Mars 构建时，<code>makelmdz_fcm -arch &lt;name&gt;</code> 会 source 目标 arch 的 <code>.path</code> 文件。典型 <code>arch-gfortran.path</code> 和 <code>arch-X64_JEANZAY.path</code> 都使用同一类 IOIPSL 变量：</p>
+<pre class="text"><code>IOIPSL_INCDIR=&quot;-I$ROOT/ioipsl/modipsl/lib&quot;
+IOIPSL_LIBDIR=&quot;-L$ROOT/ioipsl/modipsl/lib&quot;
+IOIPSL_LIB=&quot;-lioipsl&quot;</code></pre>
+<p>这说明 install 脚本最后创建的 <code>LMDZ.COMMON/ioipsl/modipsl/lib</code> 是 COMMON 构建入口实际消费的位置。若该目录缺少 <code>libioipsl.a</code> 或 IOIPSL <code>.mod</code>/include 文件，<code>-io ioipsl/mix/xios</code> 的编译或链接会失败。</p>
+<h2 id="bldcfg-外部依赖边界"><code>bld.cfg</code> 外部依赖边界</h2>
+<p><code>bld.cfg</code> 在依赖扫描阶段排除外部模块：</p>
+<pre class="text"><code>bld::excl_dep use::ioipsl
+bld::excl_dep use::xios</code></pre>
+<p>含义是 FCM 不把 <code>use ioipsl</code> 或 <code>use xios</code> 当作 COMMON 内部源码依赖来解析；它们必须由 <code>makelmdz_fcm</code> 注入的 include/lib 路径和链接 flags 解决。这也解释了为什么 IOIPSL 安装和 <code>arch.path</code> 对 Mars 构建是硬前提，而不是运行时可选补丁。</p>
+<h2 id="mars-构建复现顺序">Mars 构建复现顺序</h2>
+<ol type="1">
+<li>选择目标平台 arch，例如 <code>gfortran</code>、<code>X64_JEANZAY</code> 或本机自定义 arch。</li>
+<li>用 <code>ioipsl/install_*.bash</code> 或等价手工流程安装 IOIPSL，确保 <code>LMDZ.COMMON/ioipsl/modipsl/lib/libioipsl.a</code> 和 include/module 链接存在。</li>
+<li>检查 <code>LMDZ.COMMON/arch/arch-&lt;name&gt;.path</code> 的 <code>IOIPSL_*</code> 指向 <code>ioipsl/modipsl/lib</code>，并检查 <code>XIOS_*</code> 是否只在需要 <code>mix/xios</code> 时有效。</li>
+<li>运行 Mars 目标构建时指定 <code>makelmdz_fcm -p mars -arch &lt;name&gt; -io ioipsl</code>，或按输出需求使用 <code>-io mix</code>/<code>-io xios</code>。</li>
+<li>若使用 <code>-io xios</code>，注意 COMMON 会同时定义 <code>CPP_IOIPSL</code> 和 <code>CPP_XIOS</code>，并加 <code>CPP_IOIPSL_NO_OUTPUT</code>，即保留 IOIPSL 依赖但关闭 IOIPSL 输出路径。</li>
+<li>构建失败时优先查 <code>IOIPSL_INCDIR/IOIPSL_LIBDIR/IOIPSL_LIB</code>、<code>libioipsl.a</code>、NetCDF flags、XIOS flags，而不是 Mars physics 源码。</li>
+</ol>
+<h2 id="与-mars-范围的边界">与 Mars 范围的边界</h2>
+<ul>
+<li>Earth-only 选项如 ORCHIDEE、INCA、COSP、SISVAT、RRTM、stratospheric aerosol 不属于 Mars 正常运行路径，本页只记录它们在 <code>makelmdz_fcm</code> 帮助文本中的存在，不展开。</li>
+<li>Venus/Titan <code>startvar</code> 中的 IOIPSL 直接使用不纳入 Mars wiki 专页。</li>
+<li><code>ioipsl_getincom</code> fallback 属于 COMMON 配置读取兼容层，已由 misc getin 页面覆盖；本页只记录它和构建选项之间的边界。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 Mars 生产工作流默认使用 <code>-io ioipsl</code>、<code>-io mix</code> 还是 <code>-io xios</code>，需要结合具体 run/deftank 脚本确认。</li>
+<li><code>makelmdz_fcm -p mars</code> 的最终可执行文件命名、外层包装脚本传参和 deftank 编译循环仍需单独收口。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="build-and-arch.html">build 和 arch 配置链</a></li>
+<li><a href="../modules/misc/ioipsl-getin-system.html">IOIPSL/getin 系统</a></li>
+<li><a href="../routines/history-output-serial-parallel.html">history 输出串并行对照</a></li>
+<li><a href="../routines/inithist-serial-parallel.html">inithist 串并行对照</a></li>
+<li><a href="../modules/phy_common/write-field-xios.html">write_field/XIOS 输出封装</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,82 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>initfluxsto-serial-parallel - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/initfluxsto-serial-parallel.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="initfluxsto-串并行对照">initfluxsto 串并行对照</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\initfluxsto.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\initfluxsto_p.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>initfluxsto</code> 初始化 flux storage/history NetCDF 输出文件，定义质量、水平/垂直质量通量、位温、位势和辅助时间变量。并行版使用 <code>parallel_lmdz</code> 的局部纬向范围和 IOIPSL domain 设置，使 rebuild 能识别分布式输出。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：动力启用 flux storage 输出时经过；Mars 是否默认启用取决于 leapfrog 输出配置。</code></pre>
+<h2 id="共同流程">共同流程</h2>
+<ol type="1">
+<li><code>CPP_IOIPSL</code> 下使用 IOIPSL；否则只打印不可用提示。</li>
+<li>由 <code>annee_ref/day_ref/itau_dyn</code> 计算 Julian day。</li>
+<li><code>histbeg</code> 创建 <code>fluxstoke</code>、<code>fluxstokev</code> 和 <code>defstoke.nc</code>。</li>
+<li><code>histhori</code> 添加 scalar grid，<code>histvert</code> 定义 <code>sig_s</code> 垂直轴。</li>
+<li><code>histdef</code> 定义 <code>phis/aire/dtvr/istdyn/istphy/masse/pbaru/pbarv/w/teta/phi</code>。</li>
+<li><code>histend</code> 完成定义，可按 <code>ok_sync</code> 调 <code>histsync</code>。</li>
+</ol>
+<h2 id="并行差异">并行差异</h2>
+<ul>
+<li><code>initfluxsto_p</code> 读取 <code>jj_begin/jj_end/jj_nb/mpi_rank/mpi_size</code>，构造本 rank 的 <code>jjb/jje/jjn</code>。</li>
+<li>并行版调用 <code>flio_dom_set</code> 生成 <code>dynu_domain_id/dynv_domain_id</code>，传给 <code>histbeg</code>。</li>
+<li><code>defstoke.nc</code> 只由 <code>mpi_rank==0</code> 初始化和同步。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>fluxstoke</code> 输出在 Mars 当前配置中的触发开关需从 <code>leapfrog</code> 输出分支确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="history-output-serial-parallel.html">history/dynav 输出</a></li>
+<li><a href="inithist-serial-parallel.html">history 初始化</a></li>
+<li><a href="leapfrog-output-restart.html">leapfrog 输出/restart 支撑</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

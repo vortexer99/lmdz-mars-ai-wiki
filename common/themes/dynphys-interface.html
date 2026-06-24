@@ -1,0 +1,393 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dynphys-interface - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a class="active" href="index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>themes/dynphys-interface.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="动力-物理接口">动力-物理接口</h1>
+<p>页面状态：TASK-0017 完成。 源码范围：<code>LMDZ.COMMON-6.3/LMDZ.COMMON/libf/dynphy_lonlat</code>、<code>libf/phy_common</code>，并串联 <code>dyn3d/leapfrog.F</code>、<code>dyn3dpar/leapfrog_p.F</code>、<code>dyn3d/addfi.F</code>、<code>dyn3dpar/addfi_p.F</code> 的调用边界。 Mars 运行参与度：条件经过。Mars 3D GCM 启用物理时经过本主题覆盖的初始化和 <code>calfis/calfis_p -&gt; call_physiq -&gt; addfi/addfi_p</code> 接口；Mars 1D/testphys 路径只消费其中的接口兼容层和物理侧网格/垂直层初始化。</p>
+<h2 id="主题定位">主题定位</h2>
+<p>本页回答一个问题：动力网格上的 <code>ps/p/pk/teta/q/u/v/phi/flxw</code> 如何进入 Mars physics，又如何以 tendency 形式回到动力状态。</p>
+<p>接口拆成三层：</p>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>责任</th>
+<th>主要页面</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>初始化层</td>
+<td>建立物理列分布、几何、垂直层和动力-物理索引。</td>
+<td><a href="../modules/dynphy_lonlat/inigeomphy_mod.html">inigeomphy_mod</a>, <a href="../routines/parallel-physics-grid-distribution.html">parallel-physics-grid-distribution</a>, <a href="../modules/dynphy_lonlat/mod_interface_dyn_phys.html">mod_interface_dyn_phys</a></td>
+</tr>
+<tr>
+<td>每步调用层</td>
+<td>把动力状态转为物理列，调用 <code>call_physiq</code>，把 tendency 放回动力网格。</td>
+<td><a href="../modules/dynphy_lonlat/calfis.html">calfis</a>, <a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p</a>, <a href="../routines/dyn-phys-grid-transforms.html">dyn-phys-grid-transforms</a></td>
+</tr>
+<tr>
+<td>写回状态层</td>
+<td><code>addfi/addfi_p</code> 将 tendency 乘以 <code>dtphys</code> 加到 prognostic state，并刷新 pressure/mass/Exner。</td>
+<td><a href="../routines/leapfrog-physics-coupling.html">leapfrog-physics-coupling</a>, <a href="../routines/leapfrog-p-physics-coupling.html">leapfrog-p-physics-coupling</a>, <a href="../routines/addfi-serial-parallel.html">addfi-serial-parallel</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="总体调用链">总体调用链</h2>
+<p>串行 GCM physics 步：</p>
+<pre class="text"><code>gcm/conf_gcm/iniconst/inigeom/iniphysiq
+  -&gt; COMMON inigeomphy
+       -&gt; init_physics_distribution
+       -&gt; init_interface_dyn_phys
+       -&gt; init_regular_lonlat / init_geometry / init_vertical_layers
+
+leapfrog
+  -&gt; apphys gate
+  -&gt; pression / exner_* / geopot
+  -&gt; calfis(lafin,jD_cur,jH_cur,...)
+       -&gt; gr_dyn_fi and manual wind/tracer mapping
+       -&gt; call_physiq, optionally split by nsplit_phys
+       -&gt; gr_fi_dyn and manual tendency writeback
+  -&gt; addfi(dtphys,...)
+  -&gt; pression / massdair / exner_*</code></pre>
+<p>并行 GCM physics 步：</p>
+<pre class="text"><code>gcm_p/init_parallel/set_bands
+  -&gt; iniphysiq
+       -&gt; inigeomphy
+            -&gt; init_physics_distribution
+                 -&gt; init_grid_phy_lmdz
+                 -&gt; Init_phys_lmdz_para
+                      -&gt; init_phys_lmdz_mpi_data
+                      -&gt; init_phys_lmdz_omp_data
+                 -&gt; dimphy:Init_dimphy(klon_omp, nbp_lev)
+            -&gt; init_interface_dyn_phys(index_i/index_j)
+            -&gt; init_geometry(klon_omp, ...)
+            -&gt; init_vertical_layers(...)
+
+leapfrog_p
+  -&gt; apphys gate
+  -&gt; pression_p / exner_*_p / geopot_p
+  -&gt; SetDistrib(jj_Nb_Physic)
+  -&gt; calfis_p(lafin,jD_cur,jH_cur,...)
+       -&gt; rank-level动力格点到klon_mpi物理列
+       -&gt; OpenMP切片到klon_omp
+       -&gt; call_physiq, optionally split by nsplit_phys
+       -&gt; OpenMP gather回klon_mpi
+       -&gt; MPI wind tendency boundary exchange
+       -&gt; tendency写回动力网格
+  -&gt; SetDistrib(jj_Nb_Physic_bis)
+  -&gt; tendency halo and tmp add-back
+  -&gt; addfi_p(dtphys,...)
+  -&gt; pression_p / massdair_p / exner_*_p
+  -&gt; SetDistrib(jj_Nb_Caldyn)</code></pre>
+<p><code>calfis/calfis_p</code> 只产生每秒 tendency；真正修改 <code>ucov/vcov/teta/q/ps</code> 的位置是 <code>addfi/addfi_p</code>。<code>addfi*</code> 之后必须刷新 <code>p/masse/pk</code>，否则后续动力、输出或 restart 会看到与新 <code>ps</code> 不一致的派生状态。</p>
+<h2 id="初始化契约">初始化契约</h2>
+<p>Mars physics 初始化先进入 MARS 侧 <code>iniphysiq</code>，再调用 COMMON 的 <code>inigeomphy</code>。<code>inigeomphy</code> 的输出不是单个返回值，而是写入一组物理侧公共模块：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>写入者</th>
+<th>消费者</th>
+<th>关键边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>klon_glo</code>, <code>nbp_lon/lat/lev</code></td>
+<td><code>init_grid_phy_lmdz</code></td>
+<td>全局物理网格转换、XIOS、debug 写场</td>
+<td><code>klon_glo</code> 是全局物理列数，两极各压缩成单列。</td>
+</tr>
+<tr>
+<td><code>klon_mpi</code> 和 rank 分布表</td>
+<td><code>init_phys_lmdz_mpi_data</code></td>
+<td>MPI transfer、<code>calfis_p</code>、XIOS/write_field</td>
+<td>当前 MPI rank 的物理列数，不等于全局列数。</td>
+</tr>
+<tr>
+<td><code>klon_omp</code> 和 thread 切片</td>
+<td><code>init_phys_lmdz_omp_data</code></td>
+<td>Mars physics、OMP transfer、<code>calfis_p</code></td>
+<td>当前 OpenMP 线程的物理列数。</td>
+</tr>
+<tr>
+<td><code>dimphy:klon/klev</code></td>
+<td><code>Init_dimphy</code></td>
+<td>Mars physics 例程</td>
+<td><code>dimphy:klon</code> 等于 <code>klon_omp</code>，不是 <code>klon_glo</code> 或 <code>klon_mpi</code>。</td>
+</tr>
+<tr>
+<td><code>index_i/index_j</code></td>
+<td><code>Init_interface_dyn_phys</code></td>
+<td><code>calfis_p</code>, <code>gr_dyn_fi_p</code>, <code>gr_fi_dyn_p</code></td>
+<td>长度为 <code>klon_mpi</code>，把 rank 级物理列映射到动力 <code>(i,j)</code>。</td>
+</tr>
+<tr>
+<td><code>longitude/latitude/cell_area</code></td>
+<td><code>init_geometry</code></td>
+<td>physics、diagfi、XIOS、archive 工具链</td>
+<td>每个 OMP 线程只持有自己的 <code>klon_omp</code> 几何切片。</td>
+</tr>
+<tr>
+<td><code>ap/bp/aps/bps/presnivs/pseudoalt</code></td>
+<td><code>init_vertical_layers</code></td>
+<td>physics、输出轴、Mars utility</td>
+<td>从动力侧 <code>comvert_mod</code> 显式复制到物理侧 <code>vertical_layers_mod</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>这条链只建立分布和静态几何。每个 physics 步的 <code>ps/teta/q/u/v/phi/flxw</code> 仍由 <code>calfis/calfis_p</code> 从动力状态重新映射。</p>
+<h2 id="串行接口">串行接口</h2>
+<p>串行 <a href="../modules/dynphy_lonlat/calfis.html">calfis</a> 使用全局 lon-lat 规则把动力网格压缩成物理列：</p>
+<ol type="1">
+<li>北极和南极各为一个物理列。</li>
+<li>中间纬圈按非重复经度展开。</li>
+<li><code>gr_dyn_fi</code> 转换标量场，风场用 <code>cu/cv</code> 和极点 <code>cos/sin</code> 投影转换为自然风。</li>
+<li><code>tpot2t</code> 把位温转为 physics 温度。</li>
+<li>按 <code>nsplit_phys</code> 分段调用 <code>call_physiq</code>，每段使用 <code>dtphys/nsplit_phys</code>。</li>
+<li>物理返回的温度、风、tracer、surface pressure tendency 被累计、平均，再用 <code>gr_fi_dyn</code> 或显式循环写回动力 tendency 数组。</li>
+</ol>
+<p>串行 tracer 写回使用 <code>niadv(iq)</code> 连接 physics tracer 和动力 tracer 序号。排查 tracer 顺序差异时，串行路径要同时看 <a href="../modules/dyn3d_common/infotrac.html">infotrac</a> 的 <code>nqtot/tname/niadv</code>。</p>
+<h2 id="并行接口">并行接口</h2>
+<p>并行 <a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p</a> 的职责比串行多三件事：rank 分布、OpenMP 切片和跨 rank tendency 边界。</p>
+<h3 id="动力格点到物理列">动力格点到物理列</h3>
+<p><code>calfis_p</code> 先以 <code>klon=klon_mpi</code> 工作。普通列通过 <code>index_i/index_j</code> 读取动力格点：</p>
+<pre class="text"><code>zpsrf(ig) = ps(index_i(ig), index_j(ig))
+zpk(ig,l) = pk(index_i(ig), index_j(ig), l)
+zqfi(ig,l,iq) = q(index_i(ig), index_j(ig), l, iq)</code></pre>
+<p><code>gr_dyn_fi_p</code> 和 <code>gr_fi_dyn_p</code> 也使用同一映射。极点列仍是单列，写回动力网格时要扩展成整条极点行。</p>
+<h3 id="openmp-物理调用">OpenMP 物理调用</h3>
+<p>rank 级 <code>z*(klon_mpi,...)</code> 数组准备好后，源码按 <code>klon_omp_begin/end</code> 手写循环复制到当前线程的 <code>*_omp(klon_omp,...)</code>。随后局部 <code>klon</code> 改为 <code>klon_omp</code>，<code>call_physiq(klon,...)</code> 看到的是当前线程的物理列数。</p>
+<p>这一段不调用 <code>mod_phys_lmdz_transfert_para</code> 的 <code>scatter/gather</code> 泛型。原因是 <code>calfis_p</code> 的映射源是动力二维网格 <code>(iip1,jjp1)</code>，目标是 rank 内物理列；<code>phy_common</code> 通用 transfer 的映射对象是 <code>klon_glo -&gt; klon_mpi -&gt; klon_omp</code> 的物理列数组，两者不是同一类搬运。</p>
+<h3 id="tendency-边界和-addfi_p-前处理">tendency 边界和 addfi_p 前处理</h3>
+<p><code>calfis_p</code> 返回前已经把 tendency 写回动力网格，但并行 <code>leapfrog_p</code> 还要做一次 physics band 后处理：</p>
+<ol type="1">
+<li>保存非北极 rank 起始纬圈的 <code>dufi/dvfi/dtetafi/dqfi/dpfi</code> 到 <code>_tmp</code>。</li>
+<li>切换到 <code>jj_nb_Physic_bis</code>。</li>
+<li>对 physics tendency 注册 halo request 并等待完成。</li>
+<li>切回 <code>jj_nb_Physic</code>。</li>
+<li>把 <code>_tmp</code> 加回起始纬圈。</li>
+</ol>
+<p>只有完成这一步后，<code>addfi_p</code> 才把 tendency 加到状态。因此并行差异要分成三段定位：<code>calfis_p</code> 列映射和 <code>call_physiq</code> 输出、<code>leapfrog_p</code> tendency halo、<code>addfi_p</code> 状态写回。</p>
+<h2 id="call_physiq-契约"><code>call_physiq</code> 契约</h2>
+<p>COMMON 侧不实现 Mars physics 过程本体，但它负责提供一致的入口实参：</p>
+<table>
+<thead>
+<tr>
+<th>实参组</th>
+<th>来源</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>klon,llm,nqtot,tname</code></td>
+<td>物理分布、动力垂直层、tracer 初始化</td>
+<td><code>klon</code> 在并行 OMP 内为 <code>klon_omp</code>。</td>
+</tr>
+<tr>
+<td><code>jD_cur,jH_cur</code></td>
+<td><code>leapfrog*</code> 日期逻辑</td>
+<td>并行 Mars physics 日期在 <code>leapfrog_p</code> 中按当前 <code>itau</code> 计算。</td>
+</tr>
+<tr>
+<td><code>zplev,zplay,zpk</code></td>
+<td><code>pression*</code>、Exner、<code>preff*(ppk/cpp)**(1/kappa)</code></td>
+<td>pressure 层和 Exner/温度转换输入。</td>
+</tr>
+<tr>
+<td><code>ztfi,zqfi,zufi,zvfi,zrfi</code></td>
+<td><code>calfis*</code> 转换</td>
+<td>physics 消费的温度、tracer、自然风和涡度。</td>
+</tr>
+<tr>
+<td><code>zphi,zphis,flxwfi</code></td>
+<td><code>geopot*</code> 和 grid transform</td>
+<td>位势、地表位势和垂直质量通量。</td>
+</tr>
+<tr>
+<td><code>zdufi/zdvfi/zdtfi/zdqfi/zdpsrf</code></td>
+<td><code>call_physiq</code> 输出</td>
+<td>每秒 tendency，之后由 <code>calfis*</code> 和 <code>addfi*</code> 分别映射/加回。</td>
+</tr>
+</tbody>
+</table>
+<p><code>nsplit_phys</code> 分段时，COMMON 侧在每个 split 后先用 tendency 更新 physics 输入列，再累计平均 tendency。最后一个 split 才接收 <code>lafin_split=.TRUE.</code>。</p>
+<h2 id="transfer-边界">transfer 边界</h2>
+<p>物理侧通用 transfer 已由 <a href="../modules/phy_common/mod_phys_lmdz_mpi_transfert.html">mod_phys_lmdz_mpi_transfert</a>、<a href="../modules/phy_common/mod_phys_lmdz_omp_transfert.html">mod_phys_lmdz_omp_transfert</a> 和 <a href="../modules/phy_common/mod_phys_lmdz_transfert_para.html">mod_phys_lmdz_transfert_para</a> 覆盖。它们服务于物理侧数组在全局、rank 和 thread 之间的 scatter/gather/bcast/reduce。</p>
+<p>本主题需要区分三类通信：</p>
+<table>
+<thead>
+<tr>
+<th>通信/搬运</th>
+<th>实现位置</th>
+<th>是否是 <code>calfis_p</code> 主搬运</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>物理侧通用 <code>bcast/scatter/gather/reduce_sum</code></td>
+<td><code>phy_common/mod_phys_lmdz_*_transfert.F90</code></td>
+<td>否。供 physics 公共层和输出/helper 使用。</td>
+</tr>
+<tr>
+<td>动力网格到物理列映射</td>
+<td><code>calfis_p</code>, <code>gr_dyn_fi_p</code>, <code>gr_fi_dyn_p</code></td>
+<td>是。由 <code>index_i/index_j</code> 和手写 OMP 循环驱动。</td>
+</tr>
+<tr>
+<td>wind tendency 跨 rank 交换</td>
+<td><code>calfis_p</code> 内 <code>MPI_ISSEND/IRECV/WAITALL</code></td>
+<td>是。只服务于 <code>pdvfi</code> 等跨纬带回填 stencil。</td>
+</tr>
+</tbody>
+</table>
+<p>不要把 <code>calfis_p</code> 的手写 scatter/gather 描述成直接调用 <code>mod_phys_lmdz_transfert_para</code>。两者共享 <code>klon_mpi/klon_omp</code> 维度概念，但调用路径和映射关系不同。</p>
+<h2 id="与物理几何和垂直层的关系">与物理几何和垂直层的关系</h2>
+<p><code>inigeomphy</code> 同时初始化水平几何和垂直层副本：</p>
+<ul>
+<li>regular lon-lat 的全局经纬轴写入 <code>regular_lonlat_mod</code>。</li>
+<li>当前线程局部物理列的经纬度、边界、面积、输出面积写入 <code>geometry_mod</code>。</li>
+<li>动力侧 <code>comvert_mod</code> 中的 <code>ap/bp/aps/bps/presnivs/pseudoalt</code> 复制到 <code>vertical_layers_mod</code>。</li>
+</ul>
+<p>Mars physics、diagfi/stats、XIOS 输出和 archive utility 可能消费这些物理侧状态。若出现输出坐标、面积或压力轴问题，先确认 <code>iniconst/disvert/inigeom/iniphysiq -&gt; inigeomphy</code> 顺序，而不是直接查每步 <code>calfis_p</code>。</p>
+<h2 id="串并行差异表">串并行差异表</h2>
+<table>
+<thead>
+<tr>
+<th>方面</th>
+<th>串行</th>
+<th>并行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>调度入口</td>
+<td><code>leapfrog -&gt; calfis -&gt; addfi</code></td>
+<td><code>leapfrog_p -&gt; SetDistrib(jj_Nb_Physic) -&gt; calfis_p -&gt; halo -&gt; addfi_p</code></td>
+</tr>
+<tr>
+<td>物理列规模</td>
+<td>全局 <code>ngridmx</code></td>
+<td>rank 级 <code>klon_mpi</code>，线程级 <code>klon_omp</code></td>
+</tr>
+<tr>
+<td>列映射</td>
+<td>固定 lon-lat 展开</td>
+<td><code>index_i/index_j</code></td>
+</tr>
+<tr>
+<td>OMP</td>
+<td>无</td>
+<td>rank 级共享数组 + threadprivate <code>*_omp</code> 工作区</td>
+</tr>
+<tr>
+<td>MPI</td>
+<td>无</td>
+<td>physics tendency halo + <code>calfis_p</code> wind exchange</td>
+</tr>
+<tr>
+<td>tracer 写回</td>
+<td>使用 <code>niadv(iq)</code></td>
+<td>当前 <code>calfis_p</code> 按 <code>iq=1,nqtot</code> 直接写回</td>
+</tr>
+<tr>
+<td>状态写回</td>
+<td><code>addfi</code> 后刷新 <code>p/masse/pk</code></td>
+<td><code>addfi_p</code> 后刷新 <code>p/masse/pk</code>，并受 band/halo 影响</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现检查表">复现检查表</h2>
+<ol type="1">
+<li>确认 <code>conf_gcm</code> 已设置 <code>iphysiq/iflag_phys/nsplit_phys</code>，并且当前时间步 <code>apphys=.TRUE.</code>。</li>
+<li>确认 physics 前已刷新 <code>p/pk/phi</code>，并记录 <code>jD_cur/jH_cur</code>。</li>
+<li>串行路径检查 <code>gr_dyn_fi/gr_fi_dyn</code> 的极点和周期端点规则。</li>
+<li>并行路径检查 <code>SetDistrib(jj_Nb_Physic)</code>、<code>index_i/index_j</code>、<code>klon_mpi/klon_omp</code> 和 <code>dimphy:klon</code> 是否一致。</li>
+<li>对 physics 内部差异，先确认 <code>call_physiq</code> 入口看到的是温度 <code>ztfi</code> 而不是动力位温 <code>teta</code>。</li>
+<li>对 tendency 差异，区分 <code>calfis*</code> 输出、并行 halo 合并、<code>addfi*</code> 加回三步。</li>
+<li>对 pressure/mass 不一致，检查 <code>addfi*</code> 后 <code>pression*/massdair*/exner_*</code> 是否执行。</li>
+<li>对输出几何或垂直坐标，检查 <code>inigeomphy -&gt; init_geometry/init_vertical_layers</code>，不要只看每步 <code>calfis*</code>。</li>
+</ol>
+<h2 id="易混点">易混点</h2>
+<ul>
+<li><code>calfis_p</code> 使用 <code>klon_mpi/klon_omp</code>，但不直接调用 <code>mod_phys_lmdz_transfert_para</code> 的 <code>scatter/gather</code> 泛型。</li>
+<li><code>dimphy:klon</code> 在并行 physics 内等于当前线程的 <code>klon_omp</code>。</li>
+<li><code>calfis/calfis_p</code> 输出是每秒 tendency，不是已经加到状态里的增量。</li>
+<li><code>addfi/addfi_p</code> 改 <code>ps</code> 后必须刷新压力、质量和 Exner。</li>
+<li><code>inigeomphy</code> 初始化的是物理侧几何和垂直层状态；每步动力状态仍需由 <code>calfis*</code> 映射。</li>
+<li>串行 <code>calfis</code> 和并行 <code>calfis_p</code> 对 tracer index 的处理不同，不能直接套用同一 <code>niadv</code> 推理。</li>
+<li>Mars 1D/testphys 通过接口兼容层消费 COMMON 状态，但不等同于 3D 并行动力的 <code>calfis_p</code> 主链。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>COMM_LMDZ</code> 与 <code>COMM_LMDZ_PHY</code> 在所有 Mars 并行配置中是否完全一致，需要运行配置或 MPI 初始化实测确认。</li>
+<li><code>calfis_p</code> 传入 <code>call_physiq</code> 的动力 tendency 参数在 Mars physics 侧实际消费程度，需要结合 <code>LMDZ.MARS/libf/phymars/callphysiq_mod.F90</code> 和具体物理过程继续核对。</li>
+<li>并行 <code>calfis_p</code> 未使用 <code>niadv</code> 是否依赖 6.3 tracer 顺序保证，仍需结合真实 <code>traceur.def</code> 配置验证。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="dynamics-time-integration.html">dynamics-time-integration</a></li>
+<li><a href="serial-parallel-dynamics.html">serial-parallel-dynamics</a></li>
+<li><a href="../modules/dynphy_lonlat/index.html">dynphy_lonlat 总览</a></li>
+<li><a href="../modules/dynphy_lonlat/calfis.html">calfis</a></li>
+<li><a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p</a></li>
+<li><a href="../modules/dynphy_lonlat/mod_interface_dyn_phys.html">mod_interface_dyn_phys</a></li>
+<li><a href="../modules/dynphy_lonlat/inigeomphy_mod.html">inigeomphy_mod</a></li>
+<li><a href="../routines/dyn-phys-grid-transforms.html">dyn-phys-grid-transforms</a></li>
+<li><a href="../routines/calfis-p-grid-mapping.html">calfis-p-grid-mapping</a></li>
+<li><a href="../routines/calfis-p-physiq-contract.html">calfis-p-physiq-contract</a></li>
+<li><a href="../routines/calfis-p-parallel-transfer.html">calfis-p-parallel-transfer</a></li>
+<li><a href="../routines/calfis-p-date-planet-branches.html">calfis-p-date-planet-branches</a></li>
+<li><a href="../routines/parallel-physics-grid-distribution.html">parallel-physics-grid-distribution</a></li>
+<li><a href="../routines/vertical-coordinate-mars-contract.html">vertical-coordinate-mars-contract</a></li>
+<li><a href="../routines/leapfrog-physics-coupling.html">leapfrog-physics-coupling</a></li>
+<li><a href="../routines/leapfrog-p-physics-coupling.html">leapfrog-p-physics-coupling</a></li>
+<li><a href="../routines/phys-transfer-para-wrapper.html">phys-transfer-para-wrapper</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

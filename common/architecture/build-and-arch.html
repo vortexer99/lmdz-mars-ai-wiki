@@ -1,0 +1,167 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>build-and-arch - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a class="active" href="project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>architecture/build-and-arch.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="build-和-arch-配置链">build 和 arch 配置链</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\arch
+LMDZ.COMMON-6.3\LMDZ.COMMON\makelmdz
+LMDZ.COMMON-6.3\LMDZ.COMMON\makelmdz_fcm
+LMDZ.COMMON-6.3\LMDZ.COMMON\create_make_gcm
+LMDZ.COMMON-6.3\LMDZ.COMMON\build_gcm
+LMDZ.COMMON-6.3\LMDZ.COMMON\bld.cfg</code></pre>
+<p>Mars 运行参与度：<code>构建期必经/条件经过</code>。Mars 可执行文件本身运行时不经过这些脚本；但编译 Mars 目标、选择 <code>phymars</code>、并行宏、IOIPSL/XIOS、NetCDF 和 FFT/MKL 等能力时，这些配置决定源码如何预处理、编译和链接。</p>
+<h2 id="顶层文件">顶层文件</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>makelmdz</code></td>
+<td>旧 makefile 构建入口：解析维度、物理包、并行、I/O 和 CPP key，生成源码列表和 makefile，再调用 make。</td>
+</tr>
+<tr>
+<td><code>create_make_gcm</code></td>
+<td>扫描传入源码目录，生成 makefile 规则、库依赖、include 路径和主程序链接规则。</td>
+</tr>
+<tr>
+<td><code>makelmdz_fcm</code></td>
+<td>6.3 主构建入口：解析选项，支持 <code>-clean</code>，生成 FCM config，生成 <code>libf/misc/version_control.F90</code>，并驱动 <code>bld.cfg</code>。</td>
+</tr>
+<tr>
+<td><code>bld.cfg</code></td>
+<td>FCM build 配置模板，声明 source groups、toolchain、CPP/FPP keys、外部依赖排除和输出。</td>
+</tr>
+<tr>
+<td><code>build_gcm</code></td>
+<td>简短 bash wrapper，检查 <code>dimensions.h</code> 防止并发编译冲突后调用构建。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="arch-目录约定">arch 目录约定</h2>
+<p><code>arch/</code> 下每个目标平台通常有同名前缀的三类文件：</p>
+<table>
+<thead>
+<tr>
+<th>后缀</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.fcm</code></td>
+<td>FCM/编译变量：<code>%COMPILER</code>、<code>%LINK</code>、<code>%MAKE</code>、<code>%CPP_FLAGS</code>、<code>%CPP_DEF</code>、<code>%BASE_FFLAGS</code>、<code>%PROD_FFLAGS</code>、<code>%DEBUG_FFLAGS</code>、<code>%MPI_FFLAGS</code>、<code>%OMP_FFLAGS</code>、link flags 等。</td>
+</tr>
+<tr>
+<td><code>.path</code></td>
+<td>环境路径：<code>NETCDF_*</code>、<code>IOIPSL_*</code>、<code>XIOS_*</code> include/lib 路径和库名。</td>
+</tr>
+<tr>
+<td><code>.env</code></td>
+<td>机器环境初始化，如 module load 或导出 NetCDF/HDF5 路径；不是每个 arch 都有。</td>
+</tr>
+</tbody>
+</table>
+<p>例如 <code>arch-gfortran.fcm</code> 使用 <code>gfortran/gcc/make</code>，定义 <code>CPP_DEF LAPACK</code>、<code>FPP_DEF NC_DOUBLE</code> 和 real*8 默认编译参数；<code>arch-gfortran.path</code> 从 <code>$NETCDF</code>、<code>$PWD/ioipsl</code> 和 <code>../XIOS</code> 组织库路径。</p>
+<h2 id="makelmdz-旧构建链"><code>makelmdz</code> 旧构建链</h2>
+<ol type="1">
+<li>解析 <code>-d</code> 维度、<code>-p</code> 物理包、<code>-parallel none/mpi/omp/mpi_omp</code>、<code>-io ioipsl/mix/xios</code>、<code>-cpp</code>、<code>-arch</code> 等选项。</li>
+<li>依据物理包名计算 <code>phys_root</code>，例如 <code>mars</code> 归为 Mars 物理根。</li>
+<li>根据物理包和选项追加 <code>CPP_PHYS</code>、<code>CPP_EARTH</code>、<code>CPP_PARA</code>、<code>CPP_MPI</code>、<code>CPP_OMP</code>、<code>CPP_IOIPSL</code>、<code>CPP_XIOS</code> 等 key。</li>
+<li>对 <code>newstart/start2archive</code> 禁止并行编译；对 1D 目标禁止并行。</li>
+<li>调用 <code>grid/dimension/makdim</code> 生成 <code>dimensions.h</code>，可对某些物理包生成 bands/scatterers include。</li>
+<li>按维度选择 <code>dyn3d</code> 或 <code>dyn3dpar</code>、<code>dyn3d_common</code>、<code>filtrez</code>、<code>phy_common</code>、<code>phy&lt;physique&gt;</code> 等源码目录。</li>
+<li>若配置或源码列表变化，调用 <code>./create_make_gcm $src_dirs</code> 重新生成 makefile。</li>
+<li>将 <code>CPP_KEY</code> 转成 <code>-D...</code> 加入编译 flag，调用 make 构建目标主程序或库。</li>
+</ol>
+<h2 id="create_make_gcm"><code>create_make_gcm</code></h2>
+<p><code>create_make_gcm</code> 从传入目录扫描 <code>.F/.F90/.h</code>，生成静态库和可执行文件规则。它设置：</p>
+<ul>
+<li><code>GCM=$(pwd)</code>，<code>LIBF=$(GCM)/libf</code>，<code>LIBO=$(GCM)/libo</code>。</li>
+<li><code>DIRMAIN=dyn$(DIM)d$(FLAG_PARA)</code>。</li>
+<li>动力库组合：<code>-ldyn$(DIM)d$(FLAG_PARA) -ldyn3d_common</code>。</li>
+<li><code>dyn3d</code> 目标依赖 <code>libdyn*d*</code>、滤波库和 <code>libdyn3d_common.a</code>。</li>
+<li>include 搜索会覆盖 <code>dyn3d/grid/misc</code> 等目录，源码同名时按层级规则取最后匹配。</li>
+</ul>
+<h2 id="fcm-构建链">FCM 构建链</h2>
+<p><code>makelmdz_fcm</code> 和 <code>bld.cfg</code> 使用 FCM 配置：</p>
+<ol type="1">
+<li><code>makelmdz_fcm -arch &lt;name&gt;</code> 将 <code>arch/arch-&lt;name&gt;.path</code>、<code>.env</code>、<code>.fcm</code> 链接为当前工作目录的 <code>arch.path/env/fcm</code>。</li>
+<li>source <code>arch.env</code> 和 <code>arch.path</code>，得到 NetCDF、IOIPSL、XIOS 等路径。</li>
+<li>解析物理、并行、I/O、维度和 CPP key，生成 <code>config.fcm</code>、<code>arch.opt</code> 等 FCM 输入。</li>
+<li><code>bld.cfg</code> include <code>arch.fcm</code> 和 <code>config.fcm</code>，声明 <code>%LIBF</code> 下的 source groups：<code>dyn</code>、<code>phys</code>、<code>dyn_phys</code>、<code>grid</code>、<code>filtrez</code>、<code>misc</code>、<code>dyn3d_common</code>、<code>phy_common</code>、<code>aerono</code> 等；6.3 已移除 <code>src::evolution %EVOLUTION</code>。</li>
+<li><code>bld.cfg</code> 指定 <code>bld::tool::fc/cc/ld/ar/make</code>、<code>cppflags/fppflags</code>、<code>cppkeys/fppkeys</code>，并排除外部依赖如 <code>netcdf</code>、<code>ioipsl</code>、<code>xios</code>、<code>mpif.h</code>。</li>
+</ol>
+<h2 id="mars-相关选择点">Mars 相关选择点</h2>
+<ul>
+<li><code>-p mars</code> 或 Mars 物理包名决定 <code>phy&lt;physique&gt;</code>、<code>dynphy_lonlat/phy&lt;phys_root&gt;</code> 和 Mars 专属辅助目录是否进入源码集合。</li>
+<li><code>-parallel mpi/omp/mpi_omp</code> 决定 <code>dyn3dpar</code>、<code>CPP_PARA</code>、<code>CPP_MPI</code>、<code>CPP_OMP</code> 和 MPI/OMP flags。</li>
+<li><code>-io xios</code> 会追加 <code>CPP_IOIPSL CPP_XIOS CPP_IOIPSL_NO_OUTPUT</code>；<code>-io mix</code> 追加 <code>CPP_IOIPSL CPP_XIOS</code>。</li>
+<li>NetCDF、IOIPSL 和 XIOS 的 include/lib 路径来自 <code>arch.path</code>，不是源码内硬编码。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>构建脚本会创建/删除 <code>libf/grid/dimensions.h</code>；并发编译会被 <code>dimensions.h</code> 存在检查拦截。</li>
+<li><code>makelmdz</code> 缓存 <code>.makelmdz</code> 和源码列表，只有配置或列表变化时重建 makefile。</li>
+<li>FCM 路径下 <code>bld.cfg</code> 把 <code>.inc</code> 扩展名当作 CPP include 处理，避免 include 依赖漏扫。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>实际生产平台使用哪个 <code>arch-*</code> 需由用户运行环境或 Mars workflow 配置确定。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="project-structure.html">项目结构</a></li>
+<li><a href="../modules/libf-overview.html">libf 总览</a></li>
+<li><a href="../modules/misc/index.html">misc 总览</a></li>
+<li><a href="../modules/filtrez/index.html">filtrez 总览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

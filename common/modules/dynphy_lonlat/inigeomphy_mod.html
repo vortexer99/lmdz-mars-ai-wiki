@@ -1,0 +1,216 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>inigeomphy_mod - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dynphy_lonlat/inigeomphy_mod.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="inigeomphy_modf90">inigeomphy_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dynphy_lonlat\inigeomphy_mod.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>inigeomphy_mod.F90</code> 定义 <code>inigeomphy</code>，负责把动力网格几何和垂直层信息初始化到物理侧公共模块。它初始化物理列分布、动力-物理索引、regular lon-lat 网格、物理列经纬度/面积/边界、局部 OpenMP 几何数组，并把 <code>comvert_mod</code> 中的垂直层复制给 <code>vertical_layers_mod</code>。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>必经/条件经过：Mars 物理初始化路径通过 `iniphysiq_mod` 使用 COMMON `inigeomphy_mod` 时经过；1D 和 3D 分支都在本文件内处理。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inigeomphy_mod</code></td>
+<td>module</td>
+<td>1</td>
+<td>物理几何初始化模块。</td>
+</tr>
+<tr>
+<td><code>inigeomphy</code></td>
+<td>subroutine</td>
+<td>5</td>
+<td>初始化物理分布、水平几何和垂直层。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入参数">输入参数</h2>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>维度/类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iim</code>, <code>jjm</code>, <code>nlayer</code></td>
+<td>integer</td>
+<td>动力经向、纬向和垂直层数。</td>
+</tr>
+<tr>
+<td><code>nbp</code></td>
+<td>integer</td>
+<td>当前 MPI 进程物理列数。</td>
+</tr>
+<tr>
+<td><code>communicator</code></td>
+<td>integer</td>
+<td>物理分布使用的 MPI communicator。</td>
+</tr>
+<tr>
+<td><code>rlatu(jjm+1)</code>, <code>rlatv(jjm)</code></td>
+<td>real</td>
+<td>物理标量纬度和纬向边界。</td>
+</tr>
+<tr>
+<td><code>rlonv(iim+1)</code>, <code>rlonu(iim+1)</code></td>
+<td>real</td>
+<td>经度点和经向边界。</td>
+</tr>
+<tr>
+<td><code>aire(iim+1,jjm+1)</code></td>
+<td>real</td>
+<td>动力网格面积，单位注释为 <code>m2</code>。</td>
+</tr>
+<tr>
+<td><code>cu</code>, <code>cv</code></td>
+<td>real arrays</td>
+<td>协变风转换系数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖">依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>klon_glo</code> 和 regular lon-lat grid 类型。</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>klon_omp</code>、OpenMP/MPI 子域起止列。</td>
+</tr>
+<tr>
+<td><code>physics_distribution_mod</code></td>
+<td><code>init_physics_distribution</code> 初始化物理列分布。</td>
+</tr>
+<tr>
+<td><code>mod_interface_dyn_phys</code></td>
+<td><code>init_interface_dyn_phys</code> 初始化动力-物理索引。</td>
+</tr>
+<tr>
+<td><code>regular_lonlat_mod</code></td>
+<td>初始化全局 regular lon-lat 网格和四角边界。</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>init_geometry</code> 写入物理侧局部几何。</td>
+</tr>
+<tr>
+<td><code>comvert_mod</code></td>
+<td><code>preff/ap/bp/aps/bps/presnivs/scaleheight/pseudoalt</code>。</td>
+</tr>
+<tr>
+<td><code>vertical_layers_mod</code></td>
+<td><code>init_vertical_layers</code> 写入物理侧垂直层。</td>
+</tr>
+<tr>
+<td><code>gr_dyn_fi</code></td>
+<td>将动力面积场转换到物理列。</td>
+</tr>
+<tr>
+<td><code>abort_gcm</code></td>
+<td>面积一致性严重失败时退出。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>若 <code>iim*jjm&gt;1</code>，按 3D regular lon-lat 初始化物理分布；否则按 1D 模式初始化单列分布。</li>
+<li>调用 <a href="mod_interface_dyn_phys.html">mod_interface_dyn_phys</a> 的 <code>init_interface_dyn_phys</code>。</li>
+<li>构造 global regular grid 的经纬边界数组，其中第一经度 west 边界用 <code>rlonu(iim)-2*pi</code> 特判。</li>
+<li>调用 <code>init_regular_lonlat</code> 写入全局 regular lon-lat 网格。</li>
+<li>分配 <code>latfi_glo/lonfi_glo/cufi_glo/cvfi_glo/airefi_glo/bounds*</code>。</li>
+<li>3D 分支中，北极和南极分别作为单个物理点，中间纬圈按 <code>k=(j-2)*iim+1+i</code> 展开。</li>
+<li>调用 <code>gr_dyn_fi</code> 把动力面积转成物理面积，并用动力极圈面积和修正两极物理面积。</li>
+<li>比较 <code>total_area_dyn</code> 与 <code>total_area_phy</code>；相对差超过 <code>1e-5</code> 时 <code>abort_gcm</code>。</li>
+<li>1D 分支中直接复制单列经纬度、面积和边界。</li>
+<li>在 OpenMP parallel 区分配线程私有局部数组，并根据 <code>klon_mpi_begin/klon_omp_begin/klon_omp_end</code> 截取全局物理列。</li>
+<li>调用 <code>init_geometry</code> 写入局部物理几何。</li>
+<li>调用 <code>init_vertical_layers</code> 将动力垂直层状态复制给物理侧。</li>
+</ol>
+<h2 id="保存状态和线程私有数组">保存状态和线程私有数组</h2>
+<p><code>latfi/lonfi/cufi/cvfi/airefi/boundslonfi/boundslatfi/ind_cell_glo_fi</code> 是 <code>ALLOCATABLE,SAVE</code>，并声明为 <code>THREADPRIVATE</code>。每个 OpenMP 线程在 parallel 区分配自己的局部物理列几何；这些数组随后传入 <code>geometry_mod</code>。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>klon_glo&gt;1</code> 与 <code>klon_glo==1</code> 的几何构造完全不同；Mars 1D 复现不能套用 3D 极点展开公式。</li>
+<li>两极物理点面积不是简单由 <code>gr_dyn_fi</code> 保留，而是显式替换为对应动力极圈面积和。</li>
+<li><code>total_area_dyn</code> 和 <code>total_area_phy</code> 用精确不等触发提示，但只有相对差超过 <code>0.00001</code> 才 abort。</li>
+<li>局部物理列的全局索引为 <code>offset + klon_omp_begin : offset + klon_omp_end</code>，其中 <code>offset=klon_mpi_begin-1</code>。</li>
+<li>垂直层来自 <code>comvert_mod</code>，因此必须在 <code>iniconst/disvert</code> 之后调用本例程。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>gr_dyn_fi</code> 对面积场的具体转换逻辑见 <a href="../../routines/dyn-phys-grid-transforms.html">动力/物理格点互转</a>。</li>
+<li>Mars <code>iniphysiq_mod</code> 传入 <code>communicator/nbp</code> 的来源需结合物理初始化页确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dynphy_lonlat 总览</a></li>
+<li><a href="mod_interface_dyn_phys.html">mod_interface_dyn_phys</a></li>
+<li><a href="../../routines/vertical-discretization.html">垂直离散构造</a></li>
+<li><a href="../../routines/dyn-phys-grid-transforms.html">动力/物理格点互转</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

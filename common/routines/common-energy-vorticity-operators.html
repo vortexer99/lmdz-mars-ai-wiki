@@ -1,0 +1,330 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>common-energy-vorticity-operators - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/common-energy-vorticity-operators.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="动能bernoulli位势涡度与位势高度算子">动能、Bernoulli、位势涡度与位势高度算子</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d_common\bernoui.F
+dyn3d_common\enercin.F90
+dyn3d_common\tourpot.F90
+dyn3d_common\geopot.F
+dyn3dpar\bernoui_p.F
+dyn3dpar\enercin_p.F
+dyn3dpar\tourpot_p.F
+dyn3dpar\geopot_p.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。四个算子在 <code>caldyn</code> 动力倾向计算、COMMON <code>leapfrog</code> 耗散守恒修正和诊断路径中被活跃调用；MARS <code>phymars/leapfrog_nogcm</code> 仅调用 <code>geopot</code>。</p>
+<h2 id="页面定位">页面定位</h2>
+<p>本页覆盖 Mars 动力核心中四个能量/涡度/位势短算子的签名、公式、Include 依赖、串并行对照和调用链路。这些算子共同支撑 <code>caldyn</code> 的动量倾向组装和 <code>leapfrog</code> 的能量守恒修正。算子本身的差分格式细节由 <a href="differential-operators-overview.html">差分算子总览</a> 覆盖；它们在耗守恒修正中的角色由 <a href="common-dissip-mars-chain.html">Mars 水平耗散链路</a> 覆盖；<code>caldyn</code> 的完整调用顺序由 <a href="caldyn-serial-parallel.html">caldyn 串并行对照</a> 覆盖。</p>
+<h2 id="算子概要">算子概要</h2>
+<table>
+<thead>
+<tr>
+<th>算子</th>
+<th>串行文件</th>
+<th>并行文件</th>
+<th>行数 (串/并)</th>
+<th>格点</th>
+<th>Include</th>
+<th>核心公式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enercin</code></td>
+<td><code>enercin.F90</code></td>
+<td><code>enercin_p.F</code></td>
+<td>~40/~75</td>
+<td>P (scalar)</td>
+<td><code>dimensions.h</code>, <code>paramet.h</code>, <code>comgeom.h</code></td>
+<td>面积加权 covariant × contravariant 动能</td>
+</tr>
+<tr>
+<td><code>bernoui</code></td>
+<td><code>bernoui.F</code></td>
+<td><code>bernoui_p.F</code></td>
+<td>~55/~65</td>
+<td>P (scalar)</td>
+<td><code>dimensions.h</code>, <code>paramet.h</code></td>
+<td><code>phi + ecin</code> 再 <code>filtreg</code> 滤波</td>
+</tr>
+<tr>
+<td><code>tourpot</code></td>
+<td><code>tourpot.F90</code></td>
+<td><code>tourpot_p.F</code></td>
+<td>~45/~65</td>
+<td>Z (corner)</td>
+<td><code>dimensions.h</code>, <code>paramet.h</code>, <code>comgeom.h</code></td>
+<td><code>(filtreg(curl) + fext) / massebxy</code></td>
+</tr>
+<tr>
+<td><code>geopot</code></td>
+<td><code>geopot.F</code></td>
+<td><code>geopot_p.F</code></td>
+<td>~40/~50</td>
+<td>P (scalar)</td>
+<td><code>dimensions.h</code>, <code>paramet.h</code></td>
+<td>从地面向上静力积分 <code>teta * dpk</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="enercin--动能">enercin — 动能</h2>
+<h3 id="签名">签名</h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> enercin ( vcov, ucov, vcont, ucont, ecin )</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span>, <span class="dt">INTENT(IN)</span>  <span class="dt">::</span> vcov   (ip1jm,   llm)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span>, <span class="dt">INTENT(IN)</span>  <span class="dt">::</span> ucov   (ip1jmp1, llm)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span>, <span class="dt">INTENT(IN)</span>  <span class="dt">::</span> vcont  (ip1jm,   llm)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span>, <span class="dt">INTENT(IN)</span>  <span class="dt">::</span> ucont  (ip1jmp1, llm)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span>, <span class="dt">INTENT(OUT)</span> <span class="dt">::</span> ecin   (ip1jmp1, llm)</span></code></pre></div>
+<h3 id="公式">公式</h3>
+<p>在 C-grid 上，标量点 P(i,j) 的动能由周围四个风场格点的 covariant × contravariant 乘积面积加权平均：</p>
+<pre><code>ecin(ij+1,l) = 0.5 * ( ucov(ij,l)  * ucont(ij,l)   * alpha3p4(ij+1)
+                     + ucov(ij+1,l)* ucont(ij+1,l)  * alpha1p2(ij+1)
+                     + vcov(ij-iim,l)*vcont(ij-iim,l)* alpha1p4(ij+1)
+                     + vcov(ij+1,l)* vcont(ij+1,l)   * alpha2p3(ij+1) )</code></pre>
+<p><code>alpha1p2/alpha3p4/alpha1p4/alpha2p3</code> 来自 <code>comgeom.h</code>，是由 <code>inigeom</code>/<code>iniconst</code> 初始化的面积权重对。<code>ucov × ucont</code> 给出 u² 的真实度量（协变 × 逆变 = 物理量的平方），v 同理。</p>
+<p>极点处理：北极 <code>ij=1..iip1</code> 用 <code>vcov*vcont*aire</code> 面积加权求和除以 <code>apoln</code>；南极 <code>ij=ip1jm+1..ip1jmp1</code> 用对应南极面积除以 <code>apols</code>。周期性修正 <code>ecin(ij,l) = ecin(ij+iim,l)</code>。</p>
+<h3 id="并行变体">并行变体</h3>
+<p><code>enercin_p.F</code> 用 <code>c$OMP DO SCHEDULE(STATIC,OMP_CHUNK)</code> 包裹外层 <code>l</code> 循环。子域范围 <code>ijb=ij_begin, ije=ij_end+iip1</code>，北极条件 <code>pole_nord</code> 时 <code>ijb</code> 上移 <code>iip1</code>（跳过北极点），南极条件 <code>pole_sud</code> 时 <code>ije</code> 下移 <code>iip1</code>（跳过南极点）。极点动能用 <code>SSUM</code> 替代串行 <code>SUM</code> 做行求和。</p>
+<h2 id="bernoui--bernoulli-函数">bernoui — Bernoulli 函数</h2>
+<h3 id="签名-1">签名</h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> bernoui (ngrid, nlay, pphi, pecin, pbern)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span> nlay, ngrid</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span> pphi(ngrid<span class="kw">*</span>nlay), pecin(ngrid<span class="kw">*</span>nlay), pbern(ngrid<span class="kw">*</span>nlay)</span></code></pre></div>
+<h3 id="公式-1">公式</h3>
+<p>Bernoulli 函数 = 位势 + 动能，再施加 <code>filtreg</code> 正则滤波：</p>
+<pre><code>pbern(ijl) = pphi(ijl) + pecin(ijl)
+CALL filtreg( pbern, jjp1, llm, 2, 1, .true., 1 )</code></pre>
+<p><code>pphi</code> 由 <code>geopot</code> 输出（位势高度），<code>pecin</code> 由 <code>enercin</code> 输出（动能）。滤波参数 <code>(2,1,.true.,1)</code> 表示 2 阶精度、1 次通过、带极点滤波。</p>
+<p>Bernoulli 函数在 <code>caldyn</code> 中被 <code>dudv2</code> 用来计算动量倾向的梯度部分：<code>dudv2(tsurpk, pkf, bern, du, dv)</code>。</p>
+<h3 id="并行变体-1">并行变体</h3>
+<p><code>bernoui_p.F</code> 把加法循环改为 <code>c$OMP DO SCHEDULE(STATIC,OMP_CHUNK)</code> 在 <code>l</code> 维度上，子域范围 <code>ijb=ij_begin, ije=ij_end+iip1</code>（<code>pole_sud</code> 时 <code>ije=ij_end</code>）。滤波用 <code>filtreg_p(pbern, jjb, jje, jjp1, llm, 2, 1, .true., 1)</code>，其中 <code>jjb/jje</code> 按 <code>pole_sud</code> 调整。</p>
+<h2 id="tourpot--位势涡度">tourpot — 位势涡度</h2>
+<h3 id="签名-2">签名</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> tourpot ( vcov, ucov, massebxy, vorpot )</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span>, <span class="dt">INTENT(IN)</span>  <span class="dt">::</span> vcov    (ip1jm,   llm)</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span>, <span class="dt">INTENT(IN)</span>  <span class="dt">::</span> ucov    (ip1jmp1, llm)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span>, <span class="dt">INTENT(IN)</span>  <span class="dt">::</span> massebxy(ip1jm,   llm)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span>, <span class="dt">INTENT(OUT)</span> <span class="dt">::</span> vorpot  (ip1jm,   llm)</span></code></pre></div>
+<h3 id="公式-2">公式</h3>
+<p>位势涡度 = (滤波后的风场旋度 + 科氏参数) / Z 点空气质量：</p>
+<pre><code>vorpot = ( filtreg( d(vcov)/dx - d(ucov)/dy ) + fext ) / massebxy</code></pre>
+<p>三步计算：</p>
+<ol type="1">
+<li><strong>风场旋度</strong>：<code>rot(ij,l) = vcov(ij+1,l) - vcov(ij,l) + ucov(ij+iip1,l) - ucov(ij,l)</code>。这是 Z 点（角点）上的离散旋度。周期性修正 <code>rot(iip1,j,l) = rot(1,j,l)</code>。</li>
+<li><strong>滤波</strong>：<code>CALL filtreg(rot, jjm, llm, 2, 1, .FALSE., 1)</code>。<code>.FALSE.</code> 表示不带极点滤波（旋度定义在 Z 点，不是 P 点）。</li>
+<li><strong>除以质量</strong>：<code>vorpot(ij,l) = (rot(ij,l) + fext(ij)) / massebxy(ij,l)</code>。<code>fext</code> 来自 <code>comgeom.h</code>，是科氏参数加网格曲率项。<code>massebxy</code> 由 <code>massbarxy</code> 提供 Z 点面积加权空气质量。</li>
+</ol>
+<p><code>vorpot</code> 在 <code>caldyn</code> 中被 <code>dudv1(vorpot, pbaru, pbarv, du, dv)</code> 用来计算旋转诱导的动量倾向。</p>
+<h3 id="并行变体-2">并行变体</h3>
+<p><code>tourpot_p.F</code> 三段结构（旋度→滤波→除质量）分别用 OMP 和 <code>filtreg_p</code>：</p>
+<ul>
+<li>旋度循环：<code>c$OMP DO SCHEDULE(STATIC,OMP_CHUNK)</code> 在 <code>l</code> 维度，子域 <code>ijb=ij_begin-iip1</code>（<code>pole_nord</code> 时 <code>ijb=ij_begin</code>），<code>ije=ij_end</code>（<code>pole_sud</code> 时 <code>ije=ij_end-iip1-1</code>）。</li>
+<li>滤波：<code>filtreg_p(rot, jjb, jje, jjm, llm, 2, 1, .FALSE., 1)</code>，<code>jjb=jj_begin-1</code>（<code>pole_nord</code> 时 <code>+1</code>），<code>jje=jj_end</code>（<code>pole_sud</code> 时 <code>-1</code>）。</li>
+<li>除质量：又一个 <code>c$OMP DO</code> 循环，边界同上。</li>
+</ul>
+<h2 id="geopot--位势高度">geopot — 位势高度</h2>
+<h3 id="签名-3">签名</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> geopot ( ngrid, teta, pk, pks, phis, phi )</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span> ngrid</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span> teta(ngrid,llm), pks(ngrid), phis(ngrid), pk(ngrid,llm), phi(ngrid,llm)</span></code></pre></div>
+<h3 id="公式-3">公式</h3>
+<p>从地面向上逐层静力积分，计算每层中点的位势高度：</p>
+<pre><code>phi(ij,1) = phis(ij) + teta(ij,1) * (pks(ij) - pk(ij,1))     ! 近地面层
+phi(ij,l) = phi(ij,l-1) + 0.5 * (teta(ij,l) + teta(ij,l-1))  ! 上层梯形积分
+                      * (pk(ij,l-1) - pk(ij,l))</code></pre>
+<p>这里 <code>teta</code> 不是简单的位温 <code>θ</code>，而是经过 <code>tpot2t</code> 转换后的量 <code>tsurpk = cpp * temp / pk</code>，其中 <code>cpp</code> 和 <code>pk</code> 适配变比热 <code>cp(T)</code> 路径。注释原文："This computation (with teta = cp T / pk!) is identical to delta phi = R/RMD T/p delta p (r=R/RMD=cpp*kappa)"。</p>
+<p><code>phis</code> 是地表位势（地形），<code>pks</code> 是地表 Exner 函数，<code>pk</code> 是各层 Exner 函数。静力积分从地面（l=1）向上到模式顶（l=llm）。</p>
+<h3 id="并行变体-3">并行变体</h3>
+<p><code>geopot_p.F</code> 用 <code>USE parallel_lmdz</code>，子域范围 <code>ijb=ij_begin, ije=ij_end+iip1</code>（<code>pole_sud</code> 时 <code>ije=ij_end</code>），但<strong>没有 OMP 指令</strong>——地面层循环和逐层积分循环都是普通 <code>DO</code>。原因是垂直积分存在层间依赖 <code>phi(ij,l) = phi(ij,l-1) + ...</code>，无法并行化外层 <code>l</code>；而水平方向已在子域内顺序执行。</p>
+<h3 id="cpt-适配">cp(T) 适配</h3>
+<p>活跃调用路径中 <code>geopot</code> 的第一个参数总是 <code>tsurpk</code>（经过 <code>tpot2t</code> 和 <code>cpp*temp/pk</code> 转换后的量），而非原始 <code>teta</code>。注释掉的旧代码 <code>CALL geopot(..., teta, ...)</code> 表明早期版本直接用位温。<code>#ifdef</code> 标记 <code>ADAPTATION GCM POUR CP(T)</code> 确认这是变比热改造。</p>
+<h2 id="caldyn-数据管线">caldyn 数据管线</h2>
+<p><code>caldyn</code>（串行 L99-109 / 并行 L132-154）中这四个算子构成动量倾向组装的核心链：</p>
+<pre><code>tourpot(vcov, ucov, massebxy, vorpot)     → 位势涡度
+  dudv1(vorpot, pbaru, pbarv, du, dv)     → 旋转诱导动量倾向
+enercin(vcov, ucov, vcont, ucont, ecin)   → 动能
+bernoui(ip1jmp1, llm, phi, ecin, bern)    → Bernoulli 函数
+  dudv2(tsurpk, pkf, bern, du, dv)        → Bernoulli+压力动量倾向</code></pre>
+<p>前置依赖：<code>tourpot</code> 需要 <code>massebxy</code>（由 <code>massbarxy</code> 提供）；<code>enercin</code> 需要 <code>ucont/vcont</code>（由 <code>covcont</code> 提供）；<code>bernoui</code> 需要 <code>phi</code>（由 <code>geopot</code> 提供，已在 <code>leapfrog</code> 调用 <code>caldyn</code> 之前计算好）。</p>
+<h2 id="leapfrog-耗散守恒中的-enercin">leapfrog 耗散守恒中的 enercin</h2>
+<p><code>leapfrog</code>（串行 L699-728 / 并行 L1353-1401）的 <code>apdiss</code> 块中，<code>enercin</code> 被调用两次：</p>
+<ol type="1">
+<li><strong>耗散前基准</strong>：<code>covcont → enercin(vcov,ucov,vcont,ucont,ecin0)</code>，记录耗散前动能。</li>
+<li><strong>耗散后守恒修正</strong>：<code>ucov += dudis; vcov += dvdis</code> 后重新 <code>covcont → enercin → ecin</code>，计算动能差 <code>ecin0 - ecin</code> 作为热力修正注入温度场。</li>
+</ol>
+<p>详见 <a href="common-dissip-mars-chain.html">Mars 水平耗散链路</a>。</p>
+<h2 id="leapfrog-中-geopot-的多点调用">leapfrog 中 geopot 的多点调用</h2>
+<p><code>geopot</code> 在 COMMON <code>leapfrog.F</code> 中被调用 6 次（串行），在 <code>leapfrog_p.F</code> 中被调用 4 次（并行），在 MARS <code>phymars/leapfrog_nogcm.F</code> 中被调用 5 次。每次都在 <code>tpot2t → tsurpk = cpp*temp/pk</code> 之后调用，确保用 cp(T) 适配后的温度。</p>
+<p>主要调用位置：</p>
+<ul>
+<li><strong>初始时间步</strong>（L426）：<code>caldyn</code> 之前的首次位势计算。</li>
+<li><strong>Matsuno 步</strong>（L545）：Matsuno 前向步的位势刷新。</li>
+<li><strong>leapfrog 步</strong>（L838, L872）：leapfrog 时间步的位势刷新。</li>
+<li><strong>forward 步</strong>（L1006, L1031）：forward 模式的位势刷新。</li>
+</ul>
+<p>MARS <code>phymars/leapfrog_nogcm.F</code> 中保留全部 <code>geopot</code> 调用（5 次），但不调用 <code>enercin</code>/<code>bernoui</code>/<code>tourpot</code>——nogcm 路径无动力倾向计算。</p>
+<h2 id="诊断调用方">诊断调用方</h2>
+<p><code>enercin</code> 在诊断路径中有额外调用：</p>
+<ul>
+<li><code>bilan_dyn.F</code> L422 / <code>bilan_dyn_p.F</code> L362：能量收支诊断。</li>
+<li><code>diagedyn.F</code> L163：动力诊断。</li>
+</ul>
+<p><code>tourpot</code>/<code>bernoui</code>/<code>geopot</code> 在诊断路径中无额外调用（仅 <code>geopot</code> 在 <code>iniacademic.F90</code> L249 有学术测试初始化调用）。</p>
+<h2 id="串并行差异汇总">串并行差异汇总</h2>
+<table>
+<thead>
+<tr>
+<th>差异项</th>
+<th>串行</th>
+<th>并行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>enercin OMP</td>
+<td>无</td>
+<td><code>OMP DO SCHEDULE(STATIC,OMP_CHUNK)</code></td>
+</tr>
+<tr>
+<td>enercin 极点</td>
+<td>无条件计算南北极</td>
+<td><code>pole_nord</code>/<code>pole_sud</code> 条件跳过</td>
+</tr>
+<tr>
+<td>enercin 极点求和</td>
+<td><code>SUM(ecinni(1:iim))</code></td>
+<td><code>SSUM(iim, ecinni, 1)</code></td>
+</tr>
+<tr>
+<td>bernoui OMP</td>
+<td>无</td>
+<td><code>OMP DO SCHEDULE(STATIC,OMP_CHUNK)</code></td>
+</tr>
+<tr>
+<td>bernoui 滤波</td>
+<td><code>filtreg</code></td>
+<td><code>filtreg_p</code> 带 <code>jjb/jje</code> 子域</td>
+</tr>
+<tr>
+<td>tourpot OMP</td>
+<td>无</td>
+<td><code>OMP DO</code> 分三段（旋度/除质量）</td>
+</tr>
+<tr>
+<td>tourpot 滤波</td>
+<td><code>filtreg</code></td>
+<td><code>filtreg_p</code> 带 <code>jjb/jje</code> 子域</td>
+</tr>
+<tr>
+<td>tourpot 边界</td>
+<td>全网格</td>
+<td><code>ij_begin-iip1</code> 扩展 halo 需求</td>
+</tr>
+<tr>
+<td>geopot OMP</td>
+<td>无</td>
+<td>无（垂直积分层间依赖）</td>
+</tr>
+<tr>
+<td>geopot 子域</td>
+<td>全 <code>1..ngrid</code></td>
+<td><code>ij_begin..ij_end+iip1</code>，<code>pole_sud</code> 缩减</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入输出数据流">输入输出数据流</h2>
+<pre><code>leapfrog:
+  tpot2t(teta) → temp; tsurpk = cpp*temp/pk
+  geopot(ip1jmp1, tsurpk, pk, pks, phis) → phi       ─┐
+                                                       │
+caldyn:                                                │
+  massbarxy(masse) → massebxy ─┐                       │
+  covcont(ucov,vcov) → ucont,vcont ─┐                  │
+  tourpot(vcov, ucov, massebxy) → vorpot              │
+    dudv1(vorpot, pbaru, pbarv) → du,dv               │
+  enercin(vcov, ucov, vcont, ucont) → ecin            │
+  bernoui(ip1jmp1, llm, phi←──────┘, ecin) → bern     │
+    dudv2(tsurpk, pkf, bern) → du,dv (叠加)           │
+                                                       │
+leapfrog dissip block:                                 │
+  covcont(ucov,vcov) → ucont,vcont                     │
+  enercin(vcov,ucov,vcont,ucont) → ecin0  (耗散前)    │
+  dissip(vcov,ucov,teta,p) → dudis,dvdis,dtetadis     │
+  ucov += dudis; vcov += dvdis                         │
+  covcont → ucont,vcont (更新后)                       │
+  enercin → ecin (耗散后)                              │
+  temp += (ecin0 - ecin) / cpdet(temp)                 │</code></pre>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>enercin</code> 需要 covariant 和 contravariant 两种风场；如果只有 covariant，需先通过 <code>covcont</code> 转换。</li>
+<li><code>bernoui</code> 的 <code>filtreg</code> 调用改变了输出 <code>pbern</code> 的值，不能跳过——未滤波的 <code>phi+ecin</code> 不满足 <code>dudv2</code> 的输入假设。</li>
+<li><code>tourpot</code> 在 Z 点（角点）上计算，因此滤波参数 <code>.FALSE.</code> 表示不带极点处理；而 <code>bernoui</code> 在 P 点上用 <code>.true.</code>。</li>
+<li><code>geopot</code> 的 <code>teta</code> 参数必须是 <code>tsurpk = cpp*temp/pk</code> 而不是原始位温，否则会丢失 cp(T) 变比热修正。</li>
+<li>并行 <code>tourpot_p</code> 的旋度循环需要 <code>ijb=ij_begin-iip1</code> 扩展，因为旋度 stencil 需要左侧一列 halo 数据。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>filtreg</code> 的参数 <code>(2,1,.true.,1)</code> 和 <code>(2,1,.FALSE.,1)</code> 的精确语义需在 filtreg 页面中补齐（当前只有参数位置推断）。</li>
+<li><code>SSUM</code> 外部函数在 <code>enercin_p.F</code> 中声明为 <code>EXTERNAL</code>，具体实现在哪个文件中需追踪（可能在 <code>parallel_lmdz</code> 或独立 helper 中）。</li>
+<li><code>geopot_p</code> 没有 OMP 指令是否影响并行性能——其子域内水平循环可能已被外层 OMP 区域覆盖，需在 <code>leapfrog_p</code> 上下文中确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="caldyn-serial-parallel.html">caldyn 串并行对照</a></li>
+<li><a href="caldyn-dynamic-tendencies.html">caldyn 动力 tendency 分段</a></li>
+<li><a href="common-dissip-mars-chain.html">Mars 水平耗散链路</a></li>
+<li><a href="leapfrog-dissipation-conservation.html">leapfrog 耗散、sponge 和守恒修正</a></li>
+<li><a href="differential-operators-overview.html">差分算子总览</a></li>
+<li><a href="common-dissipation-stencil-families.html">水平微分/耗散 stencil family 深度页</a></li>
+<li><a href="common-pressure-mass-operators.html">压力与质量算子 family</a></li>
+<li><a href="common-wind-massflux-operators.html">风场转换与质量通量算子组</a></li>
+<li><a href="mass-pressure-energy-overview.html">质量、压力、位势和能量例程总览</a></li>
+<li><a href="exner-cpdet-helpers.html">Exner 函数与 cp(T) 变比热路径</a></li>
+<li><a href="leapfrog-dynamics-transport.html">leapfrog 动力与输送</a></li>
+<li><a href="../modules/dyn3d/bilan_dyn.html">bilan_dyn</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

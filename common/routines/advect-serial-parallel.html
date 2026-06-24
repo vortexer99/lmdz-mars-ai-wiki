@@ -1,0 +1,106 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>advect-serial-parallel - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/advect-serial-parallel.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="advect-文件组对照">advect 文件组对照</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d\advect.F
+dyn3dpar\advect_p.F
+dyn3dpar\advect_new_p.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。该组是动力或 tracer advection 的中间调度/包装层，具体是否经过取决于主循环和 scheme。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>advect</code> 组把调用方的质量、通量和 tracer/状态数组转交给底层输送内核。并行目录同时保留旧版 <code>advect_p</code> 和新版 <code>advect_new_p</code>，后者通常承担更明确的子域/交换组织职责。</p>
+<h2 id="对照表">对照表</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>角色</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>advect.F</code></td>
+<td>171</td>
+<td>串行 advection 包装入口。</td>
+</tr>
+<tr>
+<td><code>advect_p.F</code></td>
+<td>217</td>
+<td>并行旧式包装入口。</td>
+</tr>
+<tr>
+<td><code>advect_new_p.F</code></td>
+<td>290</td>
+<td>并行新版包装入口，显式处理更多并行边界条件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>接收调用方给出的待输送量、质量场和质量通量。</li>
+<li>整理水平/垂直维度和步长。</li>
+<li>选择或调用具体方向内核。</li>
+<li>并行版本在进入内核前后保证本地子域边界可用。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>该组不是最终 limiter 公式所在位置；公式在 <code>advx/advy/advz</code>、Van Leer 或 PPM 相关文件中。</li>
+<li>并行旧/新版的差异应从调用方选择和 halo 时序核对，不能只凭文件名判断哪个生效。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="advxyz-serial.html">advxyz 串行内核</a></li>
+<li><a href="advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
+<li><a href="caldyn-dynamic-tendencies.html">caldyn 动力 tendency 分段</a></li>
+</ul>
+<h2 id="已确认">已确认</h2>
+<ul>
+<li><code>caldyn_p</code> 已确认调用 <code>advect_new_p</code>；本页不再把该调用点作为待确认项。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

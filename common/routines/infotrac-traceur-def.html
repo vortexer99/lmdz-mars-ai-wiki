@@ -1,0 +1,174 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>infotrac-traceur-def - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/infotrac-traceur-def.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="infotrac-的-traceurdef-读取逻辑">infotrac 的 traceur.def 读取逻辑</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\infotrac.F90</code></pre>
+<p>Mars 运行参与度：<code>必经</code>。Mars 全 GCM、<code>newstart</code> 和 <code>start2archive</code> 都依赖 <code>infotrac_init</code> 给出的 tracer 列表；planetary/Mars 分支缺少 <code>traceur.def</code> 会直接 abort。</p>
+<h2 id="入口和配置门">入口和配置门</h2>
+<p><code>infotrac_init</code> 首先读取 <code>planet_type</code> 和 <code>config_inca</code>，再按 <code>type_trac</code> 分支。源码对 chemistry 类型有预处理宏保护：<code>inca</code> 需要 INCA，<code>repr</code> 需要 REPROBUS，<code>coag</code> 需要 StratAer；配置不匹配时调用 <code>abort_gcm</code>。</p>
+<table>
+<thead>
+<tr>
+<th>分支</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Earth <code>lmdz/repr/coag</code></td>
+<td>打开 <code>traceur.def</code>，读取第一行 <code>nqtrue</code>；缺文件时使用默认 <code>nqtrue=4</code>，并设 <code>nbtr=nqtrue-2</code></td>
+</tr>
+<tr>
+<td>Earth <code>inca/inco</code></td>
+<td>读取水相数 <code>nqo</code>，缺省为 2；<code>nqo</code> 只能为 2 或 3；调用 INCA tracer 初始化得到 <code>nbtr</code>，<code>nqtrue=nbtr+nqo</code></td>
+</tr>
+<tr>
+<td>非 Earth / planetary</td>
+<td>必须打开 <code>traceur.def</code>；缺文件 abort；识别旧格式或 <code>#ModernTrac-v1</code> 现代格式</td>
+</tr>
+</tbody>
+</table>
+<h2 id="旧格式">旧格式</h2>
+<p>非现代格式把第一条有效行解释为 tracer 数。随后每个 tracer 行用类似格式读取：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">READ(</span><span class="dv">90</span>,<span class="st">&#39;(I2,X,I2,X,A)&#39;</span>,<span class="fu">IOSTAT</span><span class="kw">=</span>IOstatus<span class="fu">)</span> hadv(iq), vadv(iq), tchaine</span></code></pre></div>
+<p><code>hadv/vadv</code> 分别给水平和垂直 advection 标识。<code>tchaine</code> 中可能只有 tracer 名，也可能包含 tracer 名和 carrier 名。若没有显式 carrier，旧格式分支会保持向后兼容，把 tracer 视为直接由空气输送或按旧逻辑补全。</p>
+<h2 id="moderntrac-v1">ModernTrac-v1</h2>
+<p>planetary 分支先读第一行；如果等于 <code>#ModernTrac-v1</code>，则进入现代格式：</p>
+<ol type="1">
+<li>跳过以 <code>#</code> 开头的 header/comment。</li>
+<li>读取 <code>nbtr</code>，这里表示 physics 认为的 species/tracer 总数，可能包含非动态 species。</li>
+<li>后续读取每个 tracer 的字段和 flag，并据此确定哪些进入动态输送，最终再得到 <code>nqtrue</code>。</li>
+</ol>
+<p>现代格式的关键影响是：<code>nbtr</code> 不再等同于动力数组维度，<code>nqtrue</code> 是按动态 flag 过滤后的真实输送 tracer 数。</p>
+<h2 id="缺文件与错误处理">缺文件与错误处理</h2>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Earth <code>lmdz/repr/coag</code> 缺 <code>traceur.def</code></td>
+<td>只警告，使用默认 <code>nqtrue=4</code></td>
+</tr>
+<tr>
+<td>Earth INCA 缺 <code>traceur.def</code></td>
+<td>使用默认 <code>nqo=2</code></td>
+</tr>
+<tr>
+<td>planetary/Mars 缺 <code>traceur.def</code></td>
+<td><code>abort_gcm(modname,"file traceur.def not found!",1)</code></td>
+</tr>
+<tr>
+<td>Earth 分支 <code>nqtrue&lt;2</code></td>
+<td>abort，至少需要 2 个 tracer</td>
+</tr>
+<tr>
+<td>行格式无法读取 <code>hadv/vadv/tchaine</code></td>
+<td>abort，提示读取 <code>traceur.def</code> 出错</td>
+</tr>
+<tr>
+<td>ModernTrac-v1 找不到 tracer 数</td>
+<td>abort，提示无法读取 tracer 数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="读取后的状态">读取后的状态</h2>
+<p>读取阶段得到的是中间数组：</p>
+<table>
+<thead>
+<tr>
+<th>临时状态</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tnom_0(iq)</code></td>
+<td>原始 tracer 名</td>
+</tr>
+<tr>
+<td><code>tnom_transp(iq)</code></td>
+<td>carrier/父 tracer 名，<code>air</code> 表示父 tracer</td>
+</tr>
+<tr>
+<td><code>hadv(iq)</code></td>
+<td>水平方向 scheme</td>
+</tr>
+<tr>
+<td><code>vadv(iq)</code></td>
+<td>垂直方向 scheme</td>
+</tr>
+<tr>
+<td><code>nqtrue</code></td>
+<td>未展开 moments 前的真实动态 tracer 数</td>
+</tr>
+</tbody>
+</table>
+<p>后续 <code>nqtrue</code> 会经过 scheme 扩展成为 <code>nqtot</code>，再写入全局 <code>tname/ttext/iadv/niadv</code>。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>Mars/planetary 运行不能依赖 Earth 的缺省 <code>nqtrue=4</code>，因为非 Earth 分支没有 fallback。</li>
+<li>读取 <code>traceur.def</code> 只给出第一层配置；真正的 <code>nqtot</code> 还要看 scheme 20/30 是否扩展 moments。</li>
+<li>现代格式中 <code>nbtr</code> 的语义偏 physics species，总维度判断应以后续动态 tracer 过滤和 <code>nqtot</code> 为准。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>ModernTrac-v1 每个字段的完整语义需要结合 MARS <code>parse_tracer_file.F90</code> 或运行样例进一步整理。</li>
+<li><code>inco</code> 与 <code>inca</code> 在当前 Mars 运行中是否出现，未在本任务中验证。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="infotrac-state-contract.html">infotrac 状态契约</a></li>
+<li><a href="infotrac-advection-schemes.html">infotrac advection scheme</a></li>
+<li><a href="infotrac-mars-consumers.html">MARS/COMMON 消费方</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

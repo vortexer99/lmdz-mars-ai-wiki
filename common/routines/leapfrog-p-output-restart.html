@@ -1,0 +1,179 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>leapfrog-p-output-restart - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/leapfrog-p-output-restart.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="leapfrog_p-输出诊断和-restart">leapfrog_p 输出、诊断和 restart</h1>
+<p>页面状态：TASK-0130 完成。 源码范围：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\leapfrog_p.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\dynredem_p.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\inithist_p.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\bilan_dyn_p.F</code></pre>
+<p>Mars 运行参与度：条件经过。Mars 并行 GCM 使用 <code>dyn3dpar/gcm.F -&gt; leapfrog_p</code>，只有开启动力 history、dynav、zonal diagnostic 或写 <code>restart.nc</code> 时才进入本页描述的 I/O 路径。</p>
+<h2 id="调度位置">调度位置</h2>
+<p><code>leapfrog_p</code> 的输出段位于阶段计算之后、状态机跳回 label 1/2 之前。非 <code>purmats</code> 分支在 <code>itau</code> 已由 forward 或 leapfrog 阶段推进后写出；<code>purmats</code> 分支只在 backward 半步写出。两个分支都先处理平均/纬向诊断，再处理 instant history 和 Grads，最后判断 restart。</p>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th style="text-align: right;">非 <code>purmats</code> 源码位置</th>
+<th style="text-align: right;"><code>purmats</code> 源码位置</th>
+<th>门控</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>zonal diagnostic</td>
+<td style="text-align: right;">1677-1685</td>
+<td style="text-align: right;">1910-1918</td>
+<td><code>MOD(itau,iperiod)==0 .OR. itau==itaufin</code> 且 <code>ok_dynzon</code></td>
+</tr>
+<tr>
+<td>dynav 平均输出</td>
+<td style="text-align: right;">1687-1708</td>
+<td style="text-align: right;">1920-1941</td>
+<td>同一 <code>iperiod/itaufin</code> 门，且 <code>ok_dyn_ave</code></td>
+</tr>
+<tr>
+<td>instant history</td>
+<td style="text-align: right;">1715-1785</td>
+<td style="text-align: right;">1946-2010</td>
+<td><code>MOD(itau,iecri)==0</code>；非 <code>purmats</code> 还要求 <code>leapf</code> 或 backward Matsuno</td>
+</tr>
+<tr>
+<td>restart</td>
+<td style="text-align: right;">1804-1838</td>
+<td style="text-align: right;">2029-2060</td>
+<td><code>itau==itaufin</code> 或 <code>ecritstart&gt;0</code> 且整除</td>
+</tr>
+</tbody>
+</table>
+<p><code>iperiod</code> 同时影响 Matsuno restart 周期和 dynav/zonal 输出周期；<code>iecri</code> 只控制 instant history。排查缺步时不要把这两个频率混用。</p>
+<h2 id="dynav-和-zonal-diagnostic">dynav 和 zonal diagnostic</h2>
+<p>平均输出门打开后，<code>ok_dynzon</code> 在 IOIPSL 编译条件下调用：</p>
+<pre class="text"><code>bilan_dyn_p(2, dtvr*iperiod, dtvr*day_step*periodav,
+            ps, masse, pk, pbaru, pbarv, teta, phi, ucov, vcov, q)</code></pre>
+<p><code>bilan_dyn_p</code> 自己在并行子域上建 <code>dynzon</code> history domain，内部通过 halo request 补齐 <code>ucov/vcov/q/flux_u/flux_v</code> 等边界，按 <code>dt_cum/dt_app</code> 累积到周期后由 <code>OMP MASTER</code> 写出。因此 <code>bilan_dyn_p</code> 不是简单 root-only dump，它保留并行局部纬向切片语义。</p>
+<p><code>ok_dyn_ave</code> 的 dynav 路径不同：<code>leapfrog_p</code> 在 master 段内先对 <code>vcov/ucov/teta/pk/phi/q/masse/ps/phis</code> 调 <code>Gather_Field(...,0)</code>，再由 <code>mpi_rank==0</code> 调 <code>writedynav(itau,...)</code>。当前 6.3 源码没有实际调用 <code>writedynav_p</code>；并行主循环选择 gather 到 root 后复用串行写例程。</p>
+<h2 id="instant-history-和-grads">instant history 和 Grads</h2>
+<p>instant history 的 <code>iecri</code> 门打开后，先把位温转换为温度相关的 <code>tsurpk</code>，再调用 <code>geopot_p</code> 重算 <code>phi</code>，并由 <code>ucov/cu</code>、<code>vcov/cv</code> 构造 <code>unat/vnat</code>。随后：</p>
+<ul>
+<li><code>ok_dyn_ins</code> 且启用 IOIPSL 时，gather <code>vcov/ucov/teta/phi/q/masse/ps/phis</code> 到 root，<code>mpi_rank==0</code> 调 <code>writehist(itau,vcov,ucov,teta,phi,q,masse,ps,phis)</code>。</li>
+<li><code>output_grads_dyn</code> 为真时，gather <code>unat/vnat/teta/ps/q</code> 后在 root include <code>write_grads_dyn.h</code>。</li>
+<li>非 <code>purmats</code> 下 forward Matsuno 半步不写 instant history，条件是 <code>leapf .OR. (.NOT.leapf .AND. .NOT.forward)</code>。</li>
+</ul>
+<p>这意味着 history 文件缺字段时，先查 <code>ok_dyn_ins/CPP_IOIPSL/iecri</code> 和阶段过滤；字段错位或缺全局带时，再查 <code>Gather_Field</code> 和当前 <code>SetDistrib</code> 状态。</p>
+<h2 id="restart-写出">restart 写出</h2>
+<p>restart 判断分两步避免 <code>ecritstart==0</code> 时取模除零：</p>
+<pre class="text"><code>lrestart = .false.
+if (itau == itaufin) lrestart = .true.
+else if (ecritstart &gt; 0 .and. MOD(itau,ecritstart) == 0) lrestart = .true.</code></pre>
+<p>写出时调用 <code>dynredem1_p("restart.nc", time, vcov, ucov, teta, q, masse, ps)</code>。<code>dynredem1_p</code> 内部先 <code>Gather_Field</code> 状态数组和 tracer，再只让 <code>mpi_rank==0</code> 打开 NetCDF、追加 <code>temps</code> 或 <code>Time</code> record，并重写 <code>controle</code>。<code>dynredem0_p</code> 创建文件骨架时同样只有 root 定义维度、控制数组、<code>controle_descriptor</code>、坐标和变量。</p>
+<p>Mars 与非 Mars 的 <code>time</code> 实参不同：</p>
+<table>
+<thead>
+<tr>
+<th>分支</th>
+<th>Mars <code>time</code></th>
+<th>非 Mars <code>time</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>非 <code>purmats</code>, <code>ecritstart&gt;0</code></td>
+<td><code>REAL(itau)/REAL(day_step)+time_0-floor(time_0)</code></td>
+<td><code>JH_cur</code></td>
+</tr>
+<tr>
+<td>非 <code>purmats</code>, 最终且 <code>ecritstart==0</code></td>
+<td><code>REAL(itau)/REAL(day_step)-(day_end-day_ini)+time_0-floor(time_0)</code></td>
+<td><code>JH_cur</code></td>
+</tr>
+<tr>
+<td><code>purmats</code>, <code>ecritstart&gt;0</code></td>
+<td><code>REAL(itau)/REAL(day_step)</code></td>
+<td><code>JH_cur</code></td>
+</tr>
+<tr>
+<td><code>purmats</code>, 最终且 <code>ecritstart==0</code></td>
+<td><code>REAL(itau)/REAL(day_step)-(day_end-day_ini)</code></td>
+<td><code>JH_cur</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>purmats</code> Mars 分支没有加 <code>time_0-floor(time_0)</code>，而非 <code>purmats</code> Mars 分支会加；这是 6.3 源码事实，设计意图需要维护者确认。</p>
+<h2 id="初始化边界">初始化边界</h2>
+<p>本页的写出段依赖 <code>gcm.F</code> 早先完成输出文件初始化：</p>
+<ul>
+<li><code>dynredem0_p("restart.nc",...)</code> 创建 restart skeleton，Mars/generic 使用 planeto <code>Time</code> 坐标，Earth 使用 <code>temps</code>。</li>
+<li>6.3 的 <code>dyn3dpar/gcm.F</code> 在 <code>mpi_rank==0</code> 条件内调用 <code>inithist</code> 和 <code>initdynav</code>，与后续 gather 后 root 调 <code>writehist/writedynav</code> 的路径一致。</li>
+<li><code>inithist_p</code> 和 <code>initdynav_p</code> 是并行 domain 初始化例程，源码中用 <code>flio_dom_set</code> 为本 rank 的 U/V/scalar grid 建 IOIPSL domain；但当前 <code>gcm.F</code> 主路径没有实际调用 <code>inithist_p/initdynav_p</code>。</li>
+</ul>
+<p>因此 <code>leapfrog_p</code> 负责“何时写”和“写前如何 gather/root”，<code>gcm.F</code> 的 rank-0 初始化和 <code>dynredem0_p</code> 负责“文件结构是否已经定义”。若改回 <code>_p</code> 初始化例程，需要同步检查后续是否仍 gather 后复用串行写例程。</p>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>先确认当前分支是非 <code>purmats</code> 还是 <code>purmats</code>，因为 <code>itau</code> 推进和 Mars restart 时间实参不同。</li>
+<li><code>ok_dynzon</code> 走 <code>bilan_dyn_p</code> 并行局部累积；<code>ok_dyn_ave</code> 和 <code>ok_dyn_ins</code> 在 <code>leapfrog_p</code> 中 gather 后 root 写。</li>
+<li><code>writehist_p/writedynav_p</code> 存在，但当前主循环实际调用的是 gather 后的 <code>writehist/writedynav</code>。</li>
+<li><code>dynredem1_p</code> 自己再 gather restart 字段，root 写 NetCDF；排查并行 restart 要同时看调用前分布和 <code>dynredem1_p</code> 内部 gather。</li>
+<li>Mars 并行 restart 不应套用串行页的单一时间公式，必须区分 <code>purmats</code> 和 <code>ecritstart</code>。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>purmats</code> Mars 中途 restart 不加 <code>time_0-floor(time_0)</code> 是否为保留行为还是历史遗漏。</li>
+<li><code>leapfrog_p</code> 中声明的 <code>dynhist_file/dynhistave_file</code> 未在本例程使用，实际文件名初始化由 <code>gcm.F</code> 承担。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3dpar/leapfrog_p.html">dyn3dpar/leapfrog_p</a></li>
+<li><a href="leapfrog-p-time-scheduler.html">leapfrog_p 时间步调度</a></li>
+<li><a href="leapfrog-p-distribution-halo.html">leapfrog_p 分布/halo</a></li>
+<li><a href="dynredem-restart.html">dynredem restart 写出</a></li>
+<li><a href="inithist-serial-parallel.html">history 输出初始化</a></li>
+<li><a href="history-output-serial-parallel.html">history/dynav 输出</a></li>
+<li><a href="../themes/restart-io.html">restart-io</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

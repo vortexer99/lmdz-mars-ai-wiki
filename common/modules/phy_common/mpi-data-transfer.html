@@ -1,0 +1,125 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mpi-data-transfer - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/phy_common/mpi-data-transfer.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="物理侧-mpi-datatransfer-组">物理侧 MPI data/transfer 组</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\mod_phys_lmdz_mpi_data.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\mod_phys_lmdz_mpi_transfert.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>mod_phys_lmdz_mpi_data.F90</code> 保存物理侧 MPI decomposition：当前 rank 的经纬向范围、物理列范围、极点所有权、MPI communicator 和 datatype。<code>mod_phys_lmdz_mpi_transfert.F90</code> 在这些分布表之上提供广播、scatter/gather、二维 scatter/gather、reduce 和 1D/2D 网格互转的泛型 MPI 包装。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 或 COMMON 物理侧启用 MPI 物理分布和 transfer 包装时经过；串行构建通过上层抽象绕过或退化。</code></pre>
+<h2 id="文件和符号">文件和符号</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>主要符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data.F90</code></td>
+<td>220</td>
+<td><code>mod_phys_lmdz_mpi_data</code>, <code>init_phys_lmdz_mpi_data</code>, <code>print_module_data</code></td>
+<td>保存 MPI rank、分布表和当前 rank 子域。</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_mpi_transfert.F90</code></td>
+<td>1953</td>
+<td><code>mod_phys_lmdz_mpi_transfert</code>, <code>bcast_mpi</code>, <code>scatter_mpi</code>, <code>gather_mpi</code>, <code>scatter2D_mpi</code>, <code>gather2D_mpi</code>, <code>reduce_sum_mpi</code>, <code>grid1dTo2d_mpi</code>, <code>grid2dTo1d_mpi</code></td>
+<td>为 integer/real/logical/character 和多维数组提供 MPI transfer 泛型；父文件页见 <a href="mod_phys_lmdz_mpi_transfert.html">mod_phys_lmdz_mpi_transfert</a>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mpi-data-初始化">MPI data 初始化</h2>
+<p><code>init_phys_lmdz_mpi_data(nbp,nbp_lon,nbp_lat,communicator)</code> 的核心步骤：</p>
+<ol type="1">
+<li>计算全局物理列数：1D 时 <code>klon_glo=1</code>，否则 <code>klon_glo=nbp_lon*(nbp_lat-2)+2</code>。</li>
+<li>若启用 MPI，从 <code>COMM_LMDZ_PHY</code> 读取 <code>mpi_size/mpi_rank</code>，设置 <code>MPI_REAL_LMDZ=MPI_REAL8</code>；否则设为单 rank。</li>
+<li><code>MPI_ALLGATHER</code> 收集每个 rank 的 <code>nbp</code>，得到 <code>klon_mpi_para_nb</code>。</li>
+<li>由累计列数计算 <code>klon_mpi_para_begin/end</code>。</li>
+<li>通过偏移 <code>+nbp_lon-1</code> 将一维列范围换算为 <code>ij_para_begin/end</code>、<code>jj_para_begin/end</code>、<code>ii_para_begin/end</code>。</li>
+<li>将本 rank 的范围写入 <code>ii_begin/ii_end/jj_begin/jj_end/jj_nb/klon_mpi_begin/klon_mpi_end/klon_mpi</code>。</li>
+</ol>
+<h2 id="mpi-transfer-接口族">MPI transfer 接口族</h2>
+<p><code>mod_phys_lmdz_mpi_transfert</code> 定义多个 Fortran 泛型接口。常用族：</p>
+<ul>
+<li><code>bcast_mpi_*</code>：使用 <code>MPI_BCAST</code>，root 是 <code>mpi_master</code>。</li>
+<li><code>scatter_mpi_*</code>：root 将全局 <code>klon_glo</code> 字段按 <code>klon_mpi_para_begin/end</code> 打包后 <code>MPI_SCATTERV</code>。</li>
+<li><code>gather_mpi_*</code>：用 <code>MPI_GATHERV</code> 收回，再按分布表解包到全局 <code>klon_glo</code> 字段。</li>
+<li><code>reduce_sum_mpi_*</code>：使用 <code>MPI_REDUCE(..., MPI_SUM, mpi_master, COMM_LMDZ_PHY)</code>。</li>
+<li><code>grid1dTo2d_mpi_*</code> / <code>grid2dTo1d_mpi_*</code>：在本 rank 的 <code>jj_nb</code> 局部二维块和 <code>klon_mpi</code> 一维列之间转换。</li>
+</ul>
+<p>接口覆盖 integer、real、logical；广播还覆盖 character。数组维数通常支持标量到 3/4 维包装，内部用 <code>dimsize</code> 展平附加维度。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>物理一维列去掉重复极点经度，MPI 分布以 <code>klon_mpi_para_*</code> 为准。</li>
+<li><code>scatter_mpi_*</code> 和 <code>gather_mpi_*</code> 的 counts/displs 不是简单等长，由每个 rank 的 <code>klon_mpi_para_nb</code> 决定。</li>
+<li>局部 1D/2D 转换使用 <code>ii_begin/jj_nb</code>，边缘纬向行可能是局部部分行。</li>
+<li>本页是组页；<code>mod_phys_lmdz_mpi_transfert.F90</code> 的逐个泛型过程细节已由 <a href="mod_phys_lmdz_mpi_transfert.html">mod_phys_lmdz_mpi_transfert</a> 展开。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>communicator</code> 与动力侧 <code>COMM_LMDZ</code> 的具体来源需结合物理初始化入口确认。</li>
+<li>MPI transfer 大文件如需逐过程审计，应由 hard-task 单独展开。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phy_common 总览</a></li>
+<li><a href="mod_phys_lmdz_para.html">mod_phys_lmdz_para</a></li>
+<li><a href="physics_distribution_mod.html">physics_distribution_mod</a></li>
+<li><a href="geometry-grid-layers.html">物理侧几何/经纬网格/垂直层</a></li>
+<li><a href="../../routines/phys-transfer-para-wrapper.html">transfert_para 上层 wrapper</a></li>
+<li><a href="mod_phys_lmdz_mpi_transfert.html">mod_phys_lmdz_mpi_transfert</a></li>
+<li><a href="../../routines/phys-transfer-mpi-core.html">phys-transfer-mpi-core</a></li>
+<li><a href="../../routines/phys-transfer-omp-core.html">phys-transfer-omp-core</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

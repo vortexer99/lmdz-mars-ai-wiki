@@ -1,0 +1,275 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>makelmdz-target-output-naming - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a class="active" href="project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>architecture/makelmdz-target-output-naming.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="makelmdz_fcm-mars-target-和输出命名契约">makelmdz_fcm Mars target 和输出命名契约</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\makelmdz_fcm
+LMDZ.COMMON-6.3\LMDZ.COMMON\bld.cfg
+LMDZ.COMMON-6.3\LMDZ.COMMON\build_gcm
+LMDZ.COMMON-6.3\LMDZ.COMMON\create_make_gcm
+LMDZ.MARS\doc\compilation.tex
+LMDZ.MARS\doc\testphys1d.tex
+LMDZ.MARS\deftank\*\run0
+LMDZ.MARS\deftank\launch_1Dchained.sh
+LMDZ.MARS\deftank\launch_orb_1Dchained.sh</code></pre>
+<p>Mars 运行参与度：<code>构建期必经/运行期命名匹配</code>。Mars GCM 运行时不执行 <code>makelmdz_fcm</code>，但运行脚本里的 <code>gcm=...</code> 或 1D <code>exePCM=...</code> 必须匹配它生成的 <code>bin/&lt;target&gt;_&lt;dim&gt;_phymars_&lt;mode&gt;.e</code>。</p>
+<h2 id="target-来源">target 来源</h2>
+<p><code>makelmdz_fcm</code> 的参数解析把最后一个非选项参数写入 <code>code</code>：</p>
+<pre class="text"><code>makelmdz_fcm -arch local -d 62x48x32 -p mars gcm
+                                                   ^ code</code></pre>
+<p>Mars 实用版需要关心的 target：</p>
+<table>
+<thead>
+<tr>
+<th>target</th>
+<th>主程序位置</th>
+<th>Mars 运行角色</th>
+<th>并行限制</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gcm</code></td>
+<td>COMMON <code>libf/dyn3d/gcm.F90</code> 或 <code>libf/dyn3dpar/gcm.F</code></td>
+<td>3D Mars GCM 主程序。</td>
+<td>可串行或并行。</td>
+</tr>
+<tr>
+<td><code>newstart</code></td>
+<td>MARS <code>libf/dynphy_lonlat/phymars/newstart.F</code></td>
+<td>生成/修改 Mars 初始状态。</td>
+<td>脚本禁止 <code>-parallel</code>。</td>
+</tr>
+<tr>
+<td><code>start2archive</code></td>
+<td>MARS <code>libf/dynphy_lonlat/phymars/start2archive.F</code></td>
+<td>把 start/restart 转 archive。</td>
+<td>脚本禁止 <code>-parallel</code>。</td>
+</tr>
+<tr>
+<td><code>testphys1d</code></td>
+<td>MARS <code>libf/phymars/dyn1d/testphys1d.F90</code></td>
+<td>1D Mars physics column driver。</td>
+<td>单数字维度，脚本禁止 <code>-parallel</code>。</td>
+</tr>
+</tbody>
+</table>
+<p><code>bld.cfg</code> 不单独列出这些名字；它消费 <code>makelmdz_fcm</code> 写入的：</p>
+<pre class="text"><code>%EXEC          &lt;code&gt;
+%SUFF_NAME     &lt;suffix&gt;
+bld::target    liblmdz.a %EXEC%SUFF_NAME
+dir::bin       %ROOT_PATH/bin</code></pre>
+<p>因此实际可执行文件由 <code>code + SUFF_NAME</code> 形成，并输出到 COMMON 根目录下的 <code>bin/</code>。</p>
+<h2 id="suff_name-规则">SUFF_NAME 规则</h2>
+<p><code>makelmdz_fcm</code> 先保留原始维度字符串 <code>dim_full</code>，再生成 suffix：</p>
+<pre class="text"><code>SUFF_NAME = _&lt;dim_full&gt;
+SUFF_NAME = _&lt;dim_full&gt;_phy&lt;physique&gt;</code></pre>
+<p>对 Mars，<code>-p mars</code> 令 <code>physique=mars</code>，所以物理包标签是 <code>phymars</code>。</p>
+<p>并行模式再追加：</p>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>追加片段</th>
+<th>动力目录含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>默认或 <code>-parallel none</code></td>
+<td><code>_seq</code></td>
+<td>3D 用 <code>dyn3d</code>；1D 用 <code>phymars/dyn1d</code>。</td>
+</tr>
+<tr>
+<td><code>-parallel mpi</code></td>
+<td><code>_para</code></td>
+<td><code>DYN=dyn3dpar</code>，加 <code>CPP_PARA CPP_MPI</code>。</td>
+</tr>
+<tr>
+<td><code>-parallel omp</code></td>
+<td><code>_para</code></td>
+<td><code>DYN=dyn3dpar</code>，加 <code>CPP_PARA CPP_OMP</code>。</td>
+</tr>
+<tr>
+<td><code>-parallel mpi_omp</code></td>
+<td><code>_para</code></td>
+<td><code>DYN=dyn3dpar</code>，加 <code>CPP_PARA CPP_MPI CPP_OMP</code>。</td>
+</tr>
+<tr>
+<td><code>-parallel ... -mem</code></td>
+<td><code>_para_mem</code></td>
+<td><code>DYN=dyn3dmem</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>普通 Mars run 不走 ORCHIDEE、coupled、INCA 分支；若显式打开 <code>-v</code>、<code>-c</code> 或 <code>-chimie INCA</code>，脚本还会追加 <code>_orch</code>、<code>_couple</code> 或 <code>_inca</code>。这些不是当前 Mars GCM 实用版主路径。</p>
+<p>最后，若不是 <code>-libphy</code>，脚本追加 <code>.e</code>：</p>
+<pre class="text"><code>&lt;target&gt;_&lt;dim&gt;_phymars_seq.e
+&lt;target&gt;_&lt;dim&gt;_phymars_para.e
+&lt;target&gt;_&lt;dim&gt;_phymars_para_mem.e</code></pre>
+<p><code>-libphy</code> 是只编译 physics library 的特殊路径，会清空 <code>code/SUFF_NAME</code>，不生成 Mars run 可执行文件。</p>
+<h2 id="常见-mars-命名映射">常见 Mars 命名映射</h2>
+<table>
+<thead>
+<tr>
+<th>命令形态</th>
+<th>预期输出名</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>makelmdz_fcm -arch local -d 62x48x32 -p mars gcm</code></td>
+<td><code>bin/gcm_62x48x32_phymars_seq.e</code></td>
+</tr>
+<tr>
+<td><code>makelmdz_fcm -arch &lt;arch&gt; -d 64x48x54 -p mars -parallel mpi gcm</code></td>
+<td><code>bin/gcm_64x48x54_phymars_para.e</code></td>
+</tr>
+<tr>
+<td><code>makelmdz_fcm -arch &lt;arch&gt; -d 64x48x54 -p mars -parallel mpi_omp gcm</code></td>
+<td><code>bin/gcm_64x48x54_phymars_para.e</code></td>
+</tr>
+<tr>
+<td><code>makelmdz_fcm -arch &lt;arch&gt; -d 64x48x54 -p mars -parallel mpi -mem gcm</code></td>
+<td><code>bin/gcm_64x48x54_phymars_para_mem.e</code></td>
+</tr>
+<tr>
+<td><code>makelmdz_fcm -arch &lt;arch&gt; -d 64x48x54 -p mars newstart</code></td>
+<td><code>bin/newstart_64x48x54_phymars_seq.e</code></td>
+</tr>
+<tr>
+<td><code>makelmdz_fcm -arch &lt;arch&gt; -d 64x48x54 -p mars start2archive</code></td>
+<td><code>bin/start2archive_64x48x54_phymars_seq.e</code></td>
+</tr>
+<tr>
+<td><code>makelmdz_fcm -arch local -d 29 -p mars testphys1d</code></td>
+<td><code>bin/testphys1d_29_phymars_seq.e</code></td>
+</tr>
+</tbody>
+</table>
+<p>Mars 文档中的 1D 示例明确给出 <code>testphys1d_29_phymars_seq.e</code>；deftank 1D chained 脚本当前写死 <code>testphys1d_32_phymars_seq.e</code>，因此它对应的是 <code>-d 32 -p mars testphys1d</code>。</p>
+<h2 id="运行脚本匹配点">运行脚本匹配点</h2>
+<p>3D deftank 机器脚本不是自动发现可执行文件；它们在 <code>run0</code> 顶部写死 <code>gcm=</code>：</p>
+<table>
+<thead>
+<tr>
+<th>脚本</th>
+<th>当前写死名称</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deftank/run0</code></td>
+<td><code>gcm.e</code></td>
+</tr>
+<tr>
+<td><code>deftank/adastra/run0</code></td>
+<td><code>gcm_64x48x54_phymars_para.e</code></td>
+</tr>
+<tr>
+<td><code>deftank/ciclad/run0</code></td>
+<td><code>gcm_64x48x32_phymars_para.e</code></td>
+</tr>
+<tr>
+<td><code>deftank/irene/run0</code></td>
+<td><code>gcm_64x48x73_phymars_para.e</code></td>
+</tr>
+<tr>
+<td><code>deftank/mesu/run0</code></td>
+<td><code>gcm_64x48x54_phymars_para.e</code></td>
+</tr>
+<tr>
+<td><code>deftank/occigen/run0</code></td>
+<td><code>gcm_64x48x73_phymars_para.e</code></td>
+</tr>
+<tr>
+<td><code>deftank/spirit/run0</code></td>
+<td><code>gcm_64x48x54_phymars_para.e</code></td>
+</tr>
+</tbody>
+</table>
+<p>复现时要让三件事一致：</p>
+<pre class="text"><code>makelmdz_fcm -d &lt;dim&gt; -p mars [-parallel ...] gcm
+bin/gcm_&lt;dim&gt;_phymars_&lt;seq|para&gt;.e
+run0:gcm=gcm_&lt;dim&gt;_phymars_&lt;seq|para&gt;.e</code></pre>
+<p>否则编译成功也会在运行前失败，因为 <code>run0</code> 检查当前目录里的 <code>$gcm</code> 是否存在且可执行。</p>
+<h2 id="target-限制和失败模式">target 限制和失败模式</h2>
+<ul>
+<li><code>newstart</code> 和 <code>start2archive</code> 若带 <code>-parallel mpi/omp/mpi_omp</code>，脚本直接退出，提示这两个工具必须串行。</li>
+<li>1D target 使用单数字 <code>-d &lt;nlayer&gt;</code>；脚本检测到一维时加 <code>CPP_1D</code>，关闭完整 <code>dyn3d_common</code>、<code>filtrez</code> 和 dyn-phys 目录编译，并禁止 <code>-parallel</code>。</li>
+<li>3D GCM 必须用三段维度，例如 <code>64x48x54</code>；单数字维度会进入 1D 特殊路径。</li>
+<li><code>gcm</code> 的并行后缀只区分 <code>_para</code>，不会从输出名上区分 <code>mpi</code>、<code>omp</code> 和 <code>mpi_omp</code>。真实并行方式要从编译命令、<code>arch.fcm</code> flags、<code>CPP_KEY</code> 和运行脚本启动器确认。</li>
+<li><code>makelmdz_fcm</code> 中 cleanup 行写的是 <code>rm -f bin/${code}${SUFF_NAME}.e</code>，而此时 <code>SUFF_NAME</code> 已包含 <code>.e</code>；实际 FCM target 由 <code>bld.cfg</code> 的 <code>%EXEC%SUFF_NAME</code> 决定，不能用这行推导最终名字。</li>
+</ul>
+<h2 id="create_make_gcm-边界">create_make_gcm 边界</h2>
+<p><code>create_make_gcm</code> 是旧 <code>makelmdz/makegcm</code> 路径的 Makefile 生成器：它输出 <code>PROG=code</code>、<code>DIRMAIN=dyn$(DIM)d$(FLAG_PARA)</code> 和 <code>$(PROG).e</code> 链接规则。当前 <code>makelmdz_fcm</code> 不调用它，而是调用：</p>
+<pre class="text"><code>./build_gcm ${fcm_path} -j $job $full</code></pre>
+<p><code>build_gcm</code> 再执行 <code>fcm build</code>。因此本页的 Mars 命名结论以 <code>makelmdz_fcm + bld.cfg</code> 为准；<code>create_make_gcm</code> 只用于说明旧路径不要混入当前 FCM 命名判断。</p>
+<h2 id="复现检查点">复现检查点</h2>
+<ol type="1">
+<li>从运行脚本或实验说明确定需要的 target：3D <code>gcm</code>、工具 <code>newstart/start2archive</code>、或 1D <code>testphys1d</code>。</li>
+<li>用目标网格维度替换 <code>-d</code>，Mars physics 必须用 <code>-p mars</code>。</li>
+<li>若目标是 <code>newstart/start2archive/testphys1d</code>，不要加 <code>-parallel</code>。</li>
+<li>编译后在 <code>bin/</code> 下找 <code>&lt;target&gt;_&lt;dim&gt;_phymars_&lt;seq|para&gt;.e</code>。</li>
+<li>把可执行文件复制或链接到运行目录，并让 <code>run0:gcm=</code> 或 chained script 的 <code>exePCM=</code> 与文件名完全一致。</li>
+<li>对 <code>_para.e</code>，再确认 <code>run0</code> 启动器是 <code>mpirun</code>/<code>srun</code>/<code>ccc_mprun</code> 等并行启动方式，而不是直接 <code>./gcm</code>。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前本地 workspace 没有实际运行一次 FCM build；本页按源码规则和 Mars 文档示例推导输出名。</li>
+<li><code>_para</code> 后缀不区分 MPI/OMP，真实混合并行配置需要结合具体 <code>arch-*.fcm</code> 和作业脚本核对。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="makelmdz-fcm-mars-paths.html">makelmdz_fcm Mars 源码路径契约</a></li>
+<li><a href="arch-env-mars-run.html">arch 环境和 Mars deftank 运行契约</a></li>
+<li><a href="build-and-arch.html">build 和 arch 配置链</a></li>
+<li><a href="../routines/common-gcm-mars-run-entry.html">Mars 3D GCM 主入口链</a></li>
+<li><a href="../routines/mars-start-restart-archive-boundary.html">Mars start/restart/archive 文件职责边界</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,139 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>leapfrog-physics-coupling - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/leapfrog-physics-coupling.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="leapfrog-动力-物理耦合">leapfrog 动力-物理耦合</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\leapfrog.F
+LMDZ.MARS\libf\dynphy_lonlat\phymars\leapfrog_nogcm.F</code></pre>
+<p>Mars 运行参与度：<code>必经</code>。COMMON 6.3 完整 GCM 通过 <code>calfis</code> 接收动力列状态，再由 <code>addfi</code> 把物理 tendency 写回动力数组；MARS <code>phymars/leapfrog_nogcm.F</code> 还在该段完成 pressure/CO2/teta 的松弛混合，作为 Mars 侧边界记录。</p>
+<h2 id="physics-调用前刷新">physics 调用前刷新</h2>
+<p>当 <code>apphys=.TRUE.</code> 时，两个例程都会先刷新物理所需状态：</p>
+<ol type="1">
+<li><code>pression</code> 由 <code>ps</code> 重算层界压力 <code>p</code>。</li>
+<li><code>exner_hyb</code> 或 <code>exner_milieu</code> 重算 <code>pks/pk/pkf</code>。</li>
+<li><code>geopot</code> 重算 <code>phi</code>。</li>
+<li>计算传给 physics 的 <code>jD_cur/jH_cur</code>。</li>
+<li>若 <code>ip_ebil_dyn&gt;=1</code> 且 <code>planet_type=="earth"</code>，调用 <code>diagedyn</code> 做 physics 前能量诊断。</li>
+</ol>
+<p>完整 GCM 中 geopotential 使用 CP(T) 适配后的 <code>tsurpk</code>；MARS nogcm 变体在 physics 前用 <code>teta</code> 版本的 <code>geopot</code>。</p>
+<h2 id="calfisaddfi">calfis/addfi</h2>
+<p>调用链：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">CALL calfis(lafin,jD_cur,jH_cur,ucov,vcov,teta,q,masse,ps,p,pk,phis,phi,</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>            du,dv,dteta,dq,flxw,dufi,dvfi,dtetafi,dqfi,dpfi)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co">CALL addfi(dtphys,leapf,forward,ucov,vcov,teta,q,ps,</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>           dufi,dvfi,dtetafi,dqfi,dpfi)</span></code></pre></div>
+<p><code>calfis</code> 只产生 physics tendency；<code>addfi</code> 才把 tendency 加到动力状态。<code>addfi</code> 之后 <code>ps</code> 可能改变，所以完整 GCM 立即执行：</p>
+<ul>
+<li><code>pression</code></li>
+<li><code>massdair</code></li>
+<li><code>exner_hyb</code> 或 <code>exner_milieu</code></li>
+</ul>
+<h2 id="完整-gcm-额外-forcing">完整 GCM 额外 forcing</h2>
+<table>
+<thead>
+<tr>
+<th>分支</th>
+<th>条件</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>top boundary</td>
+<td><code>iflag_top_bound&gt;0</code> 且 physics 段内</td>
+<td><code>top_bound(...,dtphys,dutop)</code>，再把 <code>dutop</code> 转成 tendency</td>
+</tr>
+<tr>
+<td>Newtonian academic</td>
+<td><code>iflag_phys==2</code></td>
+<td>对 <code>teta</code> 做 Newtonian relaxation，giant 分支可加 intrinsic heat flux</td>
+</tr>
+<tr>
+<td>friction</td>
+<td><code>iflag_phys==2</code></td>
+<td>调用 <code>friction(ucov,vcov,dtvr)</code></td>
+</tr>
+<tr>
+<td>stratospheric top</td>
+<td><code>iflag_phys==2</code> 且 <code>ok_strato</code></td>
+<td>调用 <code>top_bound(...,dtvr,dutop)</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="nogcm-pressureco2teta-混合">nogcm pressure/CO2/teta 混合</h2>
+<p>nogcm 在 <code>addfi</code> 后走一段替代动力再分布逻辑：</p>
+<ol type="1">
+<li>保存 CO2 tracer 质量 <code>mq=masse*q(:,:,igcm_co2)</code>。</li>
+<li>用 <code>globaverage2d(ps)</code> 得到 <code>psmean</code>，构造参考压力 <code>p0*kpd</code>。</li>
+<li>用 <code>tau_ps</code> 把 <code>ps</code> 松弛到参考压力，负压时设置小正值。</li>
+<li>因 <code>ps</code> 改变，用 <code>(ps/oldps)**kappa</code> 修正 <code>teta</code>。</li>
+<li>重算 <code>p/masse/pk</code>。</li>
+<li>用 <code>mq/masse</code> 恢复 CO2 混合比，保持 CO2 质量一致。</li>
+<li>垂直混合 CO2：每列按 pressure thickness 求平均，再写回所有层。</li>
+<li>水平松弛 CO2 到全球平均。</li>
+<li>对 <code>teta</code> 按层做面积加权平均松弛，时间尺度 <code>tau_teta</code>。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>physics tendency 写回后必须刷新 <code>p/masse/pk</code>，否则后续输出、耗散或 restart 的 pressure/mass 会与 <code>ps</code> 不一致。</li>
+<li>nogcm 的 CO2 逻辑只有在 <code>tname(iq)=="co2"</code> 找到 <code>igcm_co2</code> 后才有意义；未找到时相关分支跳过。</li>
+<li><code>lafin</code> 只告诉 physics 当前是否最后一次调用，不等同于例程自然返回。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>nogcm 中 CO2 pressure mixing 的 Mars 物理意图和默认时间尺度需要与 Mars 物理文档或实验配置进一步核对。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="addfi-serial-parallel.html">addfi 串并行对照</a></li>
+<li><a href="top-bound-serial-parallel.html">top_bound 串并行对照</a></li>
+<li><a href="friction-serial-parallel.html">friction 串并行对照</a></li>
+<li><a href="infotrac-mars-consumers.html">infotrac MARS/COMMON 消费方</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

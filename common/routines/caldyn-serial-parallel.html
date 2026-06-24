@@ -1,0 +1,120 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>caldyn-serial-parallel - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/caldyn-serial-parallel.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="caldyn-串并行对照">caldyn 串并行对照</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d\caldyn.F
+dyn3dpar\caldyn_p.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。串行动力主循环调用 <code>caldyn</code>，并行动力主循环调用 <code>caldyn_p</code>；Mars 是否走 COMMON 版本取决于构建入口和并行配置。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>caldyn</code> 是动力核心 tendency 计算的短入口，负责把当前风、质量、位温、压力等状态组织为后续积分所需的动力 tendency。并行版本保留同类职责，但使用子域数组和并行输出/调试 helper。</p>
+<h2 id="对照表">对照表</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>串行 <code>caldyn.F</code></th>
+<th>并行 <code>caldyn_p.F</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>行数</td>
+<td>145</td>
+<td>214</td>
+</tr>
+<tr>
+<td>主例程</td>
+<td><code>SUBROUTINE caldyn</code></td>
+<td><code>SUBROUTINE caldyn_p</code></td>
+</tr>
+<tr>
+<td>质量平均</td>
+<td><code>massbarxy</code></td>
+<td><code>massbarxy_p</code></td>
+</tr>
+<tr>
+<td>并行差异</td>
+<td>全局数组</td>
+<td>子域范围、并行调试输出</td>
+</tr>
+<tr>
+<td>输出</td>
+<td>动力 tendency 和辅助量</td>
+<td>本地子域 tendency，需和 halo/decomposition 保持一致</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>从当前 <code>ucov/vcov/teta/masse/ps</code> 等状态读取动力变量。</li>
+<li>构造 staggered grid 上需要的质量平均。</li>
+<li>调用梯度、散度、旋度、位势等 common 算子组合得到动量和热力 tendency。</li>
+<li>把 tendency 传回主循环，由 <code>integrd</code> 或对应并行积分例程更新 prognostic state。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>caldyn</code> 本身不是时间积分器；它计算 tendency，实际更新由后续积分例程完成。</li>
+<li>串并行结果对照时，先比较 <code>massbarxy</code> 与 <code>massbarxy_p</code> 的格点位置和边界带处理。</li>
+<li><code>caldyn_p</code> 中的 <code>WriteField_p</code> 类调用用于诊断，不应被当成物理输出。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="caldyn-dynamic-tendencies.html">caldyn 动力 tendency 分段</a></li>
+<li><a href="../modules/dyn3d/index.html">dyn3d 总览</a></li>
+<li><a href="../modules/dyn3d_common/index.html">dyn3d_common 总览</a></li>
+<li><a href="differential-operators-overview.html">差分算子总览</a></li>
+<li><a href="common-pressure-mass-operators.html">压力与质量算子 family</a></li>
+<li><a href="common-wind-massflux-operators.html">风场转换与质量通量算子组</a></li>
+<li><a href="common-energy-vorticity-operators.html">动能、Bernoulli、位势涡度与位势高度算子</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>caldyn_p</code> 的 halo 前置条件应由并行主循环 hard task 进一步核对。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,146 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>version-6.3-baseline - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="file-index.html">文件索引</a>
+        <a href="source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>reference/version-6.3-baseline.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="lmdzcommon-63-基线">LMDZ.COMMON 6.3 基线</h1>
+<p>页面状态：6.3 迁移基线页，依据迁移时记录的版本比较结论和本地 6.3 源码树建立；当前本地未保留独立的 <code>VERSION_COMPARISON_6.3.md</code> 副本。 源码基线：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code>。 旧版信息处理：本 wiki 正文不再并列保留旧版行为；旧版差异后续集中写入单独说明页。</p>
+<h2 id="迁移原则">迁移原则</h2>
+<ul>
+<li>具体源码事实以 <code>LMDZ.COMMON-6.3\LMDZ.COMMON</code> 为准。</li>
+<li>已删除的 COMMON 文件不再作为当前 wiki 页面或待写任务维护；若 Mars 侧仍有同名/同类实现，应转到 MARS wiki 或后续旧版说明。</li>
+<li>已完成但基于旧源码写成的页面，不直接视为 6.3 完成；需要按 6.3 源码重新核验后再保留 done 语义。</li>
+<li>后续 worker 不得把本页列为 6.3 已删除的文件继续当作 COMMON 6.3 任务领取；删除事实以当前源码树复核为准。</li>
+</ul>
+<h2 id="63-关键变化">6.3 关键变化</h2>
+<table>
+<thead>
+<tr>
+<th>范围</th>
+<th>6.3 当前事实</th>
+<th>Wiki 影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>构建入口</td>
+<td><code>makegcm</code> 已删除；Mars 构建应围绕 <code>makelmdz_fcm</code>。</td>
+<td>构建页和任务口径不再释放 <code>makegcm</code> 路径任务。</td>
+</tr>
+<tr>
+<td>FCM 配置</td>
+<td><code>bld.cfg</code> 不再包含 <code>src::evolution %EVOLUTION</code>，配置名使用 <code>%{ARCH}%{SUFF_DIR}</code>。</td>
+<td><code>evolution/PEM</code> 从范围排除变为“6.3 源码不存在”。</td>
+</tr>
+<tr>
+<td>运行参数</td>
+<td><code>dyn3d/gcm.F90</code>、<code>dyn3dpar/gcm.F</code> 新增 <code>program_options:parse_args()</code>。</td>
+<td>主入口页、符号索引和任务表需要新增 runtime option/build provenance 任务。</td>
+</tr>
+<tr>
+<td>生成版本模块</td>
+<td><code>makelmdz_fcm</code> 生成 <code>libf/misc/version_control.F90</code>。</td>
+<td><code>--version</code>、编译命令、用户、主机、当前目录和 VCS 状态需要单独成页或组页。</td>
+</tr>
+<tr>
+<td>COMMON nogcm</td>
+<td><code>libf/dyn3d/nogcm.F90</code> 和 <code>libf/dyn3d/leapfrog_nogcm.F</code> 已删除。</td>
+<td>删除/退役 COMMON nogcm 页面和任务；Mars 专用 nogcm 不在 COMMON 6.3 正文展开。</td>
+</tr>
+<tr>
+<td>restart 时间</td>
+<td><code>leapfrog</code>/<code>leapfrog_p</code> 写 restart 时不再用旧 <code>start_time</code> 主线；Mars 分支使用 <code>itau/day_step/time_0/day_end</code> 组合，非 Mars fallback 使用 <code>JH_cur</code>。</td>
+<td>时间推进、restart、dynredem 页面必须按分支口径返工。</td>
+</tr>
+<tr>
+<td>restart 元数据</td>
+<td><code>dynredem*</code> 新增 <code>controle_descriptor</code>、<code>descriptor</code>、<code>description_size</code>、<code>put_char1</code> 等。</td>
+<td>restart I/O 页需要按 6.3 重写 NetCDF 元数据契约。</td>
+</tr>
+<tr>
+<td>MPI/OMP transfer</td>
+<td>transfer 模块新增 5D/6D broadcast，OMP buffer 逻辑修正。</td>
+<td><code>mpi-data-transfer</code>、<code>omp-data-transfer</code> 组页和 hard transfer 任务需按 6.3 更新。</td>
+</tr>
+<tr>
+<td>物理 getin</td>
+<td><code>ioipsl_getin_p_mod</code> 改用 <code>is_master</code>。</td>
+<td>getin/XIOS/history 边界页需集中说明 master abstraction。</td>
+</tr>
+<tr>
+<td>parallel_lmdz</td>
+<td><code>omp_chunk</code> 会避开某些线程无工作导致的 MPI_Waitall 错配。</td>
+<td>并行主题和 parallel_lmdz 页面需加入 hybrid run 修复。</td>
+</tr>
+<tr>
+<td>geometry 输出面积</td>
+<td>新增 <code>cell_area_for_lonlat_outputs</code> 和 <code>init_geometry_cell_area_for_outputs</code>。</td>
+<td>geometry/inigeomphy 输出面积页需要拆出 physics area 与 lon-lat output area。</td>
+</tr>
+<tr>
+<td>misc 新工具</td>
+<td>新增 <code>job.F90</code>、<code>program_options.F90</code>、<code>readTracFiles_mod.f90</code>、<code>strings_mod.f90</code>。</td>
+<td>misc 总览、tracer、runtime option、job auto-exit 需要新增任务。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="立即退役的-common-旧页面">立即退役的 COMMON 旧页面</h2>
+<ul>
+<li><code>modules/dyn3d/nogcm.md</code>：目标 COMMON 源文件在 6.3 已删除。</li>
+<li><code>routines/leapfrog-nogcm-differences.md</code>：目标 COMMON 源文件在 6.3 已删除。</li>
+</ul>
+<p>这些内容不应继续被根入口、文件索引、符号索引或覆盖矩阵作为当前 COMMON 页面引用。</p>
+<h2 id="63-返工优先级">6.3 返工优先级</h2>
+<ol type="1">
+<li>P0：入口、构建、runtime option、source root、任务登记表。</li>
+<li>P1：<code>gcm/leapfrog/leapfrog_p/dynredem</code> 的 restart 时间和 metadata。</li>
+<li>P2：MPI/OMP transfer 与 <code>parallel_lmdz</code> hybrid 修复。</li>
+<li>P3：geometry 输出面积、dyn-phys 接口、tracer parser。</li>
+<li>P4/P5：IOIPSL install 脚本、arch 平台集、misc string/job 工具。</li>
+</ol>
+<h2 id="首批返工完成状态">首批返工完成状态</h2>
+<p><code>TASK-0204</code> 到 <code>TASK-0220</code> 已按 6.3 源码完成首批返工，覆盖 runtime option/build provenance、restart metadata、串并行 <code>leapfrog</code> restart 时间分支、5D/6D transfer、<code>parallel_lmdz</code> hybrid 修复、geometry 输出面积、<code>is_master</code> getin、tracer/string/job 工具和 arch/IOIPSL 平台更新。</p>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

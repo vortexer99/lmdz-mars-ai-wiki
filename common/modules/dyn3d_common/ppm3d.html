@@ -1,0 +1,283 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ppm3d - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d_common/ppm3d.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="ppm3df">ppm3d.F</h1>
+<p>页面状态：TASK-0019 完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\ppm3d.F</code>。</p>
+<p>Mars 运行参与度：条件经过 + 历史兼容。<code>ppm3d</code> 是串行 <code>advtrac.F90</code> 中 <code>iadv=11/16/17/18</code> 的 PPM 三维 tracer 输送内核；但 6.3 <code>infotrac_init</code> 的最终白名单只允许 <code>iadv=10/14/0</code>，Mars 标准配置通常无法到达 PPM 分支。并行 <code>advtrac_p.F90</code> 在 <code>vlspltgen_p</code> 后 <code>GOTO 1234</code>，跳过 PPM/Prather/advn 等旧分支。因此本页主要用于理解保留源码、历史配置或本地补丁下的串行 PPM 路径。</p>
+<h2 id="文件定位">文件定位</h2>
+<p><code>ppm3d.F</code> 是 NASA/GSFC Transport Core Version 4.5 的 fixed-form Fortran 77 代码，核心算法来自 Lin and Rood 的多维 flux-form semi-Lagrangian transport。它不是 LMDZ 原生网格上的直接例程：串行 <code>advtrac</code> 先通过 <code>interpre</code> 把 LMDZ 层序、风和质量通量变成 PPM core 需要的格式，调用 <code>ppm3d</code> 后再由 <code>interpost</code> 写回。</p>
+<h2 id="公开入口和内部例程">公开入口和内部例程</h2>
+<table>
+<thead>
+<tr>
+<th>例程</th>
+<th>源码位置</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ppm3d</code></td>
+<td>line 65</td>
+<td>主入口。一次调用更新 <code>Q(IMR,JNP,NLAY,NC)</code> 一个时间步，内部执行水平 E-W、水平 N-S 和垂直 split。</td>
+</tr>
+<tr>
+<td><code>FZPPM</code></td>
+<td>line 762</td>
+<td>垂直 PPM 输送，使用主例程由水平散度反推的垂直质量通量。</td>
+</tr>
+<tr>
+<td><code>xtp</code>, <code>ytp</code></td>
+<td>line 932, 1125</td>
+<td>E-W 和 N-S 水平输送。</td>
+</tr>
+<tr>
+<td><code>fxppm</code>, <code>fyppm</code></td>
+<td>line 1049, 1273</td>
+<td>水平 PPM 抛物线重构和界面通量积分。</td>
+</tr>
+<tr>
+<td><code>xmist</code>, <code>ymist</code></td>
+<td>line 1109, 1191</td>
+<td>4 阶参考斜率和单调性预限制。</td>
+</tr>
+<tr>
+<td><code>xadv</code>, <code>yadv</code></td>
+<td>line 1442, 1352</td>
+<td>cross-term 修正。</td>
+</tr>
+<tr>
+<td><code>lmtppm</code></td>
+<td>line 1534</td>
+<td>PPM 抛物线单调/半单调/正定约束。</td>
+</tr>
+<tr>
+<td><code>qckxyz</code></td>
+<td>line 1686</td>
+<td>FZPPM 后的负值检查和填充。</td>
+</tr>
+<tr>
+<td><code>filns</code>, <code>filew</code>, <code>filcr</code></td>
+<td>line 1895, 1981, 1793</td>
+<td>N-S、E-W 和对角方向负值填充。</td>
+</tr>
+<tr>
+<td><code>zflip</code></td>
+<td>line 2058</td>
+<td>通用垂直翻转工具；LMDZ 的 <code>interpre/interpost</code> 未直接调用。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="lmdz-调用边界">LMDZ 调用边界</h2>
+<p>串行 <code>advtrac.F90</code> 的 PPM 分支：</p>
+<pre class="text"><code>adaptdt(iadv, dtbon, n, ...)
+  -&gt; vertical CFL warning check
+  -&gt; interpre(q -&gt; qppm, winds/pressure/flux)
+  -&gt; repeat n substeps:
+       ppm3d(1, qppm, psppm, psppm, unatppm, vnatppm, fluxwppm,
+             dtbon, IORD, JORD, KORD, 1, iim, jjp1, 2, llm,
+             apppm, bpppm, 0.01, 6400000, fill, dum, 220.)
+  -&gt; interpost(qppm -&gt; q)</code></pre>
+<p>LMDZ 逐 tracer 调用 <code>ppm3d</code>，所以 <code>NC=1</code>。四种 <code>iadv</code> 映射为：</p>
+<table>
+<thead>
+<tr>
+<th><code>iadv</code></th>
+<th><code>IORD/JORD/KORD</code></th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>11</td>
+<td><code>2/2/2</code></td>
+<td>水平 Van Leer + 垂直 PPM 兼容分支；但 <code>ppm3d</code> 内部会把 <code>KORD</code> 至少抬到 3。</td>
+</tr>
+<tr>
+<td>16</td>
+<td><code>3/3/3</code></td>
+<td>Monotonic PPM。</td>
+</tr>
+<tr>
+<td>17</td>
+<td><code>4/4/4</code></td>
+<td>Semi-monotonic PPM，允许过冲。</td>
+</tr>
+<tr>
+<td>18</td>
+<td><code>5/5/5</code></td>
+<td>Positive-definite PPM，仅防止负值。</td>
+</tr>
+</tbody>
+</table>
+<p><code>fill</code> 由 <code>advtrac</code> 传入 <code>.true.</code>，会启用 <code>qckxyz</code> 负值填充。<code>dum</code> 是 <code>ppm3d</code> 的形式参数，源码中声明但未发现实际使用；LMDZ 仍传入 <code>.true.</code> 以保持旧接口。</p>
+<h2 id="主例程状态和限制">主例程状态和限制</h2>
+<p><code>ppm3d</code> 在首次调用或时间步改变时维护若干静态状态：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NSTEP</code></td>
+<td>每次调用自增；首次调用时执行网格/参数初始化，也传给 <code>qckxyz</code> 诊断输出。</td>
+</tr>
+<tr>
+<td><code>NDT0</code></td>
+<td>保存上次时间步；当 <code>NDT</code> 变化时重算 <code>DTDX/DTDY/JS0/JN0/IML</code>。</td>
+</tr>
+<tr>
+<td><code>Jmax=361</code>, <code>kmax=150</code></td>
+<td>静态数组上限；若 <code>JNP</code> 或 <code>NLAY</code> 超过则 stop。</td>
+</tr>
+<tr>
+<td><code>cross=.true.</code></td>
+<td>主水平段启用 <code>xadv/yadv</code> cross-term 修正；但 <code>qckxyz</code> 调用时传入 <code>.false.</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>参数检查包括：<code>NLAY &gt;= 6</code>、<code>JNP &gt;= NLAY</code>、<code>j1=2</code> 时 <code>IMR</code> 必须为偶数、<code>Jmax/Kmax</code> 足够大。当前 LMDZ 调用使用 <code>j1=2</code>、<code>AE=6400000</code>、<code>PT=0.01</code>。</p>
+<h2 id="数据流">数据流</h2>
+<pre class="text"><code>Q mixing ratio at t
+  -&gt; delp1 = DAP + DBK * PS1
+  -&gt; DQ = Q * delp1
+  -&gt; horizontal split on each k:
+       A2C -&gt; CRX/CRY -&gt; mass fluxes -&gt; cross terms -&gt; xtp -&gt; ytp
+  -&gt; vertical mass flux W from horizontal DPI
+  -&gt; FZPPM vertical split
+  -&gt; qckxyz fill if requested
+  -&gt; Q = DQ / delp2</code></pre>
+<p><code>DPI</code> 是水平质量散度的中间量。垂直质量通量 <code>W</code> 不由外部输入独立决定，而由水平散度和混合 sigma-P 坐标的 <code>DBK</code> 递推得到：</p>
+<pre class="text"><code>column_div = sum_k DPI(k)
+PS2 = PS1 + column_div
+W(k) = W(k-1) + DPI(k) - DBK(k) * column_div
+W(NLAY) = 0</code></pre>
+<p>因此 PPM 垂直输送和水平输送是耦合的，不能只拿 <code>FZPPM</code> 独立复现完整结果。</p>
+<h2 id="水平段">水平段</h2>
+<p>水平段对每个垂直层处理：</p>
+<ol type="1">
+<li><code>A2C</code> 把 C-grid wind 转成 Courant 数系数 <code>CRX/CRY</code>。</li>
+<li>内联计算 E-W 与 N-S 质量通量，累积 <code>DPI</code>。</li>
+<li>若 <code>cross=.true.</code>，调用 <code>xadv/yadv</code> 计算 cross-term，并叠加到 tracer。</li>
+<li><code>xtp</code> 做 E-W 输送，低纬度可走 PPM，高 CFL 高纬度可切到 FFSL 或 Van Leer。</li>
+<li><code>ytp</code> 做 N-S 输送，并在极区用 <code>RCAP</code> 把跨极通量均匀分配给极点经度。</li>
+</ol>
+<p><code>xtp</code> 的 E-W 方向支持 Eulerian 和 Semi-Lagrangian 路径；<code>ytp</code> 的 N-S 方向没有 FFSL，因此源码注释说明时间步主要受 meridional transport 限制。</p>
+<h2 id="垂直段">垂直段</h2>
+<p>垂直段先把水平散度转成 <code>W</code> 和新层厚 <code>delp2</code>，再调用 <code>FZPPM</code>。<code>FZPPM</code> 的输入 <code>DQ</code> 是水平段后的 tracer 密度，不是原始混合比。</p>
+<p><code>FZPPM</code> 对每个纬向切片执行：</p>
+<ol type="1">
+<li>计算非均匀层厚下的单调参考斜率。</li>
+<li>构造顶、底和内部界面值 <code>AL/AR</code>。</li>
+<li>根据 <code>KORD-3</code> 调用 <code>lmtppm</code> 施加全单调、半单调或正定约束。</li>
+<li>按 <code>WZ</code> 符号选择上/下游抛物线积分得到界面通量。</li>
+<li>用通量散度更新 <code>DQ</code>。</li>
+</ol>
+<p>主例程里 <code>KRD=max(3,KORD)</code>，所以 LMDZ <code>iadv=11</code> 传入的 <code>KORD=2</code> 实际按 3 处理。</p>
+<h2 id="负值填充">负值填充</h2>
+<p><code>qckxyz</code> 在垂直输送后运行，依次尝试：</p>
+<pre class="text"><code>filns  -&gt; filew -&gt; filcr -&gt; vertical fill</code></pre>
+<p>LMDZ 调用 <code>qckxyz(...,.false.,IC,NSTEP)</code>，所以顶层和内部层的 <code>filcr</code> 被跳过；底层的 <code>filcr</code> 在源码中仍无条件调用。若底层负值无法从上层补偿，会打印 <code>Mass source from the ground=</code>，这代表 tracer 质量守恒已被填充算法破坏。</p>
+<h2 id="mars-可达性">Mars 可达性</h2>
+<table>
+<thead>
+<tr>
+<th>路径</th>
+<th>6.3 行为</th>
+<th>是否到达 <code>ppm3d</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>串行 <code>advtrac</code> + <code>iadv=11/16/17/18</code></td>
+<td>源码存在完整调用链</td>
+<td>理论上是</td>
+</tr>
+<tr>
+<td>标准 <code>infotrac_init</code></td>
+<td>当前版本只放行 <code>10/14/0</code></td>
+<td>通常否，初始化会 abort</td>
+</tr>
+<tr>
+<td>并行 <code>advtrac_p</code></td>
+<td><code>vlspltgen_p</code> 后 <code>GOTO 1234</code> 跳过旧 scheme-specific 代码</td>
+<td>否</td>
+</tr>
+<tr>
+<td>Mars 1D/testphys</td>
+<td>通过转发接口使用 tracer 状态，不调用 <code>ppm3d</code></td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<p>这意味着 <code>ppm3d</code> 对 Mars wiki 的价值主要是解释保留源码和历史/本地补丁风险，而不是标准 6.3 Mars 主线的常规执行路径。</p>
+<h2 id="复现检查点">复现检查点</h2>
+<ol type="1">
+<li>先确认 <code>traceur.def</code> 能否产生 <code>iadv=11/16/17/18</code>，再确认是否绕过了 <code>infotrac_init</code> 白名单。</li>
+<li>串行复现必须同时复现 <code>interpre</code> 的地面气压计算、经向风取反、垂直层序翻转和 <code>interpost</code> 的周期闭合。</li>
+<li><code>adaptdt</code> 只按水平 CFL 分割子步；垂直 CFL 只在 <code>advtrac</code> 中打印 warning。</li>
+<li><code>Jmax/kmax</code> 是源码内静态上限，高分辨率或高层数配置需要先检查。</li>
+<li>负值填充会改变 tracer 质量；一旦日志出现地面质量源，应把它作为数值不守恒信号处理。</li>
+<li>并行构建里不要从 <code>advtrac_p</code> 下方保留的 PPM 代码推断可达性；那段被 <code>GOTO 1234</code> 跳过。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../routines/ppm3d-entry-contract.html">ppm3d 入口契约与串并行可达性</a></li>
+<li><a href="../../routines/ppm3d-horizontal-transport.html">ppm3d 水平输送</a></li>
+<li><a href="../../routines/ppm3d-vertical-transport.html">ppm3d 垂直输送</a></li>
+<li><a href="../../routines/ppm3d-limiters-filters.html">ppm3d limiter 和滤波</a></li>
+<li><a href="../../routines/advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
+<li><a href="../../routines/infotrac-advection-schemes.html">infotrac advection scheme</a></li>
+<li><a href="infotrac.html">infotrac</a></li>
+<li><a href="prather.html">prather</a></li>
+<li><a href="pentes_ini.html">pentes_ini</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

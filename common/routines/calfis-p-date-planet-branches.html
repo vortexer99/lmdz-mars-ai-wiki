@@ -1,0 +1,287 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>calfis-p-date-planet-branches - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/calfis-p-date-planet-branches.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="calfis_p-日期参数行星分支与接口兼容">calfis_p 日期参数、行星分支与接口兼容</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dynphy_lonlat\calfis_p.F: L1-1520（并行动理调用接口）
+dyn3dpar\leapfrog_p.F: L845-930, L1017-1021（日期计算和 calfis_p 调用）
+dyn3d_common\control_mod.F90: L34（planet_type 声明）</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。Mars 并行 GCM 在 <code>apphys</code> 为真时，<code>leapfrog_p</code> 计算 Mars 专属日期后传入 <code>calfis_p</code>；<code>calfis_p</code> 内部按 <code>planet_type</code> 和 <code>nsplit_phys</code> 处理日期分拆。</p>
+<h2 id="例程定位">例程定位</h2>
+<p>本页聚焦 <code>calfis_p</code> 的日期参数语义、<code>lafin</code> 标志的传递链、<code>planet_type</code> 分支结构，以及从旧式行星分散 <code>physiq</code> 统一到 <code>call_physiq</code> 的接口兼容风险。场映射和并行 transfer 已由 <a href="calfis-p-grid-mapping.html">calfis-p-grid-mapping</a>、<a href="calfis-p-physiq-contract.html">calfis-p-physiq-contract</a> 和 <a href="calfis-p-parallel-transfer.html">calfis-p-parallel-transfer</a> 覆盖。</p>
+<h2 id="日期参数">日期参数</h2>
+<h3 id="入口签名">入口签名</h3>
+<p><code>calfis_p</code> 接收三个时间相关参数：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> calfis_p(lafin, jD_cur, jH_cur, ...)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">LOGICAL</span>, <span class="dt">INTENT(IN)</span> <span class="dt">::</span> lafin       <span class="co">! .true. for the very last call to physics</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span>,    <span class="dt">INTENT(IN)</span> <span class="dt">::</span> jD_cur      <span class="co">! Julian day</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span>,    <span class="dt">INTENT(IN)</span> <span class="dt">::</span> jH_cur      <span class="co">! Julian hour (fraction of day)</span></span></code></pre></div>
+<p><code>jD_cur</code> 和 <code>jH_cur</code> 由 <code>leapfrog_p</code> 计算后传入。<code>calfis_p</code> 本身不修改这两个值，只在 <code>nsplit_phys</code> 循环内派生 <code>jH_cur_split</code>。</p>
+<h3 id="leapfrog_p-中的日期计算">leapfrog_p 中的日期计算</h3>
+<p><code>leapfrog_p</code> 在 physics 段（约 L905-927）按行星类型计算日期：</p>
+<p><strong>jD_cur（儒略日）</strong>：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">! 默认（Earth/Titan/Venus）</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>jD_cur <span class="kw">=</span> jD_ref <span class="kw">+</span> day_ini <span class="kw">-</span> day_ref <span class="kw">+</span> (itau<span class="kw">+</span><span class="dv">1</span>)<span class="kw">/</span>day_step</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co">! Mars 和 generic 覆盖：使用 itau 而非 itau+1</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> ((planet_type<span class="op">==</span><span class="st">&quot;generic&quot;</span>) <span class="op">.or.</span> (planet_type<span class="op">==</span><span class="st">&quot;mars&quot;</span>)) <span class="kw">THEN</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>   jD_cur <span class="kw">=</span> <span class="bu">int</span>(day_ini <span class="kw">+</span> itau<span class="kw">/</span>day_step)     <span class="co">! 整数截断，即 pday</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span></code></pre></div>
+<p>Mars 的 <code>jD_cur</code> 使用 <code>int()</code> 截断为整数，代表 physics day（pday）。这与默认路径的 <code>(itau+1)/day_step</code> 有两个差异：使用 <code>itau</code> 而非 <code>itau+1</code>，以及整数截断而非精确分数。</p>
+<p><strong>jH_cur（儒略小时，日分数）</strong>：</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (planet_type<span class="op">==</span><span class="st">&quot;mars&quot;</span>) <span class="kw">THEN</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>   jH_cur <span class="kw">=</span> jH_ref <span class="kw">+</span> hour_ini <span class="kw">+</span> <span class="bu">mod</span>(itau, day_step) <span class="kw">/</span> <span class="bu">float</span>(day_step)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="kw">ELSE IF</span> (planet_type<span class="op">==</span><span class="st">&quot;generic&quot;</span>) <span class="kw">THEN</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>   jH_cur <span class="kw">=</span> jH_ref <span class="kw">+</span> start_time <span class="kw">+</span> <span class="bu">mod</span>(itau, day_step) <span class="kw">/</span> <span class="bu">float</span>(day_step)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="kw">ELSE</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>   jH_cur <span class="kw">=</span> jH_ref <span class="kw">+</span> start_time <span class="kw">+</span> <span class="bu">mod</span>(itau<span class="kw">+</span><span class="dv">1</span>, day_step) <span class="kw">/</span> <span class="bu">float</span>(day_step<span class="co">)</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="co">! 溢出修正</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (jH_cur <span class="op">&gt;</span> <span class="fl">1.0</span>) <span class="kw">then</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>   jD_cur <span class="kw">=</span> jD_cur <span class="kw">+</span> <span class="dv">1</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>   jH_cur <span class="kw">=</span> jH_cur <span class="kw">-</span> <span class="dv">1</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<p>三行公式的关键差异：</p>
+<table>
+<thead>
+<tr>
+<th>行星</th>
+<th>时间偏移源</th>
+<th>itau 偏移</th>
+<th>语义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mars</td>
+<td><code>hour_ini</code></td>
+<td><code>itau</code></td>
+<td>Mars 物理使用当前步，不前瞻</td>
+</tr>
+<tr>
+<td>generic</td>
+<td><code>start_time</code></td>
+<td><code>itau</code></td>
+<td>同 Mars，但偏移源不同</td>
+</tr>
+<tr>
+<td>Earth/Titan/Venus</td>
+<td><code>start_time</code></td>
+<td><code>itau+1</code></td>
+<td>前瞻一步，physics 在 "下一时刻" 被调用</td>
+</tr>
+</tbody>
+</table>
+<p>Mars 使用 <code>hour_ini</code> 而非 <code>start_time</code> 作为初始小时偏移，这与其他行星不同。<code>hour_ini</code> 来自 Mars restart 文件的初始时间参数，<code>start_time</code> 是通用初始时间。</p>
+<h3 id="calfis_p-中的-split-日期分拆">calfis_p 中的 split 日期分拆</h3>
+<p><code>calfis_p</code> 在 <code>nsplit_phys</code> 循环内将 <code>jH_cur</code> 分拆为每个 split 的时间：</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">do</span> isplit <span class="kw">=</span> <span class="dv">1</span>, nsplit_phys</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>   jH_cur_split <span class="kw">=</span> jH_cur <span class="kw">+</span> (isplit<span class="kw">-</span><span class="dv">1</span>) <span class="kw">*</span> dtvr <span class="kw">/</span> (daysec <span class="kw">*</span> nsplit_phys)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>   debut_split  <span class="kw">=</span> debut <span class="op">.and.</span> isplit <span class="op">==</span> <span class="dv">1</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>   lafin_split  <span class="kw">=</span> lafin <span class="op">.and.</span> isplit <span class="op">==</span> nsplit_phys</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>   ...</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>   <span class="kw">CALL</span> call_physiq(klon, llm, nqtot, tname,</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&amp;</span>                 debut_split, lafin_split,</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  <span class="kw">&amp;</span>                 jD_cur, jH_cur_split, zdt_split, ...)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="kw">enddo</span></span></code></pre></div>
+<p><code>jH_cur_split</code> 在每个 split 中递增 <code>dtvr/(daysec*nsplit_phys)</code> 日分数。<code>jD_cur</code> 不分拆，直接传入每个 split。如果 <code>nsplit_phys==1</code>（Mars 常见），<code>jH_cur_split == jH_cur</code>，无分拆效果。</p>
+<p>注意：<code>jH_cur_split</code> 的递增不会检查溢出（<code>jH_cur_split &gt; 1.0</code>）。在极端 <code>nsplit_phys</code> 下，split 时间可能跨日但 <code>jD_cur</code> 不随之进位。Mars 配置 <code>nsplit_phys</code> 通常为 1，此问题不会出现。</p>
+<h2 id="lafin-标志">lafin 标志</h2>
+<h3 id="传递链">传递链</h3>
+<pre class="text"><code>leapfrog_p (L851-855):
+  purmats:     lafin = (itau==itaufin .AND. .NOT.forward)
+  non-purmats: lafin = (itau+1 == itaufin)
+       ↓
+  calfis_p(lafin, ...)
+       ↓
+  nsplit_phys 循环:
+  lafin_split = lafin .AND. isplit == nsplit_phys
+       ↓
+  call_physiq(..., lafin_split, ...)</code></pre>
+<p><code>lafin</code> 的物理含义是"本 physics 调用是否为模拟的最后一次"。只有最后一个 split 才收到 <code>lafin_split=.TRUE.</code>，确保物理参数化在最后 split 执行收尾操作（如写诊断、刷新累积量）。</p>
+<p><code>debut</code> 遵循对称逻辑：<code>debut_split = debut .AND. isplit == 1</code>。<code>debut</code> 是 THREADPRIVATE 标志，首次调用时为 <code>.TRUE.</code>，<code>firstcal</code> 变为 <code>.FALSE.</code> 后后续调用 <code>debut</code> 为 <code>.FALSE.</code>。</p>
+<h3 id="物理侧消费">物理侧消费</h3>
+<p><code>call_physiq</code> 将 <code>debut_split/lafin_split</code> 透传给行星物理参数化。<code>lafin_split=.TRUE.</code> 时物理侧可能执行：</p>
+<ul>
+<li>写最终诊断量</li>
+<li>刷新辐射通量累积</li>
+<li>触发输出或检查</li>
+</ul>
+<p>Mars 物理侧对 <code>lafin_split</code> 的具体消费需在 <code>phymars/</code> 目录确认。</p>
+<h2 id="planet_type-分支结构">planet_type 分支结构</h2>
+<h3 id="活跃分支">活跃分支</h3>
+<p><code>calfis_p</code> 中唯一活跃的 <code>planet_type</code> 分支是首次调用时的 Titan 全局均值计算（L317-376）：</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (planet_type<span class="op">.eq.</span><span class="st">&quot;titan&quot;</span>) <span class="kw">then</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>   <span class="kw">call</span> AllGather_Field(pp, iip1<span class="kw">*</span>jjp1, llmp1)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>   <span class="kw">call</span> AllGather_Field(pteta, iip1<span class="kw">*</span>jjp1, llm)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>   <span class="co">! ... 计算 plevmoy, playmoy, tetamoy, tmoy, phimoy 等全局均值 ...</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>   <span class="kw">allocate</span>(klat(klon))</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>   <span class="kw">do</span> ig0 <span class="kw">=</span> <span class="dv">1</span>, klon</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>      j <span class="kw">=</span> index_j(ig0)</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>      klat(ig0) <span class="kw">=</span> j</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>   <span class="kw">enddo</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span>  <span class="co">! planet_type=titan</span></span></code></pre></div>
+<p>这段代码在 <code>OMP MASTER</code> 段执行，收集全局场并计算纬向/全球均值剖面。源码注释说明这些调用在 OpenMP 下可能有问题，但 Titan physics 只用 MPI 不用 OMP，所以不影响。</p>
+<p>Mars 不进入此分支。<code>klat</code> 数组只在此分支内分配，Mars 路径下 <code>klat</code> 未定义。</p>
+<h3 id="已注释的行星分散-physiq-分支">已注释的行星分散 physiq 分支</h3>
+<p><code>calfis_p</code> 保留了一整段注释代码（L957-1066），展示了统一 <code>call_physiq</code> 之前的旧式行星分散调用：</p>
+<table>
+<thead>
+<tr>
+<th>行星</th>
+<th>注释位置</th>
+<th>额外参数</th>
+<th>缺少的参数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Earth</td>
+<td>L957-980</td>
+<td>无 nqtot/tname/zrfi/zpk/zphis/presnivs</td>
+<td>签名最简</td>
+</tr>
+<tr>
+<td>generic</td>
+<td>L982-1006</td>
+<td>nqtot, tname, tracerdyn</td>
+<td>zpk, zphis, presnivs, zrfi</td>
+</tr>
+<tr>
+<td>Mars</td>
+<td>L1008-1031</td>
+<td>nqtot, tracerdyn</td>
+<td>zpk, zphis, presnivs, zrfi</td>
+</tr>
+<tr>
+<td>Titan/Venus</td>
+<td>L1033-1058</td>
+<td>nqtot, zpk, zphis, presnivs</td>
+<td>zrfi, tracerdyn</td>
+</tr>
+<tr>
+<td>unknown</td>
+<td>L1060-1066</td>
+<td>打印错误并 stop</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>当前执行路径是统一 <code>call_physiq(klon, llm, nqtot, tname, ...)</code>，所有行星共用同一签名。旧代码保留是为了追溯参数差异。</p>
+<h3 id="签名差异分析">签名差异分析</h3>
+<p>从注释代码看，旧式 Mars <code>physiq</code> 缺少以下参数：</p>
+<ul>
+<li><code>zpk</code>（Exner）：Mars 物理原来不需要 Exner，但统一接口需要</li>
+<li><code>zphis</code>（地表位势）：统一接口传入了相对位势计算所需</li>
+<li><code>presnivs</code>（参考层压力）：统一接口需要</li>
+<li><code>zrfi</code>（相对涡度）：Mars 物理原来不消费涡度</li>
+</ul>
+<p>旧式 Mars 多出的参数：</p>
+<ul>
+<li><code>tracerdyn</code>：用途标注为 "somewhat obsolete"，当前接口已移除</li>
+</ul>
+<h2 id="flag_moyzon-与-mars-的关系">flag_moyzon 与 Mars 的关系</h2>
+<p><code>flag_moyzon</code> 由 <code>moyzon_ch .or. moyzon_mu</code> 控制，来自 <code>logic_mod</code>。当为真时，<code>calfis_p</code> 在每个 scatter 后调用 <code>AllGather_Field + moyzon</code> 计算纬向均值。</p>
+<p>源码注释和上下文表明 <code>flag_moyzon</code> 当前用于 Titan/Venus 的 2D 微物理和化学计算。Mars 主线不启用此标志，因此以下代码路径在 Mars 下不执行：</p>
+<ul>
+<li><code>moyzon_init(klon, llm, nqtot)</code> 和 <code>moyzon_init_omp</code></li>
+<li>每次 scatter 后的 <code>AllGather_Field + moyzon</code> 调用（zplevbar/zpkbar/zplaybar/zphibar/ztfibar/zqfibar）</li>
+<li>OMP scatter 中的 <code>zplevbar_omp</code> 等纬向均值数组拷贝</li>
+</ul>
+<h2 id="停止条件">停止条件</h2>
+<p><code>calfis_p</code> 有三个 <code>STOP/stop</code> 路径：</p>
+<ol type="1">
+<li><p><strong>ngridmx 检查</strong>（L275-281）：首次调用时检查 <code>ngridmx == 2+(jjm-1)*iim</code>。不匹配时 <code>STOP</code>。Mars 常规配置应通过。</p></li>
+<li><p><strong>CPP_PHYS 缺失</strong>（L1511-1515）：<code>#else</code> 分支打印 <code>"calfis_p: for now can only work with parallel physics"</code> 并 <code>stop</code>。Mars 并行构建必须定义 <code>CPP_PHYS</code>。</p></li>
+<li><p><strong>未知 planet_type</strong>（L1060-1064）：旧代码中的 <code>stop</code>，当前已注释，不在执行路径上。</p></li>
+</ol>
+<h2 id="接口兼容风险">接口兼容风险</h2>
+<h3 id="统一-call_physiq-的约束">统一 call_physiq 的约束</h3>
+<p><code>call_physiq</code> 统一签名要求所有行星物理参数化接受相同参数列表。这意味着：</p>
+<ul>
+<li>Mars <code>physiq</code> 必须接受 <code>zpk/zphis/presnivs/zrfi</code>，即使旧签名不需要。Mars 物理侧可以忽略这些参数。</li>
+<li>Titan/Venus <code>physiq</code> 必须接受 <code>nqtot/tname</code>，即使旧签名没有。当前 Titan/Venus 的 <code>callphysiq_mod</code> 已经适配。</li>
+<li>新增参数（如未来需要 <code>zdufi_omp</code> 作为输入）会同时影响所有行星。</li>
+</ul>
+<h3 id="mars-特有时间风险">Mars 特有时间风险</h3>
+<ul>
+<li><code>jD_cur</code> 使用 <code>int()</code> 截断。如果 Mars physics 内部依赖 <code>jD_cur</code> 的小数部分做亚日精度计算，会得到零。</li>
+<li><code>jH_cur</code> 使用 <code>hour_ini</code> 而非 <code>start_time</code>。如果 Mars 和 generic 的 restart 文件使用不同的初始时间约定，可能导致物理参数化中的时间计算差异。</li>
+<li><code>jH_cur</code> 使用 <code>mod(itau,day_step)</code> 而非 <code>mod(itau+1,day_step)</code>。Mars physics 接收的时间比 Earth/Titan/Venus "早一步"。这是有意设计（Mars physics 用当前步状态）而非遗漏。</li>
+</ul>
+<h3 id="openmp-与-titan-分支的冲突">OpenMP 与 Titan 分支的冲突</h3>
+<p>源码注释（L318-319）明确说明 <code>AllGather_Field</code> 在 OpenMP 下有问题。当前 Titan 只用 MPI 不受影响，但如果 Mars 未来需要在 OpenMP 下启用 <code>flag_moyzon</code>，可能触发相同的竞态问题。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>jD_cur</code> 和 <code>jH_cur</code> 由 <code>leapfrog_p</code> 计算，<code>calfis_p</code> 不修改。排查日期差异时应先查 <code>leapfrog_p</code> 的行星分支，再查 <code>calfis_p</code> 的 <code>jH_cur_split</code> 分拆。</li>
+<li><code>lafin</code> 在 <code>nsplit_phys &gt; 1</code> 时只有最后一个 split 为 <code>.TRUE.</code>。如果物理侧的 "最后一次" 操作需要所有 split 都执行，应改用 <code>lafin</code> 而非 <code>lafin_split</code>。</li>
+<li><code>planet_type</code> 在 <code>calfis_p</code> 中只有一处活跃检查（Titan 全局均值）。所有行星共用 <code>call_physiq</code>，不再有 per-planet 分支。</li>
+<li>旧式注释代码是参数对照的有价值参考，但不应被视为当前执行路径。</li>
+<li>Mars 的 <code>flag_moyzon</code> 应为 <code>.FALSE.</code>。如果意外启用，会触发大量 <code>AllGather_Field</code> 调用，可能影响性能和正确性。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p 模块页</a></li>
+<li><a href="calfis-p-grid-mapping.html">calfis_p 格点映射</a></li>
+<li><a href="calfis-p-physiq-contract.html">calfis_p 接口契约</a></li>
+<li><a href="calfis-p-parallel-transfer.html">calfis_p 并行 transfer</a></li>
+<li><a href="leapfrog-p-physics-coupling.html">leapfrog-p-physics-coupling</a></li>
+<li><a href="leapfrog-p-time-scheduler.html">leapfrog-p-time-scheduler</a></li>
+<li><a href="leapfrog-physics-coupling.html">leapfrog-physics-coupling</a></li>
+<li><a href="leapfrog-time-scheduler.html">leapfrog-time-scheduler</a></li>
+<li><a href="../modules/dynphy_lonlat/calfis.html">calfis 串行模块页</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Mars 物理侧（<code>phymars/</code>）对 <code>lafin_split</code> 的具体消费路径。</li>
+<li>Mars <code>hour_ini</code> 与 generic <code>start_time</code> 的初始化来源是否一致。</li>
+<li><code>control_mod</code> 中 <code>planet_type</code> 的完整允许值列表（目前源码中出现 earth/mars/generic/titan/venus）。</li>
+<li>Mars 是否有 <code>nsplit_phys &gt; 1</code> 的配置，以及 <code>jH_cur_split</code> 溢出在极端情况下的影响。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

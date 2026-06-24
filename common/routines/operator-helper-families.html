@@ -1,0 +1,108 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>operator-helper-families - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/operator-helper-families.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="短小算子-helper-families-总览">短小算子 helper families 总览</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>limx, limy, limz, nxgrad*, nxgraro*, cov*, conv* families in dyn3d_common</code></pre>
+<p>Mars 运行参与度：<code>必经/条件经过</code>。这些 helper 被 advection、动力诊断、差分算子和守恒检查调用。</p>
+<h2 id="分类">分类</h2>
+<table>
+<thead>
+<tr>
+<th>家族</th>
+<th>代表文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>limiter</td>
+<td><code>limx.F</code>, <code>limy.F</code>, <code>limz.F</code></td>
+<td>三方向 slope limiter，供 <code>pentes_ini</code> 和 advection 内核使用。</td>
+</tr>
+<tr>
+<td>normalized gradient</td>
+<td><code>nxgrad.F</code>, <code>nxgradst.F</code>, <code>nxgrad_gam.F</code></td>
+<td>归一化梯度或变体算子。</td>
+</tr>
+<tr>
+<td>rotational helpers</td>
+<td><code>nxgraro2.F</code>, <code>nxgrarot.F</code></td>
+<td>梯度/旋转组合 helper。</td>
+</tr>
+<tr>
+<td>covariant/contravariant</td>
+<td><code>covcont.F90</code>, <code>covnat.F</code></td>
+<td>风场协变/逆变转换。</td>
+</tr>
+<tr>
+<td>convergence</td>
+<td><code>convflu.F</code>, <code>convmas.F90</code></td>
+<td>tracer/质量通量辐合。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="使用链">使用链</h2>
+<ul>
+<li><a href="../modules/dyn3d_common/pentes_ini.html">pentes_ini</a> 调用 <code>limx/limy/limz</code> 后进入 <code>advx/advy/advz</code>。</li>
+<li><a href="../modules/dyn3d/bilan_dyn.html">bilan_dyn</a> 调用 <code>covcont</code>、<code>convflu</code>、<code>convmas</code> 生成诊断。</li>
+<li><code>caldyn</code> 和耗散路径使用 <code>nxgrad*</code>、<code>nxgraro*</code> 等 helper 组合算子。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>helper 文件短，但通常决定网格位置、边界符号和守恒形式。</li>
+<li>limiter 与 advection 内核必须成对复现；只替换 limiter 会改变数值扩散。</li>
+<li><code>convmas</code> 的输出常继续传入 <code>vitvert</code>，用于垂直速度诊断。</li>
+</ul>
+<h2 id="后续拆分建议">后续拆分建议</h2>
+<p>优先释放 <code>limx/limy/limz</code>、<code>convmas/convflu</code>、<code>covcont/covnat</code> 三组普通任务；<code>nxgrad*</code> 可与差分算子总览联动。</p>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>nxgrad*</code> 各后缀的精确定义需逐文件确认。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

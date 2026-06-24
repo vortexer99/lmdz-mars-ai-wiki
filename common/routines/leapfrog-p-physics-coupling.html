@@ -1,0 +1,250 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>leapfrog-p-physics-coupling - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/leapfrog-p-physics-coupling.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="leapfrog_p-并行动力-物理耦合">leapfrog_p 并行动力-物理耦合</h1>
+<p>页面状态：TASK-0129 完成。 源码范围：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\leapfrog_p.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dynphy_lonlat\calfis_p.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\addfi_p.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\top_bound_p.F</code></pre>
+<p>Mars 运行参与度：条件经过。Mars 并行 GCM 在 <code>apphys=.TRUE.</code> 且 physics 未被 <code>iflag_phys==0/2</code> 关闭时经过 <code>leapfrog_p -&gt; calfis_p -&gt; addfi_p</code>；串行 Mars GCM 走 <code>leapfrog/calfis/addfi</code>，MARS <code>phymars/nogcm.F90</code> 只作边界背景。</p>
+<h2 id="职责边界">职责边界</h2>
+<p>本页只说明并行 <code>leapfrog_p</code> 中的 physics 调用链：</p>
+<pre class="text"><code>apphys
+  -&gt; physics 前刷新 p/pk/phi/date
+  -&gt; 分布切到 jj_Nb_physic
+  -&gt; calfis_p(lafin,jD_cur,jH_cur,...)
+  -&gt; tendency halo + _tmp 回填
+  -&gt; addfi_p(dtphys,...)
+  -&gt; 刷新 p/masse/pk
+  -&gt; 可选 top_bound_p(dtphys)
+  -&gt; 分布切回 jj_Nb_caldyn</code></pre>
+<p><code>calfis_p</code> 负责把动力状态映射到物理列、调用 <code>call_physiq</code> 并把 physics tendency 放回动力网格；<code>addfi_p</code> 才把这些 tendency 乘以 <code>dtphys</code> 加到 prognostic state。分布切换和 halo/swap request 的细节见 <a href="leapfrog-p-distribution-halo.html">leapfrog_p 分布和 halo 调度</a>。</p>
+<h2 id="进入-physics-的门控">进入 physics 的门控</h2>
+<p><code>leapfrog_p</code> 先在 851-855 行设置 <code>lafin</code>：</p>
+<table>
+<thead>
+<tr>
+<th>分支</th>
+<th><code>lafin</code> 条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>purmats</code></td>
+<td><code>itau==itaufin .AND. .NOT.forward</code></td>
+</tr>
+<tr>
+<td>非 <code>purmats</code></td>
+<td><code>itau+1 == itaufin</code></td>
+</tr>
+</tbody>
+</table>
+<p>随后 861 行只有 <code>apphys</code> 为真才进入 physics 段。<code>apphys</code> 的时间步规则由 <a href="leapfrog-p-time-scheduler.html">leapfrog_p 时间步调度</a> 覆盖；本页只沿着已经进入 physics 的路径展开。</p>
+<h2 id="physics-前状态刷新">physics 前状态刷新</h2>
+<p>进入 physics 后，<code>leapfrog_p</code> 先刷新物理需要的诊断状态：</p>
+<ol type="1">
+<li>877 行 <code>pression_p(ap,bp,ps,p)</code> 重算层界 pressure。</li>
+<li>880-884 行按 <code>pressure_exner</code> 选择 <code>exner_hyb_p</code> 或 <code>exner_milieu_p</code>，刷新 <code>pks/pk/pkf</code>。</li>
+<li>890-900 行先由 <code>tpot2t_glo_p</code> 得到 <code>temp</code>，再计算 <code>tsurpk=cpp*temp/pk</code>，最后用 <code>geopot_p(...,tsurpk,pk,pks,phis,phi)</code> 重算位势。</li>
+<li>905-927 行刷新 physics 日期：
+<ul>
+<li>默认 <code>jD_cur = jD_ref + day_ini - day_ref + (itau+1)/day_step</code>。</li>
+<li>Mars/generic 覆盖为 <code>int(day_ini + itau/day_step)</code>。</li>
+<li>Mars <code>jH_cur = jH_ref + hour_ini + mod(itau,day_step)/day_step</code>。</li>
+<li>generic 用 <code>start_time + mod(itau,day_step)/day_step</code>。</li>
+<li>其他行星用 <code>start_time + mod(itau+1,day_step)/day_step</code>。</li>
+<li>若 <code>jH_cur&gt;1</code>，日期进一日并把小时减 1。</li>
+</ul></li>
+<li>若 <code>ip_ebil_dyn&gt;=1</code> 且 <code>planet_type=="earth"</code>，才调用 <code>diagedyn</code>；Mars 不走这个 Earth-specific 诊断。</li>
+</ol>
+<p>这个日期逻辑不同于 leapfrog 阶段日期刷新：Mars physics 使用当前 <code>itau</code>，不是 <code>itau+1</code>。</p>
+<h2 id="调用-calfis_p">调用 calfis_p</h2>
+<p>948-1002 行先把字段切到 <code>jj_Nb_physic</code>。随后 1017-1021 行调用：</p>
+<pre class="text"><code>calfis_p(lafin,jD_cur,jH_cur,
+         ucov,vcov,teta,q,masse,ps,p,pk,phis,phi,
+         du,dv,dteta,dq,flxw,
+         dufi,dvfi,dtetafi,dqfi,dpfi)</code></pre>
+<p>关键契约：</p>
+<table>
+<thead>
+<tr>
+<th>参数组</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ucov/vcov/teta/q/masse/ps/p/pk/phis/phi</code></td>
+<td>physics 输入状态。</td>
+</tr>
+<tr>
+<td><code>du/dv/dteta/dq</code></td>
+<td>动力 tendency，传给 <code>calfis_p</code>；当前 <code>calfis_p</code> 页面标注部分输入在实际路径中有限使用。</td>
+</tr>
+<tr>
+<td><code>flxw</code></td>
+<td>垂直质量通量，转到 physics 列。</td>
+</tr>
+<tr>
+<td><code>dufi/dvfi/dtetafi/dqfi/dpfi</code></td>
+<td>physics 输出 tendency，单位是每秒。</td>
+</tr>
+</tbody>
+</table>
+<p><code>calfis_p</code> 内部再按 <code>nsplit_phys</code> 调用 <code>call_physiq</code>。每个 split 使用 <code>dtphys/nsplit_phys</code>，<code>jH_cur_split = jH_cur + (isplit-1)*dtvr/(daysec*nsplit_phys)</code>；只有最后一个 split 才收到 <code>lafin_split=.TRUE.</code>。</p>
+<h2 id="tendency-halo-和回填">tendency halo 和回填</h2>
+<p><code>calfis_p</code> 返回后，<code>leapfrog_p</code> 不能立刻 <code>addfi_p</code>。它先处理 physics band 边界：</p>
+<ol type="1">
+<li>1023-1038 行在非北极 rank 保存本 rank 起始纬圈的 <code>dufi/dvfi/dtetafi/dqfi/dpfi</code> 到 <code>_tmp</code> 数组。</li>
+<li>1042 行切到 <code>jj_nb_Physic_bis</code>。</li>
+<li>1048-1064 行对 <code>dufi/dvfi/dtetafi/dpfi/dqfi</code> 注册 <code>Register_Hallo(...,1,0,0,1,Request_physic)</code>。</li>
+<li>1067-1069 行 <code>SendRequest/WaitRequest</code> 完成 tendency halo。</li>
+<li>1075 行切回 <code>jj_nb_Physic</code>。</li>
+<li>1081-1094 行把 <code>_tmp</code> 加回当前起始纬圈。</li>
+</ol>
+<p>因此 <code>dufi/dvfi/dtetafi/dqfi/dpfi</code> 是经过 <code>calfis_p</code> 回填、跨 band halo 合并和 <code>_tmp</code> 补偿后的 physics tendency。排查并行 physics 差异时，要把 <code>calfis_p</code> 自身回填和 <code>leapfrog_p</code> 的后处理分开看。</p>
+<h2 id="addfi_p-写回状态">addfi_p 写回状态</h2>
+<p>1106-1108 行调用：</p>
+<pre class="text"><code>addfi_p(dtphys,leapf,forward,
+        ucov,vcov,teta,q,ps,
+        dufi,dvfi,dtetafi,dqfi,dpfi)</code></pre>
+<p><code>addfi_p</code> 中 <code>leapf/forward</code> 声明为 not used。实际写回规则：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>写回方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>teta</code></td>
+<td><code>teta += dtetafi*dtphys</code>，随后按极点面积平均统一极点值。</td>
+</tr>
+<tr>
+<td><code>teta</code> pressure correction</td>
+<td><code>teta *= (1 + dpfi*dtphys/ps)**kappa</code>。</td>
+</tr>
+<tr>
+<td><code>ucov/vcov</code></td>
+<td>分别加 <code>dufi*dtphys</code>、<code>dvfi*dtphys</code>；U 风极点范围会避开对应极点行。</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td>master 段执行 <code>ps += dpfi*dtphys</code>，随后极点面积平均。</td>
+</tr>
+<tr>
+<td><code>q</code></td>
+<td><code>q += dqfi*dtphys</code>，并做下限保护；Mars 走 general case，下限为 <code>qtestt=1e-40</code>。Earth 对前两个 tracer 用水汽下限，Titan 用 <code>1D-200</code>。</td>
+</tr>
+</tbody>
+</table>
+<p><code>addfi_p</code> 改了 <code>ps</code>，所以 <code>leapfrog_p</code> 立即在 1110-1118 行重算：</p>
+<ul>
+<li><code>pression_p</code></li>
+<li><code>massdair_p</code></li>
+<li><code>exner_hyb_p</code> 或 <code>exner_milieu_p</code></li>
+</ul>
+<p>这个刷新是 physics 写回后保持 <code>ps/p/masse/pk</code> 一致的关键步骤。</p>
+<h2 id="top_bound_p-在-physics-段内的作用">top_bound_p 在 physics 段内的作用</h2>
+<p>1123-1133 行若 <code>iflag_top_bound&gt;0</code>，<code>leapfrog_p</code> 调用：</p>
+<pre class="text"><code>top_bound_p(vcov,ucov,teta,masse,dtphys,dutop)</code></pre>
+<p><code>top_bound_p</code> 的源码契约：</p>
+<ul>
+<li><code>iflag_top_bound==1</code>：顶部 4 层 sponge。</li>
+<li><code>iflag_top_bound==2</code>：从顶部向下到约顶部层压力 100 倍的位置。</li>
+<li><code>mode_top_bound==1</code>：U/V 向 0 松弛。</li>
+<li><code>mode_top_bound==2</code>：U/V 向纬向平均松弛。</li>
+<li><code>mode_top_bound==3</code>：U/V 和位温向纬向平均松弛。</li>
+<li><code>rdamp=1-exp(-lambda*dt)</code>，<code>dt</code> 这里是 <code>dtphys</code>。</li>
+</ul>
+<p>需要注意：<code>top_bound_p</code> 直接修改 <code>ucov/vcov/teta</code>，并把 U 风增量写到 <code>dutop</code>。<code>leapfrog_p</code> 随后把 <code>dutop</code> 除以 <code>dtphys</code>，转换成 <code>(m/s)/s</code> tendency 形式，供后续诊断或输出使用；但状态修正已经在 <code>top_bound_p</code> 内完成。</p>
+<h2 id="与-iflag_phys2-分支的区别">与 iflag_phys==2 分支的区别</h2>
+<p>本页主线是 <code>apphys</code> 物理耦合段。<code>iflag_phys==2</code> 会在 physics 关闭的情况下走另一段 academic/Newtonian/friction/top-bound 逻辑：</p>
+<ul>
+<li><code>addfi_p</code> 不参与该分支。</li>
+<li><code>friction_p(ucov,vcov,dtvr)</code> 使用 <code>dtvr</code>。</li>
+<li><code>top_bound_p(...,dtvr,dutop)</code> 使用动力时间步 <code>dtvr</code>，不是 <code>dtphys</code>。</li>
+</ul>
+<p>因此不要把 <code>apphys</code> 段中的 <code>top_bound_p(dtphys)</code> 与 <code>iflag_phys==2</code> 分支中的 <code>top_bound_p(dtvr)</code> 混为一条路径。</p>
+<h2 id="复现检查表">复现检查表</h2>
+<ol type="1">
+<li>确认 <code>apphys</code> 为真，且 <code>iflag_phys</code> 没有关掉 physics。</li>
+<li>记录 <code>planet_type</code>、<code>itau/day_step/hour_ini/start_time</code>，Mars physics 日期按 <code>itau</code> 而不是 <code>itau+1</code>。</li>
+<li>检查 <code>calfis_p</code> 前 <code>p/pk/phi</code> 是否已刷新。</li>
+<li>对 physics tendency 差异，先查 <code>calfis_p</code> 输出，再查 <code>jj_nb_Physic_bis</code> halo 和 <code>_tmp</code> 加回。</li>
+<li>对状态差异，检查 <code>addfi_p</code> 的 <code>dtphys</code> 乘法、<code>dpfi</code> pressure correction 和 tracer 下限。</li>
+<li>对 <code>ps/p/masse/pk</code> 不一致，检查 <code>addfi_p</code> 后的 <code>pression_p/massdair_p/exner_*_p</code> 是否执行。</li>
+<li>对高层风温差异，检查 <code>iflag_top_bound/mode_top_bound/tau_top_bound</code>，并区分 physics 段 <code>dtphys</code> 与 <code>iflag_phys==2</code> 分支 <code>dtvr</code>。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>calfis_p</code> 接收 <code>du/dv/dteta/dq</code> 动力 tendency，但当前 Mars physics 实际消费程度需在 <code>callphysiq_mod</code> 和 Mars physics 侧继续确认。</li>
+<li>Mars tracers 在 <code>addfi_p</code> general case 中统一使用 <code>qtestt=1e-40</code> 下限；是否所有 Mars tracer 都应使用同一阈值需由 Mars physics 配置确认。</li>
+<li><code>top_bound_p</code> 直接改状态而 <code>dutop</code> 只记录 U 风增量，V 风和位温的 top-bound 诊断输出边界需结合后续输出页核对。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3dpar/leapfrog_p.html">dyn3dpar/leapfrog_p</a></li>
+<li><a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p</a></li>
+<li><a href="calfis-p-grid-mapping.html">calfis_p 动力格点到物理列映射</a></li>
+<li><a href="calfis-p-physiq-contract.html">calfis_p 与 call_physiq 接口契约</a></li>
+<li><a href="calfis-p-parallel-transfer.html">calfis_p 并行 transfer 架构</a></li>
+<li><a href="calfis-p-date-planet-branches.html">calfis_p 日期与行星分支</a></li>
+<li><a href="addfi-serial-parallel.html">addfi 串并行对照</a></li>
+<li><a href="top-bound-serial-parallel.html">top_bound 串并行对照</a></li>
+<li><a href="leapfrog-p-time-scheduler.html">leapfrog_p 时间步调度</a></li>
+<li><a href="leapfrog-p-distribution-halo.html">leapfrog_p 分布和 halo 调度</a></li>
+<li><a href="leapfrog-physics-coupling.html">leapfrog 动力-物理耦合</a></li>
+<li><a href="guide-config-contract.html">guide 配置与初始化契约</a></li>
+<li><a href="guide-input-fields.html">guide 输入场读取</a></li>
+<li><a href="guide-tendency-application.html">guide forcing 叠加到动力状态</a></li>
+<li><a href="../themes/serial-parallel-dynamics.html">serial-parallel-dynamics</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

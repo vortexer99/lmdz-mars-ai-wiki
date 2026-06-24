@@ -1,0 +1,557 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>advn-flux-updates - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/advn-flux-updates.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="advn-通量更新advnxadvnyadvnz-的三方向质量守恒更新">advn 通量更新：advnx/advny/advnz 的三方向质量守恒更新</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d_common\advn.F: L470-733（advnx）
+dyn3d_common\advn.F: L735-863（advny）
+dyn3d_common\advn.F: L865-977（advnz）</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。本页聚焦 advn 的三个通量更新子例程的 sigma 参数、mode 分支、极区处理和守恒更新机制。这些子例程接收重构子例程（advnqx/advnqy/advnqz）的界面值，计算 tracer 通量并更新质量场和混合比场。调度顺序和调用关系详见 <a href="advn-dispatcher-order.html">advn-dispatcher-order</a>。</p>
+<h2 id="例程定位">例程定位</h2>
+<p>advnx/advny/advnz 共享相同的核心逻辑：基于界面重构值计算 sigma 参数，根据上游方向选择格点参数，使用分段线性或抛物线公式计算 tracer 通量，最后通过通量散度同时更新质量和 tracer 混合比。关键差异在于 advnx 有 mode=1/2 分支和 Semi-Lagrangian 极区处理，advny 有极区面积加权分配，advnz 有无通量边界。</p>
+<h2 id="advnxe-w-通量更新">advnx：E-W 通量更新</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> advnx(q,qg,qd,masse,u_m,mode)</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th>方向</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q</code></td>
+<td>real(ip1jmp1,llm)</td>
+<td>INOUT</td>
+<td>tracer 混合比（被更新）</td>
+</tr>
+<tr>
+<td><code>qg</code></td>
+<td>real(ip1jmp1,llm)</td>
+<td>IN</td>
+<td>左界面重构值（来自 advnqx）</td>
+</tr>
+<tr>
+<td><code>qd</code></td>
+<td>real(ip1jmp1,llm)</td>
+<td>IN</td>
+<td>右界面重构值（来自 advnqx）</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td>real(ip1jmp1,llm)</td>
+<td>INOUT</td>
+<td>格点空气质量（被更新）</td>
+</tr>
+<tr>
+<td><code>u_m</code></td>
+<td>real(ip1jmp1,llm)</td>
+<td>IN</td>
+<td>E-W 质量通量（已缩放 0.5*pdt）</td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td>integer</td>
+<td>IN</td>
+<td>1=分段线性，2=抛物线修正</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sigma-参数">Sigma 参数</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>zdq <span class="kw">=</span> qd(ij,l) <span class="kw">-</span> qg(ij,l)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (<span class="bu">abs</span>(zdq) <span class="op">&gt;</span> prec) <span class="kw">then</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>   zsigd(ij,l) <span class="kw">=</span> (q(ij,l) <span class="kw">-</span> qg(ij,l)) <span class="kw">/</span> zdq   <span class="co">! 格点值在界面间的相对位置</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>   zsigg(ij,l) <span class="kw">=</span> <span class="dv">1</span> <span class="kw">-</span> zsigd(ij,l)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="kw">else</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>   zsigd(ij,l) <span class="kw">=</span> <span class="fl">0.5</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>   zsigg(ij,l) <span class="kw">=</span> <span class="fl">0.5</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>   qd(ij,l) <span class="kw">=</span> q(ij,l)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>   qg(ij,l) <span class="kw">=</span> q(ij,l)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<p><code>prec</code> 精度阈值：CRAY 用 1e-24，其他平台用 1e-15。低于此阈值时退化为 1 阶（界面值等于格点值）。</p>
+<h3 id="上游方向选择">上游方向选择</h3>
+<p>根据风向选择上游格点的 sigma 和界面值：</p>
+<table>
+<thead>
+<tr>
+<th>风向</th>
+<th>上游格点</th>
+<th>zsigp</th>
+<th>zsigm</th>
+<th>zqp</th>
+<th>zqm</th>
+<th>zq</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>u_m &gt;= 0</code></td>
+<td><code>ij</code></td>
+<td>zsigd(ij)</td>
+<td>zsigg(ij)</td>
+<td>qd(ij)</td>
+<td>qg(ij)</td>
+<td>q(ij)</td>
+</tr>
+<tr>
+<td><code>u_m &lt; 0</code></td>
+<td><code>ij+1</code></td>
+<td>zsigg(ij+1)</td>
+<td>zsigd(ij+1)</td>
+<td>qg(ij+1)</td>
+<td>qd(ij+1)</td>
+<td>q(ij+1)</td>
+</tr>
+</tbody>
+</table>
+<p><code>zsigp</code> 是从上游方向到格点值的相对距离，<code>zsigm</code> 是从格点值到下游方向的相对距离。<code>zqp</code> 是上游界面值，<code>zqm</code> 是下游界面值。</p>
+<h3 id="cfl-参数">CFL 参数</h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>zu <span class="kw">=</span> <span class="bu">abs</span>(u_m(ij,l))</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>ladvplus(ij,l) <span class="kw">=</span> zu <span class="op">&gt;</span> zm        <span class="co">! CFL &gt; 1 标记</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>zsig <span class="kw">=</span> zu <span class="kw">/</span> zm                   <span class="co">! CFL 数</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (zsig <span class="op">==</span> <span class="dv">0</span>) zsigp <span class="kw">=</span> <span class="fl">0.1</span>       <span class="co">! 避免除零</span></span></code></pre></div>
+<h3 id="mode1-分段线性通量">mode=1 分段线性通量</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (zsig <span class="op">&lt;=</span> zsigp) <span class="kw">then</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>   u_mq <span class="kw">=</span> u_m <span class="kw">*</span> zqp                              <span class="co">! 未穿越上游界面</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="kw">else</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>   u_mq <span class="kw">=</span> <span class="bu">sign</span>(zm,u_m) <span class="kw">*</span> (zsigp<span class="kw">*</span>zqp <span class="kw">+</span> (zsig<span class="kw">-</span>zsigp)<span class="kw">*</span>zqm)  <span class="co">! 穿越上游界面</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<h3 id="mode2-抛物线通量">mode=2 抛物线通量</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (zsig <span class="op">&lt;=</span> zsigp) <span class="kw">then</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>   u_mq <span class="kw">=</span> u_m <span class="kw">*</span> (zqp <span class="kw">-</span> <span class="fl">0.5</span><span class="kw">*</span>zsig<span class="kw">/</span>zsigp<span class="kw">*</span>(zqp <span class="kw">-</span> zq))         <span class="co">! 未穿越上游界面</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="kw">else</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>   zz <span class="kw">=</span> <span class="fl">0.5</span><span class="kw">*</span>(zsig <span class="kw">-</span> zsigp)<span class="kw">/</span>zsigm</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>   u_mq <span class="kw">=</span> <span class="bu">sign</span>(zm,u_m) <span class="kw">*</span> (<span class="fl">0.5</span><span class="kw">*</span>(zq<span class="kw">+</span>zqp)<span class="kw">*</span>zsigp               <span class="co">! 穿越上游界面</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>      <span class="kw">+</span> (zsig<span class="kw">-</span>zsigp)<span class="kw">*</span>(zq <span class="kw">+</span> zz<span class="kw">*</span>(zqm<span class="kw">-</span>zq)))</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<h3 id="semi-lagrangian-极区处理cfl1">Semi-Lagrangian 极区处理（CFL&gt;1）</h3>
+<p>当 <code>ladvplus(ij,l)=.true.</code>（即 <code>|u_m| &gt; masse</code>）时，常规通量公式可能不守恒。advnx 对这些格点使用 Semi-Lagrangian 累加：</p>
+<p><strong>正风向（u_m &gt; 0）</strong>：</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>ijq <span class="kw">=</span> ij</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">do</span> <span class="kw">while</span> (zu_m <span class="op">&gt;</span> masse(ijq,l))</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>   u_mq(ij,l) <span class="kw">=</span> u_mq(ij,l) <span class="kw">+</span> q(ijq,l)<span class="kw">*</span>masse(ijq,l)  <span class="co">! 累加完全穿越格点</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>   zu_m <span class="kw">=</span> zu_m <span class="kw">-</span> masse(ijq,l)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>   i <span class="kw">=</span> <span class="bu">mod</span>(i<span class="kw">-</span><span class="dv">2</span><span class="kw">+</span>iim,iim) <span class="kw">+</span> <span class="dv">1</span>                           <span class="co">! 经向周期包裹</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>   ijq <span class="kw">=</span> (j<span class="kw">-</span><span class="dv">1</span>)<span class="kw">*</span>iip1 <span class="kw">+</span> i</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="kw">enddo</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co">! 最后部分穿越格点使用 mode=2 插值</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>zsig <span class="kw">=</span> zu_m <span class="kw">/</span> masse(ijq,l)</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (zsig <span class="op">&lt;=</span> zsigd(ijq,l)) <span class="kw">then</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>   u_mq <span class="kw">=</span> u_mq <span class="kw">+</span> zu_m<span class="kw">*</span>(qd(ijq) <span class="kw">-</span> <span class="fl">0.5</span><span class="kw">*</span>zsig<span class="kw">/</span>zsigd<span class="kw">*</span>(qd(ijq)<span class="kw">-</span>q(ijq)))</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="kw">else</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>   zz <span class="kw">=</span> <span class="fl">0.5</span><span class="kw">*</span>(zsig<span class="kw">-</span>zsigd)<span class="kw">/</span>zsigg</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>   u_mq <span class="kw">=</span> u_mq <span class="kw">+</span> masse(ijq)<span class="kw">*</span>(<span class="fl">0.5</span><span class="kw">*</span>(q(ijq)<span class="kw">+</span>qd(ijq))<span class="kw">*</span>zsigd</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>      <span class="kw">+</span> (zsig<span class="kw">-</span>zsigd)<span class="kw">*</span>(q(ijq)<span class="kw">+</span>zz<span class="kw">*</span>(qg(ijq)<span class="kw">-</span>q(ijq))))</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<p><strong>负风向（u_m &lt; 0）</strong>：类似逻辑，但向 <code>ij+1</code> 方向累加，使用 <code>zsigg</code> 和 <code>qg</code>。</p>
+<p><strong>进入条件</strong>：<code>n0 &gt; 1</code>（至少有 2 个 CFL&gt;1 格点）才执行 Semi-Lagrangian 累加。若 <code>prt_level &gt; 9</code>，打印穿越格点总数。</p>
+<p><strong>排除极点行</strong>：<code>mod(ij,iip1) /= 0</code> 条件确保极点行不进入 Semi-Lagrangian 处理。</p>
+<h3 id="经向周期包裹">经向周期包裹</h3>
+<p>通量计算后，对每行最后一个格点复制首格点的通量和标记：</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">do</span> l<span class="kw">=</span><span class="dv">1</span>,llm</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>   <span class="kw">do</span> ij <span class="kw">=</span> iip1<span class="kw">+</span>iip1, ip1jm, iip1</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>      u_mq(ij,l) <span class="kw">=</span> u_mq(ij<span class="kw">-</span>iim,l)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>      ladvplus(ij,l) <span class="kw">=</span> ladvplus(ij<span class="kw">-</span>iim,l)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>   <span class="kw">enddo</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="kw">enddo</span></span></code></pre></div>
+<h3 id="通量散度更新">通量散度更新</h3>
+<div class="sourceCode" id="cb9"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">do</span> l<span class="kw">=</span><span class="dv">1</span>,llm</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>   <span class="kw">do</span> ij <span class="kw">=</span> iip2<span class="kw">+</span><span class="dv">1</span>, ip1jm</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>      new_m <span class="kw">=</span> masse(ij,l) <span class="kw">+</span> u_m(ij<span class="kw">-</span><span class="dv">1</span>,l) <span class="kw">-</span> u_m(ij,l)</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>      q(ij,l) <span class="kw">=</span> (q(ij,l)<span class="kw">*</span>masse(ij,l) <span class="kw">+</span> u_mq(ij<span class="kw">-</span><span class="dv">1</span>,l) <span class="kw">-</span> u_mq(ij,l)) <span class="kw">/</span> new_<span class="co">m</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>      masse(ij,l) <span class="kw">=</span> new_m</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>   <span class="kw">enddo</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>   <span class="kw">do</span> ij <span class="kw">=</span> iip1<span class="kw">+</span>iip1, ip1jm, iip1</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>      q(ij<span class="kw">-</span>iim,l) <span class="kw">=</span> q(ij,l)</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>      masse(ij<span class="kw">-</span>iim,l) <span class="kw">=</span> masse(ij,l)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>   <span class="kw">enddo</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="kw">enddo</span></span></code></pre></div>
+<p>质量和 tracer 同时被更新，保证下一步 split 使用一致的场。</p>
+<h2 id="advnyn-s-通量更新">advny：N-S 通量更新</h2>
+<div class="sourceCode" id="cb10"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> advny(q,qs,qn,masse,v_m)</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th>方向</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q</code></td>
+<td>real(ip1jmp1,llm)</td>
+<td>INOUT</td>
+<td>tracer 混合比（被更新）</td>
+</tr>
+<tr>
+<td><code>qs</code></td>
+<td>real(ip1jmp1,llm)</td>
+<td>IN</td>
+<td>南界面重构值（来自 advnqy）</td>
+</tr>
+<tr>
+<td><code>qn</code></td>
+<td>real(ip1jmp1,llm)</td>
+<td>IN</td>
+<td>北界面重构值（来自 advnqy）</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td>real(ip1jmp1,llm)</td>
+<td>INOUT</td>
+<td>格点空气质量（被更新）</td>
+</tr>
+<tr>
+<td><code>v_m</code></td>
+<td>real(ip1jm,llm)</td>
+<td>IN</td>
+<td>N-S 质量通量（已缩放 0.5*pdt）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sigma-参数-1">Sigma 参数</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>zdq <span class="kw">=</span> qn(ij,l) <span class="kw">-</span> qs(ij,l)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (<span class="bu">abs</span>(zdq) <span class="op">&gt;</span> prec) <span class="kw">then</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>   zsign(ij) <span class="kw">=</span> (q(ij,l) <span class="kw">-</span> qs(ij,l)) <span class="kw">/</span> zdq</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>   zsigs(ij) <span class="kw">=</span> <span class="dv">1</span> <span class="kw">-</span> zsign(ij)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="kw">else</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>   zsign(ij) <span class="kw">=</span> <span class="fl">0.5</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>   zsigs(ij) <span class="kw">=</span> <span class="fl">0.5</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<p><code>prec</code> 使用 1e-15（与 advnx 相同）。zsign/zsigs 是 1D 数组（按 ij 索引），因为每层独立处理。</p>
+<h3 id="上游方向选择-1">上游方向选择</h3>
+<table>
+<thead>
+<tr>
+<th>风向</th>
+<th>上游格点</th>
+<th>zsigp</th>
+<th>zsigm</th>
+<th>zqp</th>
+<th>zqm</th>
+<th>zq</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>v_m &gt;= 0</code></td>
+<td><code>ij+iip1</code></td>
+<td>zsign(ij+iip1)</td>
+<td>zsigs(ij+iip1)</td>
+<td>qn(ij+iip1)</td>
+<td>qs(ij+iip1)</td>
+<td>q(ij+iip1)</td>
+</tr>
+<tr>
+<td><code>v_m &lt; 0</code></td>
+<td><code>ij</code></td>
+<td>zsigs(ij)</td>
+<td>zsign(ij)</td>
+<td>qs(ij)</td>
+<td>qn(ij)</td>
+<td>q(ij)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="通量公式仅抛物线">通量公式（仅抛物线）</h3>
+<p>advny <strong>没有 mode 分支</strong>，始终使用抛物线公式：</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>zsig <span class="kw">=</span> <span class="bu">abs</span>(v_m(ij,l)) <span class="kw">/</span> zm</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (zsig <span class="op">==</span> <span class="dv">0</span>) zsigp <span class="kw">=</span> <span class="fl">0.1</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (zsig <span class="op">&lt;=</span> zsigp) <span class="kw">then</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>   v_mq <span class="kw">=</span> v_m <span class="kw">*</span> (zqp <span class="kw">-</span> <span class="fl">0.5</span><span class="kw">*</span>zsig<span class="kw">/</span>zsigp<span class="kw">*</span>(zqp <span class="kw">-</span> zq))</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="kw">else</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>   zz <span class="kw">=</span> <span class="fl">0.5</span><span class="kw">*</span>(zsig <span class="kw">-</span> zsigp)<span class="kw">/</span>zsigm</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>   v_mq <span class="kw">=</span> <span class="bu">sign</span>(zm,v_m) <span class="kw">*</span> (<span class="fl">0.5</span><span class="kw">*</span>(zq<span class="kw">+</span>zqp)<span class="kw">*</span>zsigp</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>      <span class="kw">+</span> (zsig<span class="kw">-</span>zsigp)<span class="kw">*</span>(zq <span class="kw">+</span> zz<span class="kw">*</span>(zqm<span class="kw">-</span>zq)))</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<h3 id="通量散度更新-1">通量散度更新</h3>
+<div class="sourceCode" id="cb13"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">do</span> ij <span class="kw">=</span> iip2, ip1jm</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>   new_m <span class="kw">=</span> masse(ij,l) <span class="kw">+</span> v_m(ij,l) <span class="kw">-</span> v_m(ij<span class="kw">-</span>iip1,l)</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>   q(ij,l) <span class="kw">=</span> (q(ij,l)<span class="kw">*</span>masse(ij,l) <span class="kw">+</span> v_mq(ij,l) <span class="kw">-</span> v_mq(ij<span class="kw">-</span>iip1,l)) <span class="kw">/</span> new_<span class="co">m</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>   masse(ij,l) <span class="kw">=</span> new_m</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="kw">enddo</span></span></code></pre></div>
+<h3 id="极区面积加权分配">极区面积加权分配</h3>
+<p>advny 在更新非极区格点后，对极点做特殊处理：</p>
+<p><strong>北极（j=1 行）</strong>：</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co">convpn  = SSUM(iim, v_mq(1,l), 1)      ! 进入北极的总 tracer 通量</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="co">convmpn = SSUM(iim, v_m(1,l), 1)        ! 进入北极的总质量通量</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>massen  <span class="kw">=</span> SSUM(iim, masse(<span class="dv">1</span>,l), <span class="dv">1</span>)       <span class="co">! 北极当前总质量</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>new_m   <span class="kw">=</span> massen <span class="kw">+</span> convmpn</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>q(<span class="dv">1</span>,l)  <span class="kw">=</span> (q(<span class="dv">1</span>,l)<span class="kw">*</span>massen <span class="kw">+</span> convpn) <span class="kw">/</span> new_m</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="kw">do</span> ij <span class="kw">=</span> <span class="dv">1</span>, iip1</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>   q(ij,l) <span class="kw">=</span> q(<span class="dv">1</span>,l)                      <span class="co">! 极点各经度格 tracer 均匀</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>   masse(ij,l) <span class="kw">=</span> new_m <span class="kw">*</span> aire(ij)<span class="kw">/</span>apoln  <span class="co">! 按面积比例分配质量</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="kw">enddo</span></span></code></pre></div>
+<p><strong>南极（j=jjp1 行）</strong>：</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co">convps  = -SSUM(iim, v_mq(ip1jm-iim,l), 1)</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="co">convmps = -SSUM(iim, v_m(ip1jm-iim,l), 1)</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>masses  <span class="kw">=</span> SSUM(iim, masse(ip1jm<span class="kw">+</span><span class="dv">1</span>,l), <span class="dv">1</span>)</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>new_m   <span class="kw">=</span> masses <span class="kw">+</span> convmps</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>q(ip1jm<span class="kw">+</span><span class="dv">1</span>,l) <span class="kw">=</span> (q(ip1jm<span class="kw">+</span><span class="dv">1</span>,l)<span class="kw">*</span>masses <span class="kw">+</span> convps) <span class="kw">/</span> new_m</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="kw">do</span> ij <span class="kw">=</span> ip1jm<span class="kw">+</span><span class="dv">1</span>, ip1jmp1</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>   q(ij,l) <span class="kw">=</span> q(ip1jm<span class="kw">+</span><span class="dv">1</span>,l)</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>   masse(ij,l) <span class="kw">=</span> new_m <span class="kw">*</span> aire(ij)<span class="kw">/</span>apols</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="kw">enddo</span></span></code></pre></div>
+<p><code>aire(ij)/apoln</code> 和 <code>aire(ij)/apols</code> 是格点面积与极冠总面积之比，保证极点各经度格的质量按面积比例分配。<code>SSUM</code> 是对 <code>iim</code> 个经度格求和。</p>
+<h2 id="advnz垂直通量更新">advnz：垂直通量更新</h2>
+<div class="sourceCode" id="cb16"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> advnz(q,qh,qb,masse,w_m)</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th>方向</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q</code></td>
+<td>real(ip1jmp1,llm)</td>
+<td>INOUT</td>
+<td>tracer 混合比（被更新）</td>
+</tr>
+<tr>
+<td><code>qh</code></td>
+<td>real(ip1jmp1,llm)</td>
+<td>IN</td>
+<td>上界面重构值（来自 advnqz）</td>
+</tr>
+<tr>
+<td><code>qb</code></td>
+<td>real(ip1jmp1,llm)</td>
+<td>IN</td>
+<td>下界面重构值（来自 advnqz）</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td>real(ip1jmp1,llm)</td>
+<td>INOUT</td>
+<td>格点空气质量（被更新）</td>
+</tr>
+<tr>
+<td><code>w_m</code></td>
+<td>real(ip1jmp1,llm+1)</td>
+<td>IN</td>
+<td>垂直质量通量（已缩放 pdt）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sigma-参数-2">Sigma 参数</h3>
+<div class="sourceCode" id="cb17"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>zdq <span class="kw">=</span> qb(ij,l) <span class="kw">-</span> qh(ij,l)</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (<span class="bu">abs</span>(zdq) <span class="op">&gt;</span> prec) <span class="kw">then</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>   zsigb(ij,l) <span class="kw">=</span> (q(ij,l) <span class="kw">-</span> qh(ij,l)) <span class="kw">/</span> zdq</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>   zsigh(ij,l) <span class="kw">=</span> <span class="dv">1</span> <span class="kw">-</span> zsigb(ij,l)</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>   zsigb(ij,l) <span class="kw">=</span> <span class="bu">min</span>(<span class="bu">max</span>(zsigb(ij,l), <span class="fl">0.</span>), <span class="fl">1.</span>)  <span class="co">! 额外的 [0,1] clip</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a><span class="kw">else</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>   zsigb(ij,l) <span class="kw">=</span> <span class="fl">0.5</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>   zsigh(ij,l) <span class="kw">=</span> <span class="fl">0.5</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<p><code>prec</code> 使用 1e-13（比 advnx/advny 的 1e-15 宽松）。zsigb 额外做 <code>[0,1]</code> clip，防止数值误差导致 sigma 越界。</p>
+<h3 id="上游方向选择-2">上游方向选择</h3>
+<table>
+<thead>
+<tr>
+<th>风向</th>
+<th>上游格点</th>
+<th>zsigp</th>
+<th>zsigm</th>
+<th>zqp</th>
+<th>zqm</th>
+<th>zq</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>w_m &gt;= 0</code></td>
+<td><code>l</code>（当前层）</td>
+<td>zsigb(ij,l)</td>
+<td>zsigh(ij,l)</td>
+<td>qb(ij,l)</td>
+<td>qh(ij,l)</td>
+<td>q(ij,l)</td>
+</tr>
+<tr>
+<td><code>w_m &lt; 0</code></td>
+<td><code>l-1</code>（下层）</td>
+<td>zsigh(ij,l-1)</td>
+<td>zsigb(ij,l-1)</td>
+<td>qh(ij,l-1)</td>
+<td>qb(ij,l-1)</td>
+<td>q(ij,l-1)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="通量公式仅抛物线-1">通量公式（仅抛物线）</h3>
+<p>advnz <strong>没有 mode 分支</strong>，始终使用抛物线公式：</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>zsig <span class="kw">=</span> <span class="bu">abs</span>(w_m(ij,l)) <span class="kw">/</span> zm</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (zsig <span class="op">==</span> <span class="dv">0</span>) zsigp <span class="kw">=</span> <span class="fl">0.1</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (zsig <span class="op">&lt;=</span> zsigp) <span class="kw">then</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>   w_mq <span class="kw">=</span> w_m <span class="kw">*</span> (zqp <span class="kw">-</span> <span class="fl">0.5</span><span class="kw">*</span>zsig<span class="kw">/</span>zsigp<span class="kw">*</span>(zqp <span class="kw">-</span> zq))</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="kw">else</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>   zz <span class="kw">=</span> <span class="fl">0.5</span><span class="kw">*</span>(zsig <span class="kw">-</span> zsigp)<span class="kw">/</span>zsigm</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>   w_mq <span class="kw">=</span> <span class="bu">sign</span>(zm,w_m) <span class="kw">*</span> (<span class="fl">0.5</span><span class="kw">*</span>(zq<span class="kw">+</span>zqp)<span class="kw">*</span>zsigp</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>      <span class="kw">+</span> (zsig<span class="kw">-</span>zsigp)<span class="kw">*</span>(zq <span class="kw">+</span> zz<span class="kw">*</span>(zqm<span class="kw">-</span>zq)))</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<p>通量计算范围 <code>l=2..llm</code>，因为 <code>l=1</code> 和 <code>l=llm+1</code> 是边界。</p>
+<h3 id="无通量边界">无通量边界</h3>
+<div class="sourceCode" id="cb19"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">do</span> ij <span class="kw">=</span> <span class="dv">1</span>, ip1jmp1</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>   w_mq(ij,llm<span class="kw">+</span><span class="dv">1</span>) <span class="kw">=</span> <span class="fl">0.</span>   <span class="co">! 大气顶无通量</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>   w_mq(ij,<span class="dv">1</span>) <span class="kw">=</span> <span class="fl">0.</span>        <span class="co">! 地面无通量</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="kw">enddo</span></span></code></pre></div>
+<h3 id="通量散度更新-2">通量散度更新</h3>
+<div class="sourceCode" id="cb20"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">do</span> l <span class="kw">=</span> <span class="dv">1</span>, llm</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>   <span class="kw">do</span> ij <span class="kw">=</span> <span class="dv">1</span>, ip1jmp1</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>      new_m <span class="kw">=</span> masse(ij,l) <span class="kw">+</span> w_m(ij,l<span class="kw">+</span><span class="dv">1</span>) <span class="kw">-</span> w_m(ij,l)</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>      q(ij,l) <span class="kw">=</span> (q(ij,l)<span class="kw">*</span>masse(ij,l) <span class="kw">+</span> w_mq(ij,l<span class="kw">+</span><span class="dv">1</span>) <span class="kw">-</span> w_mq(ij,l)) <span class="kw">/</span> new_<span class="co">m</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>      masse(ij,l) <span class="kw">=</span> new_m</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>   <span class="kw">enddo</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a><span class="kw">enddo</span></span></code></pre></div>
+<p>垂直方向没有周期包裹或极点处理，所有格点统一更新。</p>
+<h2 id="三方向通量更新对比">三方向通量更新对比</h2>
+<table>
+<thead>
+<tr>
+<th>特征</th>
+<th>advnx (E-W)</th>
+<th>advny (N-S)</th>
+<th>advnz (垂直)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>mode 分支</td>
+<td>有（1=线性/2=抛物线）</td>
+<td>无（仅抛物线）</td>
+<td>无（仅抛物线）</td>
+</tr>
+<tr>
+<td>prec 阈值</td>
+<td>1e-15 (CRAY 1e-24)</td>
+<td>1e-15 (CRAY 1e-24)</td>
+<td>1e-13 (CRAY 1e-24)</td>
+</tr>
+<tr>
+<td>sigma clip</td>
+<td>无</td>
+<td>无</td>
+<td>[0,1] min/max</td>
+</tr>
+<tr>
+<td>Semi-Lagrangian</td>
+<td>有（CFL&gt;1 累加）</td>
+<td>无</td>
+<td>无</td>
+</tr>
+<tr>
+<td>极区处理</td>
+<td>极点行排除 SL</td>
+<td>面积加权分配</td>
+<td>无</td>
+</tr>
+<tr>
+<td>周期包裹</td>
+<td>经向 mod 循环</td>
+<td>无</td>
+<td>无</td>
+</tr>
+<tr>
+<td>边界条件</td>
+<td>无</td>
+<td>极点 SSUM</td>
+<td>顶底零通量</td>
+</tr>
+<tr>
+<td>通量数组范围</td>
+<td>ip1jmp1</td>
+<td>ip1jm</td>
+<td>ip1jmp1×(llm+1)</td>
+</tr>
+<tr>
+<td>更新范围</td>
+<td>iip2+1..ip1jm</td>
+<td>iip2..ip1jm + 极点</td>
+<td>1..ip1jmp1</td>
+</tr>
+</tbody>
+</table>
+<h2 id="守恒分析">守恒分析</h2>
+<p>advn 的通量更新同时修改 <code>q</code> 和 <code>masse</code>，这保证了质量和 tracer 的耦合守恒：</p>
+<pre><code>new_m = masse + flux_mass_in - flux_mass_out
+q_new = (q*masse + flux_tracer_in - flux_tracer_out) / new_m</code></pre>
+<p>这意味着 <code>q_new * new_m = q*masse + flux_tracer_in - flux_tracer_out</code>，tracer 总量变化等于净通量。</p>
+<p><strong>守恒风险点</strong>：</p>
+<ol type="1">
+<li>advnx Semi-Lagrangian 累加中，<code>zu_m</code> 逐格点减去 <code>masse</code>，最后的 <code>zu_m</code> 是剩余质量通量。若累加精度不足，可能导致 <code>u_mq</code> 不完全等于原始通量。</li>
+<li>advny 极区 <code>SSUM</code> 求和可能因浮点累加顺序导致微小不守恒。</li>
+<li>advnz 的 <code>zsigb</code> clip 到 <code>[0,1]</code> 会截断极端 sigma 值，可能破坏守恒。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>advny 和 advnz <strong>没有 mode 分支</strong>，始终使用抛物线公式。这意味着即使 <code>mode=1</code>（advn 主例程传入），N-S 和垂直方向仍使用抛物线通量。mode 参数只在 advnx 的 E-W 方向生效。</li>
+<li>advnz 的 <code>prec=1e-13</code> 比 advnx/advny 的 <code>prec=1e-15</code> 宽松两个量级。这意味着垂直方向更容易退化为 1 阶（当 <code>|qb-qh| &lt; 1e-13</code> 时）。</li>
+<li>advnx 的 Semi-Lagrangian 累加只在 <code>n0 &gt; 1</code> 时执行。<code>n0=0</code> 或 <code>n0=1</code> 时不执行，使用常规通量公式。这可能导致单格点 CFL&gt;1 时的不守恒。</li>
+<li><code>zsigp=0.1</code> 的 fallback（当 <code>zsig==0</code> 时）避免了除零，但引入了非物理的截断。这个 0.1 是经验值。</li>
+<li>advny 的 <code>aire(ij)/apoln</code> 面积加权分配要求 <code>apoln = Σ aire(ij)</code>（极冠总面积），否则极点质量总和不守恒。</li>
+<li>advnx 的 <code>mod(ij,iip1) /= 0</code> 条件确保极点行不进入 Semi-Lagrangian 处理，因为极点行的经向索引无法做有意义的 <code>mod</code> 操作。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="advn-dispatcher-order.html">advn 调度顺序</a></li>
+<li><a href="advn-stencil-reconstruction.html">advn 界面重构</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>advny/advnz 缺少 mode 分支是否为有意设计（N-S 和垂直方向始终用抛物线）还是遗漏。</li>
+<li>advnz 的 <code>prec=1e-13</code> 是否因为垂直方向的数值精度较低而有意放宽。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

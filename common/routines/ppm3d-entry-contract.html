@@ -1,0 +1,441 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ppm3d-entry-contract - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/ppm3d-entry-contract.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="ppm3d-入口契约与串并行可达性">ppm3d 入口契约与串并行可达性</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d_common\ppm3d.F
+dyn3d\advtrac.F90
+dyn3dpar\advtrac_p.F90
+dyn3d_common\interpre.F
+dyn3d_common\interpost.F
+dyn3d_common\adaptdt.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。<code>ppm3d</code> 是 Lin &amp; Rood PPM 三维输送内核，由串行 <code>advtrac</code> 在 <code>iadv=11/16/17/18</code> 时调用。但当前 <code>infotrac_init</code> 白名单只允许 <code>iadv=10/14/0</code> 通过初始化检查，因此 Mars 默认配置下 PPM 路径不可达。并行 <code>advtrac_p</code> 用 <code>GOTO 1234</code> 跳过全部 scheme-specific 代码，只用 <code>vlspltgen_p</code> 处理所有 advection。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>ppm3d</code> 是 NASA/GSFC Transport Core Version 4.5 的 Fortran 77 输送内核，2078 行。它实现 Lin &amp; Rood 的 Piece-wise Parabolic Method，支持 E-W/N-S/vertical 三方向多阶单调性选项。LMDZ 通过 <code>interpre</code>/<code>interpost</code> 做格点格式互转，通过 <code>adaptdt</code> 做自适应子步长保证 CFL&lt;1。</p>
+<h2 id="ppm3d-签名">ppm3d 签名</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> ppm3d(IGD, Q, PS1, PS2, U, V, W, NDT,</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">     &amp;</span>           IORD, JORD, KORD, NC, IMR, JNP, j1, NLAY,</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="bu">     &amp;</span>           AP, BP, PT, AE, fill, dum, Umax)</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th>方向</th>
+<th>LMDZ 调用值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IGD</code></td>
+<td>integer</td>
+<td>IN</td>
+<td><code>1</code></td>
+<td>网格类型。0=A-Grid，1=GEOS C-Grid（LMDZ 使用）。</td>
+</tr>
+<tr>
+<td><code>Q</code></td>
+<td>real(IMR,JNP,NLAY,NC)</td>
+<td>INOUT</td>
+<td>单 tracer</td>
+<td>混合比，入口为当前值，出口为 t+NDT 值。</td>
+</tr>
+<tr>
+<td><code>PS1</code></td>
+<td>real(IMR,JNP)</td>
+<td>IN</td>
+<td><code>psppm</code></td>
+<td>t 时刻地面气压。</td>
+</tr>
+<tr>
+<td><code>PS2</code></td>
+<td>real(IMR,JNP)</td>
+<td>INOUT</td>
+<td><code>psppm</code></td>
+<td>t+NDT 时刻地面气压（由质量连续方程更新）。</td>
+</tr>
+<tr>
+<td><code>U</code></td>
+<td>real(IMR,JNP,NLAY)</td>
+<td>IN</td>
+<td><code>unatppm</code></td>
+<td>C-Grid 纬向风速（m/s），mid-time-level。</td>
+</tr>
+<tr>
+<td><code>V</code></td>
+<td>real(IMR,JNP,NLAY)</td>
+<td>IN</td>
+<td><code>vnatppm</code></td>
+<td>C-Grid 经向风速（m/s），mid-time-level。</td>
+</tr>
+<tr>
+<td><code>W</code></td>
+<td>real(IMR,JNP,NLAY)</td>
+<td>IN</td>
+<td><code>fluxwppm</code></td>
+<td>垂直质量通量，单位与 PS 一致。</td>
+</tr>
+<tr>
+<td><code>NDT</code></td>
+<td>real</td>
+<td>IN</td>
+<td><code>dtbon</code></td>
+<td>时间步长（秒）。</td>
+</tr>
+<tr>
+<td><code>IORD</code></td>
+<td>integer</td>
+<td>IN</td>
+<td>2/3/4/5</td>
+<td>E-W 方向阶数选项。</td>
+</tr>
+<tr>
+<td><code>JORD</code></td>
+<td>integer</td>
+<td>IN</td>
+<td>2/3/4/5</td>
+<td>N-S 方向阶数选项。</td>
+</tr>
+<tr>
+<td><code>KORD</code></td>
+<td>integer</td>
+<td>IN</td>
+<td>2/3/4/5</td>
+<td>垂直方向阶数选项。</td>
+</tr>
+<tr>
+<td><code>NC</code></td>
+<td>integer</td>
+<td>IN</td>
+<td><code>1</code></td>
+<td>tracer 个数。LMDZ 逐 tracer 调用。</td>
+</tr>
+<tr>
+<td><code>IMR</code></td>
+<td>integer</td>
+<td>IN</td>
+<td><code>iim</code></td>
+<td>经向格点数。必须为偶数（j1=2 时）。</td>
+</tr>
+<tr>
+<td><code>JNP</code></td>
+<td>integer</td>
+<td>IN</td>
+<td><code>jjp1</code></td>
+<td>纬向格点数（含极点）。</td>
+</tr>
+<tr>
+<td><code>j1</code></td>
+<td>integer</td>
+<td>IN</td>
+<td><code>2</code></td>
+<td>极冠大小参数。LMDZ 使用 j1=2。</td>
+</tr>
+<tr>
+<td><code>NLAY</code></td>
+<td>integer</td>
+<td>IN</td>
+<td><code>llm</code></td>
+<td>垂直层数。必须 &gt;= 6。</td>
+</tr>
+<tr>
+<td><code>AP</code></td>
+<td>real(NLAY+1)</td>
+<td>IN</td>
+<td><code>apppm</code></td>
+<td>混合 sigma-P 坐标 A 系数（翻转后）。</td>
+</tr>
+<tr>
+<td><code>BP</code></td>
+<td>real(NLAY+1)</td>
+<td>IN</td>
+<td><code>bpppm</code></td>
+<td>混合 sigma-P 坐标 B 系数（翻转后）。</td>
+</tr>
+<tr>
+<td><code>PT</code></td>
+<td>real</td>
+<td>IN</td>
+<td><code>0.01</code></td>
+<td>参考气压（mb）。</td>
+</tr>
+<tr>
+<td><code>AE</code></td>
+<td>real</td>
+<td>IN</td>
+<td><code>6400000</code></td>
+<td>球体半径（m）。LMDZ 使用 6.4E6。</td>
+</tr>
+<tr>
+<td><code>fill</code></td>
+<td>logical</td>
+<td>IN</td>
+<td><code>.true.</code></td>
+<td>是否做负值填充。</td>
+</tr>
+<tr>
+<td><code>dum</code></td>
+<td>logical</td>
+<td>IN</td>
+<td><code>.true.</code></td>
+<td>交叉极区填充标志。</td>
+</tr>
+<tr>
+<td><code>Umax</code></td>
+<td>real</td>
+<td>IN</td>
+<td><code>220.</code></td>
+<td>最大风速估计上限（m/s）。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="iordjordkord-方案选项">IORD/JORD/KORD 方案选项</h2>
+<p>源码 L182-197 文档化六个选项：</p>
+<table>
+<thead>
+<tr>
+<th><code>_ORD</code></th>
+<th>含义</th>
+<th>隐式扩散</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td>一阶上游（过于扩散，调试用）</td>
+<td>最大</td>
+<td>唯一线性单调格式</td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td>二阶 van Leer（全单调约束）</td>
+<td>较大</td>
+<td>正定标量</td>
+</tr>
+<tr>
+<td><code>3</code></td>
+<td>单调 PPM（Colella &amp; Woodward 1984 改进版）</td>
+<td>中等</td>
+<td>正定标量推荐</td>
+</tr>
+<tr>
+<td><code>4</code></td>
+<td>半单调 PPM（允许过冲）</td>
+<td>较小</td>
+<td>不用于非正定标量</td>
+</tr>
+<tr>
+<td><code>5</code></td>
+<td>正定 PPM（仅防止负值）</td>
+<td>较小</td>
+<td>需显式扩散配合</td>
+</tr>
+<tr>
+<td><code>6</code></td>
+<td>无约束 PPM（近无扩散）</td>
+<td>最小</td>
+<td>仅用于极平滑场</td>
+</tr>
+</tbody>
+</table>
+<p>LMDZ 调用映射：</p>
+<table>
+<thead>
+<tr>
+<th><code>iadv</code></th>
+<th>IORD/JORD/KORD</th>
+<th>方案名称</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>11</code></td>
+<td><code>2,2,2</code></td>
+<td>VL 水平 + PPM 垂直</td>
+<td>水平用 van Leer，垂直用 PPM</td>
+</tr>
+<tr>
+<td><code>16</code></td>
+<td><code>3,3,3</code></td>
+<td>Monotonic PPM</td>
+<td>全方向单调 PPM</td>
+</tr>
+<tr>
+<td><code>17</code></td>
+<td><code>4,4,4</code></td>
+<td>Semi-Monotonic PPM</td>
+<td>允许过冲</td>
+</tr>
+<tr>
+<td><code>18</code></td>
+<td><code>5,5,5</code></td>
+<td>Positive-Definite PPM</td>
+<td>仅防负值</td>
+</tr>
+</tbody>
+</table>
+<p>注意：源码 L199 明确注明 <code>KORD &lt;= 2</code> 不再支持，且选项 4/5 不得用于非正定标量（如 Ertel 位涡）。</p>
+<h2 id="接口层">接口层</h2>
+<h3 id="interprelmdz4--ppm3d-格式转换">interpre：LMDZ.4 → PPM3d 格式转换</h3>
+<p><code>interpre</code> 把 LMDZ 的质量通量、tracer 和气压场转为 PPM3d 所需的格式，包含四步变换：</p>
+<ol type="1">
+<li><strong>地面气压</strong>：对垂直方向积分 masse 得到柱质量 <code>smass</code>，<code>psppm = smass / aire * g * 0.01</code>（Pa → mb）。</li>
+<li><strong>风场还原</strong>：<code>unat = pbaru / massebx * cu</code>，<code>vnat = -pbarv / masseby * cv</code>。质量通量除以质量得到速度，<code>cu</code>/<code>cv</code> 是网格几何系数。经向风取反以匹配 PPM 的纬度递增方向约定。</li>
+<li><strong>垂直质量通量</strong>：<code>fluxw = w * g * 0.01 / aire</code>，地面层置零。</li>
+<li><strong>垂直翻转</strong>：PPM3d 的 k=1 是大气顶，LMDZ 的 l=1 是地面。所有三维场和 <code>ap/bp</code> 都做 <code>field_ppm(l) = field(llm-l+1)</code> 翻转。</li>
+</ol>
+<h3 id="interpostppm3d--lmdz4-格式回转">interpost：PPM3d → LMDZ.4 格式回转</h3>
+<p><code>interpost</code> 在 PPM3d 完成后执行两步：</p>
+<ol type="1">
+<li><strong>垂直再翻转</strong>：<code>q(i,j,l) = qppm(i,j, llm-l+1)</code>，恢复 LMDZ 层序。</li>
+<li><strong>经向周期</strong>：<code>q(iip1,j,l) = q(1,j,l)</code>，闭合经向周期边界。PPM3d 内部不做经向周期包裹。</li>
+</ol>
+<h3 id="adaptdt自适应子步长">adaptdt：自适应子步长</h3>
+<p><code>adaptdt</code> 扫描全域纬向质量通量，找到最大 CFL 数，计算子步数 <code>n = int(CFLmax) + 1</code>，返回子步长 <code>dtbon = dtvr / n</code>，保证每个子步 CFL &lt; 1。纬度扫描排除极点 <code>j=1</code> 和 <code>j=jjp1</code>，避免奇异极区格。</p>
+<h2 id="核心算法流程">核心算法流程</h2>
+<p>ppm3d 首次调用时执行初始化（L316-417）：</p>
+<ol type="1">
+<li>打印 <code>NASA/GSFC Transport Core Version 4.5</code> 和网格参数。</li>
+<li>参数检查：<code>NLAY &gt;= 6</code>，<code>JNP &gt;= NLAY</code>，j1=2 时 IMR 必须为偶数，Jmax/kmax 足够。</li>
+<li>构造混合 sigma-P 层厚度系数 <code>DAP(k) = (AP(k+1)-AP(k))*PT</code>，<code>DBK(k) = BP(k+1)-BP(k)</code>。</li>
+<li>计算网格几何：经向间距 <code>DL = 2π/IMR</code>，纬向间距 <code>DP = π/JMR</code>，cosine 数组（IGD=0 用解析，IGD=1 用 C-Grid 一致 cosine），极冠面积倒数 <code>RCAP</code>。</li>
+<li>计算方向 Courant 数系数 <code>DTDX</code>/<code>DTDY</code>，并根据 <code>Umax</code> 估计最大允许时间步和 FFSL 切换阈值 <code>JS0</code>/<code>JN0</code>。</li>
+</ol>
+<p>主输送流程使用 x-y-z directional splitting，详见 <a href="ppm3d-horizontal-transport.html">ppm3d-horizontal-transport</a> 和 <a href="ppm3d-vertical-transport.html">ppm3d-vertical-transport</a>。</p>
+<h2 id="串行调用链">串行调用链</h2>
+<pre><code>advtrac.F90
+  ├─ groupe(...)                    # 质量通量准备
+  ├─ massbar(...)                   # staggered 质量平均
+  ├─ adaptdt(iadv, dtbon, n, ...)   # 自适应子步长
+  ├─ interpre(q, qppm, ...)         # LMDZ → PPM 格式
+  ├─ do indice=1,n
+  │   └─ ppm3d(1, qppm, ...)       # PPM 输送内核
+  ├─ interpost(q, qppm)             # PPM → LMDZ 格式
+  └─ ...</code></pre>
+<p>串行 <code>advtrac.F90</code> 在 <code>iadv=11/16/17/18</code> 时进入 PPM 分支（L292-377），使用 <code>interpre → ppm3d → interpost</code> 模式，外层做 <code>adaptdt</code> 子步循环。</p>
+<h2 id="并行路径ppm-不可达">并行路径：PPM 不可达</h2>
+<p>并行 <code>advtrac_p.F90</code> 的结构完全不同：</p>
+<ol type="1">
+<li>L273-274：直接调用 <code>vlspltgen_p</code> 处理所有 tracer advection。</li>
+<li>L282：<code>GOTO 1234</code> 跳转到 L463，<strong>跳过全部 scheme-specific 代码</strong>。</li>
+<li>L288-460：PPM/advn/prather/pentes_ini 代码仍存在但标记为死代码。PPM 分支（L396-443）入口有 <code>stop 'advtrac : schema non parallelise'</code>。</li>
+<li>L463 <code>1234 CONTINUE</code>：代码在此恢复，执行 <code>qminimum_p</code>（仅 Earth）和 <code>force_conserv_tracer</code> 守恒修正。</li>
+</ol>
+<p>结论：<strong>当前 COMMON 并行构建中 PPM 路径完全不可达</strong>。只有 <code>vlspltgen_p</code> 承担并行 tracer 输送。</p>
+<h2 id="infotrac_init-白名单与-mars-可达性">infotrac_init 白名单与 Mars 可达性</h2>
+<p><a href="infotrac-advection-schemes.html">infotrac-advection-schemes</a> 记录了 <code>infotrac_init</code> 最终可用性检查：</p>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iadv</code> 不是 <code>10</code>、<code>14</code>、<code>0</code></td>
+<td>abort，提示当前版本只测试 <code>10</code> 和 <code>14</code></td>
+</tr>
+<tr>
+<td><code>iadv==14</code> 且 <code>iq/=1</code></td>
+<td>abort，<code>14</code> 只允许水汽</td>
+</tr>
+</tbody>
+</table>
+<p>因此 PPM 方案（<code>iadv=11/16/17/18</code>）在当前版本初始化阶段就会被 abort。即使 <code>advtrac</code> 中存在完整 PPM 调用路径，Mars 默认配置下不会到达。PPM 代码在当前 COMMON 中属于<strong>历史遗留但未删除</strong>的状态。</p>
+<h2 id="分辨率限制">分辨率限制</h2>
+<p>ppm3d 内部使用静态数组（L272、L297-298）：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Jmax</code></td>
+<td>361</td>
+<td>最大纬向格点数</td>
+</tr>
+<tr>
+<td><code>kmax</code></td>
+<td>150</td>
+<td>最大垂直层数</td>
+</tr>
+</tbody>
+</table>
+<p>超过这些限制需要修改 ppm3d.F 源码中的 <code>parameter</code> 声明。L246 注释提到 0.5 度 N-S 分辨率或 150 层以上需要调整。</p>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>复现 PPM 输送结果需要确认 <code>traceur.def</code> 中 <code>hadv/vadv</code> 的值。只有 <code>hadv=10, vadv=16</code> 组合产生 <code>iadv=11</code> 才能进入 PPM 路径，但当前 <code>infotrac_init</code> 会 abort。</li>
+<li>若要在 Mars 运行中使用 PPM，必须修改 <code>infotrac_init</code> 白名单或绕过最终可用性检查。</li>
+<li>并行构建下无论 <code>iadv</code> 取何值都不会调用 ppm3d，因为 <code>GOTO 1234</code> 在 <code>vlspltgen_p</code> 之后直接跳过。</li>
+<li><code>interpre</code> 的垂直翻转和经向风取反是复现串行 PPM 结果的关键数值等价点。</li>
+<li><code>adaptdt</code> 保证水平 CFL&lt;1，但垂直 CFL 由 <code>advtrac</code> 自行检查（L302-314）并在 <code>CFLmaxz &gt;= 1</code> 时打印 WARNING。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
+<li><a href="infotrac-advection-schemes.html">infotrac advection scheme</a></li>
+<li><a href="ppm3d-vertical-transport.html">ppm3d 垂直输送</a></li>
+<li><a href="ppm3d-horizontal-transport.html">ppm3d 水平输送</a></li>
+<li><a href="../modules/dyn3dpar/vlspltgen_p.html">vlspltgen_p 并行通用 Van Leer</a></li>
+<li><a href="../modules/dyn3d_common/prather.html">prather moments 输送</a></li>
+<li><a href="advect-serial-parallel.html">advect 文件组</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>iadv=11</code> 路径在 LMDZ 历史版本中是否曾被 Mars 配置实际使用，需要 hard 父页或历史版本比对确认。</li>
+<li><code>ppm3d</code> 的 <code>cross</code> 标志（L300 <code>data cross /.true./</code>）和 <code>fill</code> 参数在 LMDZ 调用中均为 <code>.true.</code>，其对 Mars 干大气 tracer 的具体影响需子页进一步说明。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

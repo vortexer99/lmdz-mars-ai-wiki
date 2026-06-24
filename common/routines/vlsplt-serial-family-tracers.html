@@ -1,0 +1,323 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vlsplt-serial-family-tracers - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/vlsplt-serial-family-tracers.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="vlsplt-串行父子-tracer-和饱和路径">vlsplt 串行父子 tracer 和饱和路径</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d\vlsplt.F: L1-139（vlsplt 主例程）
+dyn3d\vlsplt.F: L140-519（vlx，含父子递归）
+dyn3d\vlsplt.F: L520-888（vly，含父子递归）
+dyn3d\vlsplt.F: L889-1060（vlz，含父子递归）
+dyn3d\vlsplt.F: L1091-1135（minmaxq 诊断）
+dyn3d\vlspltqs.F: L1-178（vlspltqs 主例程）
+dyn3d\vlspltqs.F: L179+（vlxqs）
+dyn3d_common\infotrac.F90（nqdesc/iqfils/nqfils/qperemin/masseqmin）</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。<code>vlsplt</code> 和 <code>vlspltqs</code> 是串行 <code>advtrac</code> 中 <code>iadv=10</code>（Van Leer）路径的核心输送例程。本页聚焦父子 tracer 比例输送机制和饱和水汽路径。split 内核细节详见 <a href="vlsplt-serial-split-kernels.html">vlsplt-serial-split-kernels</a>。</p>
+<h2 id="例程定位">例程定位</h2>
+<p>vlsplt 系列实现了串行 Van Leer 输送，包含两个主入口：<code>vlsplt</code>（非饱和 tracer）和 <code>vlspltqs</code>（饱和水汽 tracer）。两者共享 x-y-z-y-x 五步 directional splitting，但 vlspltqs 额外做饱和混合比裁剪。三个方向子例程（vlx/vly/vlz）都是 <code>RECURSIVE</code> 的，支持父子 tracer 的比例输送。</p>
+<h2 id="vlsplt-签名">vlsplt 签名</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> vlsplt(q,pente_max,masse,w,pbaru,pbarv,pdt,iq)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">USE</span> infotrac, <span class="kw">ONLY</span>: nqtot,nqdesc,iqfils</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th>方向</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q</code></td>
+<td>real(ip1jmp1,llm,nqtot)</td>
+<td>INOUT</td>
+<td>tracer 混合比（含所有 tracer）</td>
+</tr>
+<tr>
+<td><code>pente_max</code></td>
+<td>real</td>
+<td>IN</td>
+<td>斜率限制因子（通常 2，0=上游格式）</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td>real(ip1jmp1,llm)</td>
+<td>INOUT</td>
+<td>格点空气质量</td>
+</tr>
+<tr>
+<td><code>w</code></td>
+<td>real(ip1jmp1,llm)</td>
+<td>IN</td>
+<td>垂直质量通量</td>
+</tr>
+<tr>
+<td><code>pbaru</code></td>
+<td>real(ip1jmp1,llm)</td>
+<td>IN</td>
+<td>E-W 质量通量</td>
+</tr>
+<tr>
+<td><code>pbarv</code></td>
+<td>real(ip1jm,llm)</td>
+<td>IN</td>
+<td>N-S 质量通量</td>
+</tr>
+<tr>
+<td><code>pdt</code></td>
+<td>real</td>
+<td>IN</td>
+<td>时间步长（秒）</td>
+</tr>
+<tr>
+<td><code>iq</code></td>
+<td>integer</td>
+<td>IN</td>
+<td>当前 tracer 索引</td>
+</tr>
+</tbody>
+</table>
+<h2 id="vlsplt-主例程流程">vlsplt 主例程流程</h2>
+<h3 id="通量缩放">通量缩放</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>zzpbar <span class="kw">=</span> <span class="fl">0.5</span> <span class="kw">*</span> pdt    <span class="co">! 水平半时间步</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>zzw    <span class="kw">=</span> pdt           <span class="co">! 垂直全时间步</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>mu <span class="kw">=</span> pbaru <span class="kw">*</span> zzpbar</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>mv <span class="kw">=</span> pbarv <span class="kw">*</span> zzpbar</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>mw <span class="kw">=</span> w <span class="kw">*</span> zzw</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>mw(:,llm<span class="kw">+</span><span class="dv">1</span>) <span class="kw">=</span> <span class="fl">0.</span>       <span class="co">! 顶部无通量</span></span></code></pre></div>
+<h3 id="工作数组复制">工作数组复制</h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">CALL SCOPY(ijp1llm, q(:,:,iq), 1, zq(:,:,iq), 1)</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co">CALL SCOPY(ijp1llm, masse, 1, zm(:,:,iq), 1)</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co">! 父子 tracer：也复制子 tracer</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (nqdesc(iq) <span class="op">&gt;</span> <span class="dv">0</span>) <span class="kw">then</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>   <span class="kw">do</span> ifils <span class="kw">=</span> <span class="dv">1</span>, nqdesc(iq)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>      iq2 <span class="kw">=</span> iqfils(ifils,iq)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>      <span class="kw">CALL</span> SCOPY(ijp1llm, q(:,:,iq2), <span class="dv">1</span>, zq(:,:,iq2), <span class="dv">1</span>)</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>   <span class="kw">enddo</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<h3 id="x-y-z-y-x-split">x-y-z-y-x Split</h3>
+<pre><code>call vlx(zq, pente_max, zm, mu, iq)   ! E-W
+call vly(zq, pente_max, zm, mv, iq)   ! N-S
+call vlz(zq, pente_max, zm, mw, iq)   ! 垂直
+call vly(zq, pente_max, zm, mv, iq)   ! N-S
+call vlx(zq, pente_max, zm, mu, iq)   ! E-W</code></pre>
+<h3 id="结果回写">结果回写</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>q(:,:,iq) <span class="kw">=</span> zq(:,:,iq)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co">! 经向周期包裹</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>q(ij<span class="kw">+</span>iim,l,iq) <span class="kw">=</span> q(ij,l,iq)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co">! 父子 tracer：也回写子 tracer</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (nqdesc(iq) <span class="op">&gt;</span> <span class="dv">0</span>) <span class="kw">then</span> ... <span class="kw">endif</span></span></code></pre></div>
+<h2 id="父子-tracer-比例输送">父子 tracer 比例输送</h2>
+<h3 id="机制概述">机制概述</h3>
+<p>vlsplt 的父子 tracer 输送基于比例守恒假设：子 tracer 与父 tracer 的混合比比值在输送过程中保持不变。这使得子 tracer 不需要独立做通量计算，只需在父 tracer 更新后按比例恢复。</p>
+<h3 id="核心变量来自-infotrac">核心变量（来自 infotrac）</h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nqdesc(iq)</code></td>
+<td>父 tracer <code>iq</code> 的后代总数（含子、孙等）</td>
+</tr>
+<tr>
+<td><code>nqfils(iq)</code></td>
+<td>父 tracer <code>iq</code> 的直接子代数</td>
+</tr>
+<tr>
+<td><code>iqfils(ifils,iq)</code></td>
+<td>父 tracer <code>iq</code> 的第 <code>ifils</code> 个子代的索引</td>
+</tr>
+<tr>
+<td><code>qperemin</code></td>
+<td>父 tracer 混合比最小阈值（低于此值不计算比例）</td>
+</tr>
+<tr>
+<td><code>masseqmin</code></td>
+<td>质量最小阈值（防止除零）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="比例计算在-vlxvlyvlz-中统一模式">比例计算（在 vlx/vly/vlz 中统一模式）</h3>
+<p>在父 tracer 的通量更新之前，为每个子 tracer 计算：</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">! 父 tracer 的 tracer 质量（带下限保护）</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>masseq(ij,l,iq2) <span class="kw">=</span> <span class="bu">max</span>(masse(ij,l,iq) <span class="kw">*</span> q(ij,l,iq), masseqmin)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co">! 子/父比例（父 tracer 太小时置零）</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (q(ij,l,iq) <span class="op">&gt;</span> qperemin) <span class="kw">then</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>   Ratio(ij,l,iq2) <span class="kw">=</span> q(ij,l,iq2) <span class="kw">/</span> q(ij,l,iq)</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="kw">else</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>   Ratio(ij,l,iq2) <span class="kw">=</span> <span class="fl">0.</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<h3 id="递归输送">递归输送</h3>
+<p>子 tracer 不直接做通量计算，而是对 <code>Ratio</code> 场做递归输送，使用父 tracer 的 tracer 质量 <code>masseq</code> 作为质量场：</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">do</span> ifils <span class="kw">=</span> <span class="dv">1</span>, nqfils(iq)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>   iq2 <span class="kw">=</span> iqfils(ifils,iq)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>   <span class="kw">call</span> vlx(Ratio, pente_max, masseq, u_mq, iq2)  <span class="co">! 对比例做输送</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="kw">enddo</span></span></code></pre></div>
+<h3 id="比例恢复">比例恢复</h3>
+<p>父 tracer 更新后，子 tracer 按比例恢复：</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">do</span> ifils <span class="kw">=</span> <span class="dv">1</span>, nqdesc(iq)</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>   iq2 <span class="kw">=</span> iqfils(ifils,iq)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>   q(ij,l,iq2) <span class="kw">=</span> q(ij,l,iq) <span class="kw">*</span> Ratio(ij,l,iq2)</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="kw">enddo</span></span></code></pre></div>
+<h3 id="执行顺序">执行顺序</h3>
+<p>在 vlx/vly/vlz 中，父子处理的完整顺序是：</p>
+<ol type="1">
+<li>计算 <code>masseq</code> 和 <code>Ratio</code></li>
+<li>递归调用同方向子例程对 <code>Ratio</code> 做输送</li>
+<li>更新父 tracer 的 <code>q</code> 和 <code>masse</code></li>
+<li>用更新后的父 <code>q</code> 乘以 <code>Ratio</code> 恢复子 tracer</li>
+</ol>
+<p><strong>注意</strong>：步骤 1-2 在父 tracer 更新之前执行，步骤 4 在父 tracer 更新之后执行。这确保了比例是在父 tracer 旧场上计算的，恢复时使用新场。</p>
+<h3 id="nqdesc-vs-nqfils">nqdesc vs nqfils</h3>
+<p>代码中有一个微妙区别：</p>
+<ul>
+<li><code>nqdesc(iq)</code> 用于计算 <code>masseq</code>/<code>Ratio</code> 和最终恢复（覆盖所有后代）</li>
+<li><code>nqfils(iq)</code> 用于递归调用（仅直接子代）</li>
+</ul>
+<p>这意味着如果有孙代 tracer，它们的 <code>masseq</code>/<code>Ratio</code> 由祖父层计算，但递归调用只沿直接父子链传递。</p>
+<h2 id="vlspltqs-饱和路径">vlspltqs 饱和路径</h2>
+<h3 id="签名">签名</h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> vlspltqs(q,pente_max,masse,w,pbaru,pbarv,pdt,</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>                    p,pk,teta,iq)</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="kw">USE</span> infotrac, <span class="kw">ONLY</span>: nqtot,nqdesc,iqfils</span></code></pre></div>
+<p>额外参数：<code>p</code>（压力界面）、<code>pk</code>（Exner 函数）、<code>teta</code>（位温）。</p>
+<h3 id="饱和混合比计算">饱和混合比计算</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co">call tpot2t(ip1jmp1*llm, teta, tempe, pk)  ! 位温→温度</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> l <span class="kw">=</span> <span class="dv">1</span>, llm</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>   <span class="kw">DO</span> ij <span class="kw">=</span> <span class="dv">1</span>, ip1jmp1</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>      zdelta <span class="kw">=</span> <span class="bu">MAX</span>(<span class="fl">0.</span>, <span class="bu">SIGN</span>(<span class="fl">1.</span>, rtt <span class="kw">-</span> tempe(ij,l)))</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>      play <span class="kw">=</span> <span class="fl">0.5</span><span class="kw">*</span>(p(ij,l)<span class="kw">+</span>p(ij,l<span class="kw">+</span><span class="dv">1</span>))</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>      qsat(ij,l) <span class="kw">=</span> <span class="bu">MIN</span>(<span class="fl">0.5</span>, r2es<span class="kw">*</span>FOEEW(tempe(ij,l),zdelta)<span class="kw">/</span>play)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>      qsat(ij,l) <span class="kw">=</span> qsat(ij,l) <span class="kw">/</span> (<span class="fl">1.</span> <span class="kw">-</span> retv<span class="kw">*</span>qsat(ij,l))</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>   <span class="kw">ENDDO</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span></code></pre></div>
+<p><code>FOEEW</code> 是饱和水汽压函数，<code>zdelta</code> 区分液态/冰面公式。<code>qsat</code> 被限制在 0.5 以下。</p>
+<h3 id="split-顺序">Split 顺序</h3>
+<pre><code>call vlxqs(zq, pente_max, zm, mu, qsat, iq)   ! E-W + qsat 裁剪
+call vlyqs(zq, pente_max, zm, mv, qsat, iq)   ! N-S + qsat 裁剪
+call vlz(zq, pente_max, zm, mw, iq)           ! 垂直（共享 vlsplt 的 vlz）
+call vlyqs(zq, pente_max, zm, mv, qsat, iq)   ! N-S + qsat 裁剪
+call vlxqs(zq, pente_max, zm, mu, qsat, iq)   ! E-W + qsat 裁剪</code></pre>
+<p>vlxqs/vlyqs 在通量计算后对 <code>q</code> 做 <code>min(q, qsat)</code> 裁剪，防止超过饱和。vlz 不做饱和裁剪（垂直方向由物理过程处理凝结）。</p>
+<h2 id="vlsplt-vs-vlspltqs-对比">vlsplt vs vlspltqs 对比</h2>
+<table>
+<thead>
+<tr>
+<th>特征</th>
+<th>vlsplt</th>
+<th>vlspltqs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>水平子例程</td>
+<td>vlx/vly</td>
+<td>vlxqs/vlyqs</td>
+</tr>
+<tr>
+<td>垂直子例程</td>
+<td>vlz（共享）</td>
+<td>vlz（共享）</td>
+</tr>
+<tr>
+<td>饱和裁剪</td>
+<td>无</td>
+<td>vlxqs/vlyqs 中 qsat 限制</td>
+</tr>
+<tr>
+<td>额外参数</td>
+<td>无</td>
+<td>p, pk, teta</td>
+</tr>
+<tr>
+<td>父子 tracer</td>
+<td>支持（递归）</td>
+<td>支持（同机制）</td>
+</tr>
+<tr>
+<td>温度依赖</td>
+<td>无</td>
+<td>tpot2t 位温→温度</td>
+</tr>
+<tr>
+<td>调用方</td>
+<td>advtrac（iadv=10 非饱和）</td>
+<td>advtrac（iadv=10 饱和 tracer）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="minmaxq-诊断">minmaxq 诊断</h2>
+<div class="sourceCode" id="cb13"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> minmaxq(zq,qmin,qmax,comment)</span></code></pre></div>
+<p>可选的诊断子例程，检查 tracer 值是否超出 <code>[qmin, qmax]</code> 范围。受 <code>#ifdef isminismax</code> 编译保护。在 vlsplt 主例程中以注释形式调用（<code>c call minmaxq(...)</code>），开发时取消注释可追踪输送过程中的极值变化。</p>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li><code>qperemin</code> 和 <code>masseqmin</code> 是防止除零的关键阈值。<code>qperemin</code> 控制父 tracer 多小时不再计算比例（设为 0），<code>masseqmin</code> 控制质量下限。两者的值由 <code>infotrac_init</code> 设定。</li>
+<li><code>nqdesc</code> 和 <code>nqfils</code> 的区别很重要：<code>nqdesc</code> 是所有后代数（用于批量计算 Ratio 和恢复），<code>nqfils</code> 是直接子代数（用于递归调用）。如果 tracer 家族有多层嵌套，这两者的值不同。</li>
+<li>vlxqs/vlyqs 使用与 vlx/vly 相同的 Van Leer 斜率限制，但额外做 qsat 裁剪。这意味着饱和 tracer 在水平方向可能被截断，而垂直方向不会（vlz 共享）。</li>
+<li>vlspltqs 的 <code>tpot2t</code> 调用将位温转换为温度用于 qsat 计算。这依赖 <code>cpdet_mod</code> 的 <code>cp(T)</code> 变比热路径。</li>
+<li>父子比例输送假设比值在输送中守恒。如果物理过程（如凝结）改变了比值，这个假设在下一步输送中可能导致不一致。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
+<li><a href="infotrac-family-isotopes.html">infotrac 父子 tracer 和 isotope</a></li>
+<li><a href="vlsplt-serial-split-kernels.html">vlsplt 串行 split 内核</a></li>
+<li><a href="advn-dispatcher-order.html">advn 调度顺序</a></li>
+<li><a href="vlsplt-serial-parallel-delta.html">vlsplt 串并行 Van Leer 差异对照</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Mars 配置中是否有父子 tracer 对（<code>nqdesc &gt; 0</code>），还是所有 tracer 都是独立的。</li>
+<li><code>qperemin</code> 和 <code>masseqmin</code> 的具体默认值，需要查看 <code>infotrac_init</code> 的设定。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

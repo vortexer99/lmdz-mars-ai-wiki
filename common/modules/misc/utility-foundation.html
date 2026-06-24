@@ -1,0 +1,122 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>utility-foundation - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/misc/utility-foundation.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="排序断言和类型基础工具组页">排序、断言和类型基础工具组页</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\sort.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\sort_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\assert_m.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\assert_eq_m.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\nrtype.F90</code></pre>
+<p>Mars 运行参与度：<code>接口兼容/条件经过</code>。这些基础工具可能被 COMMON 数值代码复用；本批未确认 Mars 标准主链直接调用。</p>
+<h2 id="文件清单">文件清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sort.F</code></td>
+<td>37</td>
+<td><code>sort(n,d)</code></td>
+<td>旧 F77 简单排序子程序。</td>
+</tr>
+<tr>
+<td><code>sort_mod.F90</code></td>
+<td>199</td>
+<td><code>qsort</code>, <code>isort</code></td>
+<td>real 数组 quicksort / insertion sort，可输出 permutation。</td>
+</tr>
+<tr>
+<td><code>assert_m.F90</code></td>
+<td>69</td>
+<td><code>assert</code> generic</td>
+<td>1 到 4 个 logical 或 logical vector 断言。</td>
+</tr>
+<tr>
+<td><code>assert_eq_m.F90</code></td>
+<td>70</td>
+<td><code>assert_eq</code> generic</td>
+<td>检查多个 integer 相等并返回共同值。</td>
+</tr>
+<tr>
+<td><code>nrtype.F90</code></td>
+<td>22</td>
+<td>kind 常量</td>
+<td>Numerical Recipes 风格 kind 参数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="排序逻辑">排序逻辑</h2>
+<ul>
+<li><code>qsort_r</code> 使用单 pivot quicksort，递归排序左右分区。</li>
+<li><code>qsort_outp_r</code> 同时维护 permutation 数组 <code>P</code>，用于把相同重排应用到其他数组。</li>
+<li><code>isort_r</code> 和 <code>isort_outp_r</code> 使用插入排序，适合短数组或近有序数组。</li>
+<li>源码 TODO 指出接口尚未扩展到 integer，也未支持递减排序。</li>
+</ul>
+<h2 id="断言逻辑">断言逻辑</h2>
+<ul>
+<li><code>assert</code> 中任一 logical 为假时，打印 tag 和例程名，然后 <code>stop 1</code>。</li>
+<li><code>assert_eq</code> 在整数不全相等时打印 tag 并 <code>stop 1</code>；成功时返回共同整数，常用于数组维度一致性检查。</li>
+<li>这些断言不调用 <code>abort_gcm</code> 或 <code>abort_physic</code>，因此不会自动触发 history close 或 getin dump。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>这些工具在当前 Mars 构建中的实际消费者，需要在 source coverage matrix 中通过 <code>USE sort_mod/assert_m/assert_eq_m/nrtype</code> 汇总。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">misc 总览</a></li>
+<li><a href="numerical-helpers.html">numerical helpers</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

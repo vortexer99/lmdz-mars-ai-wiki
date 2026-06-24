@@ -1,0 +1,126 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>atmospheric-coordinate-helpers - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/misc/atmospheric-coordinate-helpers.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="饱和压力层坐标和日期-helper-组页">饱和、压力层、坐标和日期 helper 组页</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\q_sat.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\pres2lev_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\formcoord.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\juldate.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。COMMON guide/nudging 调用 <code>q_sat</code> 和 <code>pres2lev</code>；GrADS 输出路径调用 <code>formcoord</code>；Mars 1D 或工具程序可使用日期/坐标 helper。</p>
+<h2 id="文件清单">文件清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>例程</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q_sat.F</code></td>
+<td>73</td>
+<td><code>q_sat(np,temp,pres,qsat)</code></td>
+<td>由温度和压力计算饱和比湿。</td>
+</tr>
+<tr>
+<td><code>pres2lev_mod.F90</code></td>
+<td>79</td>
+<td><code>pres2lev</code></td>
+<td>把旧压力层上的变量插值到新压力层。</td>
+</tr>
+<tr>
+<td><code>formcoord.F</code></td>
+<td>54</td>
+<td><code>formcoord</code></td>
+<td>写 GrADS ctl 的 <code>XDEF/YDEF/ZDEF</code> 坐标行。</td>
+</tr>
+<tr>
+<td><code>juldate.F</code></td>
+<td>39</td>
+<td><code>juldate</code></td>
+<td>年月日时分秒到 Julian date 和秒。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="q_sat"><code>q_sat</code></h2>
+<p><code>q_sat</code> 对每个点计算：</p>
+<ol type="1">
+<li>由 <code>temp</code> 和常数 <code>r2es/r3es/r4es/rtt</code> 计算饱和水汽压比值。</li>
+<li>用 <code>pres(ip)</code> 转为混合比近似。</li>
+<li>将中间 <code>zqsat</code> 上限限制为 0.5。</li>
+<li>用 <code>zqsat/(1-retv*zqsat)</code> 转换为最终 <code>qsat</code>。</li>
+</ol>
+<p>COMMON <code>guide_mod</code> 和 <code>guide_p_mod</code> 在湿度 nudging/相对湿度处理时调用该例程。 更完整的 guide 调用上下文见 <a href="../dyn3d/guide_mod.html">guide_mod</a>、<a href="../dyn3dpar/guide_p_mod.html">guide_p_mod</a> 和 <a href="../../routines/guide-interpolation-pressure.html">guide 压力层插值和 nudging 系数</a>。</p>
+<h2 id="pres2lev"><code>pres2lev</code></h2>
+<p><code>pres2lev(varo,varn,lmo,lmn,po,pn,ni,nj,ok_invertp)</code> 在水平点 <code>(i,j)</code> 上逐列处理：</p>
+<ul>
+<li><code>varo</code> 是旧层变量，<code>varn</code> 是新层输出。</li>
+<li><code>po/pn</code> 分别是旧/新压力坐标。</li>
+<li><code>ok_invertp</code> 控制压力方向是否需要倒置处理。</li>
+<li>调用方在 guide/nudging 中用它把温度、风和 tracer 从输入资料压力层映射到模型层。</li>
+</ul>
+<h2 id="formcoord-和-juldate"><code>formcoord</code> 和 <code>juldate</code></h2>
+<ul>
+<li><code>formcoord</code> 根据坐标间距最小值决定小数位数，可按 <code>rev</code> 反向输出，供 <code>wrgrads.F</code> 写 <code>XDEF/YDEF/ZDEF</code>。</li>
+<li><code>juldate</code> 计算 Julian day 和日内秒，适合历史输出或外部工具按绝对日期定位。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>q_sat.F</code> 中常数定义来自旧 ECMWF/LMD 公式，Mars 是否只把它用于 guide 湿度限制而不用于物理水循环，需要后续 guide hard 页确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">misc 总览</a></li>
+<li><a href="../../routines/guide-interpolation-pressure.html">guide 压力层插值和 nudging 系数</a></li>
+<li><a href="../dyn3d/guide_mod.html">guide_mod</a></li>
+<li><a href="../dyn3dpar/guide_p_mod.html">guide_p_mod</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

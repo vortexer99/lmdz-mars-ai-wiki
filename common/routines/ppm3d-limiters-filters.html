@@ -1,0 +1,271 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ppm3d-limiters-filters - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/ppm3d-limiters-filters.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="ppm3d-limiter正值性检查和极区边界滤波">ppm3d limiter、正值性检查和极区/边界滤波</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d_common\ppm3d.F: L1534-1611（lmtppm）
+dyn3d_common\ppm3d.F: L1686-1791（qckxyz）
+dyn3d_common\ppm3d.F: L1895-1979（filns）
+dyn3d_common\ppm3d.F: L1981-2056（filew）
+dyn3d_common\ppm3d.F: L1793-1893（filcr）
+dyn3d_common\ppm3d.F: L716-726（主例程调用点）</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。本页覆盖 ppm3d 内部的单调性约束、正值性检查和负值填充滤波。和 <a href="ppm3d-entry-contract.html">ppm3d-entry-contract</a> 一样，当前 COMMON 并行构建中 PPM 路径不可达。</p>
+<h2 id="例程定位">例程定位</h2>
+<p>ppm3d 使用五种约束机制保证输送结果的物理合理性：</p>
+<ul>
+<li><strong>lmtppm</strong>：在 PPM 重构阶段约束抛物线形状，防止产生新极值。</li>
+<li><strong>qckxyz</strong>：在 FZPPM 垂直输送后做正值性检查，调用三个滤波器修复负值。</li>
+<li><strong>filns</strong>：N-S 方向负值填充（从南北邻居借质量）。</li>
+<li><strong>filew</strong>：E-W 方向负值填充（从东西邻居借质量）。</li>
+<li><strong>filcr</strong>：对角方向负值填充（从四个对角邻居借质量）。</li>
+</ul>
+<h2 id="lmtppmppm-单调性约束">lmtppm：PPM 单调性约束</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> lmtppm(DC,A6,AR,AL,P,IM,LMT)</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DC</code></td>
+<td>半斜率（0.5 × mismatch），由 xmist/ymist 计算</td>
+</tr>
+<tr>
+<td><code>A6</code></td>
+<td>抛物线曲率 <code>3*(2*P - AL - AR)</code></td>
+</tr>
+<tr>
+<td><code>AR</code></td>
+<td>右界面值（INOUT，被修改）</td>
+</tr>
+<tr>
+<td><code>AL</code></td>
+<td>左界面值（INOUT，被修改）</td>
+</tr>
+<tr>
+<td><code>P</code></td>
+<td>格点平均值</td>
+</tr>
+<tr>
+<td><code>IM</code></td>
+<td>向量长度</td>
+</tr>
+<tr>
+<td><code>LMT</code></td>
+<td>约束选项（= <code>_ORD - 3</code>）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="三档约束">三档约束</h3>
+<p><strong>LMT=0（Full monotonicity，<code>_ORD=3</code>）</strong>：</p>
+<p>完全禁止新极值。对每个格点：</p>
+<ol type="1">
+<li>若 <code>DC=0</code>（局部平坦），直接展平：<code>AR=AL=P, A6=0</code>。</li>
+<li>计算 <code>da1=AR-AL, da2=da1², A6DA=A6*da1</code>。</li>
+<li>若 <code>A6DA &lt; -da2</code>（左端有极值风险）：<code>A6=3*(AL-P), AR=AL-A6</code>。</li>
+<li>若 <code>A6DA &gt; da2</code>（右端有极值风险）：<code>A6=3*(AR-P), AL=AR-A6</code>。</li>
+</ol>
+<p><strong>LMT=1（Semi-monotonic，<code>_ORD=4</code>）</strong>：</p>
+<p>允许过冲但禁止新局部极值。跳过条件：<code>|AR-AL| &gt;= -A6</code>（抛物线已单调）。否则：</p>
+<ol type="1">
+<li>若 P 是局部极小（<code>P&lt;AR 且 P&lt;AL</code>）：展平。</li>
+<li>若 <code>AR&gt;AL</code>：用 <code>A6=3*(AL-P)</code> 修正右端，<code>AR=AL-A6</code>。</li>
+<li>否则：用 <code>A6=3*(AR-P)</code> 修正左端，<code>AL=AR-A6</code>。</li>
+</ol>
+<p><strong>LMT=2（Positive-definite，<code>_ORD=5</code>）</strong>：</p>
+<p>仅防止负值。在 LMT=1 的基础上增加检查：先计算抛物线最小值 <code>fmin = P + 0.25*(AR-AL)²/A6 + A6/12</code>。若 <code>fmin &gt;= 0</code>，跳过（不会出负值）。只有 <code>fmin &lt; 0</code> 时才执行与 LMT=1 相同的修正。</p>
+<h3 id="调用点">调用点</h3>
+<p>lmtppm 由 fxppm（L1091）、fyppm（L1336）和 FZPPM（L892-899）调用，每次传入 <code>LMT = _ORD - 3</code>。LMT&gt;2（<code>_ORD&gt;=6</code>）时不调用 lmtppm，即无约束 PPM。</p>
+<h2 id="qckxyz正值性检查和垂直填充">qckxyz：正值性检查和垂直填充</h2>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> qckxyz(Q,qtmp,IMR,JNP,NLAY,j1,j2,cosp,acosp,cross,IC,NSTEP)</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Q</code></td>
+<td>tracer 密度 DQ（INOUT，被修复）</td>
+</tr>
+<tr>
+<td><code>qtmp</code></td>
+<td>工作数组</td>
+</tr>
+<tr>
+<td><code>cosp/acosp</code></td>
+<td>纬向 cos / 1/cos</td>
+</tr>
+<tr>
+<td><code>cross</code></td>
+<td>是否调用 filcr（LMDZ 传入 <code>.false.</code>）</td>
+</tr>
+<tr>
+<td><code>IC</code></td>
+<td>tracer 编号（用于诊断输出）</td>
+</tr>
+<tr>
+<td><code>NSTEP</code></td>
+<td>子步编号（用于诊断输出）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="处理流程">处理流程</h3>
+<p>qckxyz 对每个垂直层执行三级滤波加垂直填充：</p>
+<ol type="1">
+<li><strong>filns</strong>（N-S 滤波）：从南北邻居借质量填充负值。返回 <code>ipy</code>：0=无负值，1=有修复。若 <code>ipy=0</code> 跳过该层。</li>
+<li><strong>filew</strong>（E-W 滤波）：从东西邻居借质量填充负值。返回 <code>ipx</code>。若 <code>ipx=0</code> 跳过该层。</li>
+<li><strong>filcr</strong>（对角滤波）：从对角邻居借质量填充负值。仅在 <code>cross=.true.</code> 时调用（顶层和内部层）。返回 <code>icr</code>。</li>
+<li><strong>垂直填充</strong>：若仍有负值，从上下层借质量。</li>
+</ol>
+<h3 id="分层处理">分层处理</h3>
+<p><strong>顶层（L=1）</strong>：负值直接加到 L=2，自身归零。</p>
+<pre><code>Q(i,j1,2) += Q(i,j1,1)    ! 负值下移
+Q(i,j1,1)  = 0.</code></pre>
+<p><strong>内部层（L=2..NLAY-1）</strong>：先从上层借，剩余负值传给下层。</p>
+<pre><code>qup = Q(L-1), qly = -Q(L)
+dup = min(qly, qup)        ! 最多借完上层全部
+Q(L-1) = qup - dup         ! 上层被借走
+Q(L)   = dup - qly         ! 本层修复（可能仍有剩余负值）
+Q(L+1) += Q(L)             ! 剩余负值传给下层
+Q(L)    = 0.</code></pre>
+<p><strong>底层（L=NLAY）</strong>：从 NLAY-1 借，不够部分记录为"地面质量源"。</p>
+<pre><code>qup = Q(NLAYM1), qly = -Q(NLAY)
+dup = min(qly, qup)
+Q(NLAYM1) = qup - dup
+sum += qly - dup           ! 累加地面质量源
+Q(NLAY) = 0.</code></pre>
+<h3 id="lmdz-调用特殊性">LMDZ 调用特殊性</h3>
+<p>主例程 L725-726 调用 <code>qckxyz</code> 时 <code>cross</code> 传 <code>.false.</code>：</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span>(fill) <span class="kw">call</span> qckxyz(DQ(<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">1</span>,IC),DC2,IMR,JNP,NLAY,j1,j2,</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="bu">     &amp;</span>               cosp,acosp,<span class="cn">.false.</span>,IC,NSTEP)</span></code></pre></div>
+<p>这意味着顶层和内部层的 filcr 被跳过。但底层（L=NLAY）的 filcr 没有 <code>if(cross)</code> 保护，始终被调用。这可能是底层缺乏下层可借质量，需要更积极的填充。</p>
+<h3 id="诊断输出">诊断输出</h3>
+<ul>
+<li>若垂直填充点数 <code>ip &gt; IMR</code>：打印 <code>Vertical filling pts=</code>。</li>
+<li>若地面质量源 <code>sum &gt; 1e-25</code>：打印 <code>Mass source from the ground=</code>。对 Mars 干大气，非零质量源意味着 tracer 不守恒。</li>
+</ul>
+<h2 id="filnsn-s-负值填充">filns：N-S 负值填充</h2>
+<div class="sourceCode" id="cb8"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> filns(q,IMR,JNP,j1,j2,cosp,acosp,ipy,<span class="fu">tiny</span>)</span></code></pre></div>
+<p>从南北邻居借质量消除负值。面积加权使用 <code>cosp</code>（纬向 cos）和 <code>acosp</code>（1/cos）。</p>
+<p>对内部格点 <code>q(i,j) &lt; 0</code>：</p>
+<pre><code>dq = -q(i,j) * cosp(j)           ! 需要借的总量（面积加权）
+dn = q(i,j+1) * cosp(j+1)        ! 北邻居可用量
+d1 = min(dq, max(0, dn))          ! 从北借
+q(i,j+1) = (dn-d1) * acosp(j+1)  ! 更新北邻居
+ds = q(i,j-1) * cosp(j-1)        ! 南邻居可用量
+d2 = min(dq-d1, max(0, ds))       ! 从南借
+q(i,j-1) = (ds-d2) * acosp(j-1)  ! 更新南邻居
+q(i,j) = (d2-dq) * acosp(j) + tiny  ! 修复本层（tiny 防止精确零）</code></pre>
+<p>边界处理：</p>
+<ul>
+<li><code>j=j1</code>：只能从北（j1+1）借。</li>
+<li><code>j=j2</code>：只能从南（j2-1）借。</li>
+<li>极点（j=1, j=JNP）：若极点值为负，把缺失量乘以 <code>CAP1/IMR</code> 均匀分摊到 j1/j2 的所有经度格。<code>CAP1 = IMR*(1-cos((j1-1.5)*DP))/DP</code> 是极冠面积与 j1 带面积的比值。</li>
+</ul>
+<p>返回 <code>ipy=1</code> 若有任何负值被发现。</p>
+<h2 id="filewe-w-负值填充">filew：E-W 负值填充</h2>
+<div class="sourceCode" id="cb10"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> filew(q,qtmp,IMR,JNP,j1,j2,ipx,<span class="fu">tiny</span>)</span></code></pre></div>
+<p>从东西邻居借质量消除负值。先转置 <code>q(i,j) → qtmp(j,i)</code> 以改善向量化。</p>
+<p>对内部经度 <code>i=2..IMR-1</code>，<code>qtmp(j,i) &lt; 0</code>：</p>
+<pre><code>d1 = min(-qtmp(j,i), max(0, qtmp(j,i-1)))   ! 从西借
+qtmp(j,i-1) -= d1
+qtmp(j,i)   += d1
+d2 = min(-qtmp(j,i), max(0, qtmp(j,i+1)))   ! 从东借
+qtmp(j,i+1) -= d2
+qtmp(j,i)   += d2 + tiny</code></pre>
+<p>经向周期包裹：<code>i=1</code> 从 <code>i=IMR</code> 借，<code>i=IMR</code> 从 <code>i=1</code> 借。</p>
+<p>修复完成后转置回 <code>q(i,j)</code>。若无需修复（<code>ipx=0</code>），仍检查极点是否有负值并设置 <code>ipx=1</code>。</p>
+<h2 id="filcr对角负值填充">filcr：对角负值填充</h2>
+<div class="sourceCode" id="cb12"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> filcr(q,IMR,JNP,j1,j2,cosp,acosp,icr,<span class="fu">tiny</span>)</span></code></pre></div>
+<p>从对角邻居借质量消除负值。做两遍扫描：</p>
+<p><strong>前向扫描</strong>（<code>i=1..IMR-1</code>）：对 <code>q(i,j) &lt; 0</code>，从 NE（<code>i+1,j+1</code>）和 SE（<code>i+1,j-1</code>）借。</p>
+<p><strong>后向扫描</strong>（<code>i=2..IMR</code>）：对 <code>q(i,j) &lt; 0</code>，从 NW（<code>i-1,j+1</code>）和 SW（<code>i-1,j-1</code>）借。</p>
+<p><strong>周期包裹</strong>：</p>
+<ul>
+<li><code>i=1</code> 后向时从 <code>IMR</code> 的对角借。</li>
+<li><code>i=IMR</code> 前向时从 <code>1</code> 的对角借。</li>
+</ul>
+<p>借用逻辑与 filns 相同：面积加权 <code>cosp/acosp</code>，按可用量上限 <code>max(0, dn)</code> 借用，剩余量 <code>dq</code> 逐步减少。</p>
+<p>最终检查 <code>j1/j2</code> 边界和极点是否有负值，设置 <code>icr=1</code>。</p>
+<h2 id="滤波顺序和调用关系">滤波顺序和调用关系</h2>
+<p>qckxyz 对每层执行三级滤波，形成递进式负值消除：</p>
+<pre><code>filns (N-S)     → 从最近邻居借，代价最小
+  ↓ if ipy≠0
+filew (E-W)     → 从经向邻居借，处理 filns 残留
+  ↓ if ipx≠0
+filcr (diagonal) → 从对角邻居借，最激进的水平填充
+  ↓ if icr≠0
+vertical fill    → 从上下层借，最后手段</code></pre>
+<p>每级只在上一级未能完全修复时才执行下一级。<code>tiny = 1e-60</code> 加到修复后的格点值上，防止精确零导致后续计算中出现除零。</p>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>lmtppm 的 <code>LMT = _ORD - 3</code> 每次调用重新计算（不做 SAVE），允许不同 tracer 使用不同 PPM 选项。注释掉的代码（L1058-1079）显示早期版本按分辨率自动选择 LMT。</li>
+<li>qckxyz 在 LMDZ 中被传入 <code>cross=.false.</code>，因此 filcr 只在底层被调用。若要在外部复现 qckxyz 行为，需要注意这个参数差异。</li>
+<li>filns 的极点处理使用 <code>CAP1 = IMR*(1-cos((j1-1.5)*DP))/DP</code>，这个值每次调用重新计算（注释掉的 SAVE 代码说明早期版本做过缓存）。</li>
+<li>filew 的转置（<code>q(i,j) → qtmp(j,i)</code>）是为向量化优化，不影响数值结果。若无向量化需求可以省略转置。</li>
+<li>垂直填充的"地面质量源"是 tracer 不守恒的诊断信号。对 Mars 干大气 tracer，非零 <code>sum</code> 表明负值填充无法从上层完全补偿，可能需要检查上游风场或时间步长。</li>
+<li><code>tiny = 1e-60</code> 的量级远小于任何物理 tracer 混合比，不影响数值精度但保证后续除法安全。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="ppm3d-entry-contract.html">ppm3d 入口契约</a></li>
+<li><a href="ppm3d-horizontal-transport.html">ppm3d 水平输送</a></li>
+<li><a href="ppm3d-vertical-transport.html">ppm3d 垂直输送</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>qckxyz</code> 传入 <code>cross=.false.</code> 是否为 LMDZ 特设还是 PPM Transport Core 默认行为。源码注释未说明原因。</li>
+<li>filcr 在底层被无条件调用是否意味着底层更容易出现负值，还是只是保守编程。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,104 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>friction-serial-parallel - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/friction-serial-parallel.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="friction-串并行对照">friction 串并行对照</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d\friction.F
+dyn3dpar\friction_p.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。当动力配置启用摩擦或阻尼分支时经过。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>friction</code> 对风场施加摩擦/阻尼倾向。源码通过 <code>getin("friction_type")</code> 读取摩擦类型，并对不支持的配置调用 <code>abort_gcm</code>。</p>
+<h2 id="对照表">对照表</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>串行 <code>friction.F</code></th>
+<th>并行 <code>friction_p.F</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>行数</td>
+<td>136</td>
+<td>202</td>
+</tr>
+<tr>
+<td>配置读取</td>
+<td><code>friction_type</code></td>
+<td><code>friction_type</code></td>
+</tr>
+<tr>
+<td>异常处理</td>
+<td><code>abort_gcm</code></td>
+<td><code>abort_gcm</code></td>
+</tr>
+<tr>
+<td>数组范围</td>
+<td>全局</td>
+<td>子域</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>读取或缓存 <code>friction_type</code>。</li>
+<li>根据类型选择摩擦公式或禁用路径。</li>
+<li>对风场 tendency 或状态施加阻尼。</li>
+<li>遇到未知类型直接 abort，避免静默运行错误物理。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>friction_type</code> 是复现分支的首要输入。</li>
+<li>并行版需保证极点和子域边界的风场处理与串行一致。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>支持的 <code>friction_type</code> 枚举值需从源码分支和运行配置样例中补充完整。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

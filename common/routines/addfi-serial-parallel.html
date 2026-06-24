@@ -1,0 +1,99 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>addfi-serial-parallel - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/addfi-serial-parallel.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="addfi-串并行对照">addfi 串并行对照</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d\addfi.F
+dyn3dpar\addfi_p.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。动力-物理耦合开启时用于把物理倾向或 forcing 加入动力状态。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>addfi</code> 组是动力侧吸收物理侧 tendency 的接口层。它把物理返回的温度、风、tracer 或 surface pressure 相关增量转换为动力网格上的增量，并加到主循环保存的 tendency/state。</p>
+<h2 id="对照表">对照表</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>角色</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>addfi.F</code></td>
+<td>191</td>
+<td>串行动力加物理 forcing。</td>
+</tr>
+<tr>
+<td><code>addfi_p.F</code></td>
+<td>288</td>
+<td>并行子域上的物理 forcing 加和。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>接收物理接口返回的 tendency。</li>
+<li>按动力变量布局转换或重排。</li>
+<li>累加到动力 tendency/state。</li>
+<li>并行版按本地子域和物理分布处理映射。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>此页只覆盖动力侧加和；物理网格到动力网格转换另见 dynphy_lonlat 相关任务。</li>
+<li>检查能量或 tracer 差异时，应区分物理 tendency 本身和 <code>addfi</code> 加和过程。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="leapfrog-p-physics-coupling.html">leapfrog_p 并行动力-物理耦合</a></li>
+<li><a href="leapfrog-physics-coupling.html">leapfrog 动力-物理耦合</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>每个输入 tendency 的单位和符号约定需要由动力-物理接口主题页补齐。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

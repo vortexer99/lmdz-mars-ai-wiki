@@ -1,0 +1,285 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>common-vanleer-advection-operators - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/common-vanleer-advection-operators.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="common-tracer-advection-operator-family">COMMON tracer advection operator family</h1>
+<p>页面状态：TASK-0165 完成。</p>
+<p>源码范围：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\advx.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\advy.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\advz.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\advn.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\adaptdt.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过 + 历史兼容</code>。这些例程位于 tracer advection 的旧格式和 moments/slope 支撑层：<code>adaptdt</code> 被串行 <code>advtrac</code> 的 <code>iadv=12/13/30/11/16/17/18</code> 分支调用；<code>advn.F</code> 是 <code>iadv=12/13</code> 的 pseudo-amont 内核；<code>advx/advy/advz</code> 由 <code>pentes_ini.F</code> 的 <code>iadv=20</code> slope/moments 路径调用。当前 6.3 <code>infotrac_init</code> 标准白名单只允许 <code>iadv=0/10/14</code>，因此这些路径通常不是 Mars 标准生产 tracer 输送路径。</p>
+<h2 id="命名边界">命名边界</h2>
+<p>本任务登记名中写了 “Van Leer 短小平流算子 family”，但源码核对后需要精确区分：</p>
+<ul>
+<li>Mars 标准 Van Leer 路径是 <code>advtrac -&gt; vlsplt</code> 或并行 <code>advtrac_p -&gt; vlspltgen_p</code>，不直接调用 <code>advx/advy/advz</code>。</li>
+<li><code>advx/advy/advz</code> 是 first-order moments/slope 方向输送算子，由 <code>pentes_ini</code> 按 x-y-z-y-x 顺序调用。</li>
+<li><code>advn.F</code> 是独立 pseudo-amont 文件，内部例程名是 <code>advnqx/advnqy/advnqz</code> 和 <code>advnx/advny/advnz</code>；它不调用外部 <code>advx/advy/advz</code>。</li>
+<li><code>adaptdt</code> 只根据水平 CFL 估计子步数，供 <code>advn</code>、Prather 和 PPM 保留分支使用；<code>iadv=10/14</code> 的标准 Van Leer 分支不调用它。</li>
+</ul>
+<p>因此本页的作用是把这些相邻历史 advection helper 的真实调用边界整理清楚，避免把“源码存在”误读为“当前 Mars 6.3 标准可达”。</p>
+<h2 id="文件与例程清单">文件与例程清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th style="text-align: right;">行数</th>
+<th>例程</th>
+<th>活动调用方</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>advx.F</code></td>
+<td style="text-align: right;">497</td>
+<td><code>advx</code></td>
+<td><code>pentes_ini.F</code> 的 x 半步，调用两次。</td>
+</tr>
+<tr>
+<td><code>advy.F</code></td>
+<td style="text-align: right;">420</td>
+<td><code>advy</code></td>
+<td><code>pentes_ini.F</code> 的 y 半步，调用两次。</td>
+</tr>
+<tr>
+<td><code>advz.F</code></td>
+<td style="text-align: right;">320</td>
+<td><code>advz</code></td>
+<td><code>pentes_ini.F</code> 的 z 整步，调用一次。</td>
+</tr>
+<tr>
+<td><code>advn.F</code></td>
+<td style="text-align: right;">977</td>
+<td><code>advn</code>, <code>advnqx</code>, <code>advnqy</code>, <code>advnqz</code>, <code>advnx</code>, <code>advny</code>, <code>advnz</code></td>
+<td>串行 <code>advtrac.F90</code> 在 <code>iadv=12/13</code> 分支调用；标准 6.3 白名单通常阻断。</td>
+</tr>
+<tr>
+<td><code>adaptdt.F</code></td>
+<td style="text-align: right;">54</td>
+<td><code>adaptdt</code></td>
+<td>串行 <code>advtrac.F90</code> 的 <code>iadv=12/13/30/11/16/17/18</code> 分支；并行文件中同名文本在 <code>GOTO 1234</code> 后不可达。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用图">调用图</h2>
+<p>当前源码中的直接调用关系：</p>
+<pre class="text"><code>advtrac.F90
+  iadv=12 -&gt; adaptdt -&gt; repeat advn(...,mode=1)
+  iadv=13 -&gt; adaptdt -&gt; repeat advn(...,mode=2)
+  iadv=20 -&gt; pentes_ini
+              -&gt; limx -&gt; advx(0.5*dtvr)
+              -&gt; limy -&gt; advy(0.5*dtvr)
+              -&gt; limz -&gt; advz(dtvr)
+              -&gt; limy -&gt; advy(0.5*dtvr)
+              -&gt; limx -&gt; advx(0.5*dtvr)
+  iadv=30 -&gt; adaptdt -&gt; prather
+  iadv=11/16/17/18 -&gt; adaptdt -&gt; interpre -&gt; ppm3d -&gt; interpost</code></pre>
+<p>并行 <code>advtrac_p.F90</code> 源码中也保留 <code>adaptdt/advn/prather/ppm3d</code> 文本，但当前控制流先调用 <code>vlspltgen_p</code>，随后 <code>GOTO 1234</code> 跳过这些旧分支。</p>
+<h2 id="advxadvyadvz-moments-算子">advx/advy/advz moments 算子</h2>
+<p>这三个文件处理的是 <code>pentes_ini</code> 构造出的 moments 表示：</p>
+<table>
+<thead>
+<tr>
+<th>参数组</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SM</code></td>
+<td>每个网格盒空气质量。</td>
+</tr>
+<tr>
+<td><code>S0</code></td>
+<td>tracer 质量，而非 mixing ratio。</td>
+</tr>
+<tr>
+<td><code>sx/sy/sz</code></td>
+<td>三个方向的一阶矩。</td>
+</tr>
+<tr>
+<td><code>limit</code></td>
+<td>是否将对应方向的一阶矩限制到 <code>[-S0,S0]</code>。</td>
+</tr>
+<tr>
+<td><code>dtx/dty/dtz</code></td>
+<td>本方向输送时间；<code>pentes_ini</code> 传 x/y 半步和 z 整步。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="advx">advx</h3>
+<p><code>advx(limit,dtx,pbaru,sm,s0,sx,sy,sz,lati,latf)</code> 只处理纬度范围 <code>lati:latf</code>。它把 <code>pbaru</code> 复制到 <code>UGRI</code>，然后逐层逐纬圈更新：</p>
+<ol type="1">
+<li>若 <code>limit</code> 为真，限制 <code>TX</code> 的绝对值不超过 <code>S0</code> 的非负部分。</li>
+<li>以 <code>UGRI</code> 的符号决定从左格或右格抽取部分质量 <code>FM</code>。</li>
+<li>用 <code>ALF=FM/TM(upwind)</code> 和 <code>ALF^2</code> 更新被抽出部分的一阶矩。</li>
+<li>把临时 moments <code>F0/FX/FY/FZ</code> 加到下游格点。</li>
+<li>若 <code>NUMK&gt;1</code>，先把 extended polar zone 合并为 <code>T*</code>，更新后再拆回；当前源码中 <code>NUM(j)=1</code>，因此该分支通常不激活。</li>
+<li>对 <code>iip1</code> 经向周期边界复制 <code>SM/S0/sx/sy/sz</code>。</li>
+</ol>
+<p>源码中 <code>advx</code> 会无条件打印 <code>DIAG DANS ADVX</code> 的入口/出口 tracer 总量；这对批量 Mars 运行是一个历史诊断副作用。</p>
+<h3 id="advy">advy</h3>
+<p><code>advy(limit,dty,pbarv,sm,s0,sx,sy,sz)</code> 先构造 <code>VGRI=-pbarv</code>，并把 <code>VGRI(:,0,:)</code> 与 <code>VGRI(:,jjp1,:)</code> 设为 0。它的核心分三段：</p>
+<ol type="1">
+<li>北极通量特殊处理：用 <code>SM0/S00</code> 汇总穿过极冠边界的质量和 tracer 质量。</li>
+<li>中间纬圈 <code>K=1..LAT-1</code> 按 <code>VGRI</code> 正负从上游格抽取 <code>FM/F0/FY/FX/FZ</code>，再加入下游格。</li>
+<li>南极通量特殊处理：逻辑与北极对称，但符号条件相反。</li>
+</ol>
+<p><code>advy</code> 不做经向周期复制；南北极行由极点 special block 维护。</p>
+<h3 id="advz">advz</h3>
+<p><code>advz(limit,dtz,w,sm,s0,sx,sy,sz)</code> 把垂直通量复制到 <code>WGRI(i,j,llm+1-l)=w(i,j,l)</code>，并设置 <code>WGRI(:,:,0)=0</code>。主循环按纬圈 <code>K=1..LAT</code>、层界 <code>L=1..NIV-1</code> 处理：</p>
+<ol type="1">
+<li>若 <code>limit</code> 为真，限制 <code>sz</code> 的绝对值。</li>
+<li>用 <code>WGRI</code> 正负决定上下游层，抽取临时质量和 moments。</li>
+<li>把 <code>F0/FX/FY/FZ</code> 加入下游层。</li>
+<li>垂直边界由 <code>WGRI(:,:,0)=0</code> 和只循环到 <code>NIV-1</code> 共同形成无通量边界。</li>
+</ol>
+<p>与 <code>advx</code> 一样，<code>advz</code> 也无条件打印入口/出口 tracer 总量诊断。</p>
+<h2 id="pentes_ini-中的-split-契约">pentes_ini 中的 split 契约</h2>
+<p><code>pentes_ini.F</code> 调用这三个外部方向算子时，每个方向前都先调 limiter：</p>
+<pre class="text"><code>limx -&gt; advx(limit, 0.5*dtvr, pbaru, ...)
+limy -&gt; advy(limit, 0.5*dtvr, pbarv, ...)
+limz -&gt; advz(limit,      dtvr, w, ...)
+limy -&gt; advy(limit, 0.5*dtvr, pbarv, ...)
+limx -&gt; advx(limit, 0.5*dtvr, pbaru, ...)</code></pre>
+<p>这是一条对称的 x-y-z-y-x 顺序。虽然形式上类似其他 split transport，但它属于 <code>iadv=20</code> slope/moments 保留路径，不是当前 Mars 6.3 标准 <code>iadv=10</code> Van Leer。</p>
+<h2 id="advn-pseudo-amont-内核">advn pseudo-amont 内核</h2>
+<p><code>advn.F</code> 的详细文件页见 <a href="../modules/dyn3d_common/advn.html">dyn3d_common/advn</a>。本页只强调它与 <code>advx/advy/advz</code> 的边界：</p>
+<ul>
+<li><code>advn</code> 内部自己完成界面重构和通量更新。</li>
+<li><code>advnqx/advnqy/advnqz</code> 负责 4 阶界面值、单调约束和边界退化。</li>
+<li><code>advnx/advny/advnz</code> 负责方向通量和质量/tracer 更新。</li>
+<li>主例程 <code>mode</code> 只被 <code>advnx</code> 消费，影响 E-W 通量公式；N-S 和垂直方向没有 mode 分支。</li>
+<li><code>advn</code> 的 split 顺序同样是 x-y-z-y-x，但数据结构是 <code>q/masse</code> 工作副本，不是 <code>SM/S0/sx/sy/sz</code> moments 表。</li>
+</ul>
+<h2 id="adaptdt-子步长">adaptdt 子步长</h2>
+<p><code>adaptdt(nadv,dtbon,n,pbaru,masse)</code> 的逻辑很短：</p>
+<pre class="text"><code>CFLmax = 0
+for l = 1..llm:
+  for j = 2..jjm:
+    for i = 1..iim:
+      CFLmax = max(CFLmax,  pbaru(i,j,l) * dtvr / masse(i,j,l))
+      CFLmax = max(CFLmax, -pbaru(i,j,l) * dtvr / masse(i+1,j,l))
+n = int(CFLmax) + 1
+dtbon = dtvr / n</code></pre>
+<p>要点：</p>
+<ul>
+<li>只看水平 <code>pbaru</code>，不看 <code>pbarv</code> 或 <code>w</code>。</li>
+<li><code>nadv</code> 当前不改变结果；源码里有 <code>nadv==30</code> 的 Prather 特例注释掉。</li>
+<li><code>n</code> 至少为 1；若 <code>CFLmax</code> 恰好是整数，<code>n=int(CFLmax)+1</code> 会留出一个额外子步。</li>
+<li>调用方再循环 <code>indice=1..n</code> 执行 <code>advn</code> 或 PPM 子步。</li>
+</ul>
+<h2 id="mars-可达性">Mars 可达性</h2>
+<table>
+<thead>
+<tr>
+<th>路径</th>
+<th>当前源码</th>
+<th>Mars 6.3 标准状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iadv=10</code> Van Leer</td>
+<td><code>advtrac -&gt; vlsplt</code></td>
+<td>标准可达；不经过本页的 <code>advx/advy/advz/adaptdt</code>。</td>
+</tr>
+<tr>
+<td><code>iadv=14</code> 饱和路径</td>
+<td><code>advtrac -&gt; vlspltqs</code></td>
+<td>第 1 tracer 可达；不经过 <code>adaptdt</code>。</td>
+</tr>
+<tr>
+<td><code>iadv=12/13</code> pseudo-amont</td>
+<td><code>adaptdt -&gt; advn</code></td>
+<td>源码保留；<code>infotrac_init</code> 标准白名单阻断。</td>
+</tr>
+<tr>
+<td><code>iadv=20</code> slope/moments</td>
+<td><code>pentes_ini -&gt; advx/advy/advz</code></td>
+<td>源码保留；标准白名单阻断。</td>
+</tr>
+<tr>
+<td><code>iadv=30</code> Prather</td>
+<td><code>adaptdt -&gt; prather</code></td>
+<td>源码保留；标准白名单阻断。</td>
+</tr>
+<tr>
+<td><code>iadv=11/16/17/18</code> PPM</td>
+<td><code>adaptdt -&gt; interpre -&gt; ppm3d -&gt; interpost</code></td>
+<td>源码保留；标准白名单阻断。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现检查点">复现检查点</h2>
+<ol type="1">
+<li>先从 <code>infotrac_init</code> 判断 <code>iadv</code> 是否能通过；当前标准 Mars 6.3 不应自然到达 <code>12/13/20/30/11/16/17/18</code>。</li>
+<li>复现 <code>pentes_ini</code> 路径时必须使用 <code>SM/S0/sx/sy/sz</code> moments 表，不能直接把 <code>q</code> 传给 <code>advx/advy/advz</code>。</li>
+<li><code>advx/advy/advz</code> 的 <code>ntra</code> 固定为 1，循环结构不是多 tracer 泛型。</li>
+<li><code>advx</code> 和 <code>advz</code> 有无条件 <code>PRINT*</code> 总量诊断，可能影响日志和性能。</li>
+<li><code>adaptdt</code> 只用 <code>pbaru</code> 估计水平 CFL；若要约束南北或垂直 CFL，需要调用方另行检查。</li>
+<li><code>advn</code> 内部 <code>advnx/advny/advnz</code> 与外部 <code>advx/advy/advz</code> 是两组不同例程，不要混用公式或工作数组。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3d/advtrac.html">dyn3d/advtrac</a></li>
+<li><a href="caladvtrac-tracer-loop.html">caladvtrac 到 tracer advection 循环</a></li>
+<li><a href="../themes/transport-advection.html">Transport And Advection</a></li>
+<li><a href="../modules/dyn3d_common/advn.html">dyn3d_common/advn</a></li>
+<li><a href="../modules/dyn3d_common/pentes_ini.html">pentes_ini</a></li>
+<li><a href="ppm3d-entry-contract.html">ppm3d 入口契约</a></li>
+<li><a href="../modules/dyn3d/vlsplt.html">vlsplt</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>advx/advy/advz</code> 中无条件总量诊断是否仍应保留在生产构建，源码未说明。</li>
+<li><code>adaptdt</code> 只考虑 <code>pbaru</code> 的设计意图，以及是否曾依赖调用方另行检查 <code>pbarv/w</code> CFL。</li>
+<li><code>advx</code> 的 <code>NUM(j)</code> 当前全部设为 1，extended polar zone 分支是否仍有运行配置会启用，源码未提供外部入口。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,267 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vlsplt_p - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3dpar/vlsplt_p.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="dyn3dparvlsplt_pf">dyn3dpar/vlsplt_p.F</h1>
+<p>页面状态：TASK-0027 完成。</p>
+<p>源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\vlsplt_p.F</code></p>
+<p>Mars 运行参与度：条件经过。<code>vlsplt_p</code> 是并行动力中的 Van Leer split transport 内核；当前 6.3 <code>advtrac_p.F90</code> 主要通过 <a href="vlspltgen_p.html">vlspltgen_p</a> 调度 <code>vlx_p/vly_p/vlz_p</code>，旧的直接 <code>vlsplt_p</code> 主例程仍保留并说明完整 halo split 模式。本页用于理解并行 <code>_p</code> 内核本体、halo/OMP/band 边界以及它与串行 <a href="../dyn3d/vlsplt.html">vlsplt</a> 的对应关系。</p>
+<h2 id="文件角色">文件角色</h2>
+<p><code>vlsplt_p.F</code> 是 1339 行并行 Van Leer split transport 文件。它包含：</p>
+<ul>
+<li><code>vlsplt_p</code> 主例程：传统并行 Van Leer 入口，显式执行 <code>vlx_p/vly_p/vlz_p/vly_p/vlx_p</code>，并在 E-W 和垂直段插入 halo 通信。</li>
+<li><code>vlx_p</code>：E-W Van Leer 内核，带 band 范围参数、极点行排除、OpenMP 循环和父子 tracer 递归。</li>
+<li><code>vly_p</code>：N-S Van Leer 内核，直接使用 <code>parallel_lmdz</code> 的 <code>ij_begin/ij_end</code>，对极点进程条件化处理。</li>
+<li><code>vlz_p</code>：垂直 Van Leer 内核，动态分配 <code>wq/Ratio</code>，用 <code>OMP MASTER/BARRIER</code> 保护共享工作数组。</li>
+<li><code>minmaxq_p</code>：并行极值诊断，默认只在 <code>isminismax</code> 编译保护下使用。</li>
+</ul>
+<p>当前并行主路径更常见的是 <code>vlspltgen_p</code>：它在一个文件中调度多个 tracer，并直接调用本文件的 <code>_p</code> 内核。因此 <code>vlsplt_p.F</code> 既是旧主入口，也是 <code>vlspltgen_p</code> 的数值内核来源。</p>
+<h2 id="子例程清单">子例程清单</h2>
+<table>
+<thead>
+<tr>
+<th>子例程</th>
+<th style="text-align: right;">源码行</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vlsplt_p</code></td>
+<td style="text-align: right;">4</td>
+<td>旧并行主入口；按 x-y-z-y-x split 调度并插入 halo request。</td>
+</tr>
+<tr>
+<td><code>vlx_p</code></td>
+<td style="text-align: right;">204</td>
+<td>E-W 并行 Van Leer 内核；<code>ijb_x/ije_x</code> 限定计算范围，跳过极点行。</td>
+</tr>
+<tr>
+<td><code>vly_p</code></td>
+<td style="text-align: right;">591</td>
+<td>N-S 并行 Van Leer 内核；<code>THREADPRIVATE</code> 几何缓存，条件处理北/南极。</td>
+</tr>
+<tr>
+<td><code>vlz_p</code></td>
+<td style="text-align: right;">1040</td>
+<td>垂直并行 Van Leer 内核；<code>wq/Ratio</code> 动态分配，父子垂直通量修正。</td>
+</tr>
+<tr>
+<td><code>minmaxq_p</code></td>
+<td style="text-align: right;">1293</td>
+<td>并行极值诊断；使用三维定位数组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖和并行状态">依赖和并行状态</h2>
+<p>关键 <code>USE</code> 和状态来源：</p>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>parallel_lmdz</code></td>
+<td><code>ij_begin/ij_end</code>、<code>pole_nord/pole_sud</code>、<code>OMP_CHUNK</code> 等本地 band 和 OpenMP 调度状态。</td>
+</tr>
+<tr>
+<td><code>mod_hallo</code></td>
+<td><code>Register_Hallo</code>、<code>SendRequest</code>、<code>WaitRecvRequest</code>、<code>WaitSendRequest</code>。</td>
+</tr>
+<tr>
+<td><code>infotrac</code></td>
+<td><code>nqtot/nqdesc/nqfils/iqfils/qperemin/masseqmin</code>，支撑父子 tracer 比例输送。</td>
+</tr>
+<tr>
+<td><code>comgeom.h</code></td>
+<td>极点面积、经纬度和面积权重。</td>
+</tr>
+</tbody>
+</table>
+<p><code>vly_p</code> 把 <code>first/testcpu/temps*</code>、<code>sinlon/coslon/sinlondlon/coslondlon</code>、<code>airej2/airejjm</code> 声明为 <code>THREADPRIVATE</code>。<code>vlz_p</code> 的 <code>first</code> 也是 <code>THREADPRIVATE</code>，但 <code>wq/Ratio</code> 是 <code>ALLOCATABLE,SAVE</code> 共享数组，由 <code>OMP MASTER</code> 分配后用 <code>BARRIER</code> 同步。</p>
+<h2 id="vlsplt_p-主例程">vlsplt_p 主例程</h2>
+<p>主例程使用本地 band：</p>
+<pre class="text"><code>ijb = ij_begin
+ije = ij_end
+if (pole_nord) ijb = ijb + iip1
+if (pole_sud)  ije = ije - iip1</code></pre>
+<p>这样 E-W 方向不会在极点行做经向输送。主例程仍按串行同构的 x-y-z-y-x split：</p>
+<pre class="text"><code>vlx_p -&gt; vly_p -&gt; vlz_p -&gt; vly_p -&gt; vlx_p</code></pre>
+<p>区别在于 <code>vlx_p</code> 和 <code>vlz_p</code> 会先计算边界带、注册 halo、发送 request，再计算内区，最后等待接收完成。<code>vly_p</code> 不单独注册 halo，因为前一步的 halo 已使 N-S 邻域在 band 扩展范围内可用。</p>
+<h2 id="halo-重叠模式">Halo 重叠模式</h2>
+<p>第一段 E-W：</p>
+<pre class="text"><code>vlx_p(..., ij_begin,            ij_begin+2*iip1-1, iq)
+vlx_p(..., ij_end-2*iip1+1,     ij_end,            iq)
+Register_Hallo(zq, ..., 2,2,2,2, MyRequest1)
+Register_Hallo(zm, ..., 1,1,1,1, MyRequest1)
+SendRequest(MyRequest1)
+vlx_p(..., ij_begin+2*iip1,     ij_end-2*iip1,     iq)
+WaitRecvRequest(MyRequest1)</code></pre>
+<p>垂直段同样使用 <code>MyRequest2</code>。边界带宽度是 <code>2*iip1</code>，对应两行 halo。<code>zq</code> 注册 2 行 halo，因为 Van Leer 斜率模板需要更宽邻域；<code>zm</code> 注册 1 行，因为质量更新只需相邻质量。</p>
+<p>最后一次 <code>vlx_p</code> 直接对 <code>ij_begin:ij_end</code> 全 band 运行，并在子例程返回前执行：</p>
+<pre class="text"><code>WaitSendRequest(MyRequest1)
+WaitSendRequest(MyRequest2)</code></pre>
+<p>这保证异步发送缓冲在返回前不再被 MPI 使用。</p>
+<h2 id="vlx_p">vlx_p</h2>
+<p><code>vlx_p(q,pente_max,masse,u_m,ijb_x,ije_x,iq)</code> 与串行 <code>vlx</code> 的公式一致，但有三类并行边界：</p>
+<ol type="1">
+<li>将计算范围限制到 <code>ijb_x:ije_x</code>。</li>
+<li>若本段包含全局北极或南极行，使用 <code>pole_nord/pole_sud</code> 排除极点行。</li>
+<li>所有主要循环使用 <code>c$OMP DO SCHEDULE(STATIC,OMP_CHUNK)</code>。</li>
+</ol>
+<p>父子 tracer 逻辑仍是 <code>masseq/Ratio</code>、递归调用、父更新后恢复子 tracer。递归调用也携带 <code>ijb_x/ije_x</code>，避免子 tracer 访问当前任务之外的 band。</p>
+<h2 id="vly_p">vly_p</h2>
+<p><code>vly_p</code> 不接收 band 实参，而是直接用全局并行状态计算扩展范围。典型范围包括：</p>
+<pre class="text"><code>ij_begin - 2*iip1 : ij_end + iip1
+ij_begin - iip1   : ij_end + iip1
+ij_begin - 2*iip1 : ij_end + 2*iip1</code></pre>
+<p>这些范围用于 N-S 斜率、通量和父子 tracer 比例。若 rank 持有极点，范围会按 <code>pole_nord/pole_sud</code> 缩回，避免越界或重复处理极点。</p>
+<p>极点处理与串行版数值意图一致，但并行版按进程条件执行：</p>
+<ul>
+<li><code>pole_nord</code> rank 计算北极 <code>qpns</code>、投影和归零。</li>
+<li><code>pole_sud</code> rank 计算南极 <code>qpsn</code>、投影和归零。</li>
+<li>非极点 rank 不处理极点收支。</li>
+</ul>
+<p>极点通量收支也条件化：只有持有极点的 rank 执行 <code>SSUM</code> 和极点行赋值。</p>
+<h2 id="vlz_p">vlz_p</h2>
+<p><code>vlz_p(q,pente_max,masse,w,ijb_x,ije_x,iq)</code> 是并行版差异最大的方向内核。</p>
+<p><code>wq</code> 和 <code>Ratio</code> 是三维共享数组：</p>
+<pre class="text"><code>wq(ip1jmp1,llm+1,nqtot)
+Ratio(ip1jmp1,llm,nqtot)</code></pre>
+<p>首次调用时由 <code>OMP MASTER</code> 分配，并用 <code>OMP BARRIER</code> 保证所有线程可见。垂直边界 <code>dzq(:,1/llm)=0</code>、<code>wq(:,1/llm+1,iq)=0</code> 也由 <code>OMP MASTER</code> 设置后同步。</p>
+<p>父子 tracer 垂直递归有一个重要修正：</p>
+<pre class="text"><code>w(ij,l,iq2) = wq(ij,l,iq)</code></pre>
+<p>源码注释标记为 <code>correction bug le 15mai2015</code>。串行版把父 <code>wq</code> 复制到子 <code>wq</code>；并行版递归入口使用 <code>w</code> 作为通量输入，所以必须把父 tracer 的垂直 tracer 通量写入子 tracer 的 <code>w</code> 槽。递归调用后，散度更新前还有额外 <code>OMP BARRIER</code>，确保所有线程的 <code>wq</code> 已同步。</p>
+<h2 id="与串行-vlsplt-的差异">与串行 vlsplt 的差异</h2>
+<table>
+<thead>
+<tr>
+<th>特征</th>
+<th>串行 <a href="../dyn3d/vlsplt.html">vlsplt</a></th>
+<th>并行 vlsplt_p</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>计算范围</td>
+<td>全域</td>
+<td><code>ij_begin:ij_end</code> band，边界按 <code>pole_*</code> 调整</td>
+</tr>
+<tr>
+<td>通信</td>
+<td>无</td>
+<td><code>Register_Hallo</code> + <code>SendRequest</code> + wait</td>
+</tr>
+<tr>
+<td>通信重叠</td>
+<td>无</td>
+<td>先边界带、后内区</td>
+</tr>
+<tr>
+<td>OpenMP</td>
+<td>无</td>
+<td><code>OMP DO SCHEDULE(STATIC,OMP_CHUNK)</code></td>
+</tr>
+<tr>
+<td>极点处理</td>
+<td>无条件处理两个极点</td>
+<td>仅持有极点的 rank 处理</td>
+</tr>
+<tr>
+<td><code>vly</code> 几何缓存</td>
+<td><code>SAVE</code></td>
+<td><code>SAVE</code> + <code>THREADPRIVATE</code></td>
+</tr>
+<tr>
+<td>垂直工作数组</td>
+<td>栈上二维</td>
+<td><code>ALLOCATABLE,SAVE</code> 三维 <code>wq/Ratio</code></td>
+</tr>
+<tr>
+<td>子 tracer 垂直通量</td>
+<td><code>wq(child)=wq(parent)</code></td>
+<td><code>w(child)=wq(parent)</code> 修正</td>
+</tr>
+<tr>
+<td>诊断</td>
+<td><code>minmaxq</code></td>
+<td><code>minmaxq_p</code>，三维定位更直接</td>
+</tr>
+</tbody>
+</table>
+<p>数值公式本身保持同构；差异主要来自分布式内存、halo、OpenMP 和父子 tracer 垂直通量传递实现。是否 bitwise 一致需用串并行回归验证。</p>
+<h2 id="复现检查点">复现检查点</h2>
+<ol type="1">
+<li><code>zq</code> halo 宽度必须是 2，<code>zm</code> halo 宽度必须是 1；否则边界带附近斜率或质量更新会读错。</li>
+<li>边界带 <code>2*iip1</code> 必须和 halo 宽度匹配。</li>
+<li><code>vly_p</code> 的扩展范围依赖前一段 halo 已完成；不要把 <code>vly_p</code> 移到 halo wait 之前。</li>
+<li><code>vlz_p</code> 的 <code>wq/Ratio</code> 分配和边界清零依赖 <code>OMP MASTER/BARRIER</code>。</li>
+<li>父子 tracer 垂直递归必须保留 <code>w(子)=wq(父)</code> 修正。</li>
+<li>返回前必须等待 <code>MyRequest1/MyRequest2</code> 的发送完成。</li>
+<li>单进程并行运行时要检查 <code>pole_nord</code> 和 <code>pole_sud</code> 同时为真时的条件分支。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="vlspltgen_p.html">vlspltgen_p</a></li>
+<li><a href="../../routines/vlsplt-p-halo-split.html">vlsplt_p halo split 支撑页</a></li>
+<li><a href="../../routines/vlsplt-serial-parallel-delta.html">vlsplt 串并行差异</a></li>
+<li><a href="../dyn3d/vlsplt.html">串行 vlsplt</a></li>
+<li><a href="vlspltqs_p.html">vlspltqs_p</a></li>
+<li><a href="parallel_lmdz.html">parallel_lmdz</a></li>
+<li><a href="mod_hallo.html">mod_hallo</a></li>
+<li><a href="bands.html">bands</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 Mars 并行生产配置的典型 MPI band 数、OMP 线程数和 <code>OMP_CHUNK</code>。</li>
+<li><code>mw/wq/Ratio</code> 三维数组在高 tracer 数配置下的缓存和内存压力。</li>
+<li>直接调用 <code>vlsplt_p</code> 的旧路径是否仍存在实际构建使用，还是全部由 <code>vlspltgen_p</code> 替代。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

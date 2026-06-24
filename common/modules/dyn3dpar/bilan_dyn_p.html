@@ -1,0 +1,183 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>bilan_dyn_p - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3dpar/bilan_dyn_p.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="bilan_dyn_pf">bilan_dyn_p.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\bilan_dyn_p.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>bilan_dyn_p.F</code> 定义并行动力守恒和 zonal diagnostic 输出例程 <code>bilan_dyn_p</code>。它接收当前动力状态、质量和通量，在并行 decomposition 上累计温度、位势、动能、角动量、风和 tracer 相关量，并按累计周期通过 IOIPSL 写出 <code>dynzon</code> 诊断。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 并行动力启用对应守恒/诊断输出时经过；是否默认调用由 leapfrog_p 和运行配置控制。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bilan_dyn_p</code></td>
+<td>subroutine</td>
+<td>4</td>
+<td>并行累计并写出动力 zonal diagnostics。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖和调用">依赖和调用</h2>
+<table>
+<thead>
+<tr>
+<th>依赖或调用</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>parallel_lmdz</code></td>
+<td>使用 <code>jj_begin/jj_end/jj_nb</code>、极点标志和分布信息。</td>
+</tr>
+<tr>
+<td><code>mod_hallo</code></td>
+<td>对 <code>ucov/vcov/Q/flux/masse</code> 注册 halo 并等待通信完成。</td>
+</tr>
+<tr>
+<td><code>IOIPSL</code></td>
+<td><code>histbeg/histvert/histdef/histwrite/histend</code> 定义和写出诊断。</td>
+</tr>
+<tr>
+<td><code>comvert_mod:presnivs</code></td>
+<td>垂直坐标输出轴。</td>
+</tr>
+<tr>
+<td><code>comconst_mod:cpp,pi</code></td>
+<td>温度转换和角动量诊断常量。</td>
+</tr>
+<tr>
+<td><code>covcont_p</code>、<code>enercin_p</code></td>
+<td>协变风转逆变风，并计算动能。</td>
+</tr>
+<tr>
+<td><code>convflu_p</code>、<code>convmas_p</code>、<code>vitvert_p</code></td>
+<td>构造通量辐合和垂直速度。</td>
+</tr>
+<tr>
+<td><code>massbar_p</code></td>
+<td>在 staggered grid 上构造质量平均。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入输出和保存状态">输入输出和保存状态</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ntrac</code></td>
+<td>tracer 个数；代码把第一个 tracer 作为 <code>ovap</code> 诊断源。</td>
+</tr>
+<tr>
+<td><code>dt_app/dt_cum</code></td>
+<td>诊断应用步长和累计步长；首次调用要求两者可整除。</td>
+</tr>
+<tr>
+<td><code>ps/masse/pk/flux_u/flux_v/teta/phi/ucov/vcov/trac</code></td>
+<td>本次时间步的动力状态和通量。</td>
+</tr>
+<tr>
+<td><code>SAVE first, icum, ncum, itau, time, Req</code></td>
+<td>首次初始化、累计计数、输出时间和 halo 请求对象。</td>
+</tr>
+<tr>
+<td><code>dynzon</code> history</td>
+<td>IOIPSL 输出，包含 <code>T/gz/K/ang/u/ovap/un</code> 的 zonal transports、stream function 和累计平均。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>若 <code>misc_mod</code> 中的 <code>adjust</code> 为真，立即返回。</li>
+<li>首次调用时检查 <code>dt_cum</code> 是 <code>dt_app</code> 的整数倍，设置 <code>ncum</code>，并为分布式纬向 domain 调用 IOIPSL 初始化。</li>
+<li>定义 7 类诊断量：温度 <code>T</code>、位势高度相关 <code>gz</code>、动能 <code>K</code>、角动量 <code>ang</code>、风 <code>u</code>、第一 tracer <code>ovap</code>、常量场 <code>un</code>。</li>
+<li>交换 <code>ucov/vcov</code> halo 后调用 <code>covcont_p</code> 和 <code>enercin_p</code>。</li>
+<li>从输入场构造 <code>Q</code>：<code>teta*pk/cpp</code>、<code>phi</code>、<code>ecin</code>、<code>ucov+constang</code>、<code>ucont*cu</code>、<code>trac(:,:,:,1)</code>、<code>1</code>。</li>
+<li>累加 <code>ps_cum/masse_cum/flux_u_cum/flux_v_cum/Q_cum</code> 以及 <code>flux_uQ_cum/flux_vQ_cum</code>。</li>
+<li>对 <code>Q</code> 和通量累计量注册 halo，调用 <code>convflu_p/convmas_p/vitvert_p</code> 形成 tendency 和垂直通量贡献。</li>
+<li>到达 <code>ncum</code> 时归一化累计量，交换 <code>masse_cum/Q_cum</code>，调用 <code>massbar_p</code>。</li>
+<li>在本 rank 的纬向范围内计算 zonal mass、meridional transport、总输送 <code>TOT</code>、平均环流 <code>MMC</code>、transient <code>TRS</code> 和 stationary <code>STN</code> 分解。</li>
+<li>计算 <code>psiQ</code> 和 <code>psi</code> stream function，写出所有 history 变量并重置 <code>icum</code>。</li>
+</ol>
+<h2 id="并行差异">并行差异</h2>
+<p>串行 <code>bilan_dyn</code> 可以直接访问完整纬向网格；并行版必须先通过 <code>mod_hallo</code> 保证边界行一致，并用 <code>jj_begin/jj_end</code> 只写本 rank 负责的纬向段。若当前 rank 持有南极，IOIPSL domain 会避开最后一行，防止极点重复或越界。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>nQ=7</code> 固定，<code>nom/znom</code> 字符串决定 history 变量名。</li>
+<li><code>dQ</code> 在写出前除以 <code>masse_cum</code>，因此复现 tendency 时必须保留累计质量。</li>
+<li><code>ovap</code> 实际取 <code>trac(:,:,:,1)</code>；其物理意义依赖 tracer 配置，不能从本文件单独确定。</li>
+<li>halo 请求对象 <code>Req</code> 是保存状态，例程内多次复用并在 <code>WaitRequest</code> 后清空请求列表。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>adjust</code> 来自 <code>misc_mod</code>，具体设置点需由调用链或 misc 任务补证。</li>
+<li><code>dynzon</code> 文件名、调用频率和是否在 Mars 默认配置中开启，需要 <code>leapfrog_p</code> 输出分支进一步核对。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../dyn3d/bilan_dyn.html">串行 bilan_dyn</a></li>
+<li><a href="mod_hallo.html">mod_hallo</a></li>
+<li><a href="parallel_lmdz.html">parallel_lmdz</a></li>
+<li><a href="../../routines/mass-pressure-energy-overview.html">质量压力能量例程总览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

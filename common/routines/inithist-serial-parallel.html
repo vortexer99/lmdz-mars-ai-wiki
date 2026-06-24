@@ -1,0 +1,85 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>inithist-serial-parallel - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/inithist-serial-parallel.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="inithist-串并行对照">inithist 串并行对照</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\inithist.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\inithist_p.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>inithist</code> 初始化动力瞬时 history 输出。当前 6.3 可达的串行/root 路径定义 U/V/scalar 三类 history 文件和 <code>u/v/teta/phi/masse/ps</code> 变量；tracer 和 <code>phis</code> 注册在串行源码中为注释行。并行 <code>_p</code> 版本在本 rank 纬向子域上定义 IOIPSL domain，但当前 <code>dyn3dpar/gcm.F</code> 的 <code>_p</code> 初始化调用处为注释保留路径。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：动力 history 输出开启时经过；当前 COMMON 6.3 串行入口调用串行 `inithist`，并行入口在 root 分支也调用串行 `inithist`，`inithist_p` 属于支撑/保留实现。</code></pre>
+<h2 id="串行流程">串行流程</h2>
+<ol type="1">
+<li>调用 <code>ymds2ju</code> 得到起始 Julian day。</li>
+<li>分别 <code>histbeg</code> 创建 <code>dynhistu_file</code>、<code>dynhistv_file</code> 和 <code>dynhist_file</code>。</li>
+<li>用 <code>histvert</code> 定义 <code>presnivs</code> 垂直轴。</li>
+<li><code>histdef</code> 定义 <code>u/v/teta/phi/masse/ps</code>；tracer 和 <code>phis</code> 定义行被注释。</li>
+<li><code>histend</code> 保存 <code>histid/histvid/histuid</code>。</li>
+</ol>
+<h2 id="并行流程">并行流程</h2>
+<p><code>inithist_p(infile,day0,anne0,tstep,t_ops,t_wrt,fileid)</code> 接收输出文件名和返回文件 id。它通过 <code>flio_dom_set</code> 设置 <code>dynu_domain_id/dynv_domain_id</code>，<code>histbeg</code> 只定义当前 rank 的 <code>jj_begin:jj_end</code> 子域。变量定义与串行版对应，但使用局部纬向长度 <code>jjn</code>。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>串行版 history id 存在 <code>com_io_dyn_mod</code>，并行 <code>_p</code> 版通过实参返回 <code>fileid</code>。</li>
+<li>并行版的 V-grid 文件名固定为 <code>dyn_histv</code>。</li>
+<li>若后续重新启用 tracer 注册，变量名来源应为 <code>infotrac:ttext</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>串行版 tracer 和 <code>phis</code> 注册被注释，而部分 <code>_p</code> 支撑实现保留更多字段；是否为有意裁剪需维护者确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="history-output-serial-parallel.html">history/dynav 输出</a></li>
+<li><a href="history-field-registration.html">history/dynav 字段注册和写出门控</a></li>
+<li><a href="initdynav-serial-parallel.html">initdynav 串并行对照</a></li>
+<li><a href="leapfrog-output-restart.html">leapfrog 输出/restart 支撑</a></li>
+<li><a href="leapfrog-p-output-restart.html">leapfrog_p 输出/restart 支撑</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

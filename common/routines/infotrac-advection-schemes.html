@@ -1,0 +1,203 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>infotrac-advection-schemes - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/infotrac-advection-schemes.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="infotrac-advection-scheme-与-nqtot-扩展">infotrac advection scheme 与 nqtot 扩展</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\infotrac.F90</code></pre>
+<p>Mars 运行参与度：<code>必经</code>。Mars 运行的 tracer 数组维度、<code>advtrac</code> 调度路径和饱和水汽处理都由 <code>infotrac_init</code> 写入的 <code>iadv(:)</code> 决定。</p>
+<h2 id="scheme-编号">scheme 编号</h2>
+<p>源码注释保留的 scheme 表如下。注意：表中很多 scheme 有历史实现或下游分支，但当前 <code>infotrac_init</code> 最终只允许 <code>10</code>、<code>14</code> 和 <code>0</code> 通过。</p>
+<table>
+<thead>
+<tr>
+<th><code>iadv</code></th>
+<th>源码注释含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0</code></td>
+<td>不输送或跳过 advection</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>LMD specific humidity transport</td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td>upstream/amont</td>
+</tr>
+<tr>
+<td><code>10</code></td>
+<td>Van Leer</td>
+</tr>
+<tr>
+<td><code>11</code></td>
+<td>水平 Van Leer，垂直 PPM monotone</td>
+</tr>
+<tr>
+<td><code>12</code></td>
+<td>Frederic Hourdin I</td>
+</tr>
+<tr>
+<td><code>13</code></td>
+<td>Frederic Hourdin II</td>
+</tr>
+<tr>
+<td><code>14</code></td>
+<td>Van Leer + specific humidity / saturated water vapor path</td>
+</tr>
+<tr>
+<td><code>16</code></td>
+<td>PPM Monotone</td>
+</tr>
+<tr>
+<td><code>17</code></td>
+<td>PPM Semi Monotone</td>
+</tr>
+<tr>
+<td><code>18</code></td>
+<td>PPM Positive Definite</td>
+</tr>
+<tr>
+<td><code>20</code></td>
+<td>Slopes，需附加 moments tracer</td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td>Prather，需附加 moments tracer</td>
+</tr>
+</tbody>
+</table>
+<h2 id="从-hadvvadv-到-iadv">从 hadv/vadv 到 iadv</h2>
+<p>每个真实 tracer 先读取 <code>hadv(iq)</code> 和 <code>vadv(iq)</code>。<code>infotrac_init</code> 用两条规则得到最终 <code>iadv</code>：</p>
+<ol type="1">
+<li>若 <code>hadv==vadv</code>，则 <code>iadv=hadv</code>。</li>
+<li>若 <code>hadv==10</code> 且 <code>vadv==16</code>，则 <code>iadv=11</code>。</li>
+<li>其他水平/垂直组合 abort，提示 <code>Bad choice of advection schema - 2</code>。</li>
+</ol>
+<p>在更早的 <code>nqtot</code> 计算阶段，只有三种扩展组合合法：</p>
+<table>
+<thead>
+<tr>
+<th><code>hadv/vadv</code></th>
+<th>对 <code>nqtot</code> 的影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>二者都小于 20</td>
+<td>不扩展，<code>new_iq += 1</code></td>
+</tr>
+<tr>
+<td>二者都为 20</td>
+<td>每个真实 tracer 占 4 个动力条目，追加 3 个</td>
+</tr>
+<tr>
+<td>二者都为 30</td>
+<td>每个真实 tracer 占 10 个动力条目，追加 9 个</td>
+</tr>
+</tbody>
+</table>
+<p>任何一边使用 20/30 而另一边不一致都会 abort，提示 <code>Bad choice of advection schema - 1</code>。</p>
+<h2 id="moments-附加-tracer">moments 附加 tracer</h2>
+<p>当 scheme 20 或 30 触发扩展时，<code>nqtot</code> 大于 <code>nqtrue</code>。扩展逻辑如下：</p>
+<ul>
+<li>主 tracer 保留原始 <code>iadv=20</code> 或 <code>iadv=30</code>。</li>
+<li>scheme 20 追加 3 个条目，<code>iadv=-20</code>，名称由主 tracer 名加 <code>txts(jq)</code> 后缀。</li>
+<li>scheme 30 追加 9 个条目，<code>iadv=-30</code>，名称由主 tracer 名加 <code>txtp(jq)</code> 后缀。</li>
+<li><code>niadv</code> 只把 <code>iadv&gt;=0</code> 的真实 tracer 写入映射，因此负号条目不会进入物理真实 tracer 对应表。</li>
+</ul>
+<p>当前版本随后会阻止 <code>iadv=20/30</code> 通过最终可用性检查。因此这些扩展代码说明了历史/潜在 contract，但 Mars 活跃配置若触发它们会在初始化阶段停止。</p>
+<h2 id="最终可用性检查">最终可用性检查</h2>
+<p>在填完 <code>tname/ttext/iadv/niadv</code> 后，源码逐个检查：</p>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iadv</code> 不是 <code>10</code>、<code>14</code>、<code>0</code></td>
+<td>abort，提示当前版本只测试 <code>10</code> 和 <code>14</code></td>
+</tr>
+<tr>
+<td><code>iadv==14</code> 且 <code>iq/=1</code></td>
+<td>abort，提示 <code>14</code> 只允许水汽</td>
+</tr>
+<tr>
+<td>子 tracer 的 <code>iadv/=10</code></td>
+<td>abort，子 tracer 必须用 scheme 10</td>
+</tr>
+<tr>
+<td>父 tracer 的 <code>iadv</code> 不是 <code>10</code> 或 <code>14</code></td>
+<td>abort，父 tracer 只能用 scheme 10 或 14</td>
+</tr>
+</tbody>
+</table>
+<h2 id="下游调度">下游调度</h2>
+<ul>
+<li><a href="advtrac-serial-parallel.html">advtrac 串并行对照</a> 使用 <code>iadv(:)</code> 选择串行/并行输送路径。</li>
+<li><a href="ppm3d-entry-contract.html">ppm3d 入口契约</a> 详细说明 <code>iadv=11/16/17/18</code> 到 <code>IORD/JORD/KORD</code> 的映射和串并行可达性。</li>
+<li><a href="../modules/dyn3dpar/vlspltgen_p.html">vlspltgen_p</a> 在并行 Van Leer 路径中接收 <code>iadv</code>，并使用 <code>nqfils/nqdesc/iqfils</code> 保持 family tracer 比例。</li>
+<li><a href="../modules/dyn3d_common/prather.html">prather</a> 和 <a href="../modules/dyn3d_common/pentes_ini.html">pentes_ini</a> 是历史/扩展 scheme 的关键子页，但当前初始化检查会限制实际使用。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>先读 <code>traceur.def</code> 的 <code>hadv/vadv</code>。</li>
+<li>先用 20/30 规则计算 <code>nqtot</code>，再分配 <code>q(...,nqtot)</code>。</li>
+<li>再用 <code>hadv/vadv</code> 合成 <code>iadv</code>，并建立 <code>niadv</code>。</li>
+<li>最后应用当前版本白名单；不要因为 <code>advtrac</code> 中有 PPM/Prather 分支就假定当前配置一定可达。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>advtrac</code> 中仍存在 11/12/13/16/17/18/20/30 分支，和 <code>infotrac_init</code> 白名单之间的版本意图需要 hard 父页或历史任务进一步确认。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

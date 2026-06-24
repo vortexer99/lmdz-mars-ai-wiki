@@ -1,0 +1,277 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>makelmdz-fcm-mars-paths - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a class="active" href="project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>architecture/makelmdz-fcm-mars-paths.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="makelmdz_fcm-mars-源码路径契约">makelmdz_fcm Mars 源码路径契约</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\makelmdz_fcm
+LMDZ.COMMON-6.3\LMDZ.COMMON\bld.cfg
+LMDZ.MARS\doc\run.tex
+LMDZ.MARS\doc\compilation.tex</code></pre>
+<p>Mars 运行参与度：<code>构建期必经</code>。Mars 可执行文件运行时不执行 <code>makelmdz_fcm</code> 或 <code>bld.cfg</code>，但 <code>makelmdz_fcm -p mars gcm</code> 决定哪些 COMMON 动力目录、Mars physics 目录、dyn-phys 接口目录和并行目录被 FCM 编译进 <code>gcm_..._phymars_...e</code>。</p>
+<h2 id="从命令到物理包名">从命令到物理包名</h2>
+<p>LMDZ.MARS 文档给出的 3D Mars 构建示例是：</p>
+<pre class="text"><code>makelmdz_fcm -arch linux-ifort -d 64x48x49 -p mars gcm</code></pre>
+<p><code>makelmdz_fcm</code> 默认 <code>physique=lmd</code>，遇到 <code>-p mars</code> 后把 <code>physique</code> 设为 <code>mars</code>，最后一个非选项参数 <code>gcm</code> 写入 <code>code</code>。随后：</p>
+<table>
+<thead>
+<tr>
+<th>脚本变量</th>
+<th><code>-p mars gcm</code> 下的值</th>
+<th>来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>physique</code></td>
+<td><code>mars</code></td>
+<td><code>-p</code> 选项。</td>
+</tr>
+<tr>
+<td><code>phys_root</code></td>
+<td><code>mars</code></td>
+<td><code>${physique:0:4} == "mars"</code> 分支。</td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td><code>gcm</code></td>
+<td>参数解析 fallback 分支。</td>
+</tr>
+<tr>
+<td><code>CPP_KEY</code></td>
+<td>至少包含 <code>CPP_PHYS</code></td>
+<td><code>physique!="nophys"</code>。</td>
+</tr>
+<tr>
+<td><code>SUFF_NAME</code></td>
+<td><code>_64x48x49_phymars_seq.e</code> 或 <code>_64x48x49_phymars_para.e</code></td>
+<td>维度、物理包和并行模式拼接。</td>
+</tr>
+</tbody>
+</table>
+<p><code>phys_root</code> 的作用是选择 dyn-phys 子接口名：<code>phy${phys_root}</code>。因此 <code>-p mars</code> 对应 <code>phymars</code>，而不是 <code>phymar</code>。</p>
+<h2 id="路径变量展开">路径变量展开</h2>
+<p>脚本启动时：</p>
+<pre class="text"><code>LMDGCM = 当前工作目录
+LIBFGCM = $LMDGCM/libf
+LIBOGCM = $LMDGCM/libo
+DYN_COMMON_PATH = $LIBFGCM/dyn3d_common
+FILTRE_PATH/DYN_PHYS_PATH/DYN_PHYS_SUB_PATH/PHY_COMMON_PATH = $LMDGCM/.void_dir</code></pre>
+<p>只要 <code>physique!="nophys"</code>，Mars 构建会把 physics 和接口路径打开：</p>
+<pre class="text"><code>PHY_COMMON_PATH   = $LIBFGCM/phy_common
+DYN_PHYS_PATH     = $LIBFGCM/dynphy_lonlat
+DYN_PHYS_SUB_PATH = $LIBFGCM/dynphy_lonlat/phymars
+FILTRE_PATH       = $LIBFGCM/filtrez</code></pre>
+<p>维度和并行模式决定 <code>%DYN</code>：</p>
+<table>
+<thead>
+<tr>
+<th>构建模式</th>
+<th><code>DYN</code></th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-parallel none</code>, <code>-d 64x48x49</code></td>
+<td><code>dyn3d</code></td>
+<td>串行 3D 动力入口。</td>
+</tr>
+<tr>
+<td><code>-parallel mpi/omp/mpi_omp</code>, <code>-d 64x48x49</code></td>
+<td><code>dyn3dpar</code></td>
+<td>并行动力入口，另加 <code>CPP_PARA</code> 和 MPI/OMP key。</td>
+</tr>
+<tr>
+<td><code>-d &lt;single-number&gt;</code> 1D</td>
+<td><code>phymars/dyn1d</code></td>
+<td>1D 主程序在 physics 树；脚本同时关闭 filtre、dyn3d_common 和 dyn-phys 全目录编译。</td>
+</tr>
+</tbody>
+</table>
+<p>对普通 3D Mars 串行 <code>gcm</code>，写入 <code>config.fcm</code> 的核心路径等价于：</p>
+<pre class="text"><code>%LIBF          &lt;LMDGCM&gt;/libf
+%DYN           dyn3d
+%DYN_COMMON    &lt;LMDGCM&gt;/libf/dyn3d_common
+%PHY_COMMON    &lt;LMDGCM&gt;/libf/phy_common
+%FILTRE        &lt;LMDGCM&gt;/libf/filtrez
+%PHYS          phymars
+%DYN_PHYS      &lt;LMDGCM&gt;/libf/dynphy_lonlat
+%DYN_PHYS_SUB  &lt;LMDGCM&gt;/libf/dynphy_lonlat/phymars
+%EXEC          gcm
+%SUFF_NAME     _64x48x49_phymars_seq.e</code></pre>
+<h2 id="bldcfg-如何消费这些路径">bld.cfg 如何消费这些路径</h2>
+<p><code>bld.cfg</code> 先 include <code>arch.fcm</code> 和 <code>config.fcm</code>，再设：</p>
+<pre class="text"><code>%SRC_PATH %LIBF</code></pre>
+<p>核心 source groups 是：</p>
+<table>
+<thead>
+<tr>
+<th>source group</th>
+<th>展开方式</th>
+<th>Mars 3D 串行含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src::dyn</code></td>
+<td><code>%SRC_PATH/%DYN</code></td>
+<td><code>&lt;LMDGCM&gt;/libf/dyn3d</code>。</td>
+</tr>
+<tr>
+<td><code>src::phys</code></td>
+<td><code>%SRC_PATH/%PHYS</code></td>
+<td><code>&lt;LMDGCM&gt;/libf/phymars</code>。</td>
+</tr>
+<tr>
+<td><code>src::dyn_phys</code></td>
+<td><code>%DYN_PHYS</code></td>
+<td><code>&lt;LMDGCM&gt;/libf/dynphy_lonlat</code>。</td>
+</tr>
+<tr>
+<td><code>src::dyn_phys_sub</code></td>
+<td><code>%DYN_PHYS_SUB</code></td>
+<td><code>&lt;LMDGCM&gt;/libf/dynphy_lonlat/phymars</code>。</td>
+</tr>
+<tr>
+<td><code>src::grid</code></td>
+<td><code>%SRC_PATH/grid</code></td>
+<td>COMMON grid/dimensions。</td>
+</tr>
+<tr>
+<td><code>src::filtrez</code></td>
+<td><code>%FILTRE</code></td>
+<td>COMMON longitudinal filter。</td>
+</tr>
+<tr>
+<td><code>src::misc</code></td>
+<td><code>%SRC_PATH/misc</code></td>
+<td>COMMON NetCDF/getin/interpolation helpers。</td>
+</tr>
+<tr>
+<td><code>src::dyn3d_common</code></td>
+<td><code>%DYN_COMMON</code></td>
+<td>COMMON serial/parallel shared dynamics。</td>
+</tr>
+<tr>
+<td><code>src::phy_common</code></td>
+<td><code>%PHY_COMMON</code></td>
+<td>COMMON physics-side parallel/grid/output utilities。</td>
+</tr>
+</tbody>
+</table>
+<p>目标输出：</p>
+<pre class="text"><code>bld::target liblmdz.a %EXEC%SUFF_NAME
+dir::bin    %ROOT_PATH/bin</code></pre>
+<p>所以 <code>gcm</code> 会生成 <code>bin/gcm_64x48x49_phymars_seq.e</code> 或 <code>bin/gcm_64x48x49_phymars_para.e</code>，与 LMDZ.MARS 文档中的命名一致。</p>
+<h2 id="commonmars-分离树的边界">COMMON/MARS 分离树的边界</h2>
+<p>源码文档说明模型分成两棵树：COMMON 保存共用动力，MARS 保存 Mars physics；同时文档描述的集成布局中，COMMON <code>libf</code> 下的 <code>phymars/aeronomars</code> 和 <code>dynphy_lonlat/phymars</code> 可以作为指向 <code>LMDZ.MARS/libf</code> 的链接。</p>
+<p>当前工作树证据：</p>
+<table>
+<thead>
+<tr>
+<th>路径</th>
+<th>当前存在性</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\phymars</code></td>
+<td>不存在</td>
+<td>仅 COMMON 源码树不能独立满足 <code>%DYN_PHYS_SUB</code>。</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars</code></td>
+<td>存在</td>
+<td>Mars dyn-phys 接口实体在 MARS 树。</td>
+</tr>
+<tr>
+<td><code>LMDZ.COMMON\libf\phymars</code></td>
+<td>不存在</td>
+<td>仅 COMMON 源码树不能独立满足 <code>%SRC_PATH/%PHYS</code>。</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars</code></td>
+<td>存在</td>
+<td>Mars physics 实体在 MARS 树。</td>
+</tr>
+</tbody>
+</table>
+<p>复现 Mars 构建时必须让 FCM 看到 <code>%SRC_PATH/%PHYS</code> 和 <code>%DYN_PHYS_SUB</code>。做法可能是使用发布包/检出流程创建的链接，或在构建前建立等价集成布局。若只在当前拆分 checkout 的 <code>LMDZ.COMMON</code> 目录直接运行 <code>makelmdz_fcm -p mars gcm</code>，这些 Mars physics 路径在源码层面无法由 COMMON 自身提供。</p>
+<h2 id="并行和工具目标边界">并行和工具目标边界</h2>
+<ul>
+<li><code>-parallel mpi</code> 加 <code>CPP_PARA CPP_MPI</code>，<code>DYN=dyn3dpar</code>，后缀为 <code>_para</code>。</li>
+<li><code>-parallel omp</code> 加 <code>CPP_PARA CPP_OMP</code>，<code>DYN=dyn3dpar</code>。</li>
+<li><code>-parallel mpi_omp</code> 加 <code>CPP_PARA CPP_MPI CPP_OMP</code>，<code>DYN=dyn3dpar</code>。</li>
+<li><code>newstart</code> 和 <code>start2archive</code> 被脚本显式禁止并行编译。</li>
+<li>1D 目标被脚本显式禁止并行，且 <code>DYN=phymars/dyn1d</code>，同时关闭完整 <code>dyn3d_common</code> 和 dyn-phys 目录编译。</li>
+<li><code>-libphy</code> 会把 <code>DYN</code>、<code>DYN_COMMON</code>、<code>FILTRE</code>、<code>DYN_PHYS</code>、<code>DYN_PHYS_SUB</code> 都指向 <code>.void_dir</code>，并清空 <code>code/SUFF_NAME</code>；这不是 Mars 3D run 可执行文件构建路径。</li>
+</ul>
+<h2 id="复现检查点">复现检查点</h2>
+<ol type="1">
+<li>在构建目录运行 <code>makelmdz_fcm</code> 前，确认 <code>LMDZ.COMMON/libf/phymars</code> 和 <code>LMDZ.COMMON/libf/dynphy_lonlat/phymars</code> 是否可由链接或集成布局访问。</li>
+<li>确认 <code>-p mars</code> 后 <code>phys_root=mars</code>，而非 <code>mar</code>。脚本中先有 <code>${physique:0:3}=="mar"</code>，随后 <code>${physique:0:4}=="mars"</code> 会覆盖为 <code>mars</code>。</li>
+<li>对 3D Mars GCM，确认 <code>-d</code> 是三维格式，如 <code>64x48x49</code>；单数字维度会进入 1D 特殊路径。</li>
+<li>对并行 Mars GCM，确认使用 <code>dyn3dpar</code> 页面和 MPI/OMP arch flags，而不是串行 <code>dyn3d</code> 页面。</li>
+<li>编译失败若表现为缺 <code>phymars</code> 或 <code>iniphysiq_mod</code>，优先检查目录链接/集成布局，而不是 COMMON 动力源码。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前本地 workspace 是否有外部脚本负责创建 COMMON 下的 Mars physics 链接；本页只根据当前文件系统证据和源码脚本说明边界。</li>
+<li><code>-ext_src</code> 被写入 <code>config.fcm</code>，但当前 <code>bld.cfg</code> 未显示对应 source group；实际是否由外部 FCM 配置消费需另查。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="build-and-arch.html">build 和 arch 配置链</a></li>
+<li><a href="ioipsl-build-mars-contract.html">IOIPSL build 和 Mars I/O 构建契约</a></li>
+<li><a href="../routines/common-gcm-mars-run-entry.html">Mars 3D GCM 主入口链</a></li>
+<li><a href="../modules/libf-overview.html">libf 总览</a></li>
+<li><a href="../modules/dyn3d/index.html">dyn3d 串行动力入口</a></li>
+<li><a href="../modules/dyn3dpar/gcm.html">dyn3dpar 并行动力入口</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

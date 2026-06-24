@@ -1,0 +1,311 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>leapfrog-p-state-contract - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/leapfrog-p-state-contract.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="leapfrog_p-状态契约">leapfrog_p 状态契约</h1>
+<p>页面状态：TASK-0126 完成。 源码范围：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\gcm.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\leapfrog_p.F</code></pre>
+<p>Mars 运行参与度：条件经过。Mars 并行 GCM 构建经过 <code>dyn3dpar/gcm.F -&gt; leapfrog_p</code>；串行 Mars GCM 和 MARS <code>phymars/nogcm.F90</code> 不经过本并行主循环。COMMON 6.3 已删除 COMMON <code>nogcm</code>，本页只讨论 <code>dyn3dpar</code> 并行入口。</p>
+<h2 id="入口调用点">入口调用点</h2>
+<p><code>dyn3dpar/gcm.F</code> 在完成 <code>conf_gcm</code>、MPI/OMP 初始化、band/halo 初始化、tracer 分配、<code>dynetat0</code> 或 <code>iniacademic</code>、<code>iniconst/inigeom/inidissip</code>、<code>iniphysiq</code>、history/restart 初始化后进入 OpenMP parallel 区：</p>
+<pre class="text"><code>gcm.F 556: c$OMP PARALLEL DEFAULT(SHARED)
+gcm.F 567: CALL leapfrog_p(ucov,vcov,teta,ps,masse,phis,q,time_0)
+gcm.F 569: c$OMP END PARALLEL</code></pre>
+<p>源码 557-564 行保留了 <code>temps_mod</code> 和 <code>logic_mod</code> 的 OpenMP <code>COPYIN</code> 注释，说明这些状态曾经或应当作为 threadprivate 复制对象处理；当前实际 parallel directive 是 <code>DEFAULT(SHARED)</code>，没有启用这些 <code>COPYIN</code> 行。</p>
+<h2 id="入口实参">入口实参</h2>
+<p><code>leapfrog_p</code> 的入口形状在源码 7-8 行：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> leapfrog_p(ucov,vcov,teta,ps,masse,phis,q,time_0)</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>实参</th>
+<th>维度</th>
+<th>读写</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ucov</code></td>
+<td><code>ip1jmp1,llm</code></td>
+<td>inout</td>
+<td>U 网格纬向 covariant wind。</td>
+</tr>
+<tr>
+<td><code>vcov</code></td>
+<td><code>ip1jm,llm</code></td>
+<td>inout</td>
+<td>V 网格经向 covariant wind。</td>
+</tr>
+<tr>
+<td><code>teta</code></td>
+<td><code>ip1jmp1,llm</code></td>
+<td>inout</td>
+<td>位温。</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td><code>ip1jmp1</code></td>
+<td>inout</td>
+<td>地表压力，Pa。</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td><code>ip1jmp1,llm</code></td>
+<td>inout</td>
+<td>层空气质量，由 <code>p</code>/pressure 同步更新。</td>
+</tr>
+<tr>
+<td><code>phis</code></td>
+<td><code>ip1jmp1</code></td>
+<td>inout</td>
+<td>地表位势。</td>
+</tr>
+<tr>
+<td><code>q</code></td>
+<td><code>ip1jmp1,llm,nqtot</code></td>
+<td>inout</td>
+<td>advected tracer；第三维来自 <code>infotrac:nqtot</code>。</td>
+</tr>
+<tr>
+<td><code>time_0</code></td>
+<td>scalar</td>
+<td>in</td>
+<td>源码注释写 “not used”，但 Mars restart 分支实际用 <code>time_0-floor(time_0)</code> 修正 restart 时间。</td>
+</tr>
+</tbody>
+</table>
+<p>这些数组仍使用全局 COMMON 维度形状，而不是显式局部数组形状。并行局部范围由 <code>parallel_lmdz</code> 的 <code>ij_begin/ij_end</code>、<code>jj_*</code> 分布和 <code>SetDistrib</code> 当前状态解释。</p>
+<h2 id="主要-use-依赖">主要 USE 依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th style="text-align: right;">行号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>parallel_lmdz</code></td>
+<td style="text-align: right;">15</td>
+<td>当前 rank/thread 的局部范围、<code>SetDistrib</code>、<code>Gather_Field</code> 等并行基础。</td>
+</tr>
+<tr>
+<td><code>times</code>, <code>Bands</code></td>
+<td style="text-align: right;">16, 18</td>
+<td>adaptive bands 的计时和 <code>jj_Nb_*</code> 分布。</td>
+</tr>
+<tr>
+<td><code>mod_hallo</code></td>
+<td style="text-align: right;">17</td>
+<td>halo/swap 请求对象、<code>Register_*</code>, <code>SendRequest</code>, <code>WaitRequest</code>。</td>
+</tr>
+<tr>
+<td><code>Write_Field</code>, <code>Write_Field_p</code></td>
+<td style="text-align: right;">19-20</td>
+<td>调试/输出写场 helper。</td>
+</tr>
+<tr>
+<td><code>infotrac:nqtot</code></td>
+<td style="text-align: right;">23</td>
+<td>决定 <code>q/dq/dqfi/dqfi_tmp</code> 的 tracer 维度。</td>
+</tr>
+<tr>
+<td><code>guide_p_mod:guide_main</code></td>
+<td style="text-align: right;">24</td>
+<td>generic guide/nudging 条件分支。</td>
+</tr>
+<tr>
+<td><code>control_mod</code></td>
+<td style="text-align: right;">26-31</td>
+<td><code>nday/day_step/iperiod/iphysiq/dissip_period/ok_dyn*/ecritstart</code> 等调度和输出控制。</td>
+</tr>
+<tr>
+<td><code>comvert_mod</code></td>
+<td style="text-align: right;">35</td>
+<td><code>ap/bp/pressure_exner/presnivs</code>，用于 pressure/Exner。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td style="text-align: right;">36-37</td>
+<td><code>daysec/dtvr/dtphys/dtdiss/cpp/iflag_top_bound/pi</code> 等。</td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td style="text-align: right;">38-39</td>
+<td><code>forward/leapf/apphys/apdiss/purmats/conser/ok_guide</code> 等时间步门控。</td>
+</tr>
+<tr>
+<td><code>temps_mod</code></td>
+<td style="text-align: right;">40-41</td>
+<td><code>itaufin/day_ini/day_ref/start_time/dt/hour_ini/day_end</code> 等时间状态。</td>
+</tr>
+<tr>
+<td><code>cpdet_mod</code>, <code>sponge_mod_p</code>, <code>comuforc_h</code></td>
+<td style="text-align: right;">32-34</td>
+<td>cp(T)、sponge/top-bound 和 guide forcing 支撑。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="入口工作数组">入口工作数组</h2>
+<p><code>leapfrog_p</code> 大量工作数组是 <code>SAVE</code> 状态，跨调用保留；这与 OpenMP parallel 区共同存在时要特别小心。</p>
+<table>
+<thead>
+<tr>
+<th>数组</th>
+<th>维度</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>p</code>, <code>pks</code>, <code>pk</code>, <code>pkf</code></td>
+<td><code>ip1jmp1,llmp1</code> 或 <code>ip1jmp1,llm</code></td>
+<td>层界 pressure、地表和层中 Exner。</td>
+</tr>
+<tr>
+<td><code>phi</code>, <code>w</code>, <code>temp</code>, <code>tsurpk</code></td>
+<td><code>ip1jmp1,llm</code></td>
+<td>位势、垂直速度、温度和 cp(T) 相关缓存。</td>
+</tr>
+<tr>
+<td><code>pbaru</code>, <code>pbarv</code>, <code>flxw</code></td>
+<td><code>ip1jmp1/ip1jm,llm</code></td>
+<td>caldyn 给 tracer 和输出使用的质量通量。</td>
+</tr>
+<tr>
+<td><code>ucovm1/vcovm1/tetam1/psm1/massem1</code></td>
+<td>与状态数组同形</td>
+<td>上一时间层状态，供 leapfrog/integrd 使用。</td>
+</tr>
+<tr>
+<td><code>du/dv/dteta/dp/dq</code></td>
+<td>与状态数组同形；<code>dq</code> allocatable</td>
+<td>动力 tendency。</td>
+</tr>
+<tr>
+<td><code>dufi/dvfi/dtetafi/dpfi/dqfi</code></td>
+<td>与状态数组同形；<code>dqfi</code> allocatable</td>
+<td>physics tendency。</td>
+</tr>
+<tr>
+<td><code>dudis/dvdis/dtetadis</code></td>
+<td>wind/theta 形状</td>
+<td>dissipation tendency。</td>
+</tr>
+<tr>
+<td><code>dvfi_tmp/dufi_tmp/dtetafi_tmp/dpfi_tmp/dqfi_tmp</code></td>
+<td><code>iip1</code> 局部经向切片；<code>dqfi_tmp</code> allocatable</td>
+<td>physics band 切换前后暂存本 rank 非极点切片。</td>
+</tr>
+<tr>
+<td><code>ecin/ecin0/dtetaecdt/vcont/ucont/vnat/unat</code></td>
+<td>与风/温度形状</td>
+<td>耗散守恒修正和诊断。</td>
+</tr>
+</tbody>
+</table>
+<p><code>dq</code>, <code>dqfi</code>, <code>dqfi_tmp</code> 在 262-272 行只由 OpenMP master 在线程第一次调用时分配，然后 barrier 同步。它们的第三维固定为当前 <code>nqtot</code>，因此 <code>infotrac_init</code> 必须在 <code>gcm.F</code> 调用 <code>leapfrog_p</code> 前完成。</p>
+<h2 id="初始化契约">初始化契约</h2>
+<p>进入主循环前，<code>leapfrog_p</code> 先建立运行终止步和初始 thermodynamic state：</p>
+<ol type="1">
+<li>237-250 行由 <code>nday/day_step/less1day/fractday/ndynstep</code> 计算 <code>itaufin</code> 和 <code>itaufinp1</code>。</li>
+<li>252-254 行设 <code>itau=0</code>，并由 <code>iflag_phys</code> 推出局部 <code>physics</code> 布尔值；<code>iflag_phys==0</code> 或 <code>2</code> 时 physics 关闭。</li>
+<li>262-272 行按 <code>nqtot</code> 分配 tracer tendency 数组。</li>
+<li>278-296 行 master 清零 dissipation、physics、top-bound、tracer 和 mass-flux tendency。</li>
+<li>298-303 行由 <code>pression(ap,bp,ps,p)</code> 和 <code>pressure_exner</code> 选择 <code>exner_hyb</code> 或 <code>exner_milieu</code> 初始化 <code>p/pks/pk/pkf</code>。</li>
+</ol>
+<p>这个初始化发生在并行区内部，但多处由 <code>c$OMP MASTER</code> 包裹。复现并行问题时要同时检查 master-only 初始化、barrier 和后续各线程看到的共享状态。</p>
+<h2 id="并行边界状态">并行边界状态</h2>
+<p>虽然入口实参是全局形状，运行时只应操作当前分布对应的局部范围：</p>
+<ul>
+<li><code>gcm.F</code> 在进入 <code>leapfrog_p</code> 前已 <code>SetDistrib(jj_Nb_Caldyn)</code>。</li>
+<li><code>leapfrog_p</code> 内在首次调整和阶段切换时多次 <code>SetDistrib</code>，例如 596 行回到 <code>jj_nb_caldyn</code>，1001/1042/1075 行在 physics 前后切换 <code>jj_nb_Physic</code> 与 <code>jj_nb_Physic_bis</code>。</li>
+<li>输出和 restart 前会 <code>Gather_Field</code>，如 1691-1701、1764-1773 行，把字段收集到 root/rank 0 写出。</li>
+<li>physics tendency 在 <code>calfis_p</code> 后通过 <code>Register_Hallo</code>/<code>SendRequest</code>/<code>WaitRequest</code> 合并边界，再用 <code>_tmp</code> 数组叠加回本 rank 切片。</li>
+</ul>
+<p>因此 <code>leapfrog_p</code> 的状态契约不是“全局数组直接全局写”，而是“全局形状数组 + 当前 band/halo 约定 + root gather 写出”。</p>
+<h2 id="mars-边界">Mars 边界</h2>
+<p>Mars 并行 GCM 经过本页路径时，关注点是 <code>planet_type=="mars"</code> 下的日期和 restart 时间：</p>
+<ul>
+<li><code>leapfrog_p</code> 的 physics 日期仍按 Mars/generic 分支构造 <code>jD_cur/jH_cur</code>。</li>
+<li>Mars restart 分支没有统一使用 <code>JH_cur</code>。中途 restart 在 1822-1830 行使用 <code>REAL(itau)/REAL(day_step)+time_0-floor(time_0)</code> 或再减 <code>day_end-day_ini</code>；最终分支在 2047-2053 行使用 <code>REAL(itau)/REAL(day_step)</code> 或再减 <code>day_end-day_ini</code>。<code>JH_cur</code> 是非 Mars fallback 分支。</li>
+<li>这也是为什么 <code>time_0</code> 不能简单按源码入口注释理解为 “not used”。</li>
+</ul>
+<h2 id="复现检查表">复现检查表</h2>
+<ol type="1">
+<li>确认 <code>dyn3dpar/gcm.F</code> 已完成 <code>infotrac_init</code> 和 <code>q</code> 分配，<code>nqtot</code> 与 <code>traceur.def</code> 一致。</li>
+<li>确认进入 <code>leapfrog_p</code> 前当前分布是 <code>jj_Nb_Caldyn</code>。</li>
+<li>检查 <code>dq/dqfi/dqfi_tmp</code> 是否首次调用时按当前 <code>nqtot</code> 分配；长进程复用时尤其要小心 <code>SAVE firstcall</code>。</li>
+<li>对 pressure/masse 问题，先查 <code>ps -&gt; pression -&gt; p -&gt; massdair_p</code> 的刷新顺序。</li>
+<li>对 physics tendency 问题，检查 <code>SetDistrib(jj_nb_Physic)</code>、<code>calfis_p</code>、<code>Register_Hallo</code> 和 <code>_tmp</code> 回填。</li>
+<li>对输出或 restart 问题，确认 <code>Gather_Field</code> 已在 root 写出前执行，且 Mars restart 时间分支按 <code>time_0</code> 修正。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>源码注释称 <code>time_0 ! not used</code>，但 Mars restart 分支实际使用 <code>time_0-floor(time_0)</code>；注释与代码不一致。</li>
+<li><code>gcm.F</code> 中 <code>logic_mod/temps_mod</code> 的 OpenMP <code>COPYIN</code> 行被注释，当前 shared/threadprivate 语义需结合编译选项和模块声明确认。</li>
+<li><code>SAVE</code> 工作数组和 allocatable tracer tendency 在同一进程内多次调用 <code>leapfrog_p</code> 时是否需要重分配，源码未显式处理 <code>nqtot</code> 变化。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3dpar/gcm.html">dyn3dpar/gcm</a></li>
+<li><a href="../modules/dyn3dpar/leapfrog_p.html">dyn3dpar/leapfrog_p</a></li>
+<li><a href="leapfrog-p-time-scheduler.html">leapfrog_p 时间步调度</a></li>
+<li><a href="../themes/serial-parallel-dynamics.html">serial-parallel-dynamics</a></li>
+<li><a href="../modules/dyn3dpar/parallel_lmdz.html">parallel_lmdz</a></li>
+<li><a href="../modules/dyn3dpar/mod_hallo.html">mod_hallo</a></li>
+<li><a href="../modules/dyn3dpar/bands.html">bands</a></li>
+<li><a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p</a></li>
+<li><a href="leapfrog-state-contract.html">leapfrog 状态契约</a></li>
+<li><a href="dynamics-control-logic-gates.html">动力控制和逻辑门控链</a></li>
+<li><a href="guide-config-contract.html">guide 配置与初始化契约</a></li>
+<li><a href="guide-input-fields.html">guide 输入场读取</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,391 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dynamics-control-logic-gates - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/dynamics-control-logic-gates.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="动力控制和逻辑门控链">动力控制和逻辑门控链</h1>
+<p>页面状态：TASK-0196 完成。 源码范围：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\conf_gcm.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\gcm.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\gcm.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\leapfrog.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\leapfrog_p.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\control_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\logic_mod.F90</code></pre>
+<p>Mars 边界上下文：</p>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\nogcm.F90
+LMDZ.MARS\libf\dynphy_lonlat\phymars\leapfrog_nogcm.F</code></pre>
+<p>Mars 运行参与度：必经到条件经过。COMMON 6.3 串行/并行 <code>gcm</code> 主入口经过本页的 <code>conf_gcm -&gt; control_mod/logic_mod -&gt; leapfrog*</code> 链；MARS <code>phymars/nogcm.F90</code> 也消费这些 COMMON 状态模块，但它不是 COMMON 6.3 源文件。后续 wiki 任务不得把 MARS <code>phymars/nogcm.F90</code> 或 <code>leapfrog_nogcm.F</code> 当成 COMMON 6.3 的文件页目标。</p>
+<h2 id="这个页面回答什么">这个页面回答什么</h2>
+<p><a href="common-state-control-contract.html">common-state-control-contract</a> 已经说明 <code>control_mod</code>、<code>logic_mod</code>、<code>temps_mod</code>、<code>comconst_mod</code> 各自保存什么状态。本页补充调用链问题：一个 <code>run.def/getin</code> 开关如何先被 <code>conf_gcm</code> 写入模块，再由 <code>gcm/gcm_p/nogcm</code> 做入口约束，最后在 <code>leapfrog*</code> 的每个时间步变成 <code>forward/leapf/apphys/apdiss</code> 等逻辑门控。</p>
+<h2 id="状态容器">状态容器</h2>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>源码定义</th>
+<th>本页关注的状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>control_mod</code></td>
+<td><code>dyn3d_common/control_mod.F90</code></td>
+<td><code>nday</code>, <code>day_step</code>, <code>iperiod</code>, <code>iphysiq</code>, <code>ndynstep</code>, <code>less1day</code>, <code>fractday</code>, <code>dissip_period</code>, <code>iconser</code>, <code>iecri</code>, <code>periodav</code>, <code>ok_dyn_ins</code>, <code>ok_dyn_ave</code>, <code>ok_dynzon</code>, <code>ecritstart</code>, <code>planet_type</code>, <code>read_start</code> 相关运行控制。</td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td><code>dyn3d/logic_mod.F90</code></td>
+<td><code>purmats</code>, <code>forward</code>, <code>leapf</code>, <code>apphys</code>, <code>apdiss</code>, <code>conser</code>, <code>statcl</code>, <code>ok_guide</code>, <code>read_start</code>, <code>iflag_phys</code> 等逻辑门。</td>
+</tr>
+<tr>
+<td><code>temps_mod</code></td>
+<td><code>dyn3d/temps_mod.F90</code></td>
+<td><code>itaufin</code>, <code>itau_dyn</code>, <code>day_ini</code>, <code>day_end</code>, <code>jD_ref</code>, <code>jH_ref</code>, <code>dt</code> 等时间状态。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>dyn3d_common/comconst_mod.F90</code></td>
+<td><code>daysec</code>, <code>dtvr</code>, <code>dtphys</code>, <code>dtdiss</code> 等由入口和初始化链派生的时间常量。</td>
+</tr>
+</tbody>
+</table>
+<p><code>control_mod</code> 里大多数变量是 <code>SAVE</code> 全局状态，<code>logic_mod</code> 则没有把 <code>forward/leapf/apphys/apdiss</code> 当成配置默认值保存；这些标志在 <code>leapfrog*</code> 时间循环里反复重置，只代表当前步的阶段。</p>
+<h2 id="从配置到入口约束">从配置到入口约束</h2>
+<p><code>conf_gcm.F90</code> 的 <code>USE</code> 列表在源码 12-31 行直接写明它会写 <code>control_mod</code>、<code>logic_mod</code>、<code>comconst_mod</code> 和 <code>temps_mod</code>。关键 <code>getin</code> 写入点如下：</p>
+<table>
+<thead>
+<tr>
+<th>配置键或状态</th>
+<th style="text-align: right;"><code>conf_gcm.F90</code> 行</th>
+<th>写入模块</th>
+<th>入口约束或后续用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>planet_type</code></td>
+<td style="text-align: right;">112-117</td>
+<td><code>control_mod</code></td>
+<td>决定 Mars/generic/Earth 日期、restart 和默认分支。</td>
+</tr>
+<tr>
+<td><code>nday</code></td>
+<td style="text-align: right;">160-166</td>
+<td><code>control_mod</code></td>
+<td>默认运行天数；负值在 <code>leapfrog*</code> 中按动力步数解释。</td>
+</tr>
+<tr>
+<td><code>ndynstep</code></td>
+<td style="text-align: right;">168-171</td>
+<td><code>control_mod</code></td>
+<td>若大于 0，覆盖 <code>nday/less1day</code> 推导的 <code>itaufin</code>。</td>
+</tr>
+<tr>
+<td><code>starttime</code>, <code>timestart</code>, <code>ecritstart</code></td>
+<td style="text-align: right;">180-193</td>
+<td><code>control_mod</code></td>
+<td>初始时间和中途 restart 写出门控。</td>
+</tr>
+<tr>
+<td><code>less1day</code>, <code>fractday</code></td>
+<td style="text-align: right;">195-207</td>
+<td><code>control_mod</code></td>
+<td>小于一天运行的替代结束步数。</td>
+</tr>
+<tr>
+<td><code>day_step</code></td>
+<td style="text-align: right;">209-215</td>
+<td><code>control_mod</code></td>
+<td>每日动力步数；入口用它计算 <code>dtvr=daysec/day_step</code>。</td>
+</tr>
+<tr>
+<td><code>nsplit_phys</code>, <code>iperiod</code>, <code>iapp_tracvl</code></td>
+<td style="text-align: right;">222-236</td>
+<td><code>control_mod</code></td>
+<td>physics 子步、Matsuno 周期、tracer advection 累积周期。</td>
+</tr>
+<tr>
+<td><code>dissip_period</code>, <code>idissip</code></td>
+<td style="text-align: right;">279-281</td>
+<td><code>control_mod</code></td>
+<td>耗散调用周期；<code>idissip</code> 是旧 Mars/Generic 兼容键。</td>
+</tr>
+<tr>
+<td><code>purmats</code></td>
+<td style="text-align: right;">449</td>
+<td><code>logic_mod</code></td>
+<td>选择纯 Matsuno 还是 Matsuno + leapfrog。</td>
+</tr>
+<tr>
+<td><code>ok_guide</code></td>
+<td style="text-align: right;">451-456</td>
+<td><code>logic_mod</code></td>
+<td>guide/nudging 条件路径。</td>
+</tr>
+<tr>
+<td><code>read_start</code></td>
+<td style="text-align: right;">458-464</td>
+<td><code>logic_mod</code></td>
+<td>入口选择 <code>dynetat0("start.nc")</code> 或 <code>iniacademic</code>。</td>
+</tr>
+<tr>
+<td><code>iflag_phys</code>, <code>iphysiq</code></td>
+<td style="text-align: right;">466-479</td>
+<td><code>logic_mod</code> / <code>control_mod</code></td>
+<td>physics 是否开启和调用频率。</td>
+</tr>
+<tr>
+<td><code>offline</code></td>
+<td style="text-align: right;">510-516</td>
+<td><code>control_mod</code></td>
+<td>offline flux storage 条件路径。</td>
+</tr>
+<tr>
+<td><code>ok_dynzon</code>, <code>ok_dyn_ins</code>, <code>ok_dyn_ave</code></td>
+<td style="text-align: right;">538-560</td>
+<td><code>control_mod</code></td>
+<td>zonal diagnostic、instant history、dynav/平均输出。</td>
+</tr>
+</tbody>
+</table>
+<p>入口程序随后做三类硬约束：</p>
+<ol type="1">
+<li>串行 <code>gcm.F90</code> 166-168 行、并行 <code>gcm.F</code> 180-182 行、MARS <code>nogcm.F90</code> 155-157 行都要求 <code>iphysiq</code> 是 <code>iperiod</code> 的倍数。</li>
+<li>串行 <code>gcm.F90</code> 292-300 行和并行 <code>gcm.F</code> 310-318 行要求 <code>day_step</code> 分别是 <code>iperiod</code> 和 <code>iphysiq</code> 的倍数。MARS <code>nogcm.F90</code> 保留 <code>day_step/iperiod</code> 检查，但 <code>day_step/iphysiq</code> 检查在源码 287-289 行被注释掉。</li>
+<li>串行 <code>gcm.F90</code> 304-309 行、并行 <code>gcm.F</code> 322-327 行、MARS <code>nogcm.F90</code> 293-296 行都用 <code>daysec/day_step</code> 计算 <code>zdtvr</code>，必要时覆盖 <code>dtvr</code>。</li>
+</ol>
+<p>因此配置层只给出意图，真正进入时间推进前还必须经过入口一致性检查。排查“physics 没调用”或“输出频率不对”时，应先确认这些整除关系是否使配置有效。</p>
+<h2 id="入口分流">入口分流</h2>
+<table>
+<thead>
+<tr>
+<th>入口</th>
+<th>配置读取</th>
+<th>初态分支</th>
+<th>常量/物理初始化</th>
+<th>时间推进</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>COMMON 串行 <code>dyn3d/gcm.F90</code></td>
+<td><code>CALL conf_gcm(99,.TRUE.)</code>，源码 166 行</td>
+<td><code>read_start</code> 时走 <code>dynetat0</code>，否则 <code>iniacademic</code></td>
+<td><code>iflag_phys==1</code> 时 <code>iniconst/inigeom/inifilr</code>，<code>iflag_phys==1 or &gt;=100</code> 时 <code>iniphysiq</code></td>
+<td><code>CALL leapfrog(...)</code>，源码 534 行。</td>
+</tr>
+<tr>
+<td>COMMON 并行 <code>dyn3dpar/gcm.F</code></td>
+<td><code>CALL conf_gcm(99,.TRUE.)</code>，源码 180 行</td>
+<td>同样按 <code>read_start</code> 分流，另有 MPI/OMP、band、halo 初始化</td>
+<td><code>iniphysiq</code> 接收本 rank 的物理分布和 <code>dtphys/nsplit_phys</code></td>
+<td><code>CALL leapfrog_p(...)</code>，源码 567 行。</td>
+</tr>
+<tr>
+<td>MARS <code>phymars/nogcm.F90</code></td>
+<td><code>CALL conf_gcm(99,.TRUE.)</code>，源码 155 行</td>
+<td>同样消费 <code>read_start</code>，但入口属于 MARS 树</td>
+<td>调用 COMMON 常量/几何初始化和 MARS physics 初始化</td>
+<td><code>CALL leapfrog_nogcm(...)</code>，源码 518 行。</td>
+</tr>
+</tbody>
+</table>
+<p><code>nogcm</code> 行只用于说明 MARS 边界：COMMON 6.3 已删除 <code>dyn3d/nogcm.F90</code> 和 <code>dyn3d/leapfrog_nogcm.F</code>，当前 COMMON wiki 不为它们创建文件页。</p>
+<h2 id="时间循环内的逻辑门">时间循环内的逻辑门</h2>
+<p><code>leapfrog.F</code> 和 <code>leapfrog_p.F</code> 使用相同的基础门控，后者再叠加 <code>SetDistrib</code>、halo/swap、gather 输出等并行调度。核心阶段如下：</p>
+<table>
+<thead>
+<tr>
+<th>门控</th>
+<th style="text-align: right;">串行行号</th>
+<th style="text-align: right;">并行行号</th>
+<th>生成逻辑</th>
+<th>主要消费者</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>itaufin</code></td>
+<td style="text-align: right;">216-227</td>
+<td style="text-align: right;">237-248</td>
+<td><code>nday*day_step</code>；若 <code>nday&lt;0</code> 用 <code>-nday</code>；<code>less1day</code> 用 <code>fractday*day_step</code>；<code>ndynstep&gt;0</code> 最终覆盖。</td>
+<td>主循环终止、<code>lafin</code>、最终 restart。</td>
+</tr>
+<tr>
+<td><code>forward</code>, <code>leapf</code> 初值</td>
+<td style="text-align: right;">344-345</td>
+<td style="text-align: right;">405-406</td>
+<td>每个 Matsuno 周期开头设 <code>forward=.TRUE.</code>, <code>leapf=.FALSE.</code>。</td>
+<td><code>dt</code> 选择、动力 tendency、输出避开半步状态。</td>
+</tr>
+<tr>
+<td><code>apphys</code></td>
+<td style="text-align: right;">384-401</td>
+<td style="text-align: right;">454-471</td>
+<td>每步先置 false；<code>purmats</code> 时看 <code>MOD(itau,iphysiq)</code> 且非 forward；非 <code>purmats</code> 时看 <code>MOD(itau+1,iphysiq)</code>。</td>
+<td><code>calfis/calfis_p</code> 和 <code>addfi/addfi_p</code>。</td>
+</tr>
+<tr>
+<td><code>apdiss</code></td>
+<td style="text-align: right;">387-411</td>
+<td style="text-align: right;">457-481</td>
+<td>每步先置 false；按 <code>dissip_period</code> 与阶段设置；<code>offline</code> 或 <code>iflag_phys&gt;=100</code> 时强制 false。</td>
+<td><code>dissip/dissip_p</code>，MARS <code>leapfrog_nogcm</code> 不使用。</td>
+</tr>
+<tr>
+<td><code>lafin</code></td>
+<td style="text-align: right;">520-523</td>
+<td style="text-align: right;">851-854</td>
+<td>末步或末步前的 physics 调用标志，取决于 <code>purmats</code> 和当前阶段。</td>
+<td>传给 <code>calfis/calfis_p</code>。</td>
+</tr>
+<tr>
+<td>输出/诊断门</td>
+<td style="text-align: right;">825-856, 879-887, 993-1042</td>
+<td style="text-align: right;">1669-1709, 1762-1784, 1903-2009</td>
+<td><code>iperiod</code> 控制 dynav/zonal，<code>ok_dyn_ins</code> 控制 instant history，半步状态不写。</td>
+<td><code>bilan_dyn*</code>, <code>writehist*</code>, <code>writedynav*</code>。</td>
+</tr>
+<tr>
+<td>restart 门</td>
+<td style="text-align: right;">900-921, 1055-1074</td>
+<td style="text-align: right;">1808-1833, 2033-2056</td>
+<td>末步必写；<code>ecritstart&gt;0</code> 时中途步可写，Mars 分支使用特殊时间表达式或 <code>JH_cur</code>。</td>
+<td><code>dynredem1/dynredem1_p</code>。</td>
+</tr>
+<tr>
+<td>阶段切换</td>
+<td style="text-align: right;">932-957, 969-1079</td>
+<td style="text-align: right;">1844-1869, 1878-2062</td>
+<td><code>MOD(itau,iperiod)</code> 或 <code>MOD(itau-1,iperiod)</code> 决定回到 forward、进入 backward 或 leapfrog。</td>
+<td>下一轮 <code>dt</code>、<code>forward/leapf</code> 和 tendency 解释。</td>
+</tr>
+</tbody>
+</table>
+<p>MARS <code>leapfrog_nogcm.F</code> 保留 <code>forward/leapf/apphys/lafin</code> 和输出/restart骨架，但源码注释和 <code>USE</code> 列表显示它删除了 <code>apdiss</code> 相关耗散门。它在 403-427 行重置 physics 门，549-571 行调用 <code>calfis/addfi</code>，867-878 和 998-1006 行只在最终步写 restart。</p>
+<h2 id="复现顺序">复现顺序</h2>
+<pre class="text"><code>run.def / getin
+  -&gt; conf_gcm writes control_mod + logic_mod
+  -&gt; gcm/gcm_p/nogcm checks iphysiq/iperiod/day_step
+  -&gt; zdtvr = daysec / day_step; dtvr may be overwritten
+  -&gt; read_start ? dynetat0 : iniacademic
+  -&gt; iflag_phys gate initializes constants/geometry/physics
+  -&gt; leapfrog* computes itaufin
+  -&gt; each step resets forward/leapf/apphys/apdiss
+  -&gt; caldyn/caladvtrac/integrd, calfis/addfi, dissip, output, restart</code></pre>
+<p>最容易混淆的是 <code>iphysiq</code>、<code>iflag_phys</code> 和 <code>apphys</code>：<code>iphysiq</code> 是配置频率，<code>iflag_phys</code> 是物理模式，<code>apphys</code> 是当前步是否真正调用 physics 的临时门。只看 <code>run.def</code> 中 <code>iphysiq</code> 不能判断某一步一定会调用 physics，还必须知道 <code>purmats</code>、<code>forward/leapf</code>、<code>physics=(iflag_phys==1 or iflag_phys&gt;=100)</code> 和当前 <code>itau</code>。</p>
+<h2 id="串并行差异">串并行差异</h2>
+<p>串行 <code>leapfrog.F</code> 和并行 <code>leapfrog_p.F</code> 的时间门控一致，但并行版增加三个约束：</p>
+<ul>
+<li><code>dyn3dpar/gcm.F</code> 在进入主循环前初始化 MPI/OMP、读取/写出 band 分布，并在源码 204 行先 <code>SetDistrib(jj_Nb_Caldyn)</code>。</li>
+<li><code>leapfrog_p.F</code> 在动力、物理和耗散之间多次 <code>SetDistrib</code>，例如 492、596、1001、1042、1187、1346、1541 行，把当前纬向分布切到对应计算阶段。</li>
+<li>输出和 restart 前需要 gather/root 写出语义；门控仍由 <code>ok_dyn*</code>, <code>iperiod</code>, <code>iecri</code>, <code>ecritstart</code> 控制。</li>
+</ul>
+<p>所以并行问题要分两层查：先按本页确认时间门是否打开，再按 <a href="../modules/dyn3dpar/leapfrog_p.html">leapfrog_p</a>、<a href="../modules/dyn3dpar/parallel_lmdz.html">parallel_lmdz</a>、<a href="../modules/dyn3dpar/mod_hallo.html">mod_hallo</a> 查 band/halo/gather 是否把数据送到了正确分布。</p>
+<h2 id="常见排查入口">常见排查入口</h2>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>先查</th>
+<th>再查</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>physics 没有调用</td>
+<td><code>iflag_phys</code>, <code>iphysiq</code>, <code>MOD(itau,iphysiq)</code>, <code>forward/leapf</code></td>
+<td><a href="leapfrog-physics-coupling.html">leapfrog-physics-coupling</a>、MARS <code>call_physiq</code>。</td>
+</tr>
+<tr>
+<td>耗散没有调用</td>
+<td><code>dissip_period</code>, <code>apdiss</code>, <code>offline</code>, <code>iflag_phys&gt;=100</code></td>
+<td><a href="leapfrog-dissipation-conservation.html">leapfrog-dissipation-conservation</a>、<code>inidissip</code>。</td>
+</tr>
+<tr>
+<td>history 缺步</td>
+<td><code>ok_dyn_ins</code>, <code>iecri</code>, <code>forward/leapf</code> 半步过滤</td>
+<td><a href="leapfrog-output-restart.html">leapfrog-output-restart</a>、<a href="history-output-serial-parallel.html">history-output-serial-parallel</a>。</td>
+</tr>
+<tr>
+<td>dynav/平均输出频率不对</td>
+<td><code>iperiod</code>, <code>periodav</code>, <code>ok_dyn_ave</code>, <code>ok_dynzon</code></td>
+<td><a href="history-xios-getin-boundary.html">history-xios-getin-boundary</a>。</td>
+</tr>
+<tr>
+<td>restart 时间不对</td>
+<td><code>ecritstart</code>, <code>planet_type</code>, <code>JH_cur</code>, <code>time_0</code>, <code>day_end-day_ini</code></td>
+<td><a href="dynredem-restart.html">dynredem-restart</a>、<a href="../themes/restart-io.html">restart-io</a>。</td>
+</tr>
+<tr>
+<td>Mars nogcm 和 COMMON GCM 行为不一致</td>
+<td>入口是否为 MARS <code>phymars/nogcm.F90</code></td>
+<td>本页的 nogcm 边界说明和 <a href="../themes/dynamics-time-integration.html">dynamics-time-integration</a>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>MARS 标准生产脚本中完整串行 <code>gcm</code>、并行 <code>gcm</code> 和 MARS <code>nogcm</code> 的使用比例，需要结合具体实验脚本确认；源码只能证明这些入口都消费同一状态层。</li>
+<li>MARS <code>nogcm.F90</code> 注释掉 <code>day_step/iphysiq</code> 整除检查的运行学原因未在源码附近说明，本页只记录事实。</li>
+<li><code>purmats</code> 在当前 Mars 配置中的实际启用场景需要运行配置样例确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="common-state-control-contract.html">COMMON 状态/控制契约</a></li>
+<li><a href="../modules/dyn3d/gcm.html">gcm 入口</a></li>
+<li><a href="../modules/dyn3dpar/gcm.html">并行 gcm 入口</a></li>
+<li><a href="../modules/dyn3d/conf_gcm.html">conf_gcm 配置</a></li>
+<li><a href="leapfrog-state-contract.html">leapfrog 状态契约</a></li>
+<li><a href="leapfrog-time-scheduler.html">leapfrog 时间调度</a></li>
+<li><a href="leapfrog-physics-coupling.html">leapfrog physics 耦合</a></li>
+<li><a href="leapfrog-output-restart.html">leapfrog 输出和 restart</a></li>
+<li><a href="guide-config-contract.html">guide 配置与初始化契约</a></li>
+<li><a href="guide-input-fields.html">guide 输入场读取</a></li>
+<li><a href="../themes/dynamics-time-integration.html">动力时间推进主题</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

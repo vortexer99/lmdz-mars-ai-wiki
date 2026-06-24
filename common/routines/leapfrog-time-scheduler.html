@@ -1,0 +1,154 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>leapfrog-time-scheduler - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/leapfrog-time-scheduler.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="leapfrog-时间步调度">leapfrog 时间步调度</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\leapfrog.F
+LMDZ.MARS\libf\dynphy_lonlat\phymars\leapfrog_nogcm.F</code></pre>
+<p>Mars 运行参与度：<code>必经</code>。COMMON 6.3 完整 GCM 使用 <code>leapfrog.F</code> 的 Matsuno/leapfrog 调度；MARS nogcm 路径复用同类标志和 physics 调度，只是去掉完整动力和耗散门控。</p>
+<h2 id="终止步数">终止步数</h2>
+<p><code>itaufin</code> 的优先级：</p>
+<ol type="1">
+<li><code>nday&gt;=0</code>：<code>itaufin=nday*day_step</code>。</li>
+<li><code>nday&lt;0</code>：按 <code>-nday</code> 个动力步运行。</li>
+<li><code>less1day</code>：覆盖为 <code>int(fractday*day_step)</code>。</li>
+<li><code>ndynstep&gt;0</code>：最终覆盖为指定动力步数。</li>
+</ol>
+<p>随后 <code>itaufinp1=itaufin+1</code>。循环终止不是自然 <code>RETURN</code>，而是在达到结束条件时用 <code>abort_gcm(modname,'Simulation finished',0)</code> 停止。</p>
+<h2 id="label-结构">label 结构</h2>
+<p>主循环用两个 label 管理：</p>
+<table>
+<thead>
+<tr>
+<th>label</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td>Matsuno forward 步入口；保存上一时刻状态，设 <code>forward=.TRUE.</code>、<code>leapf=.FALSE.</code>、<code>dt=dtvr</code></td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td>backward 或 leapfrog 步入口；根据当前标志计算调度门控并执行动力/物理/输出</td>
+</tr>
+</tbody>
+</table>
+<p>非 <code>purmats</code> 路径的状态转换：</p>
+<ol type="1">
+<li>从 label 1 开始 forward 步。</li>
+<li>若 <code>MOD(itau-1,iperiod)==0</code> 且 <code>forward</code>，进入 backward 步：<code>forward=.FALSE.</code>, <code>leapf=.FALSE.</code>, <code>GO TO 2</code>。</li>
+<li>backward 完成后进入第一个 leapfrog 步：<code>leapf=.TRUE.</code>, <code>dt=2*dtvr</code>。</li>
+<li>常规 leapfrog 步保持 <code>leapf=.TRUE.</code>、<code>dt=2*dtvr</code>。</li>
+<li>每当 <code>MOD(itau,iperiod)==0</code>，回到 label 1 重新执行 Matsuno forward。</li>
+</ol>
+<p><code>purmats</code> 路径只在 forward/backward 之间往返，不进入常规 leapfrog。</p>
+<h2 id="门控标志">门控标志</h2>
+<p>每次进入 label 2 都重新设置：</p>
+<table>
+<thead>
+<tr>
+<th>标志</th>
+<th>COMMON 6.3 完整 <code>leapfrog.F</code></th>
+<th>MARS <code>phymars/leapfrog_nogcm.F</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apphys</code></td>
+<td>物理调用门，由 <code>iphysiq</code> 和 <code>physics</code> 控制</td>
+<td>同左</td>
+</tr>
+<tr>
+<td><code>conser</code></td>
+<td>守恒诊断门，由 <code>iconser</code> 控制</td>
+<td>同左</td>
+</tr>
+<tr>
+<td><code>apdiss</code></td>
+<td>耗散门，由 <code>dissip_period</code> 控制；浅水或 <code>dissip_period==0</code> 会关闭</td>
+<td>nogcm 不使用</td>
+</tr>
+<tr>
+<td><code>lafin</code></td>
+<td>最后一个 physics 调用标志</td>
+<td>同左</td>
+</tr>
+</tbody>
+</table>
+<p>完整 GCM 中：</p>
+<ul>
+<li><code>purmats</code>：<code>conser</code> 在 forward 且 <code>MOD(itau,iconser)==0</code>；<code>apdiss</code> 在非 forward 且 <code>MOD(itau,dissip_period)==0</code>；<code>apphys</code> 在非 forward 且 <code>MOD(itau,iphysiq)==0</code>。</li>
+<li>非 <code>purmats</code>：<code>conser</code> 看 <code>MOD(itau,iconser)</code>；<code>apdiss</code> 看 <code>MOD(itau+1,dissip_period)</code> 且非 forward；<code>apphys</code> 看 <code>MOD(itau+1,iphysiq)</code>。</li>
+</ul>
+<h2 id="mars-日期推进">Mars 日期推进</h2>
+<p>完整 <code>leapfrog.F</code> 对 Mars 日期有特殊处理：</p>
+<ul>
+<li>label 1 日期用 <code>jH_ref + hour_ini + mod(itau+1,day_step)/day_step</code>。</li>
+<li>physics 前若 <code>planet_type</code> 为 <code>mars</code> 或 <code>generic</code>，<code>jD_cur=int(day_ini+itau/day_step)</code>。</li>
+<li>Mars physics 小时用 <code>hour_ini + mod(itau,day_step)/day_step</code>。</li>
+</ul>
+<p>MARS <code>phymars/leapfrog_nogcm.F</code> 只用 <code>start_time</code> 构造小时；COMMON 6.3 已删除 <code>dyn3d/leapfrog_nogcm.F</code>，因此这里不再做 COMMON nogcm 对照。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>iphysiq</code> 和 <code>dissip_period</code> 的判断在完整 GCM 中分别看 <code>itau+1</code> 或 <code>itau</code>，取决于 <code>purmats</code> 和 <code>forward</code>。</li>
+<li>history/restart 输出在时间步末尾执行，发生在状态转换前。</li>
+<li>Mars 日期进入 <code>calfis</code> 的时刻不是简单的 <code>itau+1</code>，物理调用处对 Mars 使用 <code>itau</code> 的小时。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>iperiod</code> 同时参与 Matsuno 重启动和输出平均时段，二者在所有 Mars 配置下是否总是同一周期需由配置页确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3d/conf_gcm.html">conf_gcm</a></li>
+<li><a href="leapfrog-output-restart.html">leapfrog 输出和 restart</a></li>
+<li><a href="leapfrog-physics-coupling.html">leapfrog 动力-物理耦合</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

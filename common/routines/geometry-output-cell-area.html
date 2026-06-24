@@ -1,0 +1,105 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>geometry-output-cell-area - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/geometry-output-cell-area.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="geometry-output-cell-area">geometry output cell area</h1>
+<p>页面状态：6.3 返工完成。 输入范围：<code>phy_common/geometry_mod.F90</code>、<code>dynphy_lonlat/inigeomphy_mod.F90</code>。 Mars 运行参与度：条件经过；Mars 物理列几何和 lon-lat 输出可读取该状态。</p>
+<h2 id="63-变化">6.3 变化</h2>
+<p>6.3 把物理 cell area 与 lon-lat 输出 cell area 分开：</p>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th style="text-align: right;">位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cell_area_for_lonlat_outputs(:)</code></td>
+<td style="text-align: right;"><code>geometry_mod.F90:32</code></td>
+<td>保存输出专用 lon-lat 面积。</td>
+</tr>
+<tr>
+<td><code>THREADPRIVATE(cell_area_for_lonlat_outputs)</code></td>
+<td style="text-align: right;"><code>geometry_mod.F90:36</code></td>
+<td>OMP 线程私有。</td>
+</tr>
+<tr>
+<td><code>init_geometry_cell_area_for_outputs</code></td>
+<td style="text-align: right;"><code>geometry_mod.F90:84</code></td>
+<td>初始化输出面积缓存。</td>
+</tr>
+<tr>
+<td><code>CALL init_geometry_cell_area_for_outputs</code></td>
+<td style="text-align: right;"><code>inigeomphy_mod.F90:241</code></td>
+<td>从 dyn-phys 几何初始化阶段写入。</td>
+</tr>
+</tbody>
+</table>
+<p><code>inigeomphy_mod.F90:14</code> 导入 <code>init_geometry_cell_area_for_outputs</code>，说明输出面积初始化是几何桥接的一部分，不是后处理临时变量。</p>
+<h2 id="数据流">数据流</h2>
+<pre class="text"><code>inigeomphy_mod
+  -&gt; 计算/准备 airefi_for_outputs
+  -&gt; init_geometry_cell_area_for_outputs(klon_omp, airefi_for_outputs)
+       -&gt; allocate cell_area_for_lonlat_outputs(klon)
+       -&gt; copy input area</code></pre>
+<p><code>geometry_mod.F90:88</code> 注释把输入称为 tweaked lon-lat mesh。该数组用于输出网格面积，避免把物理列面积和 lon-lat 输出面积极点处理混在一起。</p>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>诊断输出面积问题时，先确认使用的是 physics cell area 还是 <code>cell_area_for_lonlat_outputs</code>。</li>
+<li>极点差异通常来自输出 lon-lat 网格的特殊处理，不应直接归咎于物理列面积。</li>
+<li>OMP 运行要确认每个线程已初始化 threadprivate 面积缓存。</li>
+<li>如果输出模块读不到该数组，回溯到 <code>inigeomphy_mod</code> 是否调用了 <code>init_geometry_cell_area_for_outputs</code>。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../themes/restart-io.html">restart-io</a></li>
+<li><a href="../modules/phy_common/geometry-grid-layers.html">geometry-grid-layers</a></li>
+<li><a href="../modules/dynphy_lonlat/inigeomphy_mod.html">inigeomphy_mod</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

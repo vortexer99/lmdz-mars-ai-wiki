@@ -1,0 +1,205 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>index - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dynphy_lonlat/index.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="dynphy_lonlat-总览">dynphy_lonlat 总览</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dynphy_lonlat</code></pre>
+<h2 id="职责">职责</h2>
+<p><code>dynphy_lonlat</code> 提供 lon-lat 动力和物理之间的接口例程、动力/物理格点变换、物理几何初始化和 A/B 网格转换。当前目录根部有 9 个文件，另有 <code>phyvenus/</code> 和 <code>phytitan.old/</code> 行星专用子目录。</p>
+<p>Mars 运行参与度：根部共享接口为 <code>条件经过</code> 或 <code>接口兼容</code>；<code>phyvenus/</code>、<code>phytitan.old/</code> 为 <code>非 Mars 路径</code>。MARS dyn1d 直接转发 <code>mod_interface_dyn_phys.F90</code>，MARS <code>iniphysiq_mod.F90</code> 使用并调用 COMMON <code>inigeomphy_mod</code>。</p>
+<h2 id="目录内容">目录内容</h2>
+<table>
+<thead>
+<tr>
+<th>子目录/文件</th>
+<th>Mars 运行参与度</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="calfis.html">calfis.F</a></td>
+<td><code>条件经过</code></td>
+<td>串行动力调用物理的 lon-lat 接口。</td>
+</tr>
+<tr>
+<td><a href="calfis_p.html">calfis_p.F</a></td>
+<td><code>条件经过</code>/<code>接口兼容</code></td>
+<td>并行动力调用物理接口、物理列映射、OMP split 调用和 tendency 回写。</td>
+</tr>
+<tr>
+<td><a href="../../routines/dyn-phys-grid-transforms.html">gr_dyn_fi.F, gr_fi_dyn.F</a></td>
+<td><code>条件经过</code></td>
+<td>动力格点和物理格点之间的串行转换。</td>
+</tr>
+<tr>
+<td><a href="../../routines/dyn-phys-grid-transforms.html">gr_dyn_fi_p.F, gr_fi_dyn_p.F</a></td>
+<td><code>接口兼容</code>/<code>条件经过</code></td>
+<td>并行版本格点转换。</td>
+</tr>
+<tr>
+<td><a href="inigeomphy_mod.html">inigeomphy_mod.F90</a></td>
+<td><code>必经</code>/<code>条件经过</code></td>
+<td>初始化物理侧几何，MARS <code>iniphysiq_mod</code> 调用。</td>
+</tr>
+<tr>
+<td><a href="mod_interface_dyn_phys.html">mod_interface_dyn_phys.F90</a></td>
+<td><code>接口兼容</code></td>
+<td>动力-物理接口状态模块，MARS dyn1d 直接转发。</td>
+</tr>
+<tr>
+<td><a href="grid_atob_m.html">grid_atob_m.F90</a></td>
+<td><code>条件经过</code></td>
+<td>A/B 网格转换、粗细格重采样、海冰/粗糙度插值辅助。</td>
+</tr>
+<tr>
+<td><code>phyvenus/</code></td>
+<td><code>非 Mars 路径</code></td>
+<td>Venus 专用物理接口和 start/restart/archive 工具。</td>
+</tr>
+<tr>
+<td><code>phytitan.old/</code></td>
+<td><code>非 Mars 路径</code></td>
+<td>Titan 旧物理接口和 start/restart/archive 工具。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与其他目录的关系">与其他目录的关系</h2>
+<table>
+<thead>
+<tr>
+<th>相关目录</th>
+<th>关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dyn3d/</code></td>
+<td>串行主循环和入口在物理启用时通过 lon-lat 接口调用物理初始化和物理步。</td>
+</tr>
+<tr>
+<td><code>dyn3dpar/</code></td>
+<td>并行主循环对应使用 <code>_p</code> 接口和并行格点转换。</td>
+</tr>
+<tr>
+<td><code>phy_common/</code></td>
+<td>物理侧网格、并行分布、XIOS/write_field 等公共层与本目录接口衔接。</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars</code></td>
+<td>Mars 有自己的行星物理接口实现，同时复用 COMMON 根部共享模块。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="关键文件">关键文件</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="mod_interface_dyn_phys.html">mod_interface_dyn_phys.F90</a></td>
+<td>MARS dyn1d 直接转发，保存接口初始化状态。</td>
+</tr>
+<tr>
+<td><a href="inigeomphy_mod.html">inigeomphy_mod.F90</a></td>
+<td>MARS 物理初始化调用 <code>inigeomphy</code>。</td>
+</tr>
+<tr>
+<td><a href="calfis.html">calfis.F</a></td>
+<td>串行动力-物理调用核心。</td>
+</tr>
+<tr>
+<td><a href="calfis_p.html">calfis_p.F</a></td>
+<td>并行动力-物理调用核心。</td>
+</tr>
+<tr>
+<td><a href="grid_atob_m.html">grid_atob_m.F90</a></td>
+<td>物理侧输入数据重采样和网格转换辅助。</td>
+</tr>
+<tr>
+<td><a href="../../routines/dyn-phys-grid-transforms.html">gr_dyn_fi*.F, gr_fi_dyn*.F</a></td>
+<td>动力格点与物理格点场互转。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="典型流程">典型流程</h2>
+<ol type="1">
+<li>动力入口初始化动力几何和常量后，物理初始化路径调用 <code>iniphysiq</code>。</li>
+<li>MARS 物理初始化可通过 COMMON <code>inigeomphy_mod</code> 生成物理侧经纬度、面积和映射信息。</li>
+<li>时间推进中，动力状态通过 <code>calfis</code> 或行星侧同类接口整理为物理可消费的 lon-lat 物理点场。</li>
+<li>物理 tendency 再经格点转换或接口数组返回动力侧。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>根部共享接口和 <code>phyvenus/phytitan.old</code> 不能混写；同名 <code>newstart/readstart/start2archive</code> 是其他行星变体，不等价于 Mars 实现。</li>
+<li><code>gr_dyn_fi</code> 与 <code>gr_fi_dyn</code> 的维度方向相反，详见 <a href="../../routines/dyn-phys-grid-transforms.html">动力/物理格点互转</a>。</li>
+<li>并行 physics 差异要同时查 <a href="calfis_p.html">calfis_p</a>、<code>mod_interface_dyn_phys</code> 映射和 <code>phy_common</code> 物理侧分布。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>grid_atob_m.F90</code> 在 Mars 当前输入数据预处理中的具体调用点需后续输入数据任务核验。</li>
+<li><code>calfis.F</code> 与 MARS <code>phymars</code> 物理调用链的直接/间接关系需后续主题页补完整证据。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../libf-overview.html">libf 总览</a></li>
+<li><a href="../../architecture/project-structure.html">项目结构</a></li>
+<li><a href="../../reference/mars-common-map.html">MARS-COMMON 文件/功能映射表</a></li>
+<li><a href="../../reference/common-consumer-map.html">COMMON 使用方映射表</a></li>
+<li><a href="mod_interface_dyn_phys.html">mod_interface_dyn_phys</a></li>
+<li><a href="inigeomphy_mod.html">inigeomphy_mod</a></li>
+<li><a href="calfis.html">calfis</a></li>
+<li><a href="calfis_p.html">calfis_p</a></li>
+<li><a href="grid_atob_m.html">grid_atob_m</a></li>
+<li><a href="../../routines/dyn-phys-grid-transforms.html">动力/物理格点互转</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

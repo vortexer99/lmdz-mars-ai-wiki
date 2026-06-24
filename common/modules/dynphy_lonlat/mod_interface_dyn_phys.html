@@ -1,0 +1,153 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mod_interface_dyn_phys - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dynphy_lonlat/mod_interface_dyn_phys.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mod_interface_dyn_physf90">mod_interface_dyn_phys.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dynphy_lonlat\mod_interface_dyn_phys.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>mod_interface_dyn_phys.F90</code> 定义动力-物理接口索引模块 <code>mod_interface_dyn_phys</code>。并行物理编译时，它分配并填充 <code>index_i/index_j</code>，把当前 MPI 物理列映射回动力经纬索引；非并行物理编译时，<code>Init_interface_dyn_phys</code> 是空例程，只保留接口兼容。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>接口兼容/条件经过：MARS dyn1d 直接转发本文件；并行物理路径初始化动力-物理索引时经过。串行非 `CPP_PARA` 构建只使用 dummy 初始化接口。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_interface_dyn_phys</code></td>
+<td>module</td>
+<td>4</td>
+<td>保存动力-物理接口索引。</td>
+</tr>
+<tr>
+<td><code>index_i</code></td>
+<td><code>INTEGER,ALLOCATABLE,SAVE</code></td>
+<td>5</td>
+<td>每个物理列对应的动力经向 i 索引。</td>
+</tr>
+<tr>
+<td><code>index_j</code></td>
+<td><code>INTEGER,ALLOCATABLE,SAVE</code></td>
+<td>6</td>
+<td>每个物理列对应的动力纬向 j 索引。</td>
+</tr>
+<tr>
+<td><code>Init_interface_dyn_phys</code></td>
+<td>subroutine</td>
+<td>13 或 57</td>
+<td>并行分支填充索引；非并行分支为空例程。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="并行分支依赖">并行分支依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data</code></td>
+<td>提供 <code>klon_mpi</code>、<code>ii_begin/ii_end</code>、<code>jj_begin/jj_end</code>、<code>is_north_pole_dyn/is_south_pole_dyn</code> 等物理侧分布信息。</td>
+</tr>
+<tr>
+<td><code>dimensions.h</code></td>
+<td>提供 <code>iim</code> 等动力网格维度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="并行初始化逻辑">并行初始化逻辑</h2>
+<ol type="1">
+<li>分配 <code>index_i(klon_mpi)</code> 和 <code>index_j(klon_mpi)</code>。</li>
+<li>从 <code>k=1</code> 开始填充物理列到动力 <code>(i,j)</code> 的映射。</li>
+<li>如果当前 MPI 物理域包含北极动力点，则第一列映射为 <code>(1,1)</code>；否则从 <code>ii_begin:iim</code> 填当前 <code>jj_begin</code> 行。</li>
+<li>对中间纬圈 <code>jj_begin+1:jj_end-1</code>，按 <code>i=1:iim</code> 填满整圈。</li>
+<li>如果包含南极动力点，最后映射为 <code>(1,jj_end)</code>；否则填 <code>i=1:ii_end</code> 的最后一行。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>allocate index_i/index_j for klon_mpi
+k = 1
+if north pole owned:
+    map k to (1,1)
+else:
+    map partial first latitude row from ii_begin to iim
+for j = jj_begin+1 to jj_end-1:
+    map all longitudes 1..iim
+if south pole owned:
+    map k to (1,jj_end)
+else:
+    map partial last latitude row from 1 to ii_end</code></pre>
+<h2 id="副作用">副作用</h2>
+<p>本模块只分配和保存索引数组，不写文件，也不直接变换物理场。后续 <code>calfis_p</code>、<code>gr_dyn_fi_p</code>、<code>gr_fi_dyn_p</code> 使用这些索引解释物理列与动力网格的对应关系。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>极点只映射到 <code>i=1</code> 的单点，而普通纬圈按完整或局部经度段展开。</li>
+<li><code>index_i/index_j</code> 的长度是 <code>klon_mpi</code>，不是全局 <code>klon_glo</code> 或 OpenMP 局部 <code>klon_omp</code>。</li>
+<li>非 <code>CPP_PARA</code> 分支不分配数组；调用方如果需要索引，必须确认编译宏。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>mod_phys_lmdz_mpi_data</code> 中 <code>ii_begin/ii_end</code> 的边界定义需要物理侧 MPI data 页补全。</li>
+<li>Mars dyn1d 转发本文件时是否永远走 dummy 分支，需要结合 dyn1d 编译宏确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dynphy_lonlat 总览</a></li>
+<li><a href="inigeomphy_mod.html">inigeomphy_mod</a></li>
+<li><a href="calfis.html">calfis</a></li>
+<li><a href="../../routines/dyn-phys-grid-transforms.html">动力/物理格点互转</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,197 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>infotrac-family-isotopes - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/infotrac-family-isotopes.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="infotrac-父子-tracer-与-isotope-表">infotrac 父子 tracer 与 isotope 表</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\infotrac.F90</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。Mars 常规 tracer 配置必经父子表构造；isotope 表只在 <code>traceur.def</code> 中存在水同位素命名和对应 tracer family 时启用。</p>
+<h2 id="父子-tracer-契约">父子 tracer 契约</h2>
+<p><code>traceur.def</code> 读取后的 <code>tnom_transp(iq)</code> 决定 family 关系：</p>
+<table>
+<thead>
+<tr>
+<th>carrier</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>air</code></td>
+<td>当前 tracer 是父 tracer，<code>iqpere(iq)=0</code>，<code>nqperes</code> 加 1</td>
+</tr>
+<tr>
+<td>某个已定义 tracer 名</td>
+<td>当前 tracer 是子 tracer，<code>iqpere(iq)</code> 指向该父 tracer</td>
+</tr>
+<tr>
+<td>找不到匹配父 tracer</td>
+<td>abort，提示 <code>Un traceur est orphelin</code></td>
+</tr>
+</tbody>
+</table>
+<p>构造直接子关系后，源码还沿 <code>iqpere</code> 向上回溯，累计每个父 tracer 的全部后代：</p>
+<ul>
+<li><code>nqfils(ipere)</code>：直接子 tracer 数。</li>
+<li><code>nqdesc(ipere)</code>：直接和间接后代总数。</li>
+<li><code>nqdesc_tot</code>：所有父子/后代关系总数。</li>
+<li><code>iqfils(:,ipere)</code>：先记录直接子，再被后代累计逻辑重写/扩展为后代表。</li>
+</ul>
+<h2 id="advection-约束">advection 约束</h2>
+<p>family tracer 会被输送内核用来保持比例或 carrier 关系，因此初始化阶段强制：</p>
+<table>
+<thead>
+<tr>
+<th>对象</th>
+<th>允许 scheme</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>子 tracer</td>
+<td><code>iadv=10</code></td>
+</tr>
+<tr>
+<td>有子 tracer 的父 tracer</td>
+<td><code>iadv=10</code> 或 <code>iadv=14</code></td>
+</tr>
+</tbody>
+</table>
+<p>如果子 tracer 使用其他 scheme，或父 tracer 不在 <code>10/14</code> 内，<code>infotrac_init</code> 直接 abort。</p>
+<h2 id="isotope-识别">isotope 识别</h2>
+<p><code>infotrac_isoinit(tnom_0,nqtrue)</code> 在父子表之后执行。它使用固定 isotope 名：</p>
+<pre class="text"><code>eau, HDO, O18, O17, HTO</code></pre>
+<p>扫描范围是 <code>iq=nqo+1,nqtot</code>，即跳过水相本身。识别有两类：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>条件</th>
+<th>写入</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>isotope tracer</td>
+<td>名称等于 <code>水相名_isotope名</code></td>
+<td><code>iso_num/iso_indnum/phase_num</code></td>
+</tr>
+<tr>
+<td>isotope 子 tracer</td>
+<td>当前 tracer 有父 tracer，且父 tracer 名等于 <code>水相名_isotope名</code></td>
+<td><code>iso_num/iso_indnum/zone_num/phase_num</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="一致性检查">一致性检查</h2>
+<p>若某 isotope 在第一个 phase 中出现一次，源码要求：</p>
+<ol type="1">
+<li>所有 phase 都有同样的 isotope 数。</li>
+<li>所有 phase 的 isotope 子 tracer 数相同。</li>
+<li>不同 isotope 的 <code>ntraceurs_zone</code> 一致。</li>
+<li>如果 phase 1 的某 isotope 计数既不是 0 也不是 1，则 abort。</li>
+</ol>
+<p>这些检查通过后：</p>
+<ul>
+<li><code>niso</code> 是启用的 isotope 种数。</li>
+<li><code>ntraceurs_zone</code> 是每个 isotope 的子 tracer zone 数。</li>
+<li><code>ntraciso=niso*(ntraceurs_zone+1)</code>。</li>
+<li><code>ok_isotopes</code> 表示是否有 isotope。</li>
+<li><code>ok_isotrac</code> 表示是否有 isotope 子 tracer zone。</li>
+</ul>
+<h2 id="运行开关和映射表">运行开关和映射表</h2>
+<p>当 <code>ok_isotopes=.true.</code> 时，<code>infotrac_isoinit</code> 通过 <code>getin</code> 读取：</p>
+<table>
+<thead>
+<tr>
+<th>开关</th>
+<th>默认</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ok_iso_verif</code></td>
+<td><code>.false.</code></td>
+<td>下游 <code>advtrac</code>/<code>vlspltgen_p</code> 可据此调用 isotope 检查</td>
+</tr>
+<tr>
+<td><code>ok_init_iso</code></td>
+<td><code>.false.</code></td>
+<td>isotope 初值相关控制，具体物理含义待后续确认</td>
+</tr>
+</tbody>
+</table>
+<p>随后填表：</p>
+<ul>
+<li><code>iqiso(ntraciso,nqo)</code>：从 isotope/zone/phase 组合映射回 tracer 序号。</li>
+<li><code>index_trac(ntraceurs_zone,niso)</code>：从 zone 和 isotope 序号给出 <code>iqiso</code> 的行索引。</li>
+<li><code>tnat</code> 和 <code>alpha_ideal</code> 保存自然丰度/理想分馏常数类默认值。</li>
+</ul>
+<h2 id="下游使用">下游使用</h2>
+<ul>
+<li><a href="advtrac-serial-parallel.html">advtrac 串并行对照</a> 在 <code>ok_iso_verif</code> 为真时调用 isotope 检查。</li>
+<li><a href="../modules/dyn3dpar/vlspltgen_p.html">vlspltgen_p</a> 使用 family 表在并行 Van Leer 分裂输送中处理父子 tracer。</li>
+<li><code>dyn3d/vlspltqs.F</code>、<code>dyn3dpar/vlsplt_p.F</code> 等也通过 <code>nqfils/nqdesc/iqfils</code> 保持饱和/比例输送路径的一致性。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>tnom_transp</code> 中的父 tracer 必须已经出现在 tracer 列表中，否则会被判为孤儿。</li>
+<li>isotope 名称识别是字符串规则，不是配置表查找；水相名、下划线和 isotope 后缀必须匹配。</li>
+<li><code>ok_iso_verif</code> 不是自动随 isotope 开启而开启；它需要 <code>getin</code> 配置。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="vlsplt-serial-family-tracers.html">vlsplt 串行父子 tracer</a></li>
+<li><a href="infotrac-advection-schemes.html">infotrac advection scheme</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>tnat/alpha_ideal</code> 的单位和 Mars isotope 物理解释需要物理包页面补充。</li>
+<li><code>iqfils</code> 在直接子表和后代表之间复用的最终语义，应在 Van Leer family transport hard/子页中再验证。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

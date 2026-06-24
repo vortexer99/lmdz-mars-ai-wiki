@@ -1,0 +1,342 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ioipsl-local-support - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/misc/ioipsl-local-support.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="ioipsl-本地字符串和错误支撑">IOIPSL 本地字符串和错误支撑</h1>
+<p>页面状态：TASK-0174 完成。 源码基线：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code>。 Mars 运行参与度：条件经过。Mars 编译不使用外部 IOIPSL <code>getin</code>、或 COMMON fallback <code>ioipsl_getincom</code> 被动力/物理配置读取调用时，本页两个本地 IOIPSL helper 参与 <code>.def</code> 文本清洗、logical 字符串识别和错误报告。若构建链接外部 IOIPSL，本页仍是接口兼容边界。</p>
+<h2 id="源码范围">源码范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\ioipsl_stringop.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\ioipsl_errioipsl.F90</code></pre>
+<p>两个文件都是从 IOIPSL v2_1_8 抽出的本地实现。<code>ioipsl_getincom.F90</code> 直接使用：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">USE</span> ioipsl_errioipsl, <span class="kw">ONLY</span> : ipslerr</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">USE</span> ioipsl_stringop, <span class="kw">ONLY</span> : nocomma, cmpblank, strlowercase</span></code></pre></div>
+<p>因此，本页关注它们在 fallback <code>getin</code> 中实际承担的职责，而不是把 IOIPSL 通用 API 写成 Mars 主路径承诺。</p>
+<h2 id="模块和符号清单">模块和符号清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th style="text-align: right;">行数</th>
+<th>模块</th>
+<th>公开/可用符号</th>
+<th><code>getincom</code> 直接调用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ioipsl_stringop.F90</code></td>
+<td style="text-align: right;">243</td>
+<td><code>ioipsl_stringop</code></td>
+<td><code>cmpblank</code>, <code>cntpos</code>, <code>findpos</code>, <code>find_str</code>, <code>nocomma</code>, <code>strlowercase</code>, <code>struppercase</code>, <code>gensig</code>, <code>find_sig</code></td>
+<td><code>nocomma</code>, <code>cmpblank</code>, <code>strlowercase</code></td>
+</tr>
+<tr>
+<td><code>ioipsl_errioipsl.F90</code></td>
+<td style="text-align: right;">219</td>
+<td><code>ioipsl_errioipsl</code></td>
+<td><code>ipslnlf</code>, <code>ipslerr</code>, <code>ipslerr_act</code>, <code>ipslerr_inq</code>, <code>histerr</code>, <code>ipsldbg</code></td>
+<td><code>ipslerr</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>ioipsl_stringop</code> 没有显式 <code>PRIVATE</code>，因此模块过程默认可见。<code>ioipsl_errioipsl</code> 显式 <code>PRIVATE</code>，只公开上表列出的 6 个接口。</p>
+<h2 id="ioipsl_stringop-逻辑"><code>ioipsl_stringop</code> 逻辑</h2>
+<h3 id="cmpblankstr压缩连续空白"><code>cmpblank(str)</code>：压缩连续空白</h3>
+<p>位置：21-41 行。</p>
+<p>输入输出同一个字符串 <code>str</code>。例程先取 <code>LEN_TRIM(str)</code>，然后从左到右扫描。如果发现连续两个空格，就把后半段整体左移一位，并把有效长度减 1；否则扫描位置加 1。</p>
+<p>效果是把连续空格压成一个空格，但不主动 <code>ADJUSTL</code>，也不删除单个分隔空格。</p>
+<p>在 fallback <code>getin</code> 中，<code>getin_readdef</code> 对 value 文本调用它：</p>
+<pre class="text"><code>raw value -&gt; nocomma -&gt; cmpblank -&gt; getin_decrypt</code></pre>
+<p>这一步决定 <code>a, b   c</code> 会先变成 <code>a  b   c</code>，再压成 <code>a b c</code>，使后续多值拆分按单空格工作。</p>
+<h3 id="nocommastr逗号转空格"><code>nocomma(str)</code>：逗号转空格</h3>
+<p>位置：117-131 行。</p>
+<p>逐字符扫描 <code>LEN_TRIM(str)</code> 范围，遇到 <code>,</code> 就替换为空格。它不理解引号和转义，只做字符替换。</p>
+<p>Mars <code>.def</code> 配置里如果写 <code>key = 1,2,3</code>，fallback 读入后会把逗号转成空格，再由 <code>getin_decrypt</code> 拆成向量项。这个行为解释了为什么逗号和空格在许多 <code>getin</code> 向量值中等价。</p>
+<h3 id="strlowercasestrascii-小写化"><code>strlowercase(str)</code>：ASCII 小写化</h3>
+<p>位置：133-148 行。</p>
+<p>逐字符取得 <code>IACHAR</code>，只把 ASCII <code>A-Z</code> 转成 <code>a-z</code>。非 ASCII 字符、数字和符号保持原样。</p>
+<p><code>ioipsl_getincom.F90</code> 在 logical 解析处调用它：先将候选 value 小写化，再搜索 <code>"tru"</code>/<code>"y"</code> 或 <code>"fal"</code>/<code>"n"</code>。因此 <code>TRUE</code>, <code>True</code>, <code>yes</code>, <code>No</code> 等大小写形式都能被识别；但这不是完整自然语言解析，只是源码中的子串检测规则。</p>
+<h3 id="其他-string-helper">其他 string helper</h3>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th style="text-align: right;">位置</th>
+<th>算法</th>
+<th>当前 Mars fallback getin 用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cntpos(c_c,l_c,c_r,l_r)</code></td>
+<td style="text-align: right;">43-68</td>
+<td>用 <code>INDEX</code> 循环统计子串出现次数。</td>
+<td>当前 <code>ioipsl_getincom.F90</code> 未直接调用。</td>
+</tr>
+<tr>
+<td><code>findpos(c_c,l_c,c_r,l_r)</code></td>
+<td style="text-align: right;">70-84</td>
+<td><code>INDEX</code> 查首次位置，没找到返回 <code>-1</code>。</td>
+<td>当前 <code>ioipsl_getincom.F90</code> 未直接调用。</td>
+</tr>
+<tr>
+<td><code>find_str(str_tab,str,pos)</code></td>
+<td style="text-align: right;">86-115</td>
+<td>线性扫描字符串数组，<code>TRIM</code> 后相等则返回位置。</td>
+<td>当前 <code>ioipsl_getincom.F90</code> 未直接调用。</td>
+</tr>
+<tr>
+<td><code>struppercase(str)</code></td>
+<td style="text-align: right;">150-165</td>
+<td>ASCII <code>a-z</code> 转 <code>A-Z</code>。</td>
+<td>当前 <code>ioipsl_getincom.F90</code> 未直接调用。</td>
+</tr>
+<tr>
+<td><code>gensig(str,sig)</code></td>
+<td style="text-align: right;">167-185</td>
+<td>对前 30 个字符做 prime-weighted <code>IACHAR</code> 加权和。</td>
+<td>当前 <code>ioipsl_getincom.F90</code> 未直接调用。</td>
+</tr>
+<tr>
+<td><code>find_sig(...)</code></td>
+<td style="text-align: right;">187-240</td>
+<td>先按签名差值筛候选，再用完整字符串长度和包含关系确认。</td>
+<td>当前 <code>ioipsl_getincom.F90</code> 未直接调用。</td>
+</tr>
+</tbody>
+</table>
+<p><code>gensig/find_sig</code> 源码注释明确签名不是唯一值，所以命中签名后还要验证原字符串。若后续 hard 页追踪旧 IOIPSL 表查找性能，可以引用这一点；当前 Mars <code>getincom</code> 主线不依赖它。</p>
+<h2 id="ioipsl_errioipsl-状态和错误级别"><code>ioipsl_errioipsl</code> 状态和错误级别</h2>
+<p>模块保存 4 个全局状态：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>初值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>n_l</code></td>
+<td><code>6</code></td>
+<td><code>ipslerr</code> 输出 logical unit，默认 stdout。</td>
+</tr>
+<tr>
+<td><code>ilv_cur</code></td>
+<td><code>0</code></td>
+<td>最近一次有效错误级别。</td>
+</tr>
+<tr>
+<td><code>ilv_max</code></td>
+<td><code>0</code></td>
+<td>自最近一次 <code>ipslerr_act</code> 后见过的最高错误级别。</td>
+</tr>
+<tr>
+<td><code>ioipsl_debug</code></td>
+<td><code>.FALSE.</code></td>
+<td>debug 开关，供 <code>ipsldbg</code> 查询和设置。</td>
+</tr>
+<tr>
+<td><code>lact_mode</code></td>
+<td><code>.TRUE.</code></td>
+<td>fatal 错误是否立即 <code>STOP</code>。</td>
+</tr>
+</tbody>
+</table>
+<p><code>ipslerr</code> 和 <code>histerr</code> 使用同一套级别含义：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;"><code>plev</code></th>
+<th>含义</th>
+<th>默认行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>note</td>
+<td>打印信息，不停止。</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>warning</td>
+<td>打印警告，不停止。</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>fatal</td>
+<td>打印 fatal 信息；<code>ipslerr</code> 在 <code>lact_mode=.TRUE.</code> 时停止，<code>histerr</code> 总是停止。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="ipslerr-调用语义"><code>ipslerr</code> 调用语义</h2>
+<p>位置：54-90 行。</p>
+<p><code>ipslerr(plev, pcname, pstr1, pstr2, pstr3)</code> 会：</p>
+<ol type="1">
+<li>如果 <code>plev</code> 在 1 到 3 之间，更新 <code>ilv_cur</code> 和 <code>ilv_max</code>。</li>
+<li>向 logical unit <code>n_l</code> 写一行消息头，包含 note/warning/fatal 文本和调用例程名。</li>
+<li>写三行解释字符串。</li>
+<li>如果 <code>plev==3</code> 且 <code>lact_mode=.TRUE.</code>，执行 <code>STOP 'Fatal error from IOIPSL. See stdout for more details'</code>。</li>
+</ol>
+<p><code>ioipsl_getincom.F90</code> 用 <code>ipslerr(2,...)</code> 表示可继续的 <code>.def</code> 文件缺失或部分默认警告；用 <code>ipslerr(3,...)</code> 表示类型不匹配、读值失败、内存分配失败、未知数据类型等必须终止的错误。</p>
+<h2 id="其他错误接口">其他错误接口</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th style="text-align: right;">位置</th>
+<th>作用</th>
+<th>复现意义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ipslnlf(new_number, old_number)</code></td>
+<td style="text-align: right;">25-52</td>
+<td>查询或修改 <code>ipslerr</code> 输出 logical unit。</td>
+<td>若调用方改过 <code>n_l</code>，错误信息不一定在 stdout。</td>
+</tr>
+<tr>
+<td><code>ipslerr_act(new_mode, old_mode)</code></td>
+<td style="text-align: right;">92-124</td>
+<td>查询或修改 fatal action，并重置 <code>ilv_cur/ilv_max</code>。</td>
+<td>可让 <code>ipslerr(3,...)</code> 继续运行，但默认会停止。</td>
+</tr>
+<tr>
+<td><code>ipslerr_inq(current_level, maximum_level)</code></td>
+<td style="text-align: right;">126-151</td>
+<td>查询当前和最高错误级别。</td>
+<td>用于错误状态汇总。</td>
+</tr>
+<tr>
+<td><code>histerr(plev, ...)</code></td>
+<td style="text-align: right;">153-186</td>
+<td>直接向 <code>*</code> 输出 IOIPSL history 风格错误。</td>
+<td><code>plev==3</code> 总是 <code>STOP</code>，不受 <code>lact_mode</code> 控制。</td>
+</tr>
+<tr>
+<td><code>ipsldbg(new_status, old_status)</code></td>
+<td style="text-align: right;">188-216</td>
+<td>查询或修改 <code>ioipsl_debug</code>。</td>
+<td>当前 fallback <code>getin</code> 主线未直接使用 debug 状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="fallback-getin-中的实际数据流">fallback <code>getin</code> 中的实际数据流</h2>
+<pre class="text"><code>getin_readdef reads one line
+  -&gt; split key = value
+  -&gt; nocomma(value)
+  -&gt; cmpblank(value)
+  -&gt; getin_decrypt(value)
+       -&gt; typed parsing
+       -&gt; on warning/fatal: ipslerr(level, routine, msg1, msg2, msg3)
+
+logical get_fil
+  -&gt; strlowercase(candidate)
+  -&gt; search tru/y/fal/n
+  -&gt; on malformed value: ipslerr(3, ...)</code></pre>
+<p>直接后果：</p>
+<ul>
+<li>逗号和多空格在未加引号的 value 中被标准化为单空格分隔。</li>
+<li>logical 解析大小写不敏感，但只基于源码中的 <code>"tru"</code>, <code>"y"</code>, <code>"fal"</code>, <code>"n"</code> 字符串搜索。</li>
+<li>fatal 错误默认直接停止运行，所以 Mars 配置复现时不要只看调用方默认值，还要检查错误级别和 <code>lact_mode</code>。</li>
+<li>warning 级别不会停止，缺失 include 文件可能只留下 warning，并让后续 key 使用默认值。</li>
+</ul>
+<h2 id="mars-复现排查">Mars 复现排查</h2>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>先查</th>
+<th>解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>向量 key 读取结果和逗号写法有关</td>
+<td><code>nocomma</code> 与 <code>cmpblank</code></td>
+<td>fallback 会把逗号变空格，并压缩连续空白。</td>
+</tr>
+<tr>
+<td>logical key 大小写不同但都生效</td>
+<td><code>strlowercase</code></td>
+<td>ASCII 大写会先转小写，再做 <code>tru/y/fal/n</code> 判断。</td>
+</tr>
+<tr>
+<td>配置文件缺失但程序继续</td>
+<td><code>ipslerr(2,...)</code></td>
+<td>warning 不停止，后续 key 可能落回默认值。</td>
+</tr>
+<tr>
+<td>类型错误或内存扩容失败后停止</td>
+<td><code>ipslerr(3,...)</code></td>
+<td>默认 <code>lact_mode=.TRUE.</code>，fatal 会 <code>STOP</code>。</td>
+</tr>
+<tr>
+<td>错误信息不在 stdout</td>
+<td><code>ipslnlf</code></td>
+<td>调用方可能改过输出 logical unit。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>ipslerr_act(.FALSE.)</code> 在当前 Mars 标准运行链是否有实际调用，源码搜索未发现 COMMON <code>libf</code> 中除定义外的调用。</li>
+<li><code>gensig/find_sig</code> 在 COMMON 6.3 <code>libf</code> 中除定义外未被检索到活动调用；本页按未参与 Mars fallback 主链处理。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">misc 总览</a></li>
+<li><a href="ioipsl-getin-system.html">IOIPSL getin 系统组页</a></li>
+<li><a href="../../routines/getin-fallback-file-precedence.html">fallback getin 文件来源和 key 表</a></li>
+<li><a href="../../routines/getin-typed-parser.html">typed getin 解析契约</a></li>
+<li><a href="../../routines/history-xios-getin-boundary.html">history/XIOS/getin 边界</a></li>
+<li><a href="../phy_common/ioipsl_getin_p_mod.html">phy_common/ioipsl_getin_p_mod</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

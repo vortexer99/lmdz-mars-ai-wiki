@@ -1,0 +1,162 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>netcdf95-wrappers - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/misc/netcdf95-wrappers.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="netcdf95-wrapper-组页">NetCDF95 wrapper 组页</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\netcdf95.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\simple.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\nf95_def_var_m.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\nf95_get_var_m.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\nf95_put_var_m.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\nf95_gw_var_m.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\nf95_get_att_m.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\nf95_put_att_m.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\new_unit_m.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\handle_err_m.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>netcdf95.F90</code> 是聚合模块，<code>use</code> 各个 <code>nf95_*</code> 模块和 <code>simple</code> 模块，向调用方暴露更 Fortran-95 风格的 NetCDF API。<code>handle_err_m</code> 是统一错误处理；<code>new_unit_m</code> 是查找空闲 Fortran unit 的小工具。</p>
+<p>Mars 运行参与度：<code>条件经过</code>。COMMON guide/nudging 代码使用 <code>netcdf95</code> 定义和写出 nudging 系数；COMMON <code>dynredem/dynredem_p</code> 也用 <code>nf95_put_var</code> 写部分 restart 元数据。Mars archive utilities 主要仍直接使用 <code>netcdf.inc</code>/<code>NF_*</code>，不直接进入本页 wrapper 错误处理链；边界见 <a href="../../routines/mars-utility-netcdf-helper-use.html">Mars utility NetCDF 和 COMMON helper 边界</a>。</p>
+<h2 id="例程和模块">例程和模块</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>主要符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>netcdf95.F90</code></td>
+<td>17</td>
+<td><code>module netcdf95</code></td>
+<td>聚合 <code>nf95_def_var/get_var/put_var/gw_var/att/simple/handle_err</code>。</td>
+</tr>
+<tr>
+<td><code>simple.F90</code></td>
+<td>361</td>
+<td><code>nf95_open</code>, <code>nf95_create</code>, <code>nf95_def_dim</code>, <code>nf95_inq_varid</code>, <code>nf95_close</code> 等</td>
+<td>对常用 <code>nf90_*</code> 文件、维度、变量、attribute 查询做可选错误码包装。</td>
+</tr>
+<tr>
+<td><code>nf95_def_var_m.F90</code></td>
+<td>102</td>
+<td><code>nf95_def_var</code> generic</td>
+<td>scalar、oneDim、ManyDims 变量定义。</td>
+</tr>
+<tr>
+<td><code>nf95_get_var_m.F90</code></td>
+<td>391</td>
+<td><code>nf95_get_var</code> generic</td>
+<td>scalar 到 5D，real/int，不同 kind 读取。</td>
+</tr>
+<tr>
+<td><code>nf95_put_var_m.F90</code></td>
+<td>335</td>
+<td><code>nf95_put_var</code> generic</td>
+<td>scalar 到 4D，real/int 写入。</td>
+</tr>
+<tr>
+<td><code>nf95_gw_var_m.F90</code></td>
+<td>336</td>
+<td><code>nf95_gw_var</code> generic</td>
+<td>get-or-write helper，若变量不存在则定义再写。</td>
+</tr>
+<tr>
+<td><code>nf95_get_att_m.F90</code></td>
+<td>105</td>
+<td><code>nf95_get_att</code> generic</td>
+<td>text 和 integer attribute 读取。</td>
+</tr>
+<tr>
+<td><code>nf95_put_att_m.F90</code></td>
+<td>67</td>
+<td><code>nf95_put_att</code> generic</td>
+<td>text 和 integer attribute 写入。</td>
+</tr>
+<tr>
+<td><code>handle_err_m.F90</code></td>
+<td>46</td>
+<td><code>handle_err</code></td>
+<td>打印 NetCDF 错误，可关闭文件，然后 <code>abort_physic</code>。</td>
+</tr>
+<tr>
+<td><code>new_unit_m.F90</code></td>
+<td>25</td>
+<td><code>new_unit</code></td>
+<td>从 <code>unit=0</code> 开始用 <code>INQUIRE</code> 查找存在且未打开的 Fortran unit。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="错误处理契约">错误处理契约</h2>
+<p>所有 wrapper 基本遵循同一模式：</p>
+<ol type="1">
+<li>调用底层 <code>nf90_*</code>，把返回值保存为本地 <code>ncerr_not_opt</code>。</li>
+<li>如果调用方传入可选 <code>ncerr</code>，只回填错误码，不中止。</li>
+<li>如果未传 <code>ncerr</code>，调用 <code>handle_err</code>。</li>
+<li><code>handle_err</code> 在 <code>ncerr /= nf90_noerr</code> 时打印上下文和 <code>nf90_strerror</code>；若传入 <code>ncid</code>，先尝试 <code>nf90_close(ncid)</code>；最后调用 <code>abort_physic("NetCDF95 handle_err","",1)</code>。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>nf95_def_var</code> 接收 scalar、一维 dimid 或 dimid 数组，底层都调用 <code>nf90_def_var</code>。</li>
+<li><code>nf95_get_att_text</code> 会先 <code>nf95_inquire_attribute</code> 得到 attribute 长度，再读取字符值。</li>
+<li><code>new_unit</code> 在当前 6.3 源码中从 <code>unit=0</code> 开始循环 <code>INQUIRE(unit=unit, opened=opened, exist=exist)</code>，遇到存在且未打开的 unit 即返回；源码没有 10..99 上限。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>nf95_gw_var</code> 的 get-or-write 分支在当前 Mars 运行中是否实际经过，需要结合 guide/nudging hard 页逐步确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">misc 总览</a></li>
+<li><a href="../dyn3d/guide_mod.html">guide_mod</a></li>
+<li><a href="../dyn3dpar/guide_p_mod.html">guide_p_mod</a></li>
+<li><a href="../../routines/mars-utility-netcdf-helper-use.html">Mars utility NetCDF 和 COMMON helper 边界</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

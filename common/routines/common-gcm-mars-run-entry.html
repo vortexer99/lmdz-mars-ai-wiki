@@ -1,0 +1,285 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>common-gcm-mars-run-entry - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/common-gcm-mars-run-entry.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-3d-gcm-主入口链">Mars 3D GCM 主入口链</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\gcm.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\conf_gcm.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\iniconst.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\inigeom.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\inidissip.F90
+LMDZ.MARS\libf\dynphy_lonlat\phymars\iniphysiq_mod.F90
+LMDZ.MARS\doc\run.tex</code></pre>
+<p>Mars 运行参与度：<code>必经/条件经过</code>。LMDZ.MARS 文档给出的 3D GCM 编译示例是 <code>makelmdz_fcm -arch ... -d 64x48x49 -p mars gcm</code>，生成 <code>LMDZ.COMMON/bin/gcm_XXX_phymars_seq.e</code> 或 <code>gcm_XXX_phymars_para.e</code>。本页覆盖 <code>gcm</code> 可执行文件的 COMMON 串行入口链；并行入口和 Mars <code>nogcm</code> 变体只作为边界说明。</p>
+<h2 id="入口定位">入口定位</h2>
+<p><code>gcm.F90</code> 定义 <code>PROGRAM gcm</code>，负责从运行目录的配置和初始态进入完整 3D 动力时间推进。Mars 运行需要的 physics 由构建期 <code>-p mars</code> 选择 <code>phymars</code>，并在源码中通过 <code>CPP_PHYS</code> 下的 <code>iniphysiq_mod:iniphysiq</code> 接入。</p>
+<p>构建和运行的最小外部事实：</p>
+<table>
+<thead>
+<tr>
+<th>证据</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LMDZ.MARS\doc\run.tex</code> 示例 <code>makelmdz_fcm -arch linux-ifort -d 64x48x49 -p mars gcm</code></td>
+<td>Mars 3D GCM 目标名是 <code>gcm</code>，物理包是 <code>mars</code>。</td>
+</tr>
+<tr>
+<td>输出命名 <code>gcm_XXX_phymars_YY.e</code></td>
+<td><code>XXX</code> 来自 <code>-d</code> 分辨率，<code>YY</code> 是 <code>seq</code> 或 <code>para</code>。</td>
+</tr>
+<tr>
+<td><code>gcm.F90</code> 中 <code>USE iniphysiq_mod</code> 只在 <code>CPP_PHYS</code> 下启用</td>
+<td>Mars 物理初始化由构建出的 <code>phymars</code> dyn-phys 接口提供。</td>
+</tr>
+<tr>
+<td>MARS 树中 <code>libf\dynphy_lonlat\phymars\nogcm.F90</code> 调用 <code>leapfrog_nogcm</code></td>
+<td><code>nogcm</code> 是 Mars 专属变体链，不是本页的 <code>gcm</code> 主链。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="主启动顺序">主启动顺序</h2>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>源码位置</th>
+<th>关键行为</th>
+<th>Mars 复现意义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. 检查 <code>run.def</code></td>
+<td><code>gcm.F90</code> 157-163</td>
+<td><code>INQUIRE(file="run.def")</code>，缺失则 <code>abort_gcm</code>。</td>
+<td>Mars 3D run 必须在运行目录放置 <code>run.def</code>；物理配置通常由 <code>run.def</code> include <code>callphys.def</code>。</td>
+</tr>
+<tr>
+<td>2. 读取运行控制</td>
+<td><code>gcm.F90</code> 163；<code>conf_gcm.F90</code></td>
+<td><code>conf_gcm(99,.TRUE.)</code> 通过 <code>getin</code> 写 <code>control_mod</code>, <code>logic_mod</code>, <code>temps_mod</code>, <code>comconst_mod</code>。</td>
+<td><code>planet_type</code>, <code>nday</code>, <code>day_step</code>, <code>iperiod</code>, <code>iphysiq</code>, <code>read_start</code>, <code>ecritstart</code>, <code>ok_dyn_*</code> 等从这里进入 COMMON 状态层。</td>
+</tr>
+<tr>
+<td>3. 基本一致性检查</td>
+<td><code>gcm.F90</code> 164-170, 289-306</td>
+<td>检查 <code>iphysiq</code> 是 <code>iperiod</code> 倍数、<code>day_step</code> 是 <code>iperiod/iphysiq</code> 倍数；串行动力拒绝 <code>use_filtre_fft</code>。</td>
+<td>这些是 Mars run 前置配置错误，不能靠后续 physics 修正。</td>
+</tr>
+<tr>
+<td>4. 可选 XIOS/IOIPSL 设置</td>
+<td><code>gcm.F90</code> 176-224</td>
+<td><code>CPP_XIOS</code> 下 <code>wxios_init("LMDZ")</code>；<code>CPP_IOIPSL</code> 下设置日历。</td>
+<td>Mars 常用 <code>planet_type!="earth"</code> 时 Julian day ref 被置 0；不能把 Earth 日期输出解释为 Mars sol 日历。</td>
+</tr>
+<tr>
+<td>5. tracer 初始化和 <code>q</code> 分配</td>
+<td><code>gcm.F90</code> 235-242</td>
+<td><code>infotrac_init</code> 读取 tracer 配置，按 <code>nqtot</code> 分配 <code>q(ip1jmp1,llm,nqtot)</code>。</td>
+<td>Mars tracer 数量由 <code>traceur.def</code>/<code>infotrac</code> 链决定，必须先于读 <code>start.nc</code>。</td>
+</tr>
+<tr>
+<td>6. 读取或构造动力初态</td>
+<td><code>gcm.F90</code> 248-281</td>
+<td><code>read_start</code> 为真时读 <code>dynetat0("start.nc")</code>；否则 <code>iniacademic</code> 构造理想化初态。</td>
+<td>标准 Mars 3D run 走 <code>start.nc</code>；理想化分支不等价于生产初态。</td>
+</tr>
+<tr>
+<td>7. 日期和时间步规范化</td>
+<td><code>gcm.F90</code> 301-339</td>
+<td><code>dtvr=daysec/day_step</code>；按 <code>raz_date/starttime</code> 处理 restart 时间差异。</td>
+<td>Mars restart 复现要关注 <code>timestart/ecritstart/raz_date</code>，否则可能从错误 sol 或时间记录启动。</td>
+</tr>
+<tr>
+<td>8. 常量、几何、滤波</td>
+<td><code>gcm.F90</code> 400-418</td>
+<td><code>iflag_phys==1</code> 时调用 <code>iniconst</code>, <code>inigeom</code>, <code>inifilr</code>。</td>
+<td>普通 Mars 物理 run 通常需要这些动力常量和几何在 <code>iniphysiq</code> 前就绪。</td>
+</tr>
+<tr>
+<td>9. 耗散初始化</td>
+<td><code>gcm.F90</code> 424-425</td>
+<td><code>inidissip(...)</code> 读取/校验耗散阶数和时间尺度。</td>
+<td>Mars <code>conf_gcm</code> 中 <code>idissip/dissip_period</code>、<code>vert_prof_dissip</code> 会在这里落地。</td>
+</tr>
+<tr>
+<td>10. 结束日和物理初始化</td>
+<td><code>gcm.F90</code> 431-475</td>
+<td>由 <code>nday/less1day/ndynstep</code> 算 <code>day_end</code>；<code>iniphysiq</code> 接收网格、常量、<code>dtphys/nsplit_phys</code>。</td>
+<td>Mars physics 第一次获得动力网格几何、面积、常量和物理步长。</td>
+</tr>
+<tr>
+<td>11. 初始 restart/history</td>
+<td><code>gcm.F90</code> 485-516</td>
+<td>Mars 下 <code>dynredem0("restart.nc", day_ini/day_end, phis)</code>；按 <code>ok_dyn_ins/ok_dyn_ave</code> 初始化 history/dynav。</td>
+<td><code>ecritstart&gt;0</code> 时 Mars 初始 restart 用 <code>day_ini</code>，否则用 <code>day_end</code>；history 依赖 IOIPSL 宏和输出开关。</td>
+</tr>
+<tr>
+<td>12. 进入时间推进</td>
+<td><code>gcm.F90</code> 538</td>
+<td><code>leapfrog(ucov,vcov,teta,ps,masse,phis,q,time_0)</code>。</td>
+<td>后续主循环由 <code>leapfrog</code> 支撑页描述；本页边界停在入口实参和状态准备。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="配置键到入口状态">配置键到入口状态</h2>
+<table>
+<thead>
+<tr>
+<th>配置/文件</th>
+<th>读取点</th>
+<th>写入状态</th>
+<th>入口后续消费者</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>run.def: planet_type</code></td>
+<td><code>conf_gcm</code></td>
+<td><code>control_mod%planet_type</code></td>
+<td>Mars restart day 选择、<code>dynetat0/dynredem</code> planeto 分支、物理一致性检查。</td>
+</tr>
+<tr>
+<td><code>run.def: nday</code>, <code>less1day</code>, <code>fractday</code>, <code>ndynstep</code></td>
+<td><code>conf_gcm</code></td>
+<td><code>control_mod</code></td>
+<td><code>gcm</code> 计算 <code>day_end</code>，<code>leapfrog</code> 推导循环终点。</td>
+</tr>
+<tr>
+<td><code>run.def: day_step</code></td>
+<td><code>conf_gcm</code></td>
+<td><code>control_mod%day_step</code></td>
+<td><code>dtvr=daysec/day_step</code>，history 周期，physics/dynamics 调用频率。</td>
+</tr>
+<tr>
+<td><code>run.def: iperiod</code>, <code>iphysiq</code>, <code>nsplit_phys</code></td>
+<td><code>conf_gcm</code></td>
+<td><code>control_mod</code></td>
+<td>入口整除检查，<code>iniphysiq</code> 的 <code>dtphys/nsplit_phys</code>，<code>leapfrog</code> 的 physics 门控。</td>
+</tr>
+<tr>
+<td><code>run.def: read_start</code></td>
+<td><code>conf_gcm</code></td>
+<td><code>logic_mod%read_start</code></td>
+<td>选择 <code>dynetat0("start.nc")</code> 或 <code>iniacademic</code>。</td>
+</tr>
+<tr>
+<td><code>run.def: raz_date</code>, <code>starttime</code>, <code>timestart</code>, <code>ecritstart</code></td>
+<td><code>conf_gcm</code></td>
+<td><code>control_mod</code>, <code>temps_mod</code></td>
+<td>restart 时间选择、入口日期重置、Mars 初始 restart day。</td>
+</tr>
+<tr>
+<td><code>traceur.def</code></td>
+<td><code>infotrac_init</code></td>
+<td><code>infotrac%nqtot</code> 和 tracer 表</td>
+<td>分配 <code>q</code>，读取 <code>start.nc</code> tracer，后续输送。</td>
+</tr>
+<tr>
+<td><code>start.nc</code></td>
+<td><code>dynetat0</code></td>
+<td><code>ucov/vcov/teta/q/masse/ps/phis/time_0</code> 和时间控制</td>
+<td><code>iniphysiq</code> 之前的动力状态；最终传给 <code>leapfrog</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mars-正常路径和排除路径">Mars 正常路径和排除路径</h2>
+<p>Mars 3D 正常 run 的 COMMON 主链可以写成：</p>
+<pre class="text"><code>makelmdz_fcm -p mars gcm
+  -&gt; PROGRAM gcm
+  -&gt; require run.def
+  -&gt; conf_gcm(99,.TRUE.)
+  -&gt; infotrac_init + allocate q
+  -&gt; dynetat0(&quot;start.nc&quot;) when read_start
+  -&gt; validate day_step/iperiod/iphysiq and date controls
+  -&gt; iniconst -&gt; inigeom -&gt; inifilr -&gt; inidissip
+  -&gt; iniphysiq(..., dtphys/nsplit_phys, ..., iflag_phys)
+  -&gt; dynredem0 + optional inithist/initdynav
+  -&gt; leapfrog(...)</code></pre>
+<p>不纳入本页展开：</p>
+<ul>
+<li>Earth-only ORCHIDEE/INCA/COSP/SISVAT/RRTM 编译选项。</li>
+<li><code>planet_type=="earth"</code> 的 IOIPSL Julian date 显示路径；Mars 下 <code>jD_ref/jH_ref</code> 在当前 COMMON 入口中置 0。</li>
+<li>Venus/Titan calendar abort 分支。</li>
+<li><code>read_start=.false.</code> 的 <code>iniacademic</code> 理想化初态，只作为条件路径记录。</li>
+<li>MARS <code>nogcm.F90 -&gt; leapfrog_nogcm</code>，它与本页共享 <code>conf_gcm/iniconst/inigeom/iniphysiq</code> 形状，但主循环和动力意义不同。</li>
+</ul>
+<h2 id="与-nogcm-和-mars-defrun_new-的边界">与 <code>nogcm</code> 和 Mars <code>defrun_new</code> 的边界</h2>
+<p>MARS <code>libf\dynphy_lonlat\phymars\nogcm.F90</code> 也调用 <code>conf_gcm(99,.TRUE.)</code>，随后执行与 <code>gcm</code> 相似的常量、几何、物理初始化，最后进入 <code>leapfrog_nogcm</code>。它不是 <code>makelmdz_fcm -p mars gcm</code> 的主程序，而是 Mars lon-lat/no-GCM 变体。</p>
+<p>MARS <code>defrun_new.F</code> 是 Mars 专属旧式/工具链配置读取器：它直接打开 <code>run.def</code>，写 Mars 相关默认，且注释说明部分 terrestrial 参数“不再从 run.def 读”。COMMON <code>gcm.F90</code> 的 3D 主入口不直接调用 <code>defrun_new</code>；本页只把它作为 Mars utility/nogcm 边界参考。</p>
+<h2 id="复现检查点">复现检查点</h2>
+<p>运行前最小检查：</p>
+<ol type="1">
+<li>可执行文件来自 <code>makelmdz_fcm -p mars gcm</code>，并和目标分辨率 <code>-d</code> 匹配。</li>
+<li>运行目录存在 <code>run.def</code>、<code>traceur.def</code>、<code>start.nc</code>，Mars physics 还需要匹配的 <code>startfi.nc/callphys.def</code> 路径。</li>
+<li><code>run.def</code> 中 <code>planet_type</code> 应与 Mars physics 一致，通常为 <code>mars</code>。</li>
+<li><code>mod(iphysiq,iperiod)==0</code>，且 <code>day_step</code> 同时为 <code>iperiod</code> 和 <code>iphysiq</code> 的倍数。</li>
+<li>若使用串行动力，不设置 <code>use_filtre_fft=.true.</code>。</li>
+<li>若从已有 restart 继续，核对 <code>timestart/starttime/raz_date/ecritstart</code>，避免入口因为时间不一致 abort 或从非预期记录启动。</li>
+<li>若需要 history/dynav 输出，确认构建带 <code>CPP_IOIPSL</code>，且 <code>ok_dyn_ins/ok_dyn_ave</code>、<code>iecri/periodav</code> 有期望值。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Mars 生产脚本更常用串行 <code>gcm</code> 还是并行 <code>dyn3dpar/gcm.F</code>，需要由具体平台 run 脚本和编译命令确认；本页覆盖 <code>gcm_..._seq.e</code> 形态，同时说明 parallel 产物命名。</li>
+<li><code>startfi.nc</code> 的 physics 读取不在 COMMON <code>gcm.F90</code> 中直接出现，而是在 Mars <code>iniphysiq/physiq</code> 链中进入；完整 physics restart 入口需与 Mars physics wiki 对接。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3d/gcm.html">gcm.F90 文件页</a></li>
+<li><a href="../modules/dyn3d/conf_gcm.html">conf_gcm 配置读取</a></li>
+<li><a href="common-state-control-contract.html">COMMON 状态/控制契约</a></li>
+<li><a href="dynamics-initializers.html">动力初始化辅助例程</a></li>
+<li><a href="mars-start-restart-archive-boundary.html">Mars start/restart/archive 文件职责边界</a></li>
+<li><a href="leapfrog-state-contract.html">leapfrog 状态契约</a></li>
+<li><a href="leapfrog-time-scheduler.html">leapfrog 时间调度</a></li>
+<li><a href="../architecture/ioipsl-build-mars-contract.html">IOIPSL build 和 Mars I/O 构建契约</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

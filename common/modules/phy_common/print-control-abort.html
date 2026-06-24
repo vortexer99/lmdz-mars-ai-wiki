@@ -1,0 +1,111 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>print-control-abort - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/phy_common/print-control-abort.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="物理侧打印控制和-abort-组页">物理侧打印控制和 abort 组页</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\init_print_control_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\print_control_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\abort_physic.F90</code></pre>
+<p>Mars 运行参与度：<code>条件经过/必经支撑</code>。Mars 物理包大量调用 <code>abort_physic</code>；打印控制由物理初始化路径设置 <code>lunout/prt_level/debug</code>。</p>
+<h2 id="文件清单">文件清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>主要符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>print_control_mod.F90</code></td>
+<td>27</td>
+<td><code>lunout</code>, <code>prt_level</code>, <code>debug</code>, <code>set_print_control</code></td>
+<td>保存物理侧输出 unit、打印级别和 debug flag。</td>
+</tr>
+<tr>
+<td><code>init_print_control_mod.F90</code></td>
+<td>68</td>
+<td><code>init_print_control</code></td>
+<td>通过 <code>getin_p</code> 读取打印控制，必要时打开 <code>lmdz.out_0000</code>。</td>
+</tr>
+<tr>
+<td><code>abort_physic.F90</code></td>
+<td>50</td>
+<td><code>abort_physic</code></td>
+<td>物理侧异常/退出处理，打印原因并 dump getin 配置。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="初始化流程">初始化流程</h2>
+<ol type="1">
+<li><code>print_control_mod</code> 默认 <code>lunout=6</code>、<code>prt_level=0</code>、<code>debug=.FALSE.</code>，并声明 <code>THREADPRIVATE(lunout,prt_level,debug)</code>。</li>
+<li><code>init_print_control</code> 调用 <code>getin_p('prt_level',prt_level)</code>、<code>getin_p('lunout',lunout)</code>、<code>getin_p('debug',debug)</code>。</li>
+<li>若当前是 root 且 <code>lunout</code> 不是 5/6，则在 unit <code>100+rank</code> 打开 <code>lmdz.out_0000</code>。</li>
+<li>最后调用 <code>set_print_control</code> 写回模块变量。</li>
+</ol>
+<h2 id="abort_physic"><code>abort_physic</code></h2>
+<p><code>abort_physic(modname,message,ierr)</code> 先输出 <code>in abort_physic</code>，在 <code>CPP_IOIPSL</code> 构建的 OpenMP master 区调用 <code>histclo</code>、<code>restclo</code>，并只在 <code>mpi_rank==0</code> 时调用 <code>getin_dump</code>；随后打印停止模块、原因和 <code>ierr</code>。<code>ierr==0</code> 时只打印正常信息并返回；非零时在 <code>CPP_MPI</code> 下调用 <code>MPI_ABORT(COMM_LMDZ_PHY,1,...)</code>，否则执行 <code>stop 1</code>。逐分支细节见 <a href="abort_physic.html">abort_physic</a>。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>lunout/prt_level/debug</code> 是 OpenMP threadprivate；复现多线程输出时必须确认初始化在正确线程上下文传播。</li>
+<li><code>abort_physic</code> 的 <code>histclo/restclo/getin_dump</code> 只在 <code>CPP_IOIPSL</code> 的 OpenMP master 区执行，其中 <code>getin_dump</code> 还限制为 <code>mpi_rank==0</code>。</li>
+<li><code>abort_physic</code> 不负责恢复物理状态，只用于终止前输出诊断。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>histclo/restclo</code> 的内部错误处理属于 IOIPSL 外部库行为，组页不展开。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phy_common 总览</a></li>
+<li><a href="abort_physic.html">abort_physic</a></li>
+<li><a href="../misc/ioipsl-getin-system.html">IOIPSL getin 系统</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

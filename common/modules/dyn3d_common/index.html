@@ -1,0 +1,235 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>index - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d_common/index.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="dyn3d_common-总览">dyn3d_common 总览</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common</code></pre>
+<h2 id="职责">职责</h2>
+<p><code>dyn3d_common</code> 包含串行和并行动力共享的核心状态、初始化、网格几何、restart、垂直坐标、差分算子、输送内核和 I/O helper。当前目录有 123 个文件。</p>
+<p>Mars 运行参与度：<code>必经</code> 到 <code>接口兼容</code> 混合。<code>control_mod</code>、<code>comconst_mod</code>、<code>comvert_mod</code>、<code>infotrac</code> 等由 MARS 直接转发或 <code>USE</code>；<code>dynetat0</code>、<code>inigeom</code> 被 MARS <code>phymars/nogcm.F90</code>、<code>newstart.F</code>、<code>start2archive.F</code> 等调用链使用。</p>
+<h2 id="目录内容">目录内容</h2>
+<table>
+<thead>
+<tr>
+<th>分组</th>
+<th>代表文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>运行状态模块</td>
+<td><code>control_mod.F90</code>, <code>comconst_mod.F90</code>, <code>comvert_mod.F90</code>, <code>ener_mod.F90</code>, <code>serre_mod.F90</code></td>
+<td>保存控制变量、物理常量、垂直坐标、能量诊断和工作状态。</td>
+</tr>
+<tr>
+<td>初始化</td>
+<td><code>dynetat0.F90</code>, <code>iniacademic.F90</code>, <code>iniconst.F90</code>, <code>inigeom.F</code>, <code>inidissip.F90</code>, <code>disvert*.F*</code></td>
+<td>读取或构造初态、常量、几何、耗散和垂直离散。</td>
+</tr>
+<tr>
+<td>restart/I/O</td>
+<td><code>dynredem.F90</code>, <code>dynredem_mod.F90</code>, <code>grilles_gcm_netcdf_sub.F90</code>, <code>inithist.F</code>, <code>writehist.F</code>, <code>initdynav.F90</code></td>
+<td>写 restart、网格 NetCDF、history/dynav 输出。</td>
+</tr>
+<tr>
+<td>输送</td>
+<td><a href="advn.html">advn.F</a>, <code>advx/y/z.F</code>, <code>advxp/yp/zp.F</code>, <a href="ppm3d.html">ppm3d.F</a>, <a href="prather.html">prather.F</a>, <a href="pentes_ini.html">pentes_ini.F</a>, <code>limx/y/z.F</code></td>
+<td>tracer 或质量相关输送格式和 slope limiter。</td>
+</tr>
+<tr>
+<td>差分算子</td>
+<td><code>grad*.F</code>, <code>diverg*.F</code>, <code>divgrad*.F</code>, <code>rotat*.F</code>, <code>laplacien*.F</code>, <code>nxgrad*.F</code></td>
+<td>动力方程中的梯度、散度、旋度、拉普拉斯等算子。</td>
+</tr>
+<tr>
+<td>质量压力能量</td>
+<td><code>massdair.F</code>, <code>massbar*.F90</code>, <code>pression.F90</code>, <code>pbar.F</code>, <code>psextbar.F</code>, <code>geopot.F</code>, <code>exner*.F90</code></td>
+<td>压力、气柱质量、位势和 Exner 函数处理。</td>
+</tr>
+<tr>
+<td>网格函数</td>
+<td><code>fxy.F</code>, <code>fxysinus.F</code>, <code>fxhyp_m.F90</code>, <code>fyhyp_m.F90</code>, <code>coordij.F</code></td>
+<td>zoom 和经纬网格映射辅助。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与其他目录的关系">与其他目录的关系</h2>
+<table>
+<thead>
+<tr>
+<th>相关目录</th>
+<th>关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dyn3d/</code></td>
+<td>串行入口和主循环调用本目录的初始化、几何、输送和算子。</td>
+</tr>
+<tr>
+<td><code>dyn3dpar/</code></td>
+<td>并行动力复用许多 common 状态和算子，也有 <code>_p</code> 版本配合 halo/decomposition。</td>
+</tr>
+<tr>
+<td><code>dynphy_lonlat/</code></td>
+<td>动力状态通过 lon-lat 接口进入物理侧；几何数组为接口映射提供基础。</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d</code></td>
+<td>直接转发多个 common 模块和 include 文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="关键文件">关键文件</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="dynetat0.html">dynetat0.md</a></td>
+<td><code>start.nc</code> 初态读取，Mars planeto start 逻辑在此。</td>
+</tr>
+<tr>
+<td><a href="inigeom.html">inigeom.md</a></td>
+<td>动力网格几何和面积/伸长系数构造。</td>
+</tr>
+<tr>
+<td><a href="../../routines/inigeom-zoom-map-contract.html">inigeom zoom/map 几何契约</a></td>
+<td>zoom 参数、水平映射分支、archive header、surface 插值和 Mars physics 几何消费关系。</td>
+</tr>
+<tr>
+<td><a href="defrun.html">defrun.md</a></td>
+<td>旧式 <code>gcm.def</code> 读取例程，源码注释称似乎不再使用。</td>
+</tr>
+<tr>
+<td><a href="grilles_gcm_netcdf_sub.html">grilles_gcm_netcdf_sub.md</a></td>
+<td><code>grilles_gcm.nc</code> 网格、面积和地表位势 NetCDF 输出。</td>
+</tr>
+<tr>
+<td><a href="advn.html">advn.md</a></td>
+<td>Hourdin pseudo amont tracer 输送内核；覆盖 <code>iadv=12/13</code>、x-y-z-y-x split、界面重构、质量守恒更新和可达性边界。</td>
+</tr>
+<tr>
+<td><a href="prather.html">prather.md</a></td>
+<td>Prather moments 输送格式。</td>
+</tr>
+<tr>
+<td><a href="ppm3d.html">ppm3d.md</a></td>
+<td>NASA/GSFC PPM 三维 tracer 输送内核；串行旧分支保留，6.3 Mars 标准配置通常不可达。</td>
+</tr>
+<tr>
+<td><a href="pentes_ini.html">pentes_ini.md</a></td>
+<td>slope/limiter 初始化和预输送。</td>
+</tr>
+<tr>
+<td><a href="inidissip.html">inidissip.md</a></td>
+<td>水平耗散初始化：特征值估算、垂直剖面和 <code>dissip_period</code> 计算。</td>
+</tr>
+<tr>
+<td><a href="infotrac.html">infotrac.F90</a></td>
+<td>tracer 配置核心；读取 <code>traceur.def</code>，建立 <code>nqtot/tname/iadv/niadv</code>、父子 tracer 和 isotope 状态。</td>
+</tr>
+<tr>
+<td><code>dynredem.F90</code></td>
+<td>restart 写出入口，和 <code>dynetat0</code> 成对。</td>
+</tr>
+<tr>
+<td><code>disvert_noterre.F</code></td>
+<td>非地球垂直离散，Mars dyn1d 直接转发。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="典型流程">典型流程</h2>
+<ol type="1">
+<li><code>conf_gcm</code> 设置 <code>control_mod</code>、<code>logic_mod</code> 和耗散/网格控制变量。</li>
+<li><code>infotrac_init</code> 读取 tracer 元数据，入口据此分配 tracer 数组。</li>
+<li><code>dynetat0</code> 或 <code>iniacademic</code> 生成初始 <code>ucov/vcov/teta/q/masse/ps/phis/time_0</code>。</li>
+<li><code>iniconst</code>、<code>inigeom</code>、<code>inifilr</code> 准备常量、几何和滤波数据。</li>
+<li><code>leapfrog</code>/<code>leapfrog_nogcm</code> 调用 pressure、mass、operator、advection、diagnostic 和 restart helper 推进时间。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>维度来自 <code>dimensions.h</code> 和 <code>paramet.h</code>，几何数组主要在 <code>comgeom2.h</code> 中共享。</li>
+<li><code>dynetat0</code> 读入的 start 控制数组会写入 <code>comconst_mod</code>、<code>comvert_mod</code>、<code>temps_mod</code>、<code>serre_mod</code> 等状态。</li>
+<li><code>inigeom</code> 会按 <code>fxyhypb/ysinus</code> 选择不同网格映射分支，复现时必须同时记录 zoom 参数。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>各 <code>adv*</code> 和 <code>ppm3d/prather</code> 文件在 Mars 具体 tracer 配置下的启用条件需由后续输送任务细化。</li>
+<li><code>defrun.F</code> 是否仍被某些旧工具链调用，当前源码内未发现 COMMON/MARS 主链调用。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../libf-overview.html">libf 总览</a></li>
+<li><a href="../dyn3d/index.html">dyn3d 总览</a></li>
+<li><a href="dynetat0.html">dynetat0</a></li>
+<li><a href="inigeom.html">inigeom</a></li>
+<li><a href="../../routines/inigeom-zoom-map-contract.html">inigeom zoom/map 几何契约</a></li>
+<li><a href="defrun.html">defrun</a></li>
+<li><a href="grilles_gcm_netcdf_sub.html">grilles_gcm_netcdf_sub</a></li>
+<li><a href="prather.html">prather</a></li>
+<li><a href="advn.html">advn</a></li>
+<li><a href="ppm3d.html">ppm3d</a></li>
+<li><a href="pentes_ini.html">pentes_ini</a></li>
+<li><a href="inidissip.html">inidissip</a></li>
+<li><a href="infotrac.html">infotrac</a></li>
+<li><a href="../../routines/vertical-discretization.html">垂直离散构造</a></li>
+<li><a href="../../routines/infotrac-state-contract.html">infotrac 状态契约</a></li>
+<li><a href="../../routines/infotrac-traceur-def.html">infotrac traceur.def</a></li>
+<li><a href="../../routines/infotrac-advection-schemes.html">infotrac advection scheme</a></li>
+<li><a href="../../routines/infotrac-family-isotopes.html">infotrac 父子 tracer 与 isotope</a></li>
+<li><a href="../../routines/infotrac-mars-consumers.html">infotrac MARS/COMMON 消费方</a></li>
+<li><a href="../../routines/differential-operators-overview.html">差分算子总览</a></li>
+<li><a href="../../routines/mass-pressure-energy-overview.html">质量压力能量总览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

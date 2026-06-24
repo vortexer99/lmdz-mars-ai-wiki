@@ -1,0 +1,178 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>infotrac-state-contract - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/infotrac-state-contract.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="infotrac-状态契约">infotrac 状态契约</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\infotrac.F90</code></pre>
+<p>Mars 运行参与度：<code>必经</code>。Mars <code>phymars/nogcm.F90</code>、<code>newstart.F</code> 和 <code>start2archive.F</code> 都调用或依赖 <code>infotrac_init</code>，后续动力、物理、restart、history 输出以本模块给出的 tracer 个数、名称和输送标识作为数组契约。</p>
+<h2 id="模块职责">模块职责</h2>
+<p><code>infotrac</code> 是 COMMON 动力 tracer 元数据的全局状态模块。它不输送 tracer，也不计算物理 tendency；它读取 <code>traceur.def</code> 和若干配置分支，确定：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>含义</th>
+<th>主要消费者</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nqtot</code></td>
+<td>动力数组中实际存在的 tracer 总数，包含水相、普通 tracer、moments/高阶附加 tracer</td>
+<td>COMMON <code>gcm</code> 和 MARS <code>phymars/nogcm</code> 分配 <code>q</code>，<code>leapfrog</code>/<code>advtrac</code>/<code>calfis</code>/restart 输出循环</td>
+</tr>
+<tr>
+<td><code>nqo</code></td>
+<td>Earth/INCA 水相 tracer 数；非 Earth 分支置 0</td>
+<td>isotope 初始化、物理侧映射</td>
+</tr>
+<tr>
+<td><code>nbtr</code></td>
+<td>物理侧 tracer 数，不含水相和 moments 附加项</td>
+<td>chemistry/physics 初始化</td>
+</tr>
+<tr>
+<td><code>nqperes</code></td>
+<td>以空气为直接 carrier 的父 tracer 数</td>
+<td>Van Leer family transport</td>
+</tr>
+<tr>
+<td><code>tname(:)</code></td>
+<td>restart、archive 和物理侧使用的短名</td>
+<td><code>dynredem</code>、<code>lect_start_archive</code>、<code>newstart</code>、<code>call_physiq</code></td>
+</tr>
+<tr>
+<td><code>ttext(:)</code></td>
+<td>history/dynav 输出中的长名或说明</td>
+<td><code>inithist</code>、<code>initdynav</code>、<code>writehist</code>、<code>writedynav</code></td>
+</tr>
+<tr>
+<td><code>iadv(:)</code></td>
+<td>每个 <code>nqtot</code> tracer 的输送 scheme 标识</td>
+<td><code>advtrac</code>、<code>advtrac_p</code>、<code>vlspltgen_p</code></td>
+</tr>
+<tr>
+<td><code>niadv(:)</code></td>
+<td>从物理/真实 tracer 序号映射到动力 <code>nqtot</code> 序号</td>
+<td><code>calfis</code>/<code>calfis_p</code> 传回物理 tendency</td>
+</tr>
+</tbody>
+</table>
+<h2 id="保存状态和分配时机">保存状态和分配时机</h2>
+<p>这些变量均为模块级 <code>SAVE</code> 状态。<code>infotrac_init</code> 在读取 <code>traceur.def</code> 后分配 <code>tname/ttext/iadv/niadv</code>，随后分配 family transport 相关数组：</p>
+<table>
+<thead>
+<tr>
+<th>数组</th>
+<th>维度</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nqfils(:)</code></td>
+<td><code>nqtot</code></td>
+<td>每个父 tracer 的直接子 tracer 数</td>
+</tr>
+<tr>
+<td><code>nqdesc(:)</code></td>
+<td><code>nqtot</code></td>
+<td>每个父 tracer 的全部后代数，包含多代</td>
+</tr>
+<tr>
+<td><code>iqfils(:,:)</code></td>
+<td><code>nqtot,nqtot</code></td>
+<td>子/后代 tracer 到父 tracer 的索引表</td>
+</tr>
+<tr>
+<td><code>iqpere(:)</code></td>
+<td><code>nqtot</code></td>
+<td>每个 tracer 的父 tracer；0 表示直接由空气输送</td>
+</tr>
+</tbody>
+</table>
+<p>isotope 状态由 <code>infotrac_isoinit</code> 分配，包括 <code>iqiso(ntraciso,nqo)</code>、<code>iso_num(:)</code>、<code>iso_indnum(:)</code>、<code>zone_num(:)</code>、<code>phase_num(:)</code> 和 <code>index_trac(:,:)</code>。这些状态只在发现 isotope 命名关系时具有物理含义。</p>
+<h2 id="初始化流程">初始化流程</h2>
+<ol type="1">
+<li>读取 <code>control_mod</code> 中的 <code>planet_type</code> 和 <code>config_inca</code>，并依据 <code>type_trac</code>、预处理宏和 chemistry 配置检查组合是否合法。</li>
+<li>读取 <code>traceur.def</code> 得到 <code>nqtrue</code> 或现代 planetary 格式中的 <code>nbtr</code>/动态 tracer 列表。</li>
+<li>按 <code>hadv/vadv</code> 计算 <code>nqtot</code>。普通 scheme 不扩展；scheme 20 追加 3 个 moments；scheme 30 追加 9 个 moments。</li>
+<li>分配并填充 <code>tname/ttext/iadv</code>。附加 moments 的 <code>iadv</code> 被设为负值，例如 <code>-20</code> 或 <code>-30</code>，表示不是独立配置的真实 tracer。</li>
+<li>构造 <code>niadv</code>：只把 <code>iadv&gt;=0</code> 的真实/物理 tracer 映射到 <code>nqtot</code> 序号。</li>
+<li>执行当前版本可用性检查：只允许 <code>iadv=10</code>、<code>iadv=14</code> 和 <code>iadv=0</code> 通过；<code>iadv=14</code> 只允许第 1 个 tracer。</li>
+<li>根据 carrier 名称构造父子 tracer 表，再调用 <code>infotrac_isoinit</code> 识别 isotope 关系。</li>
+</ol>
+<h2 id="副作用">副作用</h2>
+<ul>
+<li>打开并读取运行目录中的 <code>traceur.def</code>。</li>
+<li>设置所有模块级 tracer 状态；后续调用方假定这些数组已经分配。</li>
+<li>出错时通过 <code>abort_gcm</code> 终止，例如缺少 planetary <code>traceur.def</code>、非法 scheme、孤儿 tracer、isotope 相数不一致。</li>
+<li>初始化完成后释放局部 <code>tnom_0/hadv/vadv/tnom_transp</code>，但保留所有模块级 <code>SAVE</code> 状态。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现任何 <code>q(...,nqtot)</code> 数组前，必须先复现 <code>nqtot</code> 计算；不能把 <code>traceur.def</code> 中的物理 tracer 数直接当作动力数组第三维。</li>
+<li><code>tname</code> 是跨文件契约：Mars archive、newstart 交互修改、物理初始化和 restart 变量名都用它匹配 tracer。</li>
+<li><code>niadv</code> 只覆盖 <code>iadv&gt;=0</code> 的条目，moments 附加 tracer 不应被物理侧当作普通 tracer。</li>
+<li>当前代码虽然保留多个历史 scheme 的编号和扩展逻辑，但初始化阶段会屏蔽未测试 scheme；活跃 Mars 路径通常应落在 <code>10</code>、水汽 <code>14</code> 或 <code>0</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>conv_flg/pbl_flg/solsym</code> 在当前 COMMON/Mars 主链中是否仍由旧 physics 分支消费，需后续 physics tracer 任务确认。</li>
+<li><code>qperemin/masseqmin</code> 的 Mars 默认敏感性没有在本任务中做数值实验，只记录源码阈值。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="infotrac-traceur-def.html">traceur.def 读取逻辑</a></li>
+<li><a href="infotrac-advection-schemes.html">infotrac advection scheme</a></li>
+<li><a href="infotrac-family-isotopes.html">父子 tracer 与 isotope</a></li>
+<li><a href="infotrac-mars-consumers.html">MARS/COMMON 消费方</a></li>
+<li><a href="advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
+<li><a href="../modules/dyn3d_common/index.html">dyn3d_common 总览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

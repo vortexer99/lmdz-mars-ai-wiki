@@ -1,0 +1,396 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>parallel-physics-grid-distribution - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/parallel-physics-grid-distribution.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="parallel-physics-grid-distribution">parallel physics grid distribution</h1>
+<p>页面状态：TASK-0189 完成。 输入范围：<code>physics_distribution_mod.F90</code>、<code>mod_grid_phy_lmdz.F90</code>、<code>mod_phys_lmdz_para.F90</code>，并核对 <code>mod_phys_lmdz_mpi_data.F90</code>、<code>mod_phys_lmdz_omp_data.F90</code>、<code>inigeomphy_mod.F90</code>、Mars <code>iniphysiq_mod.F90</code> 和 <code>dimphy.F90</code> 调用边界。 Mars 运行参与度：条件经过。Mars 3D 物理初始化从 <code>iniphysiq_mod -&gt; inigeomphy -&gt; init_physics_distribution</code> 进入本链；Mars 1D/testphys 路径也直接调用 <code>init_physics_distribution(regular_lonlat,4,1,1,1,...)</code> 来建立单列物理维度。</p>
+<h2 id="源码范围">源码范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\physics_distribution_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\mod_grid_phy_lmdz.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\mod_phys_lmdz_para.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\mod_phys_lmdz_mpi_data.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\mod_phys_lmdz_omp_data.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dynphy_lonlat\inigeomphy_mod.F90
+LMDZ.MARS\libf\dynphy_lonlat\phymars\iniphysiq_mod.F90
+LMDZ.MARS\libf\phymars\dimphy.F90</code></pre>
+<h2 id="职责">职责</h2>
+<p>本页说明物理列分布初始化的完整契约：上游把动力经纬网格规模、当前 MPI rank 的物理列数和 communicator 传入 COMMON；COMMON 先写全局物理网格状态，再生成 MPI rank 与 OpenMP thread 的列切片，最后把每个 OpenMP 线程看到的 <code>klon</code>/<code>klev</code> 写入 Mars physics 的 <code>dimphy</code>。</p>
+<p>这条链不是字段传输本身。实际 scatter/gather/bcast/reduce 在 <a href="../modules/phy_common/mpi-data-transfer.html">MPI data/transfer</a>、<a href="../modules/phy_common/omp-data-transfer.html">OMP data/transfer</a> 和 <a href="phys-transfer-para-wrapper.html">phys-transfer-para-wrapper</a> 中实现；本页只解释这些传输例程依赖的分布表和局部维度如何建立。</p>
+<h2 id="入口和参数">入口和参数</h2>
+<p><code>physics_distribution_mod:init_physics_distribution</code> 定义在 <code>physics_distribution_mod.F90:9-31</code>。</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>方向</th>
+<th>维度/类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>grid_type</code></td>
+<td>in</td>
+<td>integer</td>
+<td>物理网格类型；Mars lon-lat 路径传 <code>regular_lonlat</code>。</td>
+</tr>
+<tr>
+<td><code>nvertex</code></td>
+<td>in</td>
+<td>integer</td>
+<td>cell 顶点数；regular lon-lat 路径传 <code>4</code>。</td>
+</tr>
+<tr>
+<td><code>nbp</code></td>
+<td>in</td>
+<td>integer</td>
+<td>当前 MPI rank 的物理列数。</td>
+</tr>
+<tr>
+<td><code>nbp_lon</code></td>
+<td>in</td>
+<td>integer</td>
+<td>全局 regular 网格经向点数。</td>
+</tr>
+<tr>
+<td><code>nbp_lat</code></td>
+<td>in</td>
+<td>integer</td>
+<td>全局 regular 网格纬向点数；Mars 3D 从 <code>inigeomphy</code> 传 <code>jjm+1</code>。</td>
+</tr>
+<tr>
+<td><code>nbp_lev</code></td>
+<td>in</td>
+<td>integer</td>
+<td>物理垂直层数。</td>
+</tr>
+<tr>
+<td><code>communicator</code></td>
+<td>in</td>
+<td>integer</td>
+<td>物理侧 MPI communicator，写入 <code>COMM_LMDZ_PHY</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>Mars 3D 入口在 <code>iniphysiq_mod.F90:57-64</code> 调用 <code>inigeomphy</code>。COMMON <code>inigeomphy_mod.F90:82-87</code> 再按两种形态调用本入口：</p>
+<pre class="text"><code>3D: init_physics_distribution(regular_lonlat, 4, nbp, iim, jjm+1, nlayer, communicator)
+1D: init_physics_distribution(regular_lonlat, 4, 1,   1,   1,     nlayer, communicator)</code></pre>
+<p>Mars <code>phymars/dyn1d/init_testphys1d_mod.F90</code> 也直接调用同一入口，并在有/无 MPI communicator 的两种分支下传 <code>COMM_LMDZ</code> 或 <code>1</code>。</p>
+<h2 id="总体调用链">总体调用链</h2>
+<pre class="text"><code>Mars iniphysiq
+  -&gt; COMMON inigeomphy
+       -&gt; init_physics_distribution
+            -&gt; init_grid_phy_lmdz
+            -&gt; init_phys_lmdz_para
+                 -&gt; init_phys_lmdz_mpi_data
+                 -&gt; OMP parallel:
+                      -&gt; init_phys_lmdz_omp_data
+                      -&gt; klon_loc = klon_omp
+                      -&gt; is_master = is_mpi_root .and. is_omp_root
+                      -&gt; Test_transfert
+            -&gt; OMP parallel:
+                 -&gt; init_dimphy(klon_omp, nbp_lev)
+       -&gt; init_interface_dyn_phys
+       -&gt; build global physical geometry arrays
+       -&gt; OMP parallel:
+            local slice = klon_mpi_begin + klon_omp_begin/end
+            -&gt; init_geometry(klon_omp, ...)
+       -&gt; init_vertical_layers(...)
+  -&gt; Mars OMP parallel:
+       phys_state_var_init(klon_omp, ...)
+       ini_fillgeom(klon_omp, ...)
+       conf_phys(klon_omp, ...)</code></pre>
+<p><code>init_grid_phy_lmdz</code> 必须先于 <code>init_phys_lmdz_para</code>，因为 <code>Test_transfert</code> 会使用 <code>mod_grid_phy_lmdz:klon_glo/nbp_lev</code> 构造全局测试数组。</p>
+<h2 id="全局网格状态">全局网格状态</h2>
+<p><a href="../modules/phy_common/mod_grid_phy_lmdz.html">mod_grid_phy_lmdz</a> 的 <code>init_grid_phy_lmdz</code> 在 <code>mod_grid_phy_lmdz.F90:39-59</code> 保存：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>grid_type</code></td>
+<td><code>regular_lonlat</code> 或 <code>unstructured</code>。</td>
+</tr>
+<tr>
+<td><code>nvertex</code></td>
+<td>每个 cell 顶点数。</td>
+</tr>
+<tr>
+<td><code>nbp_lon</code>, <code>nbp_lat</code>, <code>nbp_lev</code></td>
+<td>全局经向、纬向、垂直层规模。</td>
+</tr>
+<tr>
+<td><code>klon_glo</code></td>
+<td>全局物理列数，去掉两极重复经度。</td>
+</tr>
+</tbody>
+</table>
+<p><code>klon_glo</code> 的源码公式为：</p>
+<pre class="text"><code>if nbp_lon * nbp_lat == 1:
+    klon_glo = 1
+else:
+    klon_glo = nbp_lon * nbp_lat - 2 * (nbp_lon - 1)</code></pre>
+<p><code>mod_phys_lmdz_mpi_data.F90:68-74</code> 用等价形式重算局部变量：</p>
+<pre class="text"><code>1D: klon_glo = 1
+3D: klon_glo = nbp_lon * (nbp_lat - 2) + 2</code></pre>
+<p>两者在 3D regular lon-lat 情况下相同：每个极点从 <code>nbp_lon</code> 个重复经度压缩为一个物理列。</p>
+<h2 id="mpi-rank-级分布">MPI rank 级分布</h2>
+<p><code>mod_phys_lmdz_para:Init_phys_lmdz_para</code> 在 <code>mod_phys_lmdz_para.F90:19-41</code> 先调用 <code>Init_phys_lmdz_mpi_data(nbp,nbp_lon,nbp_lat,communicator)</code>。</p>
+<p><code>mod_phys_lmdz_mpi_data.F90:47-182</code> 做以下事情：</p>
+<ol type="1">
+<li>根据 <code>CPP_MPI</code> 设置 <code>is_using_mpi</code>；无 MPI 时令 <code>mpi_size=1</code>、<code>mpi_rank=0</code>。</li>
+<li>MPI 构建下用 <code>MPI_COMM_SIZE/RANK</code> 读取 <code>COMM_LMDZ_PHY</code> 的 size/rank。</li>
+<li>用 <code>MPI_ALLGATHER(nbp,...)</code> 收集每个 rank 的物理列数；无 MPI 时 <code>distrib(:)=nbp</code>。</li>
+<li><code>klon_mpi_para_nb(:)=distrib(:)</code>。</li>
+<li>由前缀和构造 <code>klon_mpi_para_begin/end</code>。</li>
+<li>把 1D 物理列区间映射回二维 regular lon-lat 线性区间 <code>ij_para_begin/end</code>：
+<ul>
+<li>rank 0 从 <code>ij=1</code> 开始，保留北极物理列。</li>
+<li>其他 rank 用 <code>klon_mpi_para_begin(i)+nbp_lon-1</code> 把去重后的物理列重新嵌入带极点重复经度的 2D 线性网格。</li>
+</ul></li>
+<li>推导 <code>ii_para_begin/end</code>、<code>jj_para_begin/end</code>、<code>ij_para_nb</code>、<code>jj_para_nb</code>。</li>
+<li>当前 rank 写入 <code>ii_begin/end</code>、<code>jj_begin/end</code>、<code>ij_begin/end</code>、<code>klon_mpi_begin/end</code>、<code>klon_mpi</code>。</li>
+</ol>
+<p>极点所有权由 rank 位置决定：</p>
+<table>
+<thead>
+<tr>
+<th>标志</th>
+<th>条件</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>is_north_pole_dyn</code></td>
+<td><code>mpi_rank == 0</code></td>
+<td>北极物理列在第一个 rank。</td>
+</tr>
+<tr>
+<td><code>is_south_pole_dyn</code></td>
+<td><code>mpi_rank == mpi_size-1</code></td>
+<td>南极物理列在最后一个 rank。</td>
+</tr>
+<tr>
+<td><code>is_mpi_root</code></td>
+<td><code>mpi_rank == 0</code></td>
+<td>MPI root，和 OMP root 合成 <code>is_master</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>这套表供 transfer、XIOS、debug 写场、<code>calfis_p</code> 周边逻辑和 geometry 切片使用。<code>nbp</code> 必须已经由上游动力/物理接口按当前 rank 算好，本模块不重新决定负载平衡。</p>
+<h2 id="openmp-thread-级分布">OpenMP thread 级分布</h2>
+<p><code>Init_phys_lmdz_para</code> 随后进入 OpenMP parallel 区，在每个线程调用 <code>Init_phys_lmdz_omp_data(klon_mpi)</code>。</p>
+<p><code>mod_phys_lmdz_omp_data.F90:25-106</code> 的分配规则是平均切分当前 rank 的 <code>klon_mpi</code>：</p>
+<pre class="text"><code>for thread i = 0 .. omp_size-1:
+    klon_omp_para_nb(i) = klon_mpi / omp_size
+    if i &lt; mod(klon_mpi, omp_size):
+        klon_omp_para_nb(i) += 1
+
+klon_omp_para_begin(0) = 1
+klon_omp_para_end(0)   = klon_omp_para_nb(0)
+for i = 1 .. omp_size-1:
+    begin(i) = end(i-1) + 1
+    end(i)   = begin(i) + nb(i) - 1</code></pre>
+<p>每个线程写入自己的 threadprivate 状态：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>来源</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>omp_rank</code>, <code>omp_size</code></td>
+<td>OpenMP runtime 或串行 fallback</td>
+<td>当前线程编号和线程总数。</td>
+</tr>
+<tr>
+<td><code>klon_omp</code></td>
+<td><code>klon_omp_para_nb(omp_rank)</code></td>
+<td>当前线程物理列数。</td>
+</tr>
+<tr>
+<td><code>klon_omp_begin/end</code></td>
+<td><code>klon_omp_para_begin/end(omp_rank)</code></td>
+<td>当前线程在 rank 内的列区间。</td>
+</tr>
+<tr>
+<td><code>is_omp_root</code></td>
+<td><code>omp_rank == 0</code></td>
+<td>当前 rank 的 OMP root 线程。</td>
+</tr>
+<tr>
+<td><code>is_north_pole_phy</code></td>
+<td><code>is_north_pole_dyn .and. omp_rank == 0</code></td>
+<td>北极列由第一个 rank 的第一个线程拥有。</td>
+</tr>
+<tr>
+<td><code>is_south_pole_phy</code></td>
+<td><code>is_south_pole_dyn .and. omp_rank == omp_size-1</code></td>
+<td>南极列由最后一个 rank 的最后一个线程拥有。</td>
+</tr>
+</tbody>
+</table>
+<p><code>mod_phys_lmdz_para</code> 在同一 parallel 区内设置 <code>klon_loc=klon_omp</code>，并把 <code>is_master</code> 设为 <code>is_mpi_root .AND. is_omp_root</code>。</p>
+<h2 id="dimphy-局部维度"><code>dimphy</code> 局部维度</h2>
+<p><code>physics_distribution_mod.F90:28-30</code> 再开一个 OpenMP parallel 区，按线程调用 Mars <code>dimphy:Init_dimphy(klon_omp, nbp_lev)</code>。</p>
+<p>Mars <code>dimphy.F90:1-29</code> 中：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>线程属性</th>
+<th>初始化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>klon</code></td>
+<td><code>THREADPRIVATE</code></td>
+<td>每个线程写自己的 <code>klon0</code>，即 <code>klon_omp</code>。</td>
+</tr>
+<tr>
+<td><code>klev</code>, <code>klevp1</code>, <code>klevm1</code></td>
+<td><code>THREADPRIVATE</code></td>
+<td>OMP MASTER 赋值后 BARRIER；parallel 区内线程获得一致垂直层状态。</td>
+</tr>
+</tbody>
+</table>
+<p>因此 Mars physics 中大量 <code>USE dimphy, ONLY: klon/klev</code> 的例程看到的是当前 OpenMP 子域维度，而不是全局 <code>klon_glo</code> 或 rank 级 <code>klon_mpi</code>。</p>
+<h2 id="几何局部切片">几何局部切片</h2>
+<p><code>inigeomphy_mod.F90</code> 在初始化分布后构造全局物理几何数组，再进入 OpenMP parallel 区把全局列切给每个线程。关键索引在 <code>inigeomphy_mod.F90:224-234</code>：</p>
+<pre class="text"><code>offset = klon_mpi_begin - 1
+local global slice = offset + klon_omp_begin : offset + klon_omp_end
+
+airefi(:)      = airefi_glo(local slice)
+airefi_outputs = aire_glo(local slice)
+cufi/cvfi      = cufi_glo/cvfi_glo(local slice)
+lonfi/latfi    = lonfi_glo/latfi_glo(local slice)
+bounds         = bounds_glo(local slice, :)
+ind_cell_glo_fi = local global indices</code></pre>
+<p>随后 <code>inigeomphy_mod.F90:237-241</code> 调用 <code>init_geometry(klon_omp,...)</code> 和 <code>init_geometry_cell_area_for_outputs(klon_omp,...)</code>，<code>F90:244-248</code> 调用 <code>init_vertical_layers</code>。这说明分布初始化不仅决定 transfer 维度，也决定 Mars physics 看到的经纬度、面积、边界和垂直层状态。</p>
+<h2 id="复现顺序">复现顺序</h2>
+<p>复现 Mars 3D 物理初始化时，最小顺序如下：</p>
+<pre class="text"><code>1. 上游动力/并行层决定每个 rank 的 nbp 和 communicator。
+2. iniphysiq 调用 inigeomphy(ii,jj,nlayer,nbp,communicator,...)
+3. inigeomphy 调用 init_physics_distribution:
+   a. init_grid_phy_lmdz 写全局网格和 klon_glo
+   b. init_phys_lmdz_mpi_data 收集 nbp，建立 rank 级 klon_mpi 表
+   c. init_phys_lmdz_omp_data 切分 klon_mpi，建立 thread 级 klon_omp 表
+   d. Init_dimphy 写 Mars physics 的 klon/klev
+4. inigeomphy 根据 klon_mpi_begin + klon_omp_begin/end 截取几何数组。
+5. Mars iniphysiq 在 OMP parallel COPYIN 后调用 phys_state_var_init、ini_fillgeom、conf_phys，均使用 klon_omp。</code></pre>
+<h2 id="常见误读">常见误读</h2>
+<ul>
+<li><code>klon_glo</code>、<code>klon_mpi</code>、<code>klon_omp</code> 不是同一个维度。<code>klon_glo</code> 是全局物理列，<code>klon_mpi</code> 是当前 rank 列数，<code>klon_omp</code> 是当前线程列数。</li>
+<li><code>dimphy:klon</code> 在 Mars physics 中等于当前线程的 <code>klon_omp</code>，不是 <code>klon_glo</code>。</li>
+<li><code>mod_grid_phy_lmdz</code> 的 <code>Grid1Dto2D_glo/Grid2Dto1D_glo</code> 处理全局列和二维 lon-lat 的极点展开/压缩；它不负责 MPI/OMP 切分。</li>
+<li><code>calfis_p</code> 的动力格点到物理列 scatter/gather 是手写路径，不能直接等同于 <code>mod_phys_lmdz_transfert_para</code> 的通用 transfer。</li>
+<li><code>COMM_LMDZ_PHY</code> 来自传入的 <code>communicator</code>；并行动力中其他路径也可能使用 <code>COMM_LMDZ</code>。两者是否相同取决于上游初始化。</li>
+</ul>
+<h2 id="输出与副作用">输出与副作用</h2>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>写入状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>grid_type/nvertex/nbp_lon/nbp_lat/nbp_lev/klon_glo</code>。</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data</code></td>
+<td>MPI rank、size、root、pole 标志、rank 级二维/一维分布表、<code>COMM_LMDZ_PHY</code>。</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_omp_data</code></td>
+<td>OMP rank、size、thread 级列分布和 pole 标志。</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>klon_loc/is_master/is_sequential/is_parallel</code>。</td>
+</tr>
+<tr>
+<td><code>dimphy</code></td>
+<td>Mars physics 当前线程的 <code>klon/klev/klevp1/klevm1</code>。</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code>、<code>regular_lonlat_mod</code>、<code>vertical_layers_mod</code></td>
+<td>后续由 <code>inigeomphy</code> 用分布结果写入局部几何、regular grid 和垂直层。</td>
+</tr>
+</tbody>
+</table>
+<p>本链没有外部文件 I/O。<code>Init_phys_lmdz_mpi_data</code>、<code>Init_phys_lmdz_omp_data</code> 和 <code>Test_transfert</code> 会向 <code>lunout</code> 打印分布和 checksum 诊断。</p>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Mars 并行配置中 <code>COMM_LMDZ_PHY</code> 与动力侧 <code>COMM_LMDZ</code> 是否总是一致，需要结合 <code>init_const_mpi/init_parallel</code> 和具体 run script 实测。</li>
+<li><code>Test_transfert</code> 在非 <code>MESOSCALE</code> 构建中每次初始化都会运行；这是否在生产输出中可接受属于运行配置/历史设计问题，本页只记录源码事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/phy_common/physics_distribution_mod.html">physics_distribution_mod</a></li>
+<li><a href="../modules/phy_common/mod_grid_phy_lmdz.html">mod_grid_phy_lmdz</a></li>
+<li><a href="../modules/phy_common/mod_phys_lmdz_para.html">mod_phys_lmdz_para</a></li>
+<li><a href="../modules/phy_common/mpi-data-transfer.html">MPI data/transfer</a></li>
+<li><a href="../modules/phy_common/omp-data-transfer.html">OMP data/transfer</a></li>
+<li><a href="phys-transfer-para-wrapper.html">phys-transfer-para-wrapper</a></li>
+<li><a href="calfis-p-parallel-transfer.html">calfis_p 并行 transfer 架构</a></li>
+<li><a href="../modules/dynphy_lonlat/inigeomphy_mod.html">inigeomphy_mod</a></li>
+<li><a href="geometry-output-cell-area.html">geometry-output-cell-area</a></li>
+<li><a href="mars-dyn1d-common-forwarding.html">mars-dyn1d-common-forwarding</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

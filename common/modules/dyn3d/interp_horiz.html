@@ -1,0 +1,241 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>interp_horiz - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d/interp_horiz.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="interp_horizf--iniinterp_horizf">interp_horiz.F / iniinterp_horiz.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\interp_horiz.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\iniinterp_horiz.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>interp_horiz.F</code> 和 <code>iniinterp_horiz.F</code> 是旧式 F77 水平重网格 helper。它们把一个 LMDZ scalar 网格上的 2D/3D intensive field 插值到另一个 LMDZ scalar 网格，方法是预先计算新旧网格 cell 的经纬边界交叠面积，再按交叠面积加权平均。</p>
+<p>Mars 运行参与度：<code>工具链条件经过</code>。Mars <code>datareadnc.F</code> 用它把 <code>surface.nc</code> 的 360x180 surface 数据投到当前 GCM scalar 网格；<code>lect_start_archive.F</code> 用它把旧 <code>start_archive.nc</code> 中的 surface、soil、3D atmosphere 和 tracer 字段投到当前网格；<code>newstart.F</code> 的 MONS 数据加载也用它把外部数据投到 GCM 网格。普通时间推进主循环不调用这两个 helper。</p>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>文件</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>interp_horiz</code></td>
+<td><code>interp_horiz.F</code></td>
+<td>4</td>
+<td>顶层水平插值入口，初始化交叠表后把 <code>varo</code> 累加到 <code>varn</code>。</td>
+</tr>
+<tr>
+<td><code>iniinterp_horiz</code></td>
+<td><code>iniinterp_horiz.F</code></td>
+<td>4</td>
+<td>预计算新旧 scalar cell 边界、交叠列表 <code>iik/jjk/ik/jk</code>、交叠面积 <code>intersec</code> 和新网格面积 <code>airen</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入输出">输入输出</h2>
+<p><code>interp_horiz(varo,varn,imo,jmo,imn,jmn,lm,rlonuo,rlatvo,rlonun,rlatvn)</code> 的数组约定如下：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>方向</th>
+<th>维度</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>varo</code></td>
+<td>in</td>
+<td><code>(imo+1,jmo+1,lm)</code></td>
+<td>旧 scalar 网格上的场。经向含极点行，纬向含周期补列。</td>
+</tr>
+<tr>
+<td><code>varn</code></td>
+<td>out</td>
+<td><code>(imn+1,jmn+1,lm)</code></td>
+<td>新 scalar 网格上的结果，例程内部先清零再累加。</td>
+</tr>
+<tr>
+<td><code>imo,jmo</code></td>
+<td>in</td>
+<td>scalar</td>
+<td>旧网格经纬参数；实际数组是 <code>imo+1</code> by <code>jmo+1</code>。</td>
+</tr>
+<tr>
+<td><code>imn,jmn</code></td>
+<td>in</td>
+<td>scalar</td>
+<td>新网格经纬参数；实际数组是 <code>imn+1</code> by <code>jmn+1</code>。</td>
+</tr>
+<tr>
+<td><code>lm</code></td>
+<td>in</td>
+<td>scalar</td>
+<td>垂直或字段层数；2D field 传 1，土壤或大气 3D 传对应层数。</td>
+</tr>
+<tr>
+<td><code>rlonuo,rlonun</code></td>
+<td>in</td>
+<td><code>imo+1</code>, <code>imn+1</code></td>
+<td>旧/新 scalar cell 经向边界，单位为弧度，最后一项通常是第一项加 <code>2*pi</code>。</td>
+</tr>
+<tr>
+<td><code>rlatvo,rlatvn</code></td>
+<td>in</td>
+<td><code>jmo</code>, <code>jmn</code></td>
+<td>旧/新 scalar cell 纬向内边界，单位为弧度；两极由例程内部补为 <code>pi/2</code> 和 <code>-pi/2</code>。</td>
+</tr>
+</tbody>
+</table>
+<p><code>iniinterp_horiz</code> 额外接收固定容量 <code>kllm</code>，并输出：</p>
+<ul>
+<li><code>ktotal</code>：实际找到的新旧 cell 交叠数。</li>
+<li><code>iik(k),jjk(k)</code>：第 <code>k</code> 个交叠对应的新网格 cell。</li>
+<li><code>ik(k),jk(k)</code>：第 <code>k</code> 个交叠对应的旧网格 cell。</li>
+<li><code>intersec(k)</code>：交叠面积权重。</li>
+<li><code>airen(ii,jj)</code>：新网格 cell 面积。</li>
+</ul>
+<h2 id="核心算法">核心算法</h2>
+<h3 id="1-构造-cell-边界">1. 构造 cell 边界</h3>
+<p><code>iniinterp_horiz</code> 先把输入的 scalar boundary 数组展开为旧网格 <code>[a(i),b(i)] x [c(j),d(j)]</code> 和新网格 <code>[an(ii),bn(ii)] x [cn(jj),dn(jj)]</code>。</p>
+<p>经向边界有周期处理：</p>
+<pre class="text"><code>a(1) = -rlonuo(imo+1)
+b(1) =  rlonuo(1)
+a(i) =  rlonuo(i-1), b(i) = rlonuo(i) for i=2..imo+1</code></pre>
+<p>新网格同理。纬向边界则把北极和南极补为：</p>
+<pre class="text"><code>d(1) = pi/2
+c(jmo+1) = -pi/2</code></pre>
+<p>这意味着调用方只需要提供 interior scalar-box latitude boundaries，极点由例程内部固定。</p>
+<h3 id="2-计算新网格-cell-面积">2. 计算新网格 cell 面积</h3>
+<p>每个新 cell 面积写为：</p>
+<pre class="text"><code>airen(ii,jj) = (bn(ii)-an(ii)) * (sin(dn(jj))-sin(cn(jj)))</code></pre>
+<p>源码注释称面积为 <code>m2</code>，但公式没有乘行星半径平方；实际是单位球面的 solid-angle 面积。由于插值使用 <code>intersec/airen</code> 比值，半径因子会相消。复现时不要再额外给 <code>intersec</code> 或 <code>airen</code> 单边乘半径。</p>
+<h3 id="3-枚举新旧-cell-交叠">3. 枚举新旧 cell 交叠</h3>
+<p><code>iniinterp_horiz</code> 对每个新 cell 和旧 cell 判断纬向是否重叠、经向是否重叠。经向除正常交叠外，还检查旧 cell 平移 <code>-2*pi</code> 或 <code>+2*pi</code> 后的周期交叠，用于处理跨经度断点的 cell。</p>
+<p>一旦重叠：</p>
+<pre class="text"><code>ktotal += 1
+iik(ktotal)=ii, jjk(ktotal)=jj
+ik(ktotal)=i,   jk(ktotal)=j
+intersec = (overlap_lon_width) * (sin(overlap_north)-sin(overlap_south))</code></pre>
+<p>固定容量 <code>kllm</code> 在 <code>interp_horiz.F</code> 中设为 <code>1400*200*10</code>。源码没有检查 <code>ktotal &gt; kllm</code>，因此极高分辨率或异常边界输入存在越界风险。</p>
+<h3 id="4-按面积权重累加字段">4. 按面积权重累加字段</h3>
+<p><code>interp_horiz</code> 调 <code>iniinterp_horiz</code> 后先把 <code>varn</code> 全部清零，再遍历 <code>k=1..ktotal</code>：</p>
+<pre class="text"><code>varn(iik(k),jjk(k),l) += varo(ik(k),jk(k),l) * intersec(k) / airen(iik(k),jjk(k))</code></pre>
+<p>对每个 <code>l=1..lm</code> 独立执行同一水平映射。这个公式对 intensive field 做面积加权平均；若把 extensive total 当作 <code>varo</code> 传入，会改变物理含义。</p>
+<h3 id="5-极点行平均">5. 极点行平均</h3>
+<p>最后例程对新网格北极行 <code>jj=1</code> 和南极行 <code>jj=jmn+1</code> 做经向平均：</p>
+<pre class="text"><code>totn = sum_i varn(i,1,l)
+tots = sum_i varn(i,jmn+1,l)
+varn(:,1,l) = totn / (imn+1)
+varn(:,jmn+1,l) = tots / (imn+1)</code></pre>
+<p>这保证极点只有一个物理值，即使数组中仍保留 <code>imn+1</code> 个经向位置。</p>
+<h2 id="mars-调用链">Mars 调用链</h2>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>用法</th>
+<th>后续处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datareadnc.F</code></td>
+<td>读取 <code>surface.nc</code> 的 <code>z0/albedo/thermal/zMOL</code> 等 360x180 数据，补周期列后调 <code>interp_horiz(zdataS,pfield,imd,jmd,iim,jjm,1,rlonud,rlatvd,rlonu,rlatv)</code>。</td>
+<td>手动恢复周期列；<code>newstart</code> 再用 <code>gr_dyn_fi</code> 把动力 scalar grid field 转到物理网格。</td>
+</tr>
+<tr>
+<td><code>lect_start_archive.F</code> 2D fields</td>
+<td>对 <code>phis/co2ice/tsurf/emis/tauscaling/totcloudfrac/watercap/peren_co2ice/albedo/ps</code> 等按旧 archive 网格到新网格重投影。</td>
+<td>多数 surface/physics 字段随后 <code>gr_dyn_fi</code>；<code>ps</code> 和 CO2 ice 后续再做总量缩放。</td>
+</tr>
+<tr>
+<td><code>lect_start_archive.F</code> soil fields</td>
+<td>对 <code>inertiedat/tsoil</code> 等按 <code>nsoilmx</code> 或旧 soil 层数传入 <code>lm</code>，做逐层水平插值。</td>
+<td>必要时先经 <code>interp_line</code> 做土壤垂直插值，再水平插值。</td>
+</tr>
+<tr>
+<td><code>lect_start_archive.F</code> atmosphere fields</td>
+<td>对温度、<code>q2</code>、风和 tracer 先经 <code>interp_vert</code> 到当前垂直层，再用 <code>interp_horiz</code> 到当前水平网格。</td>
+<td>风场插值后再 <code>scal_wind</code>，并乘 <code>cu/cv</code> 写回 covariant wind。</td>
+</tr>
+<tr>
+<td><code>newstart.F</code> MONS 数据</td>
+<td>把 <code>Hdnx</code> 和 <code>d21x</code> 从 180x90 MONS 网格投到 <code>MONS_Hdn/MONS_d21</code>。</td>
+<td><code>d21</code> 在读入时从 <code>g/cm2</code> 乘 10 转为 <code>kg/m2</code>，再水平插值。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现检查清单">复现检查清单</h2>
+<ol type="1">
+<li>确认旧/新经度边界数组单位为弧度，且最后一列是周期补列。</li>
+<li>确认纬向边界数组不包含极点本身；北/南极由 <code>iniinterp_horiz</code> 补入。</li>
+<li>确认 <code>varo</code> 和 <code>varn</code> 的第一维都是 <code>im+1</code>，并包含周期列。</li>
+<li>对 2D field 传 <code>lm=1</code>；对 soil、atmosphere 或 tracer profile 传真实层数。</li>
+<li>对需要守恒的 Mars 物理量，检查调用方是否在 <code>interp_horiz</code> 后另做总量缩放；<code>lect_start_archive</code> 对 <code>ps</code> 和 CO2 ice 有显式缩放。</li>
+<li>若出现异常打印 <code>ktotal 1 = ...</code>，先检查边界数组顺序、<code>kllm</code> 容量和经度断点。</li>
+</ol>
+<h2 id="边界和风险">边界和风险</h2>
+<ul>
+<li><code>interp_horiz</code> 每次调用都会重新计算交叠表，没有缓存。大量字段重复调用时成本随 <code>imn*jmn*imo*jmo</code> 增长。</li>
+<li><code>kllm=1400*200*10</code> 是硬编码容量，源码没有越界保护。</li>
+<li>源码保留了面积一致性测试块，但被注释掉；当前运行不会自动校验 <code>sum(intersec)==airen</code>。</li>
+<li>例程使用默认 <code>real</code>，没有双精度版本；高分辨率或边界非常接近时可能有舍入误差。</li>
+<li>本页只覆盖 Mars 当前相关调用；Venus/Titan old 同名调用属于 blocked 非 Mars 范围。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn3d 总览</a></li>
+<li><a href="../../routines/mars-utility-common-state-consumers.html">Mars utility COMMON 状态消费链</a></li>
+<li><a href="../../routines/mars-utility-netcdf-helper-use.html">Mars utility NetCDF 和 COMMON helper 边界</a></li>
+<li><a href="../../routines/mars-start-restart-archive-boundary.html">Mars start/restart/archive 边界</a></li>
+<li><a href="../../routines/dyn-phys-grid-transforms.html">动力/物理格点互转</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,105 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>advxyz-serial - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/advxyz-serial.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="advxadvyadvz-串行内核组">advx/advy/advz 串行内核组</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d_common\advx.F
+dyn3d_common\advy.F
+dyn3d_common\advz.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。串行 slope/limiter advection、<code>pentes_ini</code> 等路径调用。</p>
+<h2 id="文件角色">文件角色</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>advx.F</code></td>
+<td>497</td>
+<td>x 方向 advection 内核。</td>
+</tr>
+<tr>
+<td><code>advy.F</code></td>
+<td>420</td>
+<td>y 方向 advection 内核，含纬向/极区几何因素。</td>
+</tr>
+<tr>
+<td><code>advz.F</code></td>
+<td>320</td>
+<td>z 方向 advection 内核。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共同接口特征">共同接口特征</h2>
+<p>三者都接收 limiter 开关、时间步、方向质量通量、质量/均值/斜率工作数组，并更新 <code>s0/sx/sy/sz</code> 等状态。它们通常由 <a href="../modules/dyn3d_common/pentes_ini.html">pentes_ini</a> 或 advection 包装层按 split 顺序调用。</p>
+<h2 id="复现顺序">复现顺序</h2>
+<pre class="text"><code>limx -&gt; advx(0.5*dt)
+limy -&gt; advy(0.5*dt)
+limz -&gt; advz(1.0*dt)
+limy -&gt; advy(0.5*dt)
+limx -&gt; advx(0.5*dt)</code></pre>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>每个方向的质量通量位置不同：<code>pbaru</code>、<code>pbarv</code>、<code>w</code> 不能混用。</li>
+<li>y 方向通常最容易出现极点/面积差异，应优先检查 <code>advy</code> 的纬向权重。</li>
+<li>这些内核处理 slopes，不等同于 Van Leer <code>vlx/vly/vlz</code>。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3d_common/pentes_ini.html">pentes_ini</a></li>
+<li><a href="operator-helper-families.html">operator helper families</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>limiter 参数 <code>limit</code> 的所有取值语义需逐文件展开。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

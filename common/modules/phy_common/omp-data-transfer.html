@@ -1,0 +1,129 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>omp-data-transfer - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/phy_common/omp-data-transfer.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="物理侧-omp-datatransfer-组">物理侧 OMP data/transfer 组</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\mod_phys_lmdz_omp_data.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\mod_phys_lmdz_omp_transfert.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>mod_phys_lmdz_omp_data.F90</code> 将当前 MPI rank 的 <code>klon_mpi</code> 物理列切分给 OpenMP 线程，并保存线程局部 <code>klon_omp</code> 和起止列。<code>mod_phys_lmdz_omp_transfert.F90</code> 在同一 MPI rank 内用共享缓冲、barrier、master 和 critical 实现 OMP 层 bcast/scatter/gather/reduce。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 或 COMMON 物理侧启用 OpenMP 物理并行时经过；非 OMP 构建退化为单线程分布。</code></pre>
+<h2 id="文件和符号">文件和符号</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>主要符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_phys_lmdz_omp_data.F90</code></td>
+<td>126</td>
+<td><code>mod_phys_lmdz_omp_data</code>, <code>Init_phys_lmdz_omp_data</code>, <code>Print_module_data</code></td>
+<td>保存 OMP rank、线程局部物理列范围和极点标志。</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_omp_transfert.F90</code></td>
+<td>1119</td>
+<td><code>mod_phys_lmdz_omp_transfert</code>, <code>bcast_omp</code>, <code>scatter_omp</code>, <code>gather_omp</code>, <code>reduce_sum_omp</code>, <code>omp_barrier</code></td>
+<td>同一 MPI rank 内的线程间 transfer 包装；hard 父文件页见 <a href="mod_phys_lmdz_omp_transfert.html">mod_phys_lmdz_omp_transfert</a>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="omp-data-初始化">OMP data 初始化</h2>
+<p><code>Init_phys_lmdz_omp_data(klon_mpi)</code> 的关键步骤：</p>
+<ol type="1">
+<li><code>CPP_OMP</code> 下由 master 线程读取 <code>omp_size</code>，各线程读取 <code>omp_rank</code>；否则设为单线程。</li>
+<li>检查 OpenMP master 是否为 rank 0 线程；异常时调用 <code>abort_physic</code>。</li>
+<li>master 分配 <code>klon_omp_para_nb/begin/end(0:omp_size-1)</code>。</li>
+<li>将 <code>klon_mpi</code> 尽量平均分给线程，余数优先给低编号线程。</li>
+<li>每个线程设置自己的 <code>klon_omp/klon_omp_begin/klon_omp_end</code>。</li>
+<li>极点物理标志继承自 MPI data 的 <code>is_north_pole_dyn/is_south_pole_dyn</code>。</li>
+</ol>
+<h2 id="omp-transfer-接口族">OMP transfer 接口族</h2>
+<p><code>mod_phys_lmdz_omp_transfert</code> 使用模块级 buffer：</p>
+<ul>
+<li><code>buffer_c</code>，固定最小字符缓冲。</li>
+<li><code>buffer_i/buffer_r/buffer_l</code>，按需要通过 <code>check_buffer_*</code> 扩容。</li>
+</ul>
+<p>公开接口：</p>
+<ul>
+<li><code>bcast_omp</code>：master 把值写入 buffer，barrier 后其他线程读取。</li>
+<li><code>scatter_omp</code>：master 将 <code>klon_mpi</code> 数据放入 buffer，各线程按 <code>klon_omp_begin</code> 取自己的段。</li>
+<li><code>gather_omp</code>：各线程把本地段写入 buffer，master 再组装为 <code>klon_mpi</code> 字段。</li>
+<li><code>reduce_sum_omp</code>：先清零输出，线程在 critical 中累加，再由 master 回写。</li>
+<li><code>omp_barrier</code>：显式 OpenMP barrier 包装。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>klon_omp</code> 系列变量是 <code>THREADPRIVATE</code>，必须在 OpenMP parallel 区内初始化和使用。</li>
+<li>OMP transfer 只处理同一 MPI rank 内的线程间搬运；跨 MPI rank 的通信由 MPI transfer 页处理。</li>
+<li>buffer 扩容在 master 区完成，并用 barrier 保护所有线程看到一致缓冲。</li>
+<li>reduce 使用 <code>!$OMP CRITICAL</code> 累加，确保结果确定但可能影响性能。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>is_north_pole_phy/is_south_pole_phy</code> 对物理参数化分支的直接使用点需后续物理侧页面补充。</li>
+<li>OMP transfer 大文件逐泛型过程细节属于 hard 子页范围。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phy_common 总览</a></li>
+<li><a href="mod_phys_lmdz_para.html">mod_phys_lmdz_para</a></li>
+<li><a href="mpi-data-transfer.html">MPI data/transfer</a></li>
+<li><a href="physics_distribution_mod.html">physics_distribution_mod</a></li>
+<li><a href="mod_phys_lmdz_omp_transfert.html">mod_phys_lmdz_omp_transfert</a>（TASK-0026 hard 父文件页）</li>
+<li><a href="../../routines/phys-transfer-para-wrapper.html">transfert_para 上层 wrapper</a></li>
+<li><a href="../../routines/phys-transfer-mpi-core.html">phys-transfer-mpi-core</a></li>
+<li><a href="../../routines/phys-transfer-omp-core.html">phys-transfer-omp-core</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

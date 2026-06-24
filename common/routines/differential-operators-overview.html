@@ -1,0 +1,115 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>differential-operators-overview - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/differential-operators-overview.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="动力差分算子总览">动力差分算子总览</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>grad*, diverg*, divgrad*, gradiv*, rotat*, laplacien* families in dyn3d_common</code></pre>
+<p>Mars 运行参与度：<code>必经/条件经过</code>。动力核心、耗散、诊断和滤波相关流程会调用这些算子族。</p>
+<h2 id="分类">分类</h2>
+<table>
+<thead>
+<tr>
+<th>家族</th>
+<th>代表文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>gradient</td>
+<td><code>grad.F</code>, <code>gradiv.F</code>, <code>gradiv2.F</code></td>
+<td>标量到向量或压力梯度相关离散。</td>
+</tr>
+<tr>
+<td>divergence</td>
+<td><code>diverg.F</code>, <code>divergf.F</code>, <code>divergst.F</code>, <code>diverg_gam.F</code></td>
+<td>通量散度、质量辐合和变体。</td>
+</tr>
+<tr>
+<td>div-grad</td>
+<td><code>divgrad.F</code>, <code>divgrad2.F</code></td>
+<td>二阶扩散或耗散构造。</td>
+</tr>
+<tr>
+<td>rotation</td>
+<td><code>rotat.F</code>, <code>rotatf.F</code>, <code>rotatst.F</code>, <code>rotat_nfil.F</code></td>
+<td>旋度/涡度相关离散。</td>
+</tr>
+<tr>
+<td>Laplacian</td>
+<td><code>laplacien.F</code>, <code>laplacien_gam.F</code>, <code>laplacien_rot.F</code>, <code>laplacien_rotgam.F</code></td>
+<td>拉普拉斯和旋转形式拉普拉斯。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="使用链">使用链</h2>
+<p>这些算子通常不直接从入口调用，而是被 <code>caldyn</code>、<code>dissip</code>、能量诊断和 helper 例程组合调用。它们依赖 <code>inigeom</code> 构造的面积、距离、Coriolis 和伸长系数。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>先确认变量所在网格位置：标量点、u 点、v 点或边界点。</li>
+<li>同名带后缀文件通常对应过滤、staggered 或 gamma 变体，不能互换。</li>
+<li>算子数值差异常来自几何数组，而不是公式本身。</li>
+</ul>
+<h2 id="后续拆分建议">后续拆分建议</h2>
+<ul>
+<li><code>grad/diverg/rotat</code> 基础文件可作为普通 file-module 释放。</li>
+<li><code>laplacien*</code> 与耗散关系密切，适合和 <code>dissip</code> 主题一起复审。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="common-dissipation-stencil-families.html">水平微分/耗散 stencil family 深度页</a></li>
+<li><a href="caldyn-serial-parallel.html">caldyn 串并行对照</a></li>
+<li><a href="dissip-serial-parallel.html">dissip 串并行对照</a></li>
+<li><a href="common-dissip-mars-chain.html">Mars 水平耗散链路</a></li>
+<li><a href="../modules/dyn3d_common/inigeom.html">inigeom</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>每个算子的输入/输出网格位置需逐文件页确认，本页只做第一版分类。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

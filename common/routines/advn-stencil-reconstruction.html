@@ -1,0 +1,276 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>advn-stencil-reconstruction - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/advn-stencil-reconstruction.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="advn-界面重构advnqxadvnqyadvnqz-的模板和边界处理">advn 界面重构：advnqx/advnqy/advnqz 的模板和边界处理</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d_common\advn.F: L141-257（advnqx）
+dyn3d_common\advn.F: L258-352（advnqy）
+dyn3d_common\advn.F: L354-468（advnqz）</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。本页聚焦 advn 的三个界面重构子例程的模板结构、边界处理和极值检测机制。这些子例程为 advnx/advny/advnz 提供界面重构值。主例程调用关系和通量计算详见 <a href="advn-dispatcher-order.html">advn-dispatcher-order</a>。</p>
+<h2 id="例程定位">例程定位</h2>
+<p>advnqx/advnqy/advnqz 共享相同的重构模板：4 阶中心差分 → 单调约束 → 极值检测 → 界面赋值。差异在于各方向的边界条件和周期包裹方式。三个子例程都有一个局部的 <code>save mode</code> 固定为 1，不受主例程传入的 <code>mode</code> 参数影响。这意味着重构总是使用 4 阶模板，<code>mode</code> 只影响后续通量计算。</p>
+<h2 id="advnqxe-w-界面重构">advnqx：E-W 界面重构</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> advnqx(q,qg,qd)</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q(ip1jmp1,llm)</code></td>
+<td>格点混合比（IN）</td>
+</tr>
+<tr>
+<td><code>qg(ip1jmp1,llm)</code></td>
+<td>左界面重构值（OUT，gauche）</td>
+</tr>
+<tr>
+<td><code>qd(ip1jmp1,llm)</code></td>
+<td>右界面重构值（OUT，droite）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="重构模板">重构模板</h3>
+<p><strong>mode=0（1 阶）</strong>：<code>qg(ij)=qd(ij)=q(ij,l)</code>，平坦重构。</p>
+<p><strong>mode=1（默认，4 阶）</strong>：</p>
+<ol type="1">
+<li><strong>斜率</strong>：<code>dxqu(ij) = q(ij+1,l) - q(ij,l)</code>，<code>ij = iip2..ip1jm-1</code></li>
+<li><strong>界面值</strong>：<code>zqu(ij) = 0.5*(q(ij+1,l)+q(ij,l))</code></li>
+<li><strong>4 阶修正</strong>（两步）：
+<ul>
+<li><code>zqu(ij) -= dxqu(ij+1)/12</code>，<code>ij = iip2..ip1jm-1</code></li>
+<li><code>zqu(ij) += dxqu(ij-1)/12</code>，<code>ij = iip2+1..ip1jm</code></li>
+</ul></li>
+<li><strong>单调约束</strong>：<code>zqu(ij) = min(max(zqmin(ij), zqu(ij)), zqmax(ij))</code>，其中 <code>zqmax/min = max/min(q(ij), q(ij+1))</code></li>
+<li><strong>极值检测</strong>：<code>extremum(ij) = dxqu(ij)*dxqu(ij-1) &lt;= 0</code>（相邻斜率异号 → 局部极值）</li>
+<li><strong>界面赋值</strong>：
+<ul>
+<li>极值处：<code>qg(ij)=qd(ij)=q(ij,l)</code>（退化为 1 阶）</li>
+<li>非极值处：<code>qd(ij)=zqu(ij), qg(ij)=zqu(ij-1)</code></li>
+</ul></li>
+</ol>
+<h3 id="e-w-周期包裹">E-W 周期包裹</h3>
+<p>经向周期通过三步 <code>mod</code> 循环实现：对 <code>ij = iip1+iip1, ip1jm, iip1</code>（每行的最后一个格点），复制 <code>ij-iim</code> 处的值。这确保经向首尾格点的界面值一致。</p>
+<h3 id="goto-8888-跳过段">GOTO 8888 跳过段</h3>
+<p>L235 <code>goto 8888</code> 跳过了 L237-252 的代码段。被跳过的代码是备选的极值处理逻辑：在极值点相邻的非极值格点处用极值点的值覆盖界面值。当前版本不使用这段代码，改为在极值点直接退化为 1 阶。</p>
+<h2 id="advnqyn-s-界面重构">advnqy：N-S 界面重构</h2>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> advnqy(q,qs,qn)</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q(ip1jmp1,llm)</code></td>
+<td>格点混合比（IN）</td>
+</tr>
+<tr>
+<td><code>qs(ip1jmp1,llm)</code></td>
+<td>南界面重构值（OUT，south）</td>
+</tr>
+<tr>
+<td><code>qn(ip1jmp1,llm)</code></td>
+<td>北界面重构值（OUT，north）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="重构模板-1">重构模板</h3>
+<p><strong>mode=0</strong>：<code>qs=qn=q</code>。</p>
+<p><strong>mode=1</strong>：</p>
+<ol type="1">
+<li><strong>斜率</strong>：<code>dyqv(ij) = q(ij,l) - q(ij+iip1,l)</code>（注意符号：N-S 方向递减）</li>
+<li><strong>界面值</strong>：<code>zqv(ij,l) = 0.5*(q(ij+iip1,l)+q(ij,l))</code></li>
+<li><strong>4 阶修正</strong>：<code>zqv += (dyqv(ij+iip1)-dyqv(ij-iip1))/12</code></li>
+<li><strong>极值检测</strong>：<code>extremum(ij) = dyqv(ij)*dyqv(ij-iip1) &lt;= 0</code></li>
+<li><strong>单调约束</strong>：同 advnqx</li>
+<li><strong>界面赋值</strong>：
+<ul>
+<li>极值处：<code>qs=qn=q</code></li>
+<li>非极值处：<code>qs=zqv(ij,l), qn=zqv(ij-iip1,l)</code></li>
+</ul></li>
+</ol>
+<h3 id="n-s-边界处理">N-S 边界处理</h3>
+<p><strong>极点无斜率</strong>：<code>j=1</code> 和 <code>j=jjp1</code>（极点行）不做 4 阶重构，直接设 <code>zqv=q</code>，<code>extremum=.true.</code>。这是因为极点只有单行格点，无法构造有意义的 4 阶模板。</p>
+<p>极点行的界面值被强制设为格点值：</p>
+<pre><code>qs(ij,l) = q(ij,l)     ! ij = 1..iip1 和 ip1jm+1..ip1jmp1
+qn(ij,l) = q(ij,l)</code></pre>
+<p>注释掉的代码（L334-335）显示备选的极值传播逻辑，当前未使用。</p>
+<h2 id="advnqz垂直界面重构">advnqz：垂直界面重构</h2>
+<div class="sourceCode" id="cb5"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> advnqz(q,qh,qb)</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q(ip1jmp1,llm)</code></td>
+<td>格点混合比（IN）</td>
+</tr>
+<tr>
+<td><code>qh(ip1jmp1,llm)</code></td>
+<td>上界面重构值（OUT，haut=top）</td>
+</tr>
+<tr>
+<td><code>qb(ip1jmp1,llm)</code></td>
+<td>下界面重构值（OUT，bas=bottom）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="重构模板-2">重构模板</h3>
+<p><strong>mode=0</strong>：<code>qh=qb=q</code>。</p>
+<p><strong>mode=1</strong>：</p>
+<ol type="1">
+<li><strong>斜率</strong>：<code>dzqw(ij,l) = q(ij,l-1) - q(ij,l)</code>，<code>l = 2..llm</code></li>
+<li><strong>界面值</strong>：<code>zqw(ij,l) = 0.5*(q(ij,l-1)+q(ij,l))</code>，<code>l = 2..llm</code></li>
+<li><strong>4 阶修正</strong>：<code>zqw += (dzqw(ij,l+1)-dzqw(ij,l-1))/12</code>，<code>l = 2..llm</code></li>
+<li><strong>极值检测</strong>：<code>extremum(ij,l) = dzqw(ij,l)*dzqw(ij,l+1) &lt;= 0</code>，<code>l = 2..llm-1</code></li>
+<li><strong>单调约束</strong>：同 advnqx</li>
+<li><strong>界面赋值</strong>：
+<ul>
+<li>极值处：<code>qh=qb=q</code></li>
+<li>非极值处：<code>qh=zqw(ij,l+1), qb=zqw(ij,l)</code></li>
+</ul></li>
+</ol>
+<h3 id="垂直边界处理">垂直边界处理</h3>
+<p><strong>顶底无斜率</strong>：</p>
+<ul>
+<li><code>dzqw(ij,1) = 0</code>，<code>dzqw(ij,llm+1) = 0</code>（大气顶和地面无差分）</li>
+<li><code>zqw(ij,2) = q(ij,1)</code>（顶部界面退化为 1 阶）</li>
+<li><code>zqw(ij,llm) = q(ij,llm)</code>（底部界面退化为 1 阶）</li>
+<li><code>extremum(ij,1) = .true.</code>，<code>extremum(ij,llm) = .true.</code></li>
+</ul>
+<p>最终界面值：</p>
+<pre><code>qb(ij,1) = q(ij,1),    qh(ij,1) = q(ij,1)       ! 顶部
+qb(ij,llm) = q(ij,llm), qh(ij,llm) = q(ij,llm)  ! 底部</code></pre>
+<p>注释掉的代码（L449-456）显示备选的极值传播逻辑，当前未使用。</p>
+<h2 id="三方向重构对比">三方向重构对比</h2>
+<table>
+<thead>
+<tr>
+<th>特征</th>
+<th>advnqx (E-W)</th>
+<th>advnqy (N-S)</th>
+<th>advnqz (垂直)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>界面命名</td>
+<td>gauche/droite</td>
+<td>south/north</td>
+<td>haut/bas</td>
+</tr>
+<tr>
+<td>4 阶修正</td>
+<td>±dxqu/12</td>
+<td>±dyqv/12</td>
+<td>±dzqw/12</td>
+</tr>
+<tr>
+<td>极值检测</td>
+<td>dxqu(ij)*dxqu(ij-1)≤0</td>
+<td>dyqv(ij)*dyqv(ij-iip1)≤0</td>
+<td>dzqw(ij,l)*dzqw(ij,l+1)≤0</td>
+</tr>
+<tr>
+<td>周期包裹</td>
+<td>经向 mod 循环</td>
+<td>无（极点特殊处理）</td>
+<td>无</td>
+</tr>
+<tr>
+<td>边界退化为 1 阶</td>
+<td>无</td>
+<td>极点（j=1, j=jjp1）</td>
+<td>顶底（l=1, l=llm）</td>
+</tr>
+<tr>
+<td>内部范围</td>
+<td>iip2..ip1jm</td>
+<td>iip2..ip1jm-iip1</td>
+<td>l=2..llm</td>
+</tr>
+<tr>
+<td>极值传播代码</td>
+<td>GOTO 8888 跳过</td>
+<td>注释掉</td>
+<td>注释掉</td>
+</tr>
+</tbody>
+</table>
+<h2 id="4-阶修正的数值意义">4 阶修正的数值意义</h2>
+<p>三个子例程使用的 4 阶修正公式为：</p>
+<pre><code>z_interface = 0.5*(q_L + q_R) ± (slope_far - slope_near) / 12</code></pre>
+<p>这是标准的 4 阶中心差分插值。对均匀网格，<code>1/12</code> 修正项将插值精度从 2 阶提升到 4 阶。加上单调约束后，格式在有极值区域退化为 1 阶，在平滑区域保持 4 阶精度。</p>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>三个子例程的局部 <code>save mode</code> 固定为 1，不受 advn 主例程传入的 <code>mode</code> 影响。这意味着即使 <code>mode=0</code>（主例程传入），重构子例程仍使用 4 阶模板。mode=0 的一阶行为只能在 advnx 的通量计算中体现（通过 <code>zsigd=zsigg=0.5</code> 退化）。</li>
+<li>advnqx 的 GOTO 8888 和 advnqy/advnqz 注释掉的极值传播代码代表同一套备选逻辑的不同处理方式。当前版本统一使用"极值处退化为 1 阶"的策略。</li>
+<li>advnqy 的 N-S 斜率符号 <code>dyqv = q(ij) - q(ij+iip1)</code> 是"北减南"（因为 iip1 是向北一步），与 advnqx 的"东减西"符号约定不同。这影响后续 advny 中上游方向的选择。</li>
+<li>advnqz 的 <code>zqw(ij,2)=q(ij,1)</code> 和 <code>zqw(ij,llm)=q(ij,llm)</code> 是硬编码的 1 阶边界，不使用 4 阶修正。这是因为大气顶和地面缺少足够的邻层构造 4 阶模板。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="advn-dispatcher-order.html">advn 调度顺序</a></li>
+<li><a href="advn-flux-updates.html">advn 通量更新</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>局部 <code>save mode = 1</code> 是否为有意设计（始终使用 4 阶重构）还是遗留 bug。</li>
+<li>被跳过的极值传播代码（GOTO 8888 和注释段）在历史版本中是否被使用过。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

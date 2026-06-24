@@ -1,0 +1,214 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mod_hallo - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3dpar/mod_hallo.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mod_hallof90">mod_hallo.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\mod_hallo.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>mod_hallo.F90</code> 定义并行动力 halo 请求模块 <code>mod_Hallo</code>。它把字段指针、纬向 offset、层数和 stride 注册为 send/recv 请求，统一打包到缓冲区，使用非阻塞 MPI 发送/接收，并在等待阶段解包回目标字段。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 并行动力和 COMMON dyn3dpar 的 halo、分布重设、并行诊断路径经过；串行入口不经过。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_Hallo</code></td>
+<td>module</td>
+<td>1</td>
+<td>halo 请求、缓冲和复制工具。</td>
+</tr>
+<tr>
+<td><code>Init_mod_hallo</code></td>
+<td>subroutine</td>
+<td>48</td>
+<td>初始化线程私有缓冲和请求列表。</td>
+</tr>
+<tr>
+<td><code>Register_Hallo</code></td>
+<td>subroutine</td>
+<td>317</td>
+<td>为上下邻接 rank 注册 halo send/recv。</td>
+</tr>
+<tr>
+<td><code>Register_SwapField</code></td>
+<td>subroutine</td>
+<td>217</td>
+<td>为重新分布后的重叠 band 注册交换。</td>
+</tr>
+<tr>
+<td><code>Register_SwapFieldHallo</code></td>
+<td>subroutine</td>
+<td>265</td>
+<td>类似 swap，但把新分布按 halo 上下扩展。</td>
+</tr>
+<tr>
+<td><code>SendRequest</code></td>
+<td>subroutine</td>
+<td>384</td>
+<td>打包发送字段，post <code>MPI_ISSEND/MPI_IRECV</code>。</td>
+</tr>
+<tr>
+<td><code>WaitRequest</code></td>
+<td>subroutine</td>
+<td>502</td>
+<td>等待所有请求，解包接收字段并释放缓冲。</td>
+</tr>
+<tr>
+<td><code>WaitSendRequest</code> / <code>WaitRecvRequest</code></td>
+<td>subroutine</td>
+<td>597 / 654</td>
+<td>分离等待发送或接收。</td>
+</tr>
+<tr>
+<td><code>CopyField</code> / <code>CopyFieldHallo</code></td>
+<td>subroutine</td>
+<td>736 / 775</td>
+<td>本 rank 内重叠区域直接复制。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="类型和状态">类型和状态</h2>
+<table>
+<thead>
+<tr>
+<th>类型或状态</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>type Hallo</code></td>
+<td>保存字段指针、offset、size、层数和 stride。</td>
+</tr>
+<tr>
+<td><code>type request_SR</code></td>
+<td>每个目标 rank 的 send 或 recv 请求列表，含 MPI request。</td>
+</tr>
+<tr>
+<td><code>type request</code></td>
+<td>所有 rank 的 send/recv 列表和当前 tag。</td>
+</tr>
+<tr>
+<td><code>Buffer</code>、<code>Buffer_Pos</code>、<code>Index_Pos</code></td>
+<td>打包缓冲和简单分配表，<code>THREADPRIVATE</code>。</td>
+</tr>
+<tr>
+<td><code>MaxRequest=200</code>、<code>MaxProc=80</code>、<code>MaxBufferSize=1024*1024*16</code></td>
+<td>请求、rank 和缓冲硬限制。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖">依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_const_mpi</code></td>
+<td><code>COMM_LMDZ</code> 和 <code>MPI_REAL_LMDZ</code>。</td>
+</tr>
+<tr>
+<td><code>parallel_lmdz</code></td>
+<td><code>using_mpi/mpi_size/mpi_rank/omp_rank</code>、极点标志和当前 <code>jj</code> 分布。</td>
+</tr>
+<tr>
+<td><code>mpif.h</code></td>
+<td>MPI 常量和状态数组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="请求生命周期">请求生命周期</h2>
+<ol type="1">
+<li>调用 <code>Init_mod_hallo</code> 初始化缓冲；若 <code>use_mpi_alloc</code> 且 <code>using_mpi</code>，可用 <code>MPI_ALLOC_MEM</code> 创建全局 MPI 缓冲。</li>
+<li>调用 <code>Register_Hallo</code>、<code>Register_SwapField</code> 或 <code>Register_RecvField/Register_SendField</code> 把字段描述追加到请求对象。</li>
+<li><code>SendRequest</code> 逐 rank 计算打包大小，分配缓冲，将字段分层打包，post <code>MPI_ISSEND</code>；同时为接收端分配缓冲并 post <code>MPI_IRECV</code>。</li>
+<li><code>WaitRequest</code> 收集 send/recv MPI request，<code>MPI_WAITALL</code> 后按注册的 <code>Hallo</code> 描述把缓冲解包进目标字段。</li>
+<li>释放缓冲、清空各 rank 请求数，并递增或重置 tag。</li>
+</ol>
+<h2 id="halo-注册规则">halo 注册规则</h2>
+<p><code>Register_Hallo(Field,ij,ll,RUp,RDown,SUp,SDown,a_request)</code> 按当前 rank 的边界决定是否注册上下邻居通信：</p>
+<ul>
+<li>北极 rank 不向更北侧接收或发送。</li>
+<li>南极 rank 不向更南侧接收或发送。</li>
+<li><code>RUp/RDown/SUp/SDown</code> 为 0 时对应方向不注册。</li>
+<li>真正通信目标是 <code>mpi_rank-1</code> 和 <code>mpi_rank+1</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>MPI tag 为 <code>a_request%tag + 1000*omp_rank</code>，OpenMP 线程通过 tag 分离消息。</li>
+<li>MPI 调用包在 <code>!$OMP CRITICAL (MPI)</code> 中，配合 serialized MPI 使用。</li>
+<li><code>SendRequest</code> 在 <code>using_mpi=.false.</code> 时会报错停止；本模块不是串行 fallback。</li>
+<li>缓冲大小和请求数超限使用 <code>print</code>/<code>stop</code>，不是统一 <code>abort_gcm</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>use_mpi_alloc</code> 的来源和配置路径需要在并行构建或运行参数任务中补充。</li>
+<li><code>MaxProc=80</code> 对大 MPI 作业的限制是否仍符合当前运行规模，需要实际平台确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="parallel_lmdz.html">parallel_lmdz</a></li>
+<li><a href="../../routines/leapfrog-p-distribution-halo.html">leapfrog-p-distribution-halo</a></li>
+<li><a href="bands.html">bands</a></li>
+<li><a href="bilan_dyn_p.html">并行 bilan_dyn_p</a></li>
+<li><a href="vlspltgen_p.html">并行通用 tracer Van Leer</a></li>
+<li><a href="vlspltqs_p.html">并行饱和水汽 Van Leer</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

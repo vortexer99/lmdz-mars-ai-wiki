@@ -1,0 +1,491 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>phys-transfer-mpi-core - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/phys-transfer-mpi-core.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mod_phys_lmdz_mpi_transfert-mpi-transfer-核心"><code>mod_phys_lmdz_mpi_transfert</code> MPI transfer 核心</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\mod_phys_lmdz_mpi_transfert.F90</code></pre>
+<h2 id="本页范围">本页范围</h2>
+<p>本页展开 <code>mod_phys_lmdz_mpi_transfert.F90</code>（1953 个物理行，<code>END MODULE</code> 在第 1952 行）的全部 8 个泛型接口、94 个 specific procedures 和 18 个内部引擎子程序。<a href="../modules/phy_common/mpi-data-transfer.html">mpi-data-transfer</a> 是组页概览；<a href="phys-transfer-para-wrapper.html">phys-transfer-para-wrapper</a> 覆盖上层合并层；本页专注 MPI 底层实现细节。</p>
+<h2 id="模块结构">模块结构</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">MODULE</span> mod_phys_lmdz_mpi_transfert</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co">CONTAINS</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="co">! 94 specific procedures + 18 _gen engine subroutines</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">END MODULE</span></span></code></pre></div>
+<p>模块不 <code>USE</code> 其他 transfer 模块。每个 specific procedure 按需 <code>USE mod_phys_lmdz_mpi_data</code>（<code>is_mpi_root</code>/<code>is_using_mpi</code>/<code>mpi_master</code>/<code>COMM_LMDZ_PHY</code> 等）或 <code>USE mod_grid_phy_lmdz</code>（<code>klon_glo</code>/<code>klon_mpi</code>/<code>nbp_lon</code>/<code>jj_nb</code>/<code>ii_begin</code>/<code>is_north_pole_dyn</code>/<code>is_south_pole_dyn</code>）。</p>
+<h2 id="8-个泛型接口总览">8 个泛型接口总览</h2>
+<table>
+<thead>
+<tr>
+<th>接口</th>
+<th>过程数</th>
+<th>类型</th>
+<th>最大维度</th>
+<th>MPI 调用</th>
+<th>引擎</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bcast_mpi</code></td>
+<td>22</td>
+<td>c, i/i1-i6, r/r1-r6, l/l1-l6</td>
+<td>6D</td>
+<td><code>MPI_BCAST</code></td>
+<td>cgen/igen/rgen/lgen</td>
+</tr>
+<tr>
+<td><code>scatter_mpi</code></td>
+<td>12</td>
+<td>i/i1-i3, r/r1-r3, l/l1-l3</td>
+<td>4D</td>
+<td><code>MPI_SCATTERV</code></td>
+<td>igen/rgen/lgen</td>
+</tr>
+<tr>
+<td><code>gather_mpi</code></td>
+<td>12</td>
+<td>i/i1-i3, r/r1-r3, l/l1-l3</td>
+<td>4D</td>
+<td><code>MPI_GATHERV</code></td>
+<td>igen/rgen/lgen</td>
+</tr>
+<tr>
+<td><code>scatter2D_mpi</code></td>
+<td>12</td>
+<td>i/i1-i3, r/r1-r3, l/l1-l3</td>
+<td>5D→4D</td>
+<td>组合</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>gather2D_mpi</code></td>
+<td>12</td>
+<td>i/i1-i3, r/r1-r3, l/l1-l3</td>
+<td>4D→5D</td>
+<td>组合</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>reduce_sum_mpi</code></td>
+<td>10</td>
+<td>i/i1-i4, r/r1-r4</td>
+<td>4D</td>
+<td><code>MPI_REDUCE</code></td>
+<td>igen/rgen</td>
+</tr>
+<tr>
+<td><code>grid1dTo2d_mpi</code></td>
+<td>12</td>
+<td>i/i1-i3, r/r1-r3, l/l1-l3</td>
+<td>5D</td>
+<td>无（纯本地）</td>
+<td>igen/rgen/lgen</td>
+</tr>
+<tr>
+<td><code>grid2dTo1d_mpi</code></td>
+<td>12</td>
+<td>i/i1-i3, r/r1-r3, l/l1-l3</td>
+<td>5D</td>
+<td>无（纯本地）</td>
+<td>igen/rgen/lgen</td>
+</tr>
+</tbody>
+</table>
+<p>总计 <strong>94 个 specific procedures</strong> + <strong>18 个 <code>_gen</code> 引擎子程序</strong>。</p>
+<h3 id="类型覆盖差异">类型覆盖差异</h3>
+<ul>
+<li><strong>character</strong>：仅 <code>bcast_mpi_c</code>（1 个），无 scatter/gather/reduce。</li>
+<li><strong>logical</strong>：无 <code>reduce_sum_mpi</code>（MPI 不提供 <code>MPI_SUM</code> 对 <code>MPI_LOGICAL</code> 的定义）。</li>
+<li><strong>integer/real</strong>：覆盖全部 8 个接口。</li>
+</ul>
+<h3 id="维度后缀约定">维度后缀约定</h3>
+<p><code>_i</code> = scalar integer，<code>_i1</code> = 1D，<code>_i2</code> = 2D，<code>_i3</code> = 3D。bcast 额外支持 <code>_i4</code>/<code>_i5</code>/<code>_i6</code>（到 6D）。reduce_sum 额外支持 <code>_i4</code>（到 4D）。<code>_c</code> 仅 character scalar。</p>
+<h2 id="bcast_mpi-实现">bcast_mpi 实现</h2>
+<h3 id="标量包装模式">标量包装模式</h3>
+<p>标量过程（<code>bcast_mpi_i</code>/<code>bcast_mpi_r</code>/<code>bcast_mpi_l</code>）将标量值复制到 <code>var_tmp(1)</code> 后调用引擎，广播后再复制回来：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> bcast_mpi_i(var)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">USE</span> mod_phys_lmdz_mpi_data, <span class="kw">ONLY</span> : is_mpi_root</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span>,<span class="dt">INTENT(INOUT)</span> <span class="dt">::</span> Var</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span>               <span class="dt">::</span> var_tmp(<span class="dv">1</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">IF</span> (is_mpi_root) var_tmp(<span class="dv">1</span>)<span class="kw">=</span>var</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> bcast_mpi_igen(Var_tmp,<span class="dv">1</span>)</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>  var<span class="kw">=</span>var_tmp(<span class="dv">1</span>)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="kw">END SUBROUTINE</span></span></code></pre></div>
+<p>数组过程（<code>bcast_mpi_i1</code>～<code>bcast_mpi_i6</code>）直接传 <code>Var</code> 和 <code>size(Var)</code> 给引擎，利用 Fortran 数组内存连续性。</p>
+<h3 id="引擎子程序">引擎子程序</h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> bcast_mpi_igen(var,nb)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">USE</span> mod_phys_lmdz_mpi_data</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ot">#ifdef CPP_MPI</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">INCLUDE</span> <span class="st">&#39;mpif.h&#39;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="ot">#endif</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">IF</span> (<span class="op">.not.</span>is_using_mpi) <span class="kw">RETURN</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="ot">#ifdef CPP_MPI</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> MPI_BCAST(Var,nb,MPI_INTEGER,mpi_master,COMM_LMDZ_PHY,ierr)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="ot">#endif</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="kw">END SUBROUTINE</span></span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>引擎</th>
+<th>MPI datatype</th>
+<th>额外说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bcast_mpi_cgen</code></td>
+<td><code>MPI_CHARACTER</code></td>
+<td>参数 <code>nb=len(Var1)</code></td>
+</tr>
+<tr>
+<td><code>bcast_mpi_igen</code></td>
+<td><code>MPI_INTEGER</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>bcast_mpi_rgen</code></td>
+<td><code>MPI_REAL_LMDZ</code></td>
+<td>自定义类型，初始化为 <code>MPI_REAL8</code></td>
+</tr>
+<tr>
+<td><code>bcast_mpi_lgen</code></td>
+<td><code>MPI_LOGICAL</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>所有引擎：root = <code>mpi_master</code>，comm = <code>COMM_LMDZ_PHY</code>，<code>IF (.not.is_using_mpi) RETURN</code> 快速跳过。</p>
+<h2 id="scatter_mpi-实现">scatter_mpi 实现</h2>
+<h3 id="引擎结构">引擎结构</h3>
+<p>scatter 引擎（<code>scatter_mpi_igen/rgen/lgen</code>）三步：</p>
+<ol type="1">
+<li><strong>root 打包</strong>：<code>IF (is_mpi_root)</code> 遍历所有 rank，用 <code>klon_mpi_para_nb/begin/end</code> 从 <code>VarIn(klon_glo,dimsize)</code> 抽取连续块到 <code>VarTmp(dimsize*klon_glo)</code>，同时计算 <code>counts(rank)=nb*dimsize</code> 和 <code>displs(rank)=Index-1</code>。</li>
+<li><strong>MPI 调用</strong>：<code>MPI_SCATTERV(VarTmp,counts,displs,MPI_*,VarOut,klon_mpi*dimsize,MPI_*,mpi_master,COMM_LMDZ_PHY,ierr)</code>。</li>
+<li><strong>非 MPI 退化</strong>：<code>IF (.not.is_using_mpi)</code> 在打包前直接 <code>VarOut(:,:)=VarIn(:,:)</code> + <code>RETURN</code>。</li>
+</ol>
+<h3 id="dimsize-计算">dimsize 计算</h3>
+<p>specific procedure 将额外维度展平为 <code>dimsize</code>：</p>
+<table>
+<thead>
+<tr>
+<th>后缀</th>
+<th>dimsize</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>_i</code>（scalar）</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>_i1</code>（1D extra）</td>
+<td><code>Size(VarOut,2)</code></td>
+</tr>
+<tr>
+<td><code>_i2</code>（2D extra）</td>
+<td><code>Size(VarOut,2)*Size(VarOut,3)</code></td>
+</tr>
+<tr>
+<td><code>_i3</code>（3D extra）</td>
+<td><code>Size(VarOut,2)*Size(VarOut,3)*Size(VarOut,4)</code></td>
+</tr>
+</tbody>
+</table>
+<p>scatter 从 <code>VarOut</code> 额外维度取 <code>dimsize</code>（因为 root 端 <code>VarIn</code> 有 <code>klon_glo</code> 首维，各 rank 端 <code>VarOut</code> 有 <code>klon_mpi</code> 首维）。</p>
+<h3 id="vartmp-临时数组">VarTmp 临时数组</h3>
+<p><code>VarTmp</code> 声明为 <code>DIMENSION(dimsize*klon_glo)</code>，是栈上自动数组。打包循环按 <code>i=1..dimsize</code> 外层、rank 内层的方式，将全局列连续拷贝到按 rank 排列的 buffer 中。</p>
+<h2 id="gather_mpi-实现">gather_mpi 实现</h2>
+<h3 id="引擎结构-1">引擎结构</h3>
+<p>gather 引擎（<code>gather_mpi_igen/rgen/lgen</code>）三步，顺序与 scatter 不同：</p>
+<ol type="1">
+<li><strong>root 计算 displs/counts</strong>：<code>IF (is_mpi_root)</code> 预计算 <code>counts</code>/<code>displs</code>（所有 rank 都参与 GATHERV，但只有 root 的 displs/counts 有意义）。</li>
+<li><strong>非 MPI 退化</strong>：<code>IF (.not.is_using_mpi)</code> → <code>VarOut(:,:)=VarIn(:,:)</code> + <code>RETURN</code>。注意 <code>gather_rgen</code>/<code>gather_lgen</code> 中此检查位于 displs 计算之后，与 <code>scatter_*gen</code> 和 <code>gather_igen</code> 不同（后者先检查非 MPI 再打包）。</li>
+<li><strong>MPI 调用 + root 解包</strong>：<code>MPI_GATHERV(VarIn,klon_mpi*dimsize,MPI_*,VarTmp,counts,displs,MPI_*,mpi_master,COMM_LMDZ_PHY,ierr)</code>，root 再将 <code>VarTmp</code> 按 <code>klon_mpi_para_begin/end</code> 解包到 <code>VarOut(klon_glo,dimsize)</code>。</li>
+</ol>
+<h3 id="dimsize-计算-1">dimsize 计算</h3>
+<p>gather 从 <code>VarIn</code> 额外维度取 <code>dimsize</code>（<code>Size(VarIn,2)</code> 等），与 scatter 取 <code>VarOut</code> 相反。这是因为 gather 方向是 local→global，<code>VarIn</code> 在各 rank 端有 <code>klon_mpi</code> 首维。</p>
+<h2 id="scatter2d_mpi--gather2d_mpi-组合">scatter2D_mpi / gather2D_mpi 组合</h2>
+<p>这两个接口不直接调用 MPI 原语，而是组合 grid 转换和 1D scatter/gather：</p>
+<h3 id="scatter2d_mpi-流程">scatter2D_mpi 流程</h3>
+<pre class="text"><code>VarIn(nbp_lon*jj_nb, ...)   -- grid2dTo1d_glo --&gt;   Var_tmp(klon_glo, ...)   -- scatter_mpi --&gt;   VarOut(klon_mpi, ...)</code></pre>
+<ol type="1">
+<li>分配栈临时数组 <code>Var_tmp(klon_glo, ...)</code>，额外维度从 <code>VarOut</code> 取。</li>
+<li>调用 <code>grid2dTo1d_glo(VarIn, Var_tmp)</code>（<code>mod_grid_phy_lmdz</code>），将 2D 经纬网格全局字段转为 1D 列表示。</li>
+<li>调用 <code>scatter_mpi(Var_tmp, VarOut)</code> 分发到各 rank。</li>
+</ol>
+<h3 id="gather2d_mpi-流程">gather2D_mpi 流程</h3>
+<pre class="text"><code>VarIn(klon_mpi, ...)   -- gather_mpi --&gt;   Var_tmp(klon_glo, ...)   -- grid1dTo2d_glo --&gt;   VarOut(nbp_lon*jj_nb, ...)</code></pre>
+<ol type="1">
+<li>分配栈临时数组 <code>Var_tmp(klon_glo, ...)</code>，额外维度从 <code>VarOut</code> 取（<code>size(VarOut,3)</code> 等）。</li>
+<li>调用 <code>gather_mpi(VarIn, Var_tmp)</code> 收集到 root。</li>
+<li>调用 <code>grid1dTo2d_glo(Var_tmp, VarOut)</code> 将 1D 列转回 2D 经纬网格。</li>
+</ol>
+<p><code>grid1dTo2d_glo</code>/<code>grid2dTo1d_glo</code> 来自 <code>mod_grid_phy_lmdz</code>，操作的是全局列数 <code>klon_glo</code> 和全局 2D 网格 <code>nbp_lon*nbp_lat</code>（注意与 <code>_mpi</code> 版本的区别：<code>_glo</code> 用 <code>nbp_lat</code>，<code>_mpi</code> 用 <code>jj_nb</code>）。</p>
+<h2 id="reduce_sum_mpi-实现">reduce_sum_mpi 实现</h2>
+<h3 id="标量包装">标量包装</h3>
+<p>标量过程（<code>reduce_sum_mpi_i</code>/<code>reduce_sum_mpi_r</code>）使用 <code>VarIn_tmp(1)</code>/<code>VarOut_tmp(1)</code> 包装标量为数组：</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> reduce_sum_mpi_i(VarIn, VarOut)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span>,<span class="dt">INTENT(IN)</span>  <span class="dt">::</span> VarIn</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span>,<span class="dt">INTENT(OUT)</span> <span class="dt">::</span> VarOut</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span>             <span class="dt">::</span> VarIn_tmp(<span class="dv">1</span>), VarOut_tmp(<span class="dv">1</span>)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  VarIn_tmp(<span class="dv">1</span>)<span class="kw">=</span>VarIn</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> reduce_sum_mpi_igen(VarIn_tmp,VarOut_tmp,<span class="dv">1</span>)</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  VarOut<span class="kw">=</span>VarOut_tmp(<span class="dv">1</span>)</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="kw">END SUBROUTINE</span></span></code></pre></div>
+<h3 id="引擎">引擎</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> reduce_sum_mpi_igen(VarIn,VarOut,nb)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">IF</span> (<span class="op">.not.</span>is_using_mpi) <span class="kw">THEN</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    VarOut(:)<span class="kw">=</span>VarIn(:)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">RETURN</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ENDIF</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="ot">#ifdef CPP_MPI</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> MPI_REDUCE(VarIn,VarOut,nb,MPI_INTEGER,MPI_SUM,mpi_master,COMM_LMDZ_PHY,ierr)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="ot">#endif</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="kw">END SUBROUTINE</span></span></code></pre></div>
+<ul>
+<li>操作：<code>MPI_SUM</code>。</li>
+<li>root：<code>mpi_master</code>，结果只在 root 有效。</li>
+<li>仅 integer 和 real 两个引擎（<code>reduce_sum_mpi_igen</code>/<code>reduce_sum_mpi_rgen</code>），无 logical。</li>
+<li>数组过程使用 <code>SIZE(VarIn)</code> 作为 <code>nb</code>，将多维数组视为连续内存。</li>
+<li><code>reduce_sum_mpi_*</code> 最大到 4D（<code>_i4</code>/<code>_r4</code>）。</li>
+</ul>
+<h2 id="grid1dto2d_mpi--grid2dto1d_mpi-实现">grid1dTo2d_mpi / grid2dTo1d_mpi 实现</h2>
+<p>这两个接口是纯本地网格转换，不涉及 MPI 通信，没有 <code>IF (.not.is_using_mpi)</code> 守卫。</p>
+<h3 id="grid1dto2d_mpi-引擎">grid1dTo2d_mpi 引擎</h3>
+<p>将本 rank 的 1D 列数组 <code>VarIn(klon_mpi,dimsize)</code> 映射到局部 2D 块 <code>VarOut(nbp_lon*jj_nb,dimsize)</code>：</p>
+<ol type="1">
+<li><strong>极点行清零</strong>：<code>VarOut(1:nbp_lon,:)=0</code>（北极行），<code>VarOut(nbp_lon*(jj_nb-1)+1:nbp_lon*jj_nb,:)=0</code>（南极行）。logical 引擎用 <code>.FALSE.</code>。</li>
+<li><strong>计算偏移</strong>：<code>offset=ii_begin</code>；若 <code>is_north_pole_dyn</code> 则 <code>Offset=nbp_lon</code>（跳过北极复制行）。</li>
+<li><strong>主体复制</strong>：<code>VarOut(ij+offset-1,i)=VarIn(ij,i)</code>。</li>
+<li><strong>北极处理</strong>：<code>IF (is_north_pole_dyn)</code> → 将 <code>VarIn(1,i)</code> 复制到 <code>VarOut(1:nbp_lon,i)</code>（北极所有经度共享同一值）。</li>
+<li><strong>南极处理</strong>：<code>IF (is_south_pole_dyn)</code> → 将 <code>VarIn(klon_mpi,i)</code> 复制到 <code>VarOut(nbp_lon*(jj_nb-1)+1:nbp_lon*jj_nb,i)</code>。</li>
+</ol>
+<h3 id="grid2dto1d_mpi-引擎">grid2dTo1d_mpi 引擎</h3>
+<p>反向操作，将局部 2D 块 <code>VarIn(nbp_lon*jj_nb,dimsize)</code> 提取为 1D 列 <code>VarOut(klon_mpi,dimsize)</code>：</p>
+<ol type="1">
+<li><strong>计算偏移</strong>：<code>offset=ii_begin</code>；若 <code>is_north_pole_dyn</code> 则 <code>offset=nbp_lon</code>。</li>
+<li><strong>主体提取</strong>：<code>VarOut(ij,i)=VarIn(ij+offset-1,i)</code>。</li>
+<li><strong>北极处理</strong>：<code>IF (is_north_pole_dyn)</code> → <code>VarOut(1,i)=VarIn(1,i)</code>（从 2D 北极行首元素读取）。</li>
+</ol>
+<p>注意：<code>grid2dTo1d_mpi</code> 不处理南极——南极值已在主体提取中通过 <code>offset</code> 正确读取。</p>
+<h3 id="_mpi-与-_glo-版本对比"><code>_mpi</code> 与 <code>_glo</code> 版本对比</h3>
+<table>
+<thead>
+<tr>
+<th>属性</th>
+<th><code>grid1dTo2d_mpi</code></th>
+<th><code>grid1dTo2d_glo</code>（mod_grid_phy_lmdz）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1D 首维</td>
+<td><code>klon_mpi</code>（本 rank）</td>
+<td><code>klon_glo</code>（全局）</td>
+</tr>
+<tr>
+<td>2D 首维</td>
+<td><code>nbp_lon*jj_nb</code>（本 rank 局部）</td>
+<td><code>nbp_lon*nbp_lat</code>（全局）</td>
+</tr>
+<tr>
+<td>偏移来源</td>
+<td><code>ii_begin</code> + <code>is_north_pole_dyn</code></td>
+<td>固定 <code>nbp_lon</code></td>
+</tr>
+<tr>
+<td>极点条件</td>
+<td>条件（<code>is_north/south_pole_dyn</code>）</td>
+<td>无条件（总是复制两极）</td>
+</tr>
+<tr>
+<td>用途</td>
+<td>scatter2D_mpi/gather2D_mpi 组合</td>
+<td>全局字段↔︎1D 列转换</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cpp_mpi-双重守卫">CPP_MPI 双重守卫</h2>
+<p>所有引擎子程序使用编译期 + 运行期双重守卫：</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ot">#ifdef CPP_MPI</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">INCLUDE</span> <span class="st">&#39;mpif.h&#39;</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ot">#endif</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">IF</span> (<span class="op">.not.</span>is_using_mpi) <span class="kw">RETURN</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="ot">#ifdef CPP_MPI</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> MPI_BCAST(...)</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="ot">#endif</span></span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th><code>CPP_MPI</code> 定义</th>
+<th><code>is_using_mpi</code></th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MPI 构建 + MPI 运行</td>
+<td>是</td>
+<td><code>.TRUE.</code></td>
+<td>执行 MPI 调用</td>
+</tr>
+<tr>
+<td>MPI 构建 + 单进程</td>
+<td>是</td>
+<td><code>.TRUE.</code></td>
+<td>执行 MPI 调用（mpi_size=1）</td>
+</tr>
+<tr>
+<td>非 MPI 构建</td>
+<td>否</td>
+<td><code>.FALSE.</code></td>
+<td>所有引擎空操作或直拷</td>
+</tr>
+</tbody>
+</table>
+<p><code>is_using_mpi</code> 在 <code>init_phys_lmdz_mpi_data</code> 中根据 <code>CPP_MPI</code> 宏设置：定义时 <code>.TRUE.</code>，否则 <code>.FALSE.</code>。</p>
+<h2 id="mpi_real_lmdz">MPI_REAL_LMDZ</h2>
+<div class="sourceCode" id="cb10"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="dt">INTEGER</span>,<span class="dt">SAVE</span> <span class="dt">::</span> MPI_REAL_LMDZ   <span class="co">! MPI_REAL8</span></span></code></pre></div>
+<p>在 <code>init_phys_lmdz_mpi_data</code> 中初始化为 <code>MPI_REAL8</code>。所有 real 类型的 MPI 调用使用 <code>MPI_REAL_LMDZ</code> 而非直接 <code>MPI_REAL</code> 或 <code>MPI_DOUBLE_PRECISION</code>，提供精度抽象层。若需切换单/双精度，只需修改此处赋值。</p>
+<h2 id="依赖数据汇总">依赖数据汇总</h2>
+<table>
+<thead>
+<tr>
+<th>来源模块</th>
+<th>符号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data</code></td>
+<td><code>is_using_mpi</code></td>
+<td>运行时 MPI 开关</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data</code></td>
+<td><code>is_mpi_root</code></td>
+<td>root 判断</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data</code></td>
+<td><code>mpi_master</code></td>
+<td>MPI root rank</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data</code></td>
+<td><code>COMM_LMDZ_PHY</code></td>
+<td>物理侧 communicator</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data</code></td>
+<td><code>MPI_REAL_LMDZ</code></td>
+<td>real datatype</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data</code></td>
+<td><code>mpi_size</code></td>
+<td>进程数</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data</code></td>
+<td><code>klon_mpi_para_nb/begin/end</code></td>
+<td>各 rank 列分布表</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data</code></td>
+<td><code>klon_mpi</code></td>
+<td>本 rank 列数</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data</code></td>
+<td><code>ii_begin</code></td>
+<td>本 rank 经向起始</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data</code></td>
+<td><code>is_north_pole_dyn</code></td>
+<td>本 rank 拥有北极</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data</code></td>
+<td><code>is_south_pole_dyn</code></td>
+<td>本 rank 拥有南极</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>klon_glo</code></td>
+<td>全局列数</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>nbp_lon</code></td>
+<td>经度点数</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>jj_nb</code></td>
+<td>本 rank 纬度行数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 物理侧使用并行 transfer 时经过。MPI 构建 + mpi_size&gt;1 时执行 MPI 调用；
+非 MPI 构建或单进程时由 .not.is_using_mpi 短路或走 _para 上层退化。</code></pre>
+<p>Mars 物理过程通过 <a href="phys-transfer-para-wrapper.html">phys-transfer-para-wrapper</a> 的 <code>bcast</code>/<code>scatter</code>/<code>gather</code> 泛型间接调用本模块。直接调用 <code>*_mpi</code> 接口的场景主要出现在 <code>_para</code> wrapper 内部的 <code>!$OMP MASTER</code> 区域。</p>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/phy_common/index.html">phy_common 总览</a></li>
+<li><a href="../modules/phy_common/mod_phys_lmdz_mpi_transfert.html">mod_phys_lmdz_mpi_transfert</a></li>
+<li><a href="../modules/phy_common/mpi-data-transfer.html">mpi-data-transfer</a>（组页）</li>
+<li><a href="phys-transfer-para-wrapper.html">phys-transfer-para-wrapper</a>（上层合并层）</li>
+<li><a href="../modules/phy_common/omp-data-transfer.html">omp-data-transfer</a></li>
+<li><a href="calfis-p-parallel-transfer.html">calfis-p-parallel-transfer</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,181 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>bilan_dyn - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d/bilan_dyn.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="bilan_dynf">bilan_dyn.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\bilan_dyn.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>bilan_dyn.F</code> 定义串行动力守恒与历史诊断例程 <code>bilan_dyn</code>。它累计动量、质量、温度、tracer 通量和若干综合量，在首次调用时通过 IOIPSL 定义输出文件和变量，后续按累计周期写入 history。这个文件不是主推进器，但它会把 leapfrog 过程中的守恒信息落到可检查的诊断场。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：串行动力启用对应守恒/诊断输出时经过；Mars 并行版使用 `bilan_dyn_p.F`，Mars 专用入口是否默认开启取决于运行配置。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bilan_dyn</code></td>
+<td>subroutine</td>
+<td>4</td>
+<td>累计并写出动力守恒/通量诊断。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖和调用">依赖和调用</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IOIPSL</code></td>
+<td><code>histbeg/histvert/histdef/histend/histwrite/histsync</code> 输出诊断文件。</td>
+</tr>
+<tr>
+<td><code>control_mod: planet_type</code></td>
+<td>区分行星类型相关分支。</td>
+</tr>
+<tr>
+<td><code>cpdet_mod: tpot2t</code></td>
+<td>将位温转换为温度。</td>
+</tr>
+<tr>
+<td><code>comvert_mod: ap,bp,presnivs</code></td>
+<td>垂直坐标和输出轴。</td>
+</tr>
+<tr>
+<td><code>comconst_mod: rad,omeg,pi</code></td>
+<td>几何和动力常量。</td>
+</tr>
+<tr>
+<td><code>temps_mod: annee_ref,day_ref</code></td>
+<td>输出文件起始日期。</td>
+</tr>
+<tr>
+<td><code>covcont</code>, <code>enercin</code>, <code>convmas</code>, <code>convflu</code>, <code>vitvert</code>, <code>massbar</code></td>
+<td>速度、动能、通量辐合、垂直速度和质量平均。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入输出和保存状态">输入输出和保存状态</h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dt_app</code>, <code>dt_cum</code></td>
+<td>诊断应用步长和累计步长。</td>
+</tr>
+<tr>
+<td>动力场参数</td>
+<td><code>ucov/vcov/teta/q/masse/ps/phis</code> 等，作为诊断输入。</td>
+</tr>
+<tr>
+<td>累计数组</td>
+<td>多个 <code>_cum</code> 工作量用于跨步累计。</td>
+</tr>
+<tr>
+<td><code>SAVE first, icum, ncum</code></td>
+<td>控制首次定义 history、当前累计步和累计次数。</td>
+</tr>
+<tr>
+<td>输出文件</td>
+<td>IOIPSL history 文件，变量包括质量、速度、垂直速度、stream function、tracer tendency 等。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>首次调用时打印步长信息，构造经纬度和垂直轴。</li>
+<li>调用 <code>ymds2ju</code>、<code>histbeg</code>、<code>histvert</code> 初始化 IOIPSL history 文件。</li>
+<li>用多组 <code>histdef</code> 定义 tracer、质量、速度、垂直速度和趋势变量。</li>
+<li>每次调用将当前 flux/state 累加到 <code>_cum</code> 数组。</li>
+<li>需要写出时，调用 <code>covcont</code>、<code>enercin</code>、<code>tpot2t</code>、<code>convmas/convflu</code>、<code>vitvert</code>、<code>massbar</code> 派生诊断量。</li>
+<li>多次 <code>histwrite</code> 写出三维或二维变量，最后 <code>histsync</code> 同步。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if first:
+    define IOIPSL file, vertical axis and all variables
+accumulate fluxes and state over dt_cum
+if accumulated enough:
+    convert covariant to contravariant wind
+    compute kinetic energy, temperature, mass means
+    compute mass/tracer flux convergence and vertical velocity
+    write all diagnostic variables
+    reset or advance accumulation counters</code></pre>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>first</code> 分支定义了变量名和维度；复现输出时必须先复制这一步的 <code>histdef</code> 顺序。</li>
+<li><code>convmas</code> 与 <code>vitvert</code> 的组合把水平质量通量辐合转为垂直速度诊断。</li>
+<li><code>massbar</code> 在累计质量上构造 staggered grid 质量平均，影响风场相关输出。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>具体 history 文件名和输出频率需从调用方 <code>leapfrog</code>/运行参数确认。</li>
+<li>部分 tracer 输出变量名由局部字符串数组构造，需在 tracer 主题页进一步映射物理含义。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn3d 总览</a></li>
+<li><a href="../dyn3dpar/bilan_dyn_p.html">并行 bilan_dyn_p</a></li>
+<li><a href="../../routines/mass-pressure-energy-overview.html">质量压力能量例程总览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

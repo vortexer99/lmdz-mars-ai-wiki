@@ -1,0 +1,431 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>gcm - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d/gcm.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="gcmf90">gcm.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\gcm.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>LMDZ.COMMON\libf\dyn3d</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>gcm.F90</code> 定义串行 <code>PROGRAM gcm</code>，负责完整串行 GCM 的启动序列：检查 <code>run.def</code>，读取运行配置，初始化 tracer、初始状态、动力常量、几何、耗散、物理接口、restart/history 输出，最后调用 <code>leapfrog</code> 进入时间推进。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：COMMON 串行完整 GCM 入口。Mars 源码树中主要可见 phymars/nogcm.F90 同类入口；本文件是否作为 Mars 生产入口需结合构建配置确认。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gcm</code></td>
+<td>program</td>
+<td>6</td>
+<td>串行 GCM 启动入口。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IOIPSL</code> 或 <code>ioipsl_getincom</code></td>
+<td>-</td>
+<td><code>getin</code>、日历和 IOIPSL 配置。</td>
+<td>取决于 <code>CPP_IOIPSL</code>。</td>
+</tr>
+<tr>
+<td><code>wxios</code></td>
+<td>-</td>
+<td>XIOS 初始化。</td>
+<td>只在 <code>CPP_XIOS</code>。</td>
+</tr>
+<tr>
+<td><code>filtreg_mod</code></td>
+<td>-</td>
+<td>滤波相关状态和例程。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>infotrac</code></td>
+<td>-</td>
+<td>tracer 数量 <code>nqtot</code> 和初始化。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>control_mod</code></td>
+<td><code>planet_type</code>, <code>nday</code>, <code>day_step</code>, <code>iperiod</code>, <code>iphysiq</code>, <code>raz_date</code>, <code>anneeref</code>, <code>starttime</code>, <code>dayref</code>, <code>ok_dyn_ins</code>, <code>ok_dyn_ave</code>, <code>iecri</code>, <code>periodav</code>, <code>less1day</code>, <code>fractday</code>, <code>ndynstep</code>, <code>nsplit_phys</code>, <code>ecritstart</code> 等</td>
+<td>主运行控制变量。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>mod_const_mpi</code></td>
+<td><code>COMM_LMDZ</code></td>
+<td>传给物理初始化的通信器。</td>
+<td>串行占位含义需查模块页。</td>
+</tr>
+<tr>
+<td><code>cpdet_mod</code></td>
+<td><code>ini_cpdet</code></td>
+<td>初始化 Cp(T) Venus 相关表。</td>
+<td>Mars 是否启用 <code>cpofT</code> 由配置决定。</td>
+</tr>
+<tr>
+<td><code>temps_mod</code></td>
+<td><code>calend</code>, <code>start_time</code>, <code>annee_ref</code>, <code>day_ref</code>, <code>itau_dyn</code>, <code>itau_phy</code>, <code>day_ini</code>, <code>jD_ref</code>, <code>jH_ref</code>, <code>day_end</code></td>
+<td>日期、时间步和 Julian day 状态。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>iniphysiq_mod</code></td>
+<td><code>iniphysiq</code></td>
+<td>物理初始化。</td>
+<td>只在 <code>CPP_PHYS</code>。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>daysec</code>, <code>dtvr</code>, <code>dtphys</code>, <code>rad</code>, <code>g</code>, <code>r</code>, <code>cpp</code></td>
+<td>常量和时间步。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td><code>read_start</code>, <code>iflag_phys</code>, <code>ok_guide</code>, <code>ecripar</code></td>
+<td>主流程开关。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abort_gcm</code></td>
+<td><code>dyn3d/abort_gcm.F</code></td>
+<td>160, 164, 169, 214, 219, 222, 292, 298, 318</td>
+<td>缺文件、配置错误或未实现日历时退出。</td>
+</tr>
+<tr>
+<td><code>conf_gcm</code></td>
+<td><code>dyn3d/conf_gcm.F90</code></td>
+<td>163</td>
+<td>读取 <code>run.def</code> 配置并写共享控制变量。</td>
+</tr>
+<tr>
+<td><code>getin</code></td>
+<td>IOIPSL/getin</td>
+<td>167</td>
+<td>读取 <code>use_filtre_fft</code>。</td>
+</tr>
+<tr>
+<td><code>wxios_init</code></td>
+<td><code>wxios</code></td>
+<td>177</td>
+<td>初始化 XIOS。</td>
+</tr>
+<tr>
+<td><code>ini_cpdet</code></td>
+<td><code>cpdet_mod</code></td>
+<td>192</td>
+<td>初始化温度相关热容转换。</td>
+</tr>
+<tr>
+<td><code>ioconf_calendar</code>, <code>ioconf_startdate</code></td>
+<td>IOIPSL</td>
+<td>202-208, 375</td>
+<td>设置 IOIPSL 日历和起始日期。</td>
+</tr>
+<tr>
+<td><code>infotrac_init</code></td>
+<td><code>infotrac.F90</code></td>
+<td>239</td>
+<td>读取 tracer 配置。</td>
+</tr>
+<tr>
+<td><code>iniacademic</code></td>
+<td><code>dyn3d_common/iniacademic.F90</code></td>
+<td>253, 272</td>
+<td>构造理想化初态或补初始化常量。</td>
+</tr>
+<tr>
+<td><code>dynetat0</code></td>
+<td><a href="../dyn3d_common/dynetat0.html">dynetat0</a></td>
+<td>256</td>
+<td>从 <code>start.nc</code> 读取动力初态。</td>
+</tr>
+<tr>
+<td><code>relaxetat0</code></td>
+<td><code>dyn3d_common/relaxetat0.F</code></td>
+<td>264</td>
+<td>读取 generic guide relaxation 字段。</td>
+</tr>
+<tr>
+<td><code>iniconst</code></td>
+<td><code>dyn3d_common/iniconst.F90</code></td>
+<td>408</td>
+<td>初始化动力常量。</td>
+</tr>
+<tr>
+<td><code>inigeom</code></td>
+<td><a href="../dyn3d_common/inigeom.html">inigeom</a></td>
+<td>412</td>
+<td>初始化动力几何。</td>
+</tr>
+<tr>
+<td><code>inifilr</code></td>
+<td><code>filtrez/inifgn.F</code> 或相关滤波路径</td>
+<td>416</td>
+<td>初始化滤波。</td>
+</tr>
+<tr>
+<td><code>inidissip</code></td>
+<td><code>dyn3d_common/inidissip.F90</code></td>
+<td>423</td>
+<td>初始化耗散参数。</td>
+</tr>
+<tr>
+<td><code>iniphysiq</code></td>
+<td>行星物理模块</td>
+<td>469</td>
+<td>初始化物理接口。</td>
+</tr>
+<tr>
+<td><code>dynredem0</code></td>
+<td><code>dyn3d_common/dynredem.F90</code></td>
+<td>488, 490, 493</td>
+<td>写初始/目标 restart。</td>
+</tr>
+<tr>
+<td><code>inithist</code>, <code>initdynav</code></td>
+<td><code>dyn3d_common</code></td>
+<td>504, 512</td>
+<td>初始化瞬时和平均动力输出。</td>
+</tr>
+<tr>
+<td><code>leapfrog</code></td>
+<td><code>dyn3d/leapfrog.F</code></td>
+<td>538</td>
+<td>进入主时间推进。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>run.def</code></td>
+<td>当前运行目录</td>
+<td>文本配置</td>
+<td>-</td>
+<td><code>conf_gcm</code> 和 <code>getin</code> 使用的运行参数。</td>
+</tr>
+<tr>
+<td><code>start.nc</code></td>
+<td>当前运行目录</td>
+<td>NetCDF</td>
+<td>-</td>
+<td><code>read_start=.true.</code> 时的动力初态。</td>
+</tr>
+<tr>
+<td><code>relax.nc</code></td>
+<td>当前运行目录</td>
+<td>NetCDF</td>
+<td>-</td>
+<td><code>planet_type=="generic"</code> 且 <code>ok_guide</code> 时的 relaxation 字段。</td>
+</tr>
+<tr>
+<td><code>traceur.def</code></td>
+<td>tracer 初始化路径</td>
+<td>文本配置</td>
+<td>-</td>
+<td><code>infotrac_init</code> 读取 tracer 数量和名称。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>restart.nc</code></td>
+<td>当前运行目录</td>
+<td>NetCDF</td>
+<td>-</td>
+<td>初始写出的动力 restart，Mars 可按 <code>ecritstart</code> 使用 <code>day_ini</code>。</td>
+</tr>
+<tr>
+<td><code>dyn_hist.nc</code>, <code>dyn_hist_ave.nc</code></td>
+<td>当前运行目录</td>
+<td>NetCDF</td>
+<td>-</td>
+<td>动力瞬时和平均输出，受 <code>ok_dyn_ins/ok_dyn_ave</code> 控制。</td>
+</tr>
+<tr>
+<td><code>ucov/vcov/teta/q/masse/ps/phis</code></td>
+<td>内存数组</td>
+<td>2D/3D/4D</td>
+<td>多种</td>
+<td>传入 <code>leapfrog</code> 的动力状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p>程序写入或依赖 <code>control_mod</code>、<code>temps_mod</code>、<code>logic_mod</code>、<code>comconst_mod</code>、<code>infotrac</code>、<code>comgeom.h/comgeom2.h</code> 中的全局状态；会打开或写出 <code>restart.nc</code>、history 文件、XIOS 状态；会因配置不一致调用 <code>abort_gcm</code> 或 <code>STOP</code>。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>初始化本地状态和默认输出文件名。</li>
+<li>用 <code>INQUIRE</code> 确认 <code>run.def</code> 存在；缺失则 abort。</li>
+<li>调用 <code>conf_gcm(99,.TRUE.)</code> 读取控制参数，并检查 <code>iphysiq</code> 是 <code>iperiod</code> 的倍数。</li>
+<li>禁止串行 <code>use_filtre_fft</code>，按编译宏初始化 XIOS。</li>
+<li>初始化 Cp(T)、日历和 tracer，分配 <code>q</code>。</li>
+<li>如果 <code>read_start</code>，可先用 <code>iniacademic</code> 补 SW/Newtonian 常量，再用 <code>dynetat0("start.nc",...)</code> 读初态；否则直接 <code>iniacademic</code>。</li>
+<li>检查 <code>day_step</code> 与 <code>iperiod/iphysiq</code> 的整除关系，重算 <code>dtvr</code>。</li>
+<li>处理 <code>raz_date</code> 和 restart 日期差异，设置 Julian day。</li>
+<li>若 <code>iflag_phys==1</code>，调用 <code>iniconst</code>、<code>inigeom</code>、<code>inifilr</code>。</li>
+<li>调用 <code>inidissip</code>、计算 <code>day_end</code>，初始化物理、restart 和 history 输出。</li>
+<li>设置 offline 存储频率，调用 <code>leapfrog</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>require run.def
+conf_gcm()
+reject invalid periods and serial FFT filter
+initialize optional XIOS, Cp(T), calendar, tracers
+allocate q from nqtot
+if read_start:
+    maybe initialize academic constants
+    read start.nc through dynetat0
+    maybe read relax.nc
+else:
+    build academic initial state
+validate day_step, dates, and dtvr
+if physics enabled:
+    initialize constants, geometry, filter, physics
+initialize dissipation, restart, history outputs
+leapfrog(state, time_0)</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>dynamics-time-integration</td>
+<td>完整串行入口，最终调度 <code>leapfrog</code>。</td>
+</tr>
+<tr>
+<td>restart-io</td>
+<td>读取 <code>start.nc</code>，写 <code>restart.nc</code>，初始化 history。</td>
+</tr>
+<tr>
+<td>dynphys-interface</td>
+<td>传入动力几何和常量调用 <code>iniphysiq</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<p>该文件是自由格式 Fortran 90，但仍通过 <code>include</code> 使用固定格式时代的公共头文件。大量控制流由预处理宏 <code>CPP_IOIPSL</code>、<code>CPP_XIOS</code>、<code>CPP_PHYS</code> 决定。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>ecritstart&gt;0</code> 且 <code>planet_type=="mars"</code> 时，初始 <code>dynredem0</code> 使用 <code>day_ini</code>，否则使用 <code>day_end</code>。</li>
+<li><code>nday&lt;0</code> 表示运行 <code>-nday</code> 个动力步，<code>ndynstep&gt;0</code> 又可覆盖结束日计算。</li>
+<li><code>read_start=.false.</code> 会走 <code>iniacademic</code>，这会改变几何/常量初始化来源。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>COMMON <code>gcm.F90</code> 对 Mars 当前标准构建的直接参与度需要 build 层证据确认。</li>
+<li><code>inifilr</code> 的实际链接来源需在滤波任务中确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn3d 总览</a></li>
+<li><a href="conf_gcm.html">conf_gcm</a></li>
+<li><a href="../dyn3d_common/dynetat0.html">dynetat0</a></li>
+<li><a href="../dyn3d_common/inigeom.html">inigeom</a></li>
+<li>待写：<code>leapfrog.F</code> 文件页（TASK-0032）</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

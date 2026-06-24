@@ -1,0 +1,433 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>exner-cpdet-helpers - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/exner-cpdet-helpers.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="exner-函数与-cpt-变比热路径">Exner 函数与 cp(T) 变比热路径</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d_common\exner_hyb_m.F90
+dyn3d_common\exner_milieu_m.F90
+dyn3d_common\cpdet_mod.F90
+dyn3dpar\exner_hyb_p_m.F90
+dyn3dpar\exner_milieu_p_m.F90</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。Exner 函数在每个时间步由 COMMON <code>leapfrog</code> 和 MARS <code>phymars/leapfrog_nogcm</code> 调用；<code>cpdet_mod</code> 的 <code>tpot2t</code>/<code>t2tpot</code> 在动力和物理耦合中被广泛调用；<code>cpofT</code> 路径由 <code>run.def</code> 配置决定。</p>
+<h2 id="页面定位">页面定位</h2>
+<p>本页覆盖 Mars 热力学转换的两个核心模块族：Exner 函数计算（<code>exner_hyb</code> vs <code>exner_milieu</code>）和变比热路径（<code>cpdet_mod</code> 中的 <code>cpdet</code>、<code>tpot2t</code>/<code>t2tpot</code>）。这些模块是 <code>leapfrog</code> 时间步中压力→Exner→温度→位势链路的中间环节。<code>pression</code> 的压力计算由 <a href="common-pressure-mass-operators.html">压力与质量算子 family</a> 覆盖；Exner 的下游消费（<code>geopot</code>）由 <a href="common-energy-vorticity-operators.html">动能、Bernoulli、位势涡度与位势高度算子</a> 覆盖。</p>
+<h2 id="模块文件一览">模块文件一览</h2>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>串行文件</th>
+<th>并行文件</th>
+<th>行数 (串/并)</th>
+<th>包含子例程</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>exner_hyb_m</code></td>
+<td><code>exner_hyb_m.F90</code></td>
+<td><code>exner_hyb_p_m.F90</code></td>
+<td>~115/~186</td>
+<td><code>exner_hyb</code> / <code>exner_hyb_p</code></td>
+</tr>
+<tr>
+<td><code>exner_milieu_m</code></td>
+<td><code>exner_milieu_m.F90</code></td>
+<td><code>exner_milieu_p_m.F90</code></td>
+<td>~95/~160</td>
+<td><code>exner_milieu</code> / <code>exner_milieu_p</code></td>
+</tr>
+<tr>
+<td><code>cpdet_mod</code></td>
+<td><code>cpdet_mod.F90</code></td>
+<td>同文件 <code>#ifdef CPP_PARA</code></td>
+<td>~280 (合计)</td>
+<td><code>ini_cpdet</code>, <code>cpdet</code>, <code>t2tpot</code>, <code>tpot2t</code> + <code>_p</code>/<code>_glo_p</code> 变体</td>
+</tr>
+</tbody>
+</table>
+<h2 id="exner-函数选择pressure_exner">Exner 函数选择：pressure_exner</h2>
+<p><code>leapfrog.F</code> L264-268 按 <code>pressure_exner</code> 逻辑量选择路径：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (pressure_exner) <span class="kw">then</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> exner_hyb( ip1jmp1, ps, p, pks, pk, pkf )</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">else</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> exner_milieu( ip1jmp1, ps, p, pks, pk, pkf )</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<p><code>pressure_exner</code> 来自 <code>comvert_mod</code>，由 <code>iniconst</code> 初始化为 <code>disvert_type == 1</code>（标准 hybrid 坐标 → <code>exner_hyb</code>），可通过 <code>getin('pressure_exner', ...)</code> 覆盖。Mars 复杂垂直坐标通常使用 <code>disvert_type != 1</code>，走 <code>exner_milieu</code> 路径。</p>
+<p>两个变体的签名完全一致：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> exner_hyb(ngrid, ps, p, pks, pk, pkf)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> exner_milieu(ngrid, ps, p, pks, pk, pkf)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span> ngrid</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span> ps(ngrid), p(ngrid,llmp1), pks(ngrid), pk(ngrid,llm)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span>, <span class="dt">optional</span> <span class="dt">::</span> pkf(ngrid,llm)</span></code></pre></div>
+<p>输入是地表压力 <code>ps</code> 和层界压力 <code>p</code>（由 <code>pression</code> 计算），输出是地表 Exner 函数 <code>pks</code>、各层 Exner 函数 <code>pk</code> 和可选的滤波版本 <code>pkf</code>。</p>
+<h2 id="exner_hyb--递归-alphabeta-法">exner_hyb — 递归 alpha/beta 法</h2>
+<h3 id="公式">公式</h3>
+<p>标准 Exner 函数定义：<code>pk = Cp * (p/preff)^kappa</code>，其中 <code>preff</code> 来自 <code>comvert_mod</code>（参考压力），<code>kappa</code> 和 <code>cpp</code> 来自 <code>comconst_mod</code>。</p>
+<p><code>exner_hyb</code> 使用 Fr. Hourdin 的递归方法保证能量守恒（总能量/内能/势能比例关系）：</p>
+<ol type="1">
+<li><strong>Shallow Water 特例</strong>（<code>llm==1</code>）：<code>pks = (cpp/preff)*ps</code>，<code>pk = 0.5*pks</code>。首调用时检查 <code>kappa==1</code> 且 <code>cpp==r</code>。</li>
+<li><strong>地表 Exner</strong>：<code>pks(ij) = cpp * (ps(ij)/preff)^kappa</code>。</li>
+<li><strong>alpha/beta 系数</strong>：从顶层（l=llm）向下递归计算。<code>alpha(ij,llm)=0</code>，<code>beta(ij,llm)=1/(1+2*kappa)</code>。逐层向下：<code>dellta = p(l)*(1+2k) + p(l+1)*(beta(l+1)-(1+2k))</code>，<code>alpha(l) = -p(l+1)/dellta * alpha(l+1)</code>，<code>beta(l) = p(l)/dellta</code>。</li>
+<li><strong>底层 pk</strong>：<code>pk(ij,1) = (p(1)*pks - 0.5*alpha(2)*p(2)) / (p(1)*(1+kappa) + 0.5*(beta(2)-(1+2k))*p(2))</code>。</li>
+<li><strong>向上递推</strong>：<code>pk(ij,l) = alpha(ij,l) + beta(ij,l) * pk(ij,l-1)</code>，l=2..llm。</li>
+<li><strong>可选滤波</strong>：若 <code>present(pkf)</code>，复制 <code>pk</code> 到 <code>pkf</code> 再 <code>filtreg(pkf, jmp1, llm, 2, 1, .TRUE., 1)</code>。</li>
+</ol>
+<h3 id="并行变体">并行变体</h3>
+<p><code>exner_hyb_p_m.F90</code> 使用 <code>USE parallel_lmdz</code>，子域 <code>ijb=ij_begin, ije=ij_end</code>。每个水平循环包裹 <code>!$OMP DO SCHEDULE(STATIC)</code>，垂直递归的层间依赖通过 <code>!$OMP BARRIER</code> 同步。<code>firstcall</code> 声明为 <code>!$OMP THREADPRIVATE</code>。滤波用 <code>filtreg_p(pkf, jjb, jje, jmp1, llm, 2, 1, .TRUE., 1)</code>。</p>
+<h2 id="exner_milieu--简化中点法mars-专用">exner_milieu — 简化中点法（Mars 专用）</h2>
+<h3 id="公式-1">公式</h3>
+<p>源码 WARNING 注释明确：这是 Mars 复杂垂直坐标的专用版本，<strong>不满足</strong>总能量/内能/势能的比例关系（F. Forget, 2001）。</p>
+<ol type="1">
+<li><strong>Shallow Water 特例</strong>（<code>llm==1</code>）：与 <code>exner_hyb</code> 相同。</li>
+<li><strong>地表 Exner</strong>：与 <code>exner_hyb</code> 相同，<code>pks(ij) = cpp * (ps(ij)/preff)^kappa</code>。</li>
+<li><strong>各层 pk</strong>（l=1..llm-1）：直接中点公式 <code>pk(ij,l) = cpp * (2*preff)^(-kappa) * (p(l) + p(l+1))^kappa</code>。</li>
+<li><strong>顶层外推</strong>（l=llm）：对数等距外推 <code>pk(ij,llm) = pk(ij,llm-1)^2 / pk(ij,llm-2)</code>。</li>
+<li><strong>可选滤波</strong>：同 <code>exner_hyb</code>。</li>
+</ol>
+<h3 id="并行变体-1">并行变体</h3>
+<p><code>exner_milieu_p_m.F90</code> 结构与 <code>exner_hyb_p</code> 类似，使用 <code>USE parallel_lmdz</code>，子域 + OMP STATIC 循环 + <code>!$OMP THREADPRIVATE(firstcall)</code>。由于 <code>exner_milieu</code> 没有层间递归（每层独立计算），并行化更简单。</p>
+<h2 id="cpdet_mod--变比热模块">cpdet_mod — 变比热模块</h2>
+<h3 id="ini_cpdet">ini_cpdet</h3>
+<p>初始化 <code>nu_venus</code> 和 <code>t0_venus</code>（在 <code>comconst_mod</code> 中声明）：</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (cpofT) <span class="kw">then</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    nu_venus <span class="kw">=</span> <span class="fl">0.35</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    t0_venus <span class="kw">=</span> <span class="fl">460.</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="kw">else</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    nu_venus <span class="kw">=</span> <span class="fl">0.</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    t0_venus <span class="kw">=</span> <span class="fl">0.</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<p>由 <code>gcm.F90</code> L192 / <code>gcm.F</code> L220 / <code>nogcm.F90</code> L184 在初始化阶段调用。<code>cpofT</code> 是 <code>control_mod</code> 中的逻辑量，由 <code>conf_gcm</code> 从 <code>run.def</code> 读取（默认 <code>.False.</code>）。</p>
+<h3 id="cpdett--变比热函数">cpdet(t) — 变比热函数</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">FUNCTION</span> cpdet(t)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">if</span> (cpofT) <span class="kw">then</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>      cpdet <span class="kw">=</span> cpp <span class="kw">*</span> (t <span class="kw">/</span> t0_venus)<span class="kw">**</span>nu_venus</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">else</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>      cpdet <span class="kw">=</span> cpp</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">endif</span></span></code></pre></div>
+<p>当 <code>cpofT=.true.</code> 时，比热随温度变化：<code>cp(T) = cpp * (T/460)^0.35</code>。这是 Venus 厚大气的适配，Mars 通常 <code>cpofT=.false.</code>（常比热）。</p>
+<p>在 <code>leapfrog.F</code> L722 / <code>leapfrog_p.F</code> L1412 中被内联调用，用于 conservative dissipation 修正：<code>dtec = (ecin0-ecin)/cpdet(temp)</code>。在 <code>diagedyn.F</code> L229 中用于诊断能量计算。</p>
+<h3 id="tpot2t--位温温度">tpot2t — 位温→温度</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> tpot2t(npoints, yteta, yt, ypk)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">if</span> (cpofT) <span class="kw">then</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>      yt <span class="kw">=</span> yteta<span class="kw">**</span>nu_venus <span class="kw">+</span> nu_venus <span class="kw">*</span> t0_venus<span class="kw">**</span>nu_venus <span class="kw">*</span> <span class="bu">log</span>(ypk<span class="kw">/</span>cpp<span class="co">)</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>      yt <span class="kw">=</span> yt<span class="kw">**</span>(<span class="fl">1.</span><span class="kw">/</span>nu_venus)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">else</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>      yt <span class="kw">=</span> yteta <span class="kw">*</span> ypk <span class="kw">/</span> cpp</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">endif</span></span></code></pre></div>
+<p>常比热路径：<code>T = theta * pk / cpp</code>（标准 Exner 反变换）。 变比热路径：非线性反演 <code>T = (theta^nu + nu * t0^nu * ln(pk/cpp))^(1/nu)</code>。</p>
+<h3 id="t2tpot--温度位温">t2tpot — 温度→位温</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> t2tpot(npoints, yt, yteta, ypk)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">if</span> (cpofT) <span class="kw">then</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>      yteta <span class="kw">=</span> yt<span class="kw">**</span>nu_venus <span class="kw">-</span> nu_venus <span class="kw">*</span> t0_venus<span class="kw">**</span>nu_venus <span class="kw">*</span> <span class="bu">log</span>(ypk<span class="kw">/</span>cpp<span class="co">)</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>      yteta <span class="kw">=</span> yteta<span class="kw">**</span>(<span class="fl">1.</span><span class="kw">/</span>nu_venus)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">else</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>      yteta <span class="kw">=</span> yt <span class="kw">*</span> cpp <span class="kw">/</span> ypk</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">endif</span></span></code></pre></div>
+<p>常比热路径：<code>theta = T * cpp / pk</code>。变比热路径是非线性正变换。</p>
+<p>代码中包含一段 "ATMOSPHERE PROFONDE" 深大气修正（<code>ratio_mod = mmm0/mmm(p)</code> 分子量修正），但被 <code>if (1 .EQ. 0)</code> 永久禁用，当前不影响任何活跃路径。</p>
+<h3 id="并行变体-2">并行变体</h3>
+<p><code>cpdet_mod.F90</code> 在 <code>#ifdef CPP_PARA</code> 条件下包含四个并行子例程：</p>
+<table>
+<thead>
+<tr>
+<th>变体</th>
+<th>签名</th>
+<th>并行方式</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tpot2t_p(nlon,nlev,...)</code></td>
+<td>2D 任意切片</td>
+<td><code>OMP DO SCHEDULE(STATIC,OMP_CHUNK)</code> 在 <code>l</code> 维度</td>
+<td><code>calfis_p</code> 物理列</td>
+</tr>
+<tr>
+<td><code>tpot2t_glo_p(...)</code></td>
+<td>3D 全动力网格 <code>iip1×jjp1×llm</code></td>
+<td><code>OMP DO</code> 在 <code>l</code> 维度，<code>jj_begin:jj_end</code> 子域</td>
+<td><code>leapfrog_p</code>、<code>vlspltqs_p</code></td>
+</tr>
+<tr>
+<td><code>t2tpot_p(nlon,nlev,...)</code></td>
+<td>2D 任意切片</td>
+<td>同 <code>tpot2t_p</code></td>
+<td><code>calfis_p</code> 物理列</td>
+</tr>
+<tr>
+<td><code>t2tpot_glo_p(...)</code></td>
+<td>3D 全动力网格</td>
+<td>同 <code>tpot2t_glo_p</code></td>
+<td><code>leapfrog_p</code> conservative 修正</td>
+</tr>
+</tbody>
+</table>
+<p><code>_glo_p</code> 变体使用 <code>#include "dimensions.h"</code> 和 <code>#include "paramet.h"</code> 获取网格维度，直接在完整动力网格上操作，比多次调用 <code>_p</code> 切片更高效。</p>
+<h2 id="leapfrog-中的调用链路">leapfrog 中的调用链路</h2>
+<p>每个 <code>leapfrog</code> 时间步中，Exner 和 cp(T) 转换的典型调用顺序：</p>
+<pre><code>pression(ip1jmp1, ap, bp, ps, p)           → p 层界压力
+
+if pressure_exner:
+  exner_hyb(ip1jmp1, ps, p, pks, pk, pkf)  → pks, pk, pkf
+else:
+  exner_milieu(ip1jmp1, ps, p, pks, pk, pkf) → pks, pk, pkf
+
+tpot2t(ijp1llm, teta, temp, pk)            → temp 温度
+tsurpk = cpp * temp / pk                    → 位势计算用的 teta 替代量
+geopot(ip1jmp1, tsurpk, pk, pks, phis, phi) → phi 位势高度
+
+caldyn(ucov,vcov,teta,ps,...,pk,pkf,tsurpk,phis,phi,...)</code></pre>
+<p>在耗散守恒修正段中：</p>
+<pre><code>tpot2t(ijp1llm, teta, temp, pk)            → temp
+covcont → enercin → ecin0                   → 耗散前动能
+dissip → ucov+=dudis; vcov+=dvdis
+covcont → enercin → ecin                    → 耗散后动能
+dtec = (ecin0 - ecin) / cpdet(temp)         → 动能差/变比热
+temp += dtec                                 → 温度修正
+t2tpot(ijp1llm, temp, ztetaec, pk)          → 位温修正</code></pre>
+<h2 id="调用方总览">调用方总览</h2>
+<h3 id="exner-函数">Exner 函数</h3>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>exner_hyb 调用次数</th>
+<th>exner_milieu 调用次数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>leapfrog.F</code></td>
+<td>4 (L265,534,625,678)</td>
+<td>4 (L267,536,627,680)</td>
+<td>初始化 + 各时间步</td>
+</tr>
+<tr>
+<td><code>leapfrog_p.F</code></td>
+<td>1+3 (L300,881,1115,1277)</td>
+<td>1+3 (L302,883,1117,1279)</td>
+<td>同，并行</td>
+</tr>
+<tr>
+<td>MARS <code>phymars/leapfrog_nogcm.F</code></td>
+<td>3 (L307,468,640)</td>
+<td>3 (L309,470,642)</td>
+<td>无耗散但仍需 Exner</td>
+</tr>
+<tr>
+<td><code>guide_mod.F90</code></td>
+<td>1 (L694)</td>
+<td>1 (L696)</td>
+<td>nudging 位势计算</td>
+</tr>
+<tr>
+<td><code>iniacademic.F90</code></td>
+<td>1 (L239)</td>
+<td>1 (L241)</td>
+<td>学术测试初始化</td>
+</tr>
+</tbody>
+</table>
+<h3 id="cpdet_mod-消费方">cpdet_mod 消费方</h3>
+<table>
+<thead>
+<tr>
+<th>消费方</th>
+<th>USE 导入</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gcm.F90</code>/<code>gcm.F</code>/<code>nogcm.F90</code></td>
+<td><code>ini_cpdet</code></td>
+<td>初始化 <code>nu_venus/t0_venus</code></td>
+</tr>
+<tr>
+<td><code>leapfrog.F</code></td>
+<td><code>cpdet, tpot2t, t2tpot</code></td>
+<td>耗散修正 + 各时间步 tpot2t + t2tpot</td>
+</tr>
+<tr>
+<td><code>leapfrog_p.F</code></td>
+<td><code>cpdet, tpot2t_glo_p, t2tpot_glo_p</code></td>
+<td>同上，并行全局变体</td>
+</tr>
+<tr>
+<td>MARS <code>phymars/leapfrog_nogcm.F</code></td>
+<td><code>cpdet, tpot2t, t2tpot</code></td>
+<td>无耗散但仍有 tpot2t 温度转换</td>
+</tr>
+<tr>
+<td><code>bilan_dyn.F</code></td>
+<td><code>tpot2t</code></td>
+<td>能量诊断</td>
+</tr>
+<tr>
+<td><code>vlspltqs.F</code>/<code>vlspltqs_p.F</code></td>
+<td><code>tpot2t</code>/<code>tpot2t_glo_p</code></td>
+<td>Van Leer 分裂</td>
+</tr>
+<tr>
+<td><code>diagedyn.F</code></td>
+<td><code>cpdet, tpot2t</code></td>
+<td>动力诊断</td>
+</tr>
+<tr>
+<td><code>calfis.F</code>/<code>calfis_p.F</code></td>
+<td><code>t2tpot, tpot2t</code>/<code>tpot2t_p, t2tpot_p</code></td>
+<td>物理 tendency 计算</td>
+</tr>
+</tbody>
+</table>
+<h2 id="串并行差异汇总">串并行差异汇总</h2>
+<table>
+<thead>
+<tr>
+<th>差异项</th>
+<th>串行</th>
+<th>并行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Exner 模块名</td>
+<td><code>exner_hyb_m</code> / <code>exner_milieu_m</code></td>
+<td><code>exner_hyb_p_m</code> / <code>exner_milieu_p_m</code></td>
+</tr>
+<tr>
+<td>Exner OMP</td>
+<td>无</td>
+<td><code>!$OMP DO SCHEDULE(STATIC)</code> + <code>!$OMP BARRIER</code></td>
+</tr>
+<tr>
+<td>Exner 子域</td>
+<td>全 <code>1..ngrid</code></td>
+<td><code>ij_begin..ij_end</code></td>
+</tr>
+<tr>
+<td>Exner firstcall</td>
+<td><code>SAVE</code></td>
+<td><code>!$OMP THREADPRIVATE</code></td>
+</tr>
+<tr>
+<td>Exner 滤波</td>
+<td><code>filtreg</code></td>
+<td><code>filtreg_p</code></td>
+</tr>
+<tr>
+<td>tpot2t/t2tpot</td>
+<td>单数组 <code>npoints</code></td>
+<td><code>_p</code> 切片 + <code>_glo_p</code> 全网格</td>
+</tr>
+<tr>
+<td>tpot2t OMP</td>
+<td>无</td>
+<td><code>OMP DO SCHEDULE(STATIC,OMP_CHUNK)</code></td>
+</tr>
+<tr>
+<td>cpdet 函数</td>
+<td>直接调用</td>
+<td>直接调用（无并行差异）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入输出数据流">输入输出数据流</h2>
+<pre><code>conf_gcm:
+  run.def → cpofT (logical)
+  iniconst: disvert_type → pressure_exner (logical)
+
+gcm initialization:
+  ini_cpdet → nu_venus, t0_venus (comconst_mod)
+
+leapfrog each timestep:
+  pression(ap, bp, ps) → p
+  if pressure_exner:
+    exner_hyb(ps, p) → pks, pk, pkf
+  else:
+    exner_milieu(ps, p) → pks, pk, pkf
+  tpot2t(teta, pk) → temp
+  tsurpk = cpp * temp / pk
+  geopot(tsurpk, pk, pks, phis) → phi
+
+dissipative correction (if apdiss):
+  tpot2t(teta, pk) → temp
+  cpdet(temp) → local cp value
+  t2tpot(temp, pk) → ztetaec</code></pre>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>pressure_exner</code> 的选择由 <code>disvert_type</code> 决定：Mars 通常 <code>disvert_type != 1</code>，走 <code>exner_milieu</code>，但该变体不保证能量守恒——这意味着 Mars 运行的 energy budget 可能有系统性偏差。</li>
+<li><code>cpofT</code> 默认为 <code>.False.</code>，Mars 通常使用常比热 <code>cpp</code>。Venus 厚大气设置 <code>cpofT=.True.</code>。</li>
+<li><code>tpot2t</code> 和 <code>t2tpot</code> 不是简单互逆——当 <code>cpofT=.true.</code> 时存在数值精度差异。</li>
+<li><code>exner_hyb</code> 和 <code>exner_milieu</code> 的 <code>pkf</code> 是 optional 参数；<code>guide_mod</code> 调用时不传 <code>pkf</code>（5 参数形式），<code>leapfrog</code> 调用时传 <code>pkf</code>（6 参数形式）。</li>
+<li>并行 <code>_glo_p</code> 变体比多次 <code>_p</code> 切片调用更高效，<code>leapfrog_p</code> 统一使用 <code>_glo_p</code>，<code>calfis_p</code> 使用 <code>_p</code> 切片。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Mars 当前 <code>run.def</code>/<code>conf_gcm</code> 中 <code>disvert_type</code> 的实际值和 <code>pressure_exner</code> 的覆盖值需追踪确认。</li>
+<li><code>exner_milieu</code> 的能量不守恒对 Mars long-run energy budget 的影响需在 <code>bilan_dyn</code> 页面中量化。</li>
+<li><code>cpdet_mod</code> 中深大气修正（<code>ratio_mod</code>）的 Venus 条件和未来激活路径需在 Venus 专题页中覆盖。</li>
+<li><code>exner_hyb</code> 的 alpha/beta 递归方法的具体数学推导（Fr. Hourdin 的 note）未包含在源码中。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="common-pressure-mass-operators.html">压力与质量算子 family</a></li>
+<li><a href="common-energy-vorticity-operators.html">动能、Bernoulli、位势涡度与位势高度算子</a></li>
+<li><a href="mass-pressure-energy-overview.html">质量、压力、位势和能量例程总览</a></li>
+<li><a href="caldyn-serial-parallel.html">caldyn 串并行对照</a></li>
+<li><a href="common-dissip-mars-chain.html">Mars 水平耗散链路</a></li>
+<li><a href="leapfrog-dissipation-conservation.html">leapfrog 耗散、sponge 和守恒修正</a></li>
+<li><a href="vertical-discretization.html">垂直离散构造</a></li>
+<li><a href="../modules/dyn3d/conf_gcm.html">conf_gcm</a></li>
+<li><a href="common-state-control-contract.html">COMMON 状态/控制模块契约</a></li>
+<li><a href="guide-config-contract.html">guide 配置与初始化契约</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,131 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>grid_atob_m - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dynphy_lonlat/grid_atob_m.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="grid_atob_mf90">grid_atob_m.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dynphy_lonlat\grid_atob_m.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>grid_atob_m.F90</code> 定义模块 <code>grid_atob_m</code>，提供从数据网格到模型网格的粗细格重采样、粗糙度、海冰和地形粗糙度辅助计算。模块内部核心是私有 <code>fine2coarse</code>，公开入口是 <code>grille_m</code>、<code>rugosite</code>、<code>sea_ice</code> 和 <code>rugsoro</code>。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：若 Mars 或 COMMON 初始化/输入数据预处理使用 dynphy_lonlat 的 A/B 网格重采样辅助，则经过；当前直接调用点需后续核对。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>grid_atob_m</code></td>
+<td>module</td>
+<td>3</td>
+<td>网格重采样辅助模块。</td>
+</tr>
+<tr>
+<td><code>fine2coarse</code></td>
+<td>private subroutine</td>
+<td>16</td>
+<td>将输入细网格聚合到输出粗网格，可带 mask。</td>
+</tr>
+<tr>
+<td><code>grille_m</code></td>
+<td>public subroutine</td>
+<td>111</td>
+<td>通用字段重采样包装。</td>
+</tr>
+<tr>
+<td><code>rugosite</code></td>
+<td>public subroutine</td>
+<td>149</td>
+<td>对 roughness 做 log-space 平均。</td>
+</tr>
+<tr>
+<td><code>sea_ice</code></td>
+<td>public subroutine</td>
+<td>180</td>
+<td>由 0/1 海冰 mask 计算模型格点海冰比例。</td>
+</tr>
+<tr>
+<td><code>rugsoro</code></td>
+<td>public subroutine</td>
+<td>205</td>
+<td>由 relief 计算次网格地形粗糙度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心算法">核心算法</h2>
+<p><code>fine2coarse</code> 对每个输入点查找落入哪个输出格点边界内，并累计 <code>d_i</code> 到 <code>d_o1</code>。若给定 <code>msk</code>，只统计 mask 为真的输入点；若给定 <code>d_o2</code>，同时累计平方量。没有输入点覆盖的输出点会用球面距离寻找最近输入点补值。</p>
+<p>公开包装：</p>
+<ul>
+<li><code>grille_m</code>：直接调用 <code>fine2coarse</code> 得到平均字段。</li>
+<li><code>rugosite</code>：对输入 roughness 取 <code>LOG</code> 后重采样，再 <code>EXP</code> 回输出。</li>
+<li><code>sea_ice</code>：以 <code>NINT(glace01)==1</code> 作为 mask，输出覆盖比例。</li>
+<li><code>rugsoro</code>：先在中间 1x1 网格上计算 relief 均值与平方均值，再得到标准差和模型粗糙度。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>距离补值使用球面公式 <code>ACOS(...)</code>，不是平面欧氏距离。</li>
+<li><code>rugosite</code> 是几何平均意义上的 roughness 重采样。</li>
+<li><code>rugsoro</code> 中若 <code>std**2 &lt; -7.5</code> 的点数非零，会调用 <code>ABORT_GCM</code>；轻微负值只打印提示后截断处理。</li>
+<li>模块只 <code>USE assert_eq_m:assert_eq</code>，没有保存全局状态。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 Mars 初始化链是否直接使用本模块，需要在 newstart/start archive 或输入数据任务中检索。</li>
+<li><code>rugsoro</code> 中阈值 <code>-7.5</code> 的经验来源未在本文件说明。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dynphy_lonlat 总览</a></li>
+<li><a href="../phy_common/geometry-grid-layers.html">物理侧几何/经纬网格/垂直层</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,261 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>arch-env-mars-run - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a class="active" href="project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>architecture/arch-env-mars-run.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="arch-环境和-mars-deftank-运行契约">arch 环境和 Mars deftank 运行契约</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\makelmdz_fcm
+LMDZ.COMMON-6.3\LMDZ.COMMON\arch\arch-*.env
+LMDZ.COMMON-6.3\LMDZ.COMMON\arch\arch-*.fcm
+LMDZ.COMMON-6.3\LMDZ.COMMON\arch\arch-*.path
+LMDZ.MARS\deftank\run0
+LMDZ.MARS\deftank\*\run0
+LMDZ.MARS\deftank\*\run_month1
+LMDZ.MARS\deftank\*\run_year1
+LMDZ.MARS\deftank\launch_1Dchained.sh
+LMDZ.MARS\deftank\launch_orb_1Dchained.sh</code></pre>
+<p>Mars 运行参与度：<code>构建期必经/运行期条件经过</code>。<code>arch-*.env/.fcm/.path</code> 在编译 Mars GCM 时必经；<code>deftank</code> 脚本在使用示例作业运行 Mars GCM 或 1D PCM 时条件经过。它们不改变物理公式，但决定编译器、库、MPI/OMP 环境、可执行文件名和 restart 链式运行是否匹配。</p>
+<h2 id="三类-arch-文件职责">三类 arch 文件职责</h2>
+<p><code>makelmdz_fcm -arch &lt;name&gt;</code> 在 COMMON 根目录创建并使用三个生成名：</p>
+<pre class="text"><code>arch.env  -&gt; arch/arch-&lt;name&gt;.env 或 .void_file
+arch.path -&gt; arch/arch-&lt;name&gt;.path
+arch.fcm  -&gt; arch/arch-&lt;name&gt;.fcm</code></pre>
+<p>脚本先 <code>source arch.env</code> 和 <code>source arch.path</code>，再把 <code>arch.fcm</code> 与 <code>config.fcm</code> 交给 <code>bld.cfg</code>。三类文件分工如下：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>消费时机</th>
+<th>主要内容</th>
+<th>Mars 复现作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>arch-*.env</code></td>
+<td>shell 执行期，<code>source arch.env</code></td>
+<td><code>module purge/load</code>、编译器/MPI/NetCDF/HDF5/XIOS 依赖模块；有些 arch 没有 <code>.env</code>，脚本用空文件代替。</td>
+<td>让 <code>mpif90</code>, <code>nc-config</code>, <code>nf-config</code>, NetCDF/HDF5 环境变量等可见。</td>
+</tr>
+<tr>
+<td><code>arch-*.fcm</code></td>
+<td>FCM 配置期，<code>inc arch.fcm</code></td>
+<td><code>%COMPILER</code>, <code>%LINK</code>, <code>%FPP_FLAGS</code>, <code>%BASE_FFLAGS</code>, <code>%PROD_FFLAGS</code>, <code>%DEBUG_FFLAGS</code>, <code>%MPI_FFLAGS</code>, <code>%OMP_FFLAGS</code>, <code>%BASE_LD</code>, <code>%OMP_LD</code> 等。</td>
+<td>决定 Fortran/C 编译器、real*8、NetCDF double、MPI/OMP 编译和链接 flags。</td>
+</tr>
+<tr>
+<td><code>arch-*.path</code></td>
+<td>shell 执行期，<code>source arch.path</code>，随后写入 <code>config.fcm</code></td>
+<td><code>NETCDF_INCDIR/LIBDIR/LIB</code>, <code>IOIPSL_INCDIR/LIBDIR/LIB</code>, <code>XIOS_INCDIR/LIBDIR/LIB</code> 等。</td>
+<td>给 <code>makelmdz_fcm -io ioipsl/mix/xios</code> 注入 include/lib 路径。</td>
+</tr>
+</tbody>
+</table>
+<p>当前工作树中 <code>LMDZ.COMMON\arch.env</code>、<code>arch.path</code>、<code>arch.fcm</code> 不存在；它们是构建命令运行后生成的链接。Mars deftank 脚本里 <code>source ../trunk/LMDZ.COMMON/arch.env</code> 依赖这个生成物或等价手工准备。</p>
+<h2 id="代表性-arch-展开">代表性 arch 展开</h2>
+<table>
+<thead>
+<tr>
+<th>arch</th>
+<th><code>.env</code></th>
+<th><code>.fcm</code></th>
+<th><code>.path</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>X64_JEANZAY</code></td>
+<td><code>module purge</code>，加载 <code>intel-all/19.0.4</code>, <code>gcc/9.1.0</code>, MPI HDF5, NetCDF, NetCDF-Fortran。</td>
+<td><code>%COMPILER mpiifort</code>, <code>%FPP_DEF NC_DOUBLE LAPACK FFT_MKL</code>, real<em>8/int</em>32 flags，OpenMP <code>-qopenmp -qopenmp-threadprivate=compat</code>。</td>
+<td><code>NETCDF_*</code> 来自 <code>nc-config</code>，IOIPSL 指向 <code>$ROOT/ioipsl/modipsl/lib</code>，XIOS 指向 <code>$ROOT/../XIOS</code>。</td>
+</tr>
+<tr>
+<td><code>X64_OCCIGEN</code></td>
+<td>加载 Intel 17、IntelMPI、HDF5、NetCDF；保留旧 module 组合注释。</td>
+<td><code>%COMPILER mpif90</code>, <code>%CPP_DEF LAPACK</code>, <code>%FPP_DEF NC_DOUBLE LAPACK FFT_MKL</code>，OpenMP <code>-qopenmp</code>。</td>
+<td>NetCDF 使用 <code>${NETCDFF_LIBDIR}</code> 和 <code>${NETCDF_INCDIR}</code>，IOIPSL/XIOS 路径同 <code>$ROOT</code> 约定。</td>
+</tr>
+<tr>
+<td><code>gfortran</code></td>
+<td>无 <code>.env</code>；<code>makelmdz_fcm</code> 会链接空 <code>.void_file</code>。</td>
+<td><code>%COMPILER gfortran</code>, <code>%LINK gfortran</code>, <code>%CPP_DEF LAPACK</code>, <code>%FPP_DEF NC_DOUBLE</code>，gfortran real*8 flags。</td>
+<td>依赖环境变量 <code>$NETCDF</code>，IOIPSL/XIOS 仍按 <code>$ROOT/ioipsl</code> 和 <code>$ROOT/../XIOS</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>复现含义：同一个 <code>makelmdz_fcm -p mars gcm</code> 命令换不同 <code>-arch</code>，会改变 module 环境、编译器、NetCDF/IOIPSL/XIOS 解析方式和 OpenMP/MPI flags；运行脚本必须和编译出来的 <code>seq/para</code> 可执行文件匹配。</p>
+<h2 id="mars-deftank-脚本分层">Mars deftank 脚本分层</h2>
+<p><code>deftank</code> 里的运行脚本不是编译器。它们假定可执行文件已经存在，并负责链式运行、作业调度、restart 滚动和日志命名。</p>
+<table>
+<thead>
+<tr>
+<th>脚本</th>
+<th>职责</th>
+<th>环境处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deftank/run0</code></td>
+<td>单机/通用链式运行模板：检查 <code>gcm=gcm.e</code>，复制 <code>start&lt;num&gt;.nc/startfi&lt;num&gt;.nc</code> 到 <code>start.nc/startfi.nc</code>，运行 <code>./$gcm</code>，成功后把 <code>restart*.nc</code> 改名为下一段 start。</td>
+<td>不 source <code>arch.env</code>；只直接运行当前目录可执行文件。</td>
+</tr>
+<tr>
+<td><code>deftank/&lt;machine&gt;/run0</code></td>
+<td>机器版本运行模板：设置机器默认 <code>gcm=gcm_..._phymars_para.e</code>，使用 <code>mpirun</code>, <code>srun</code>, <code>ccc_mprun</code> 或 binding wrapper 启动。</td>
+<td>通常不 source <code>arch.env</code>；由外层 <code>run_month1/run_year1</code> 负责。</td>
+</tr>
+<tr>
+<td><code>deftank/&lt;machine&gt;/run_month1</code></td>
+<td>月链式作业入口：source arch 环境，设置 <code>OMP_NUM_THREADS/OMP_STACKSIZE</code>，生成当月 <code>run.def</code>，调用 <code>./run0</code>，提交下个月作业。</td>
+<td>多数机器 <code>source ../trunk/LMDZ.COMMON/arch.env</code>。</td>
+</tr>
+<tr>
+<td><code>deftank/&lt;machine&gt;/run_year1</code></td>
+<td>年链式作业入口，与月脚本类似。</td>
+<td>Adastra 版本 source <code>arch.env</code> 并设置 OMP。</td>
+</tr>
+<tr>
+<td><code>launch_1Dchained.sh</code>, <code>launch_orb_1Dchained.sh</code></td>
+<td>1D PCM 链式运行；指定 <code>testphys1d_..._phymars_seq.e</code>，检查 <code>startfi.nc/start1D.txt</code>，逐年运行。</td>
+<td>顶部 <code>source ../trunk/LMDZ.COMMON/arch.env</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="机器脚本差异">机器脚本差异</h2>
+<table>
+<thead>
+<tr>
+<th>机器目录</th>
+<th><code>run0</code> 启动方式</th>
+<th><code>run_month1</code> 运行环境</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>adastra</code></td>
+<td><code>srun ... ./adastra_cpu_binding.sh ./$gcm</code>，默认 <code>gcm_64x48x54_phymars_para.e</code>。</td>
+<td><code>source ../trunk/LMDZ.COMMON/arch.env</code>，<code>OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK</code>，<code>OMP_STACKSIZE=400M</code>。</td>
+</tr>
+<tr>
+<td><code>occigen</code></td>
+<td><code>srun --resv-ports --kill-on-bad-exit=1 --mpi=pmi2 --label -n $SLURM_NTASKS $gcm</code>。</td>
+<td>source <code>arch.env</code>，设置 <code>I_MPI_DOMAIN</code>, <code>I_MPI_PIN_RESPECT_CPUSET</code>, <code>KMP_HW_SUBSET</code>, <code>OMP_NUM_THREADS</code>, <code>OMP_STACKSIZE</code>, <code>KMP_AFFINITY</code>。</td>
+</tr>
+<tr>
+<td><code>ciclad</code></td>
+<td><code>mpirun $gcm &gt; lrun${numnew}</code>。</td>
+<td>source <code>arch.env</code>，用 PBS <code>qsub</code> 链接下个月脚本。</td>
+</tr>
+<tr>
+<td><code>irene</code></td>
+<td><code>ccc_mprun -l $gcm &gt; lrun${numnew} 2&gt;&amp;1</code>。</td>
+<td>source <code>arch.env</code>，固定 <code>OMP_NUM_THREADS=5</code> 和 <code>OMP_STACKSIZE=400M</code>。</td>
+</tr>
+<tr>
+<td><code>mesu</code></td>
+<td><code>mpirun -map-by slot:PE=$SLURM_CPUS_PER_TASK --bind-to core $gcm</code>。</td>
+<td>source <code>arch.env</code>，<code>OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK</code>。</td>
+</tr>
+<tr>
+<td><code>spirit</code></td>
+<td><code>mpirun $gcm &gt; lrun${numnew} 2&gt;&amp;1</code>。</td>
+<td>source <code>arch.env</code>，<code>OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>README 提醒用户需要改 <code>run0</code> 中的 <code>gcm=...</code> 行来匹配自己的可执行文件；Adastra 还要求根据核心数调整 <code>run_month1/run_year1</code>，Occigen README 明确 <code>OMP_NUM_THREADS</code> 要随节点/MPI/OMP 组合选择。</p>
+<h2 id="运行时-restart-链">运行时 restart 链</h2>
+<p><code>run0</code> 的通用状态机：</p>
+<pre class="text"><code>read num_run, default 0
+numnew = numold + 1
+require start&lt;numold&gt;.nc and startfi&lt;numold&gt;.nc
+copy them to start.nc and startfi.nc
+run executable, write lrun&lt;numnew&gt;
+if restart.nc and restartfi.nc exist:
+    move restart.nc   -&gt; start&lt;numnew&gt;.nc
+    move restartfi.nc -&gt; startfi&lt;numnew&gt;.nc
+    move diag/stat/profile outputs with numnew suffix
+    write num_run=numnew
+else:
+    write num_run=99999 and keep crash marker</code></pre>
+<p>因此 deftank 运行契约要求：</p>
+<ul>
+<li>可执行文件名和 <code>run0:gcm=</code> 完全一致。</li>
+<li>初始 <code>start0.nc/startfi0.nc</code> 或当前 <code>num_run</code> 对应的 start pair 必须存在。</li>
+<li>Mars GCM 成功结束必须产生 <code>restart.nc</code> 和 <code>restartfi.nc</code>；否则脚本判定 crash。</li>
+<li><code>run_month1</code> 通过 <code>sed s/9999/&lt;nday&gt;/ run.def.ref &gt; run.def</code> 改当月运行长度，再调用 <code>run0</code>。</li>
+</ul>
+<h2 id="和构建页的边界">和构建页的边界</h2>
+<ul>
+<li><code>arch-*.env/.fcm/.path</code> 是编译环境契约；<code>run0/run_month1</code> 是运行环境和 restart 链契约。</li>
+<li><code>arch.path</code> 的 IOIPSL/XIOS 路径已由 IOIPSL build 页覆盖；本页只说明这些路径如何通过 <code>arch.path -&gt; config.fcm</code> 进入编译，以及运行脚本 source <code>arch.env</code> 的前提。</li>
+<li><code>gcm_XXX_phymars_YY.e</code> 的精确命名规则由 target 输出命名任务收口；本页只说明 run 脚本必须匹配该名字。</li>
+</ul>
+<h2 id="复现检查点">复现检查点</h2>
+<ol type="1">
+<li>编译前：确认 <code>-arch &lt;name&gt;</code> 对应 <code>.fcm/.path</code> 存在；如果没有 <code>.env</code>，确认空 <code>.void_file</code> 环境足够。</li>
+<li>编译后或运行前：确认 COMMON 根目录存在可 source 的 <code>arch.env</code>，或把 deftank 脚本里的 <code>source ../trunk/LMDZ.COMMON/arch.env</code> 改到真实位置。</li>
+<li>若运行并行可执行文件，确认 <code>run0</code> 使用的启动器和 <code>gcm=..._para.e</code> 与编译的 parallel/MPI/OMP 模式一致。</li>
+<li>若使用 OpenMP，确认 <code>OMP_NUM_THREADS</code>、<code>OMP_STACKSIZE</code> 和 scheduler 的 <code>cpus-per-task</code> 一致。</li>
+<li>确认运行目录有 <code>run.def.ref</code>, <code>run0</code>, <code>run_month1</code>，以及 <code>start&lt;num&gt;.nc/startfi&lt;num&gt;.nc</code>。</li>
+<li>脚本链式提交前，确认 <code>num_now/num_end</code>、月长度 sed 值和 job scheduler 指令适合当前实验。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前本地 workspace 没有 <code>LMDZ.COMMON\arch.env/path/fcm</code> 生成链接；是否由用户的实际编译流程在运行前生成，需要在真实运行环境确认。</li>
+<li>不同机器脚本的 scheduler directives 是否仍符合当前集群队列策略，需要由实际平台文档确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="build-and-arch.html">build 和 arch 配置链</a></li>
+<li><a href="makelmdz-fcm-mars-paths.html">makelmdz_fcm Mars 源码路径契约</a></li>
+<li><a href="ioipsl-build-mars-contract.html">IOIPSL build 和 Mars I/O 构建契约</a></li>
+<li><a href="../routines/common-gcm-mars-run-entry.html">Mars 3D GCM 主入口链</a></li>
+<li><a href="../routines/mars-start-restart-archive-boundary.html">Mars start/restart/archive 文件职责边界</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

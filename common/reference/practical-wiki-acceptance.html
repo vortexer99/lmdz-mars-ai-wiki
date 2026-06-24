@@ -1,0 +1,238 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>practical-wiki-acceptance - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="file-index.html">文件索引</a>
+        <a href="source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>reference/practical-wiki-acceptance.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="实用版-wiki-验收清单">实用版 wiki 验收清单</h1>
+<p>页面状态：复验版，按功能面判断，不按任务数量单独判断。 源码范围：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code>，仅覆盖 Mars run 会经过或必须保持接口兼容的 COMMON 路径。 统计时间：2026-06-24 复扫。</p>
+<h2 id="验收原则">验收原则</h2>
+<p>实用版 wiki 的目标不是把 registry 里的每个任务清零，而是让读者能沿 Mars 运行链复现和定位问题：</p>
+<pre class="text"><code>编译命令 -&gt; arch/env/path -&gt; FCM source groups -&gt; 可执行文件名
+        -&gt; run.def/start 文件 -&gt; gcm/newstart/testphys1d
+        -&gt; 动力初始化/时间推进 -&gt; 物理接口
+        -&gt; restart/history/getin/I/O -&gt; Mars 工具链</code></pre>
+<p>因此任务数量只作为覆盖密度指标。真正的验收依据是：主流程是否串起来、关键模块是否能定位、Mars 不经过的路径是否被排除、剩余待确认项是否被正确分诊为运行、外部库、设计意图或物理/数值问题。</p>
+<h2 id="当前总判断">当前总判断</h2>
+<p>结论：<code>实用版已达标</code>。</p>
+<p>原因：</p>
+<ul>
+<li>主流程、构建配置、Mars/COMMON 映射、start/restart/archive 边界、串并行动力骨架、物理接口骨架和小工具组页已经可用。</li>
+<li>构建配置闭环已完成：源码路径、IOIPSL、arch/env、deftank 运行环境、target 输出命名都能互相追踪。</li>
+<li><code>history/XIOS/getin</code> 输出与配置读取职责边界已经补齐，能区分动力 history、Mars physics <code>diagfi/stats</code>、XIOS helper 和 <code>getin/getin_p</code>。</li>
+<li>登记表内可完成的 hard 父页已收口；剩余 blocked 项为非 Mars 范围或 6.3 删除项，剩余 <code>待确认</code> 属于运行验证、配置样例、外部库、设计意图或物理/数值解释。</li>
+</ul>
+<h2 id="registry-快照">Registry 快照</h2>
+<p>当前 registry 规模用于观察，不作为完成条件：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th style="text-align: right;">数量</th>
+<th>验收含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>done</code></td>
+<td style="text-align: right;">209</td>
+<td>登记表内可完成内容页、组页、索引页、hard 父页和主题页已收口。</td>
+</tr>
+<tr>
+<td><code>blocked</code></td>
+<td style="text-align: right;">12</td>
+<td>非 Mars 路径或 6.3 删除项，保留边界，不应继续写。</td>
+</tr>
+<tr>
+<td><code>todo</code></td>
+<td style="text-align: right;">0</td>
+<td>无普通待办。</td>
+</tr>
+<tr>
+<td><code>in_progress</code></td>
+<td style="text-align: right;">0</td>
+<td>当前无已知本轮挂起任务。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="功能面验收">功能面验收</h2>
+<table>
+<thead>
+<tr>
+<th>功能面</th>
+<th>当前判定</th>
+<th>已有覆盖</th>
+<th>剩余影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mars 范围边界</td>
+<td><code>达标</code></td>
+<td><a href="mars-common-map.html">mars-common-map</a>, <a href="common-consumer-map.html">common-consumer-map</a>, <a href="source-coverage-matrix.html">source-coverage-matrix</a></td>
+<td>Venus/Titan/evolution 已 blocked，不应再作为实用版缺口。</td>
+</tr>
+<tr>
+<td>主流程入口</td>
+<td><code>达标</code></td>
+<td><a href="../routines/common-gcm-mars-run-entry.html">common-gcm-mars-run-entry</a>, <a href="../themes/dynamics-time-integration.html">dynamics-time-integration</a>, <a href="../modules/dyn3d/gcm.html">dyn3d/gcm</a>, <a href="../modules/dyn3dpar/gcm.html">dyn3dpar/gcm</a></td>
+<td>主链已能追踪；剩余是具体生产入口和运行脚本验证。</td>
+</tr>
+<tr>
+<td>构建配置</td>
+<td><code>达标</code></td>
+<td><a href="../architecture/build-and-arch.html">build-and-arch</a>, <a href="../architecture/makelmdz-fcm-mars-paths.html">makelmdz-fcm-mars-paths</a>, <a href="../architecture/ioipsl-build-mars-contract.html">ioipsl-build-mars-contract</a>, <a href="../architecture/arch-env-mars-run.html">arch-env-mars-run</a>, <a href="../architecture/makelmdz-target-output-naming.html">makelmdz-target-output-naming</a></td>
+<td>剩余是平台实测验证，不是 wiki 结构缺口。</td>
+</tr>
+<tr>
+<td>动力核心</td>
+<td><code>达标</code></td>
+<td><a href="../themes/dynamics-time-integration.html">dynamics-time-integration</a>, <a href="../themes/transport-advection.html">transport-advection</a>, <code>dyn3d</code>/<code>dyn3d_common</code> 索引、<a href="../modules/dyn3d_common/infotrac.html">infotrac</a>、<a href="../modules/dyn3d/vlsplt.html">vlsplt</a>、<a href="../modules/dyn3dpar/vlsplt_p.html">vlsplt_p</a>、<a href="../modules/dyn3d_common/ppm3d.html">ppm3d</a>、<a href="../modules/dyn3d_common/advn.html">advn</a>、COMMON <code>gcm/conf_gcm</code> 与 MARS <code>phymars/nogcm</code> 边界、caldyn/advtrac/integrd/dissip/friction/addfi/qminimum/top_bound 等组页</td>
+<td>主时间推进、tracer contract、串并行 Van Leer、PPM、advn 和 Prather/历史格式边界已完成；剩余影响是配置样例和数值/设计意图确认。</td>
+</tr>
+<tr>
+<td>并行版本</td>
+<td><code>达标</code></td>
+<td><a href="../themes/serial-parallel-dynamics.html">serial-parallel-dynamics</a>, <a href="../modules/dyn3dpar/index.html">dyn3dpar/index</a>, <a href="../modules/dyn3dpar/gcm.html">dyn3dpar/gcm</a>, <a href="../modules/dyn3dpar/guide_p_mod.html">guide_p_mod</a>, <a href="../modules/dyn3dpar/parallel_lmdz.html">parallel_lmdz</a>, <a href="../modules/dyn3dpar/mod_hallo.html">mod_hallo</a>, <a href="../modules/dyn3dpar/bands.html">bands</a>, <a href="../modules/dyn3dpar/times.html">times</a>, <a href="../modules/dyn3dpar/vlsplt_p.html">vlsplt_p</a>, parallel advection/diagnostic pages</td>
+<td>剩余影响是 <code>Bands_*prc.dat</code>、MPI/OMP 线程数等运行样例验证，不是 wiki 缺页。</td>
+</tr>
+<tr>
+<td>物理接口</td>
+<td><code>达标</code></td>
+<td><a href="../themes/dynphys-interface.html">dynphys-interface</a>, <a href="../modules/dynphy_lonlat/index.html">dynphy_lonlat/index</a>, <a href="../modules/dynphy_lonlat/calfis.html">calfis</a>, <a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p</a>, <a href="../modules/dynphy_lonlat/mod_interface_dyn_phys.html">mod_interface_dyn_phys</a>, <a href="../modules/dynphy_lonlat/inigeomphy_mod.html">inigeomphy_mod</a>, <a href="../modules/phy_common/index.html">phy_common/index</a>, <a href="../modules/phy_common/mod_phys_lmdz_mpi_transfert.html">mod_phys_lmdz_mpi_transfert</a>, <a href="../modules/phy_common/mod_phys_lmdz_transfert_para.html">mod_phys_lmdz_transfert_para</a>, <a href="../modules/phy_common/mod_phys_lmdz_omp_transfert.html">mod_phys_lmdz_omp_transfert</a></td>
+<td>剩余影响是 Mars physics 实际消费、外部 physics 包或本地 patch 的运行侧确认。</td>
+</tr>
+<tr>
+<td>start/restart/archive</td>
+<td><code>达标</code></td>
+<td><a href="../themes/restart-io.html">restart-io</a>, <a href="../routines/mars-start-restart-archive-boundary.html">mars-start-restart-archive-boundary</a>, <a href="../routines/dynredem-restart.html">dynredem-restart</a>, <a href="../routines/mars-utility-common-state-consumers.html">mars-utility-common-state-consumers</a></td>
+<td>已通过 H1 父主题与 history/getin/XIOS 边界衔接。</td>
+</tr>
+<tr>
+<td>history/XIOS/getin/I/O</td>
+<td><code>达标</code></td>
+<td><a href="../themes/restart-io.html">restart-io</a>, <a href="../routines/history-xios-getin-boundary.html">history-xios-getin-boundary</a>, <a href="../routines/history-output-serial-parallel.html">history-output-serial-parallel</a>, <a href="../routines/inithist-serial-parallel.html">inithist-serial-parallel</a>, <a href="../modules/phy_common/write-field-xios.html">write-field-xios</a>, <a href="../modules/misc/ioipsl-getin-system.html">ioipsl-getin-system</a>, <a href="../modules/misc/netcdf95-wrappers.html">netcdf95-wrappers</a></td>
+<td>Mars physics 具体字段清单仍属 MARS physics wiki 深度内容。</td>
+</tr>
+<tr>
+<td>小工具/数值辅助函数</td>
+<td><code>达标</code></td>
+<td>misc、filtrez、插值、样条、数值 helper、坐标 helper、FFT/filter helper 已按组页覆盖</td>
+<td>个别 helper 深度页可后置，不阻断实用版。</td>
+</tr>
+<tr>
+<td>索引和查找</td>
+<td><code>达标</code></td>
+<td><a href="file-index.html">file-index</a>, <a href="symbol-index.html">symbol-index</a>, <a href="source-coverage-matrix.html">source-coverage-matrix</a>, <a href="pending-confirmation-triage.html">pending-confirmation-triage</a>, <a href="mars-common-map.html">mars-common-map</a>, <a href="common-consumer-map.html">common-consumer-map</a></td>
+<td>后续新增运行证据或维护者确认后，需要同步更新符号索引和待确认分诊页。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="最小完成条件">最小完成条件</h2>
+<p>实用版当前已经满足以下最小条件：</p>
+<ol type="1">
+<li>已完成 <code>history/XIOS/getin</code> 输出和配置读取职责边界收口页。</li>
+<li>入口页、file-index、coverage matrix 能从每个功能面跳到对应页面。</li>
+<li>非 Mars 路径仍为 blocked，不因任务数量目标重新打开。</li>
+<li>hard 父页已收口；剩余 <code>待确认</code> 已集中到 <a href="pending-confirmation-triage.html">pending-confirmation-triage</a>。</li>
+</ol>
+<h2 id="可后置项目">可后置项目</h2>
+<p>这些任务可以提高完整度，但不应阻止实用版验收：</p>
+<ul>
+<li>单个短小 helper 的逐文件页，已有组页覆盖时可后置。</li>
+<li>非 Mars 路径：Venus/Titan <code>newstart/archive/restart</code>、<code>evolution/PEM</code>。</li>
+<li>需要真实运行样例、外部库行为或维护者设计意图的 <code>待确认</code> 项。</li>
+<li>平台专有 scheduler 指令细节，源码无法完全证明，需要真实集群文档或运行环境确认。</li>
+</ul>
+<h2 id="hard-收口建议">Hard 收口建议</h2>
+<p>若要继续推进 hard，优先级不按文件大小，而按是否补齐功能面：</p>
+<table>
+<thead>
+<tr>
+<th>优先级</th>
+<th>hard/主题</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H1</td>
+<td><a href="../themes/restart-io.html">themes/restart-io.md</a></td>
+<td>已完成；作为 hard 父主题整合 restart/history/I/O 支撑页。</td>
+</tr>
+<tr>
+<td>H2</td>
+<td><a href="../themes/dynamics-time-integration.html">themes/dynamics-time-integration.md</a></td>
+<td>已完成；把 <code>gcm/conf_gcm/leapfrog</code> 支撑页整合成主时间推进读法。</td>
+</tr>
+<tr>
+<td>H3</td>
+<td><a href="../themes/serial-parallel-dynamics.html">themes/serial-parallel-dynamics.md</a></td>
+<td>已完成；把串并行页面合并成一条对照阅读路径。</td>
+</tr>
+<tr>
+<td>H4</td>
+<td><a href="symbol-index.html">reference/symbol-index.md</a></td>
+<td>已完成；改善入口、模块、例程、配置键和 I/O 文件反查效率。</td>
+</tr>
+<tr>
+<td>H5</td>
+<td><a href="../themes/transport-advection.html">themes/transport-advection.md</a></td>
+<td>已完成；整合 tracer 初始化、<code>advtrac</code> 调度、Van Leer、PPM、advn、Prather 和串并行可达性边界。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="疑点复扫">疑点复扫</h2>
+<p>当前剩余待确认项的复扫结论见 <a href="pending-confirmation-triage.html">pending-confirmation-triage</a>。本页不再把已完成 hard 页或登记表任务当作待确认来源；剩余问题按运行验证、Mars 配置、外部库/API、设计意图和物理/数值解释分诊。</p>
+<h2 id="复验流程">复验流程</h2>
+<p>每次声称“实用版完成”前，按以下顺序检查：</p>
+<ol type="1">
+<li>从 <a href="../index.html">index</a> 的阅读路径进入，确认主流程、构建、I/O、映射表都能到达。</li>
+<li>从 <a href="source-coverage-matrix.html">source-coverage-matrix</a> 查看是否还存在 <code>未达标</code> 功能面。</li>
+<li>从 <a href="pending-confirmation-triage.html">pending-confirmation-triage</a> 查看剩余待确认项是否仍属于运行/外部/设计意图类。</li>
+<li>从 <a href="file-index.html">file-index</a> 随机反查 <code>makelmdz_fcm</code>、<code>gcm.F90</code>、<code>calfis.F</code>、<code>dynredem*</code>、<code>getin</code>、<code>write_field</code> 等关键范围。</li>
+<li>抽查 registry：不能出现已 done 但无页面/报告的任务；不能把 blocked 非 Mars 任务重新算作缺口。</li>
+</ol>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

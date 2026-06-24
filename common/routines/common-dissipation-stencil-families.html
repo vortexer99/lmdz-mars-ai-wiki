@@ -1,0 +1,450 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>common-dissipation-stencil-families - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/common-dissipation-stencil-families.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="水平微分耗散-stencil-family-深度">水平微分/耗散 stencil family 深度</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d_common: grad.F, gradiv.F, gradiv2.F,
+              diverg.F, divergf.F, divergst.F, diverg_gam.F,
+              rotat.F, rotatf.F, rotatst.F, rotat_nfil.F,
+              laplacien.F, laplacien_gam.F, laplacien_rot.F, laplacien_rotgam.F,
+              nxgrad.F, nxgradst.F, nxgrad_gam.F,
+              nxgraro2.F, nxgrarot.F
+dyn3dpar:     对应 17 个 _p 变体</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。所有复合算子由 <code>dissip</code>/<code>dissip_p</code> 和 <code>inidissip</code> 调用，仅在 <code>apdiss</code> 为真时执行。叶子算子由复合算子内部调用，不直接从外部入口调用。</p>
+<h2 id="页面定位">页面定位</h2>
+<p>本页提供 dyn3d_common 中水平微分/耗散 stencil 算子族的深度签名、公式、变体关系和串并行对照。它承接 <a href="differential-operators-overview.html">差分算子总览</a> 的分类框架，补充每个算子的精确签名、网格位置、Include 依赖和内部调用链。耗散链路的端到端数据流由 <a href="common-dissip-mars-chain.html">Mars 水平耗散链路</a> 覆盖；<code>inidissip</code> 的配置和特征值估算由 <a href="../modules/dyn3d_common/inidissip.html">inidissip 文件页</a> 覆盖。<code>gradsdef.h</code>（GrADS I/O header）不属于差分算子，本页不覆盖。</p>
+<h2 id="文件总览">文件总览</h2>
+<h3 id="叶子算子基础微分">叶子算子（基础微分）</h3>
+<table>
+<thead>
+<tr>
+<th>算子</th>
+<th>串行文件</th>
+<th>并行文件</th>
+<th>行数 (串/并)</th>
+<th>输入格点</th>
+<th>输出格点</th>
+<th>Include</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>grad</code></td>
+<td><code>grad.F</code></td>
+<td><code>grad_p.F</code></td>
+<td>45/54</td>
+<td>P</td>
+<td>U, V</td>
+<td><code>dimensions.h</code>, <code>paramet.h</code></td>
+</tr>
+<tr>
+<td><code>diverg</code></td>
+<td><code>diverg.F</code></td>
+<td><code>diverg_p.F</code></td>
+<td>86/107</td>
+<td>U, V</td>
+<td>P</td>
+<td>+ <code>comgeom.h</code></td>
+</tr>
+<tr>
+<td><code>divergf</code></td>
+<td><code>divergf.F</code></td>
+<td><code>divergf_p.F</code></td>
+<td>86/116</td>
+<td>U, V</td>
+<td>P</td>
+<td>+ <code>comgeom.h</code></td>
+</tr>
+<tr>
+<td><code>diverg_gam</code></td>
+<td><code>diverg_gam.F</code></td>
+<td><code>diverg_gam_p.F</code></td>
+<td>81/98</td>
+<td>U, V</td>
+<td>P</td>
+<td>+ <code>comgeom.h</code></td>
+</tr>
+<tr>
+<td><code>rotat</code></td>
+<td><code>rotat.F</code></td>
+<td><code>rotat_p.F</code></td>
+<td>59/64</td>
+<td>U, V</td>
+<td>Z</td>
+<td>+ <code>comgeom.h</code></td>
+</tr>
+<tr>
+<td><code>rotatf</code></td>
+<td><code>rotatf.F</code></td>
+<td><code>rotatf_p.F</code></td>
+<td>59/68</td>
+<td>U, V</td>
+<td>Z</td>
+<td>+ <code>comgeom.h</code></td>
+</tr>
+<tr>
+<td><code>rotat_nfil</code></td>
+<td><code>rotat_nfil.F</code></td>
+<td><code>rotat_nfil_p.F</code></td>
+<td>50/53</td>
+<td>U, V</td>
+<td>Z</td>
+<td>+ <code>comgeom.h</code></td>
+</tr>
+<tr>
+<td><code>nxgrad</code></td>
+<td><code>nxgrad.F</code></td>
+<td><code>nxgrad_p.F</code></td>
+<td>49/68</td>
+<td>Z</td>
+<td>U, V</td>
+<td>+ <code>comgeom.h</code></td>
+</tr>
+<tr>
+<td><code>nxgrad_gam</code></td>
+<td><code>nxgrad_gam.F</code></td>
+<td><code>nxgrad_gam_p.F</code></td>
+<td>48/68</td>
+<td>Z</td>
+<td>U, V</td>
+<td>+ <code>comgeom.h</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="laplacian-复合算子">Laplacian 复合算子</h3>
+<table>
+<thead>
+<tr>
+<th>算子</th>
+<th>串行文件</th>
+<th>并行文件</th>
+<th>行数 (串/并)</th>
+<th>内部调用</th>
+<th>Include</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>laplacien</code></td>
+<td><code>laplacien.F</code></td>
+<td><code>laplacien_p.F</code></td>
+<td>41/57</td>
+<td><code>filtreg</code> → <code>grad</code> → <code>divergf</code></td>
+<td>+ <code>comgeom.h</code></td>
+</tr>
+<tr>
+<td><code>laplacien_gam</code></td>
+<td><code>laplacien_gam.F</code></td>
+<td><code>laplacien_gam_p.F</code></td>
+<td>54/66</td>
+<td><code>grad</code> → <code>diverg_gam</code></td>
+<td>+ <code>comgeom.h</code></td>
+</tr>
+<tr>
+<td><code>laplacien_rot</code></td>
+<td><code>laplacien_rot.F</code></td>
+<td><code>laplacien_rot_p.F</code></td>
+<td>40/46</td>
+<td><code>filtreg</code> → <code>nxgrad</code> → <code>rotatf</code></td>
+<td>+ <code>comgeom.h</code></td>
+</tr>
+<tr>
+<td><code>laplacien_rotgam</code></td>
+<td><code>laplacien_rotgam.F</code></td>
+<td><code>laplacien_rotgam_p.F</code></td>
+<td>45/49</td>
+<td><code>nxgrad_gam</code> → <code>rotat_nfil</code> → <code>× unsairz_gam</code></td>
+<td>+ <code>comgeom.h</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="耗散复合算子">耗散复合算子</h3>
+<table>
+<thead>
+<tr>
+<th>算子</th>
+<th>串行文件</th>
+<th>并行文件</th>
+<th>行数 (串/并)</th>
+<th>内部调用链</th>
+<th>Include</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gradiv</code></td>
+<td><code>gradiv.F</code></td>
+<td><code>gradiv_p.F</code></td>
+<td>57/109</td>
+<td>迭代 ld 次：<code>diverg</code> → <code>filtreg</code> → <code>grad</code> × <code>-cdivu</code></td>
+<td>+ <code>comdissipn.h</code></td>
+</tr>
+<tr>
+<td><code>gradiv2</code></td>
+<td><code>gradiv2.F</code></td>
+<td><code>gradiv2_p.F</code></td>
+<td>80/148</td>
+<td><code>divergf</code> → <code>laplacien</code> → (ld-2)× <code>laplacien_gam</code> → <code>filtreg</code> → <code>grad</code> × <code>cdivu</code></td>
+<td>+ <code>comgeom.h</code>, <code>comdissipn.h</code></td>
+</tr>
+<tr>
+<td><code>nxgrarot</code></td>
+<td><code>nxgrarot.F</code></td>
+<td><code>nxgrarot_p.F</code></td>
+<td>55/101</td>
+<td>迭代 lr 次：<code>rotat</code> → <code>filtreg</code> → <code>nxgrad</code> × <code>-crot</code></td>
+<td>+ <code>comdissipn.h</code></td>
+</tr>
+<tr>
+<td><code>nxgraro2</code></td>
+<td><code>nxgraro2.F</code></td>
+<td><code>nxgraro2_p.F</code></td>
+<td>69/142</td>
+<td><code>rotatf</code> → <code>laplacien_rot</code> → (lr-2)× <code>laplacien_rotgam</code> → <code>filtreg</code> → <code>nxgrad</code> × <code>crot</code></td>
+<td>+ <code>comdissipn.h</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="死代码">死代码</h3>
+<p><code>divergst.F</code>（63 行）、<code>rotatst.F</code>（44 行）和 <code>nxgradst.F</code>（48 行）在整个代码库中无任何调用方，也不存在对应的 <code>_p</code> 并行变体。它们是 staggered-grid 简化版本，可能用于早期开发或已废弃的诊断路径。</p>
+<h2 id="grad--标量梯度">grad — 标量梯度</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> grad(klevel, pg, pgx, pgy)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span> klevel</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span> pg(ip1jmp1, klevel)    <span class="co">! 输入：P 点标量场</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span> pgx(ip1jmp1, klevel)   <span class="co">! 输出：U 点 x-梯度</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span> pgy(ip1jm, klevel)     <span class="co">! 输出：V 点 y-梯度</span></span></code></pre></div>
+<p>有限差分：<code>pgx(ij) = pg(ij+1) - pg(ij)</code>（前向差），<code>pgy(ij) = pg(ij) - pg(ij+iip1)</code>（南向北差）。周期性修正 <code>pgx(ij+iim) = pgx(ij)</code>。无滤波、无度量权重。</p>
+<h2 id="散度族">散度族</h2>
+<h3 id="diverg--协变向量散度无滤波">diverg — 协变向量散度（无滤波）</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> diverg(klevel, x, y, div)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span> x(ip1jmp1, klevel), y(ip1jm, klevel)  <span class="co">! 输入：U/V 点协变分量</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span> div(ip1jmp1, klevel)                   <span class="co">! 输出：P 点散度</span></span></code></pre></div>
+<p>公式：<code>div(ij) = (x(ij)*cvusurcv(ij) - x(ij-1)*cvusurcv(ij-1)) + (y(ij)*cuvscu(ij) - y(ij-iip1)*cuvscu(ij-iip1))</code>，再乘以 <code>unaire(ij)</code>（逆格点面积）。极点用面积加权求和除以 <code>apoln</code>/<code>apols</code>。</p>
+<h3 id="divergf--滤波散度">divergf — 滤波散度</h3>
+<p>与 <code>diverg</code> 相同公式，但在面积乘法前调用 <code>filtreg(div, jjp1, klevel, 2, 1, .TRUE., 1)</code> 施加正则滤波。用于 <code>gradiv2</code> 和 <code>laplacien</code> 内部。</p>
+<h3 id="diverg_gam--gamma-权重散度">diverg_gam — gamma 权重散度</h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> diverg_gam(klevel, cuvscvgam, cvuscugam, unsairegam,</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>                       unsapolnga, unsapolsga, x, y, div)</span></code></pre></div>
+<p>使用 gamma-耗散度量比（<code>cvuscugam</code>/<code>cuvscvgam</code>）和 gamma 逆面积（<code>unsairegam</code>）替代标准度量。由 <code>comdissipn.h</code> 中 <code>inidissip</code> 初始化的 gamma 权重数组驱动。用于 <code>laplacien_gam</code> 内部。</p>
+<h2 id="旋度族">旋度族</h2>
+<h3 id="rotat--协变向量旋度无滤波">rotat — 协变向量旋度（无滤波）</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> rotat(klevel, x, y, rot)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span> x(ip1jmp1, klevel), y(ip1jm, klevel)  <span class="co">! 输入：U/V 点协变分量</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span> rot(ip1jm, klevel)                     <span class="co">! 输出：Z 点旋度</span></span></code></pre></div>
+<p>公式：<code>rot(ij) = y(ij+1) - y(ij) + x(ij) - x(ij+iip1)</code>（离散旋度），再乘以 <code>unairez(ij)</code>（Z 点逆面积）。</p>
+<h3 id="rotatf--滤波旋度">rotatf — 滤波旋度</h3>
+<p>与 <code>rotat</code> 相同公式，在面积乘法前调用 <code>filtreg</code>。用于 <code>nxgraro2</code> 和 <code>laplacien_rot</code> 内部。</p>
+<h3 id="rotat_nfil--无滤波无面积归一化旋度">rotat_nfil — 无滤波无面积归一化旋度</h3>
+<p>与 <code>rotat</code> 相同差分公式，但<strong>不</strong>调用 <code>filtreg</code> 且<strong>不</strong>乘以 <code>unairez</code>。返回原始环量。用于 <code>laplacien_rotgam</code> 内部，gamma 面积归一化在外部完成。</p>
+<h2 id="nxgrad--旋转梯度族">nxgrad — 旋转梯度族</h2>
+<h3 id="nxgrad--π2-旋转梯度">nxgrad — π/2 旋转梯度</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> nxgrad(klevel, rot, x, y)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span> rot(ip1jm, klevel)       <span class="co">! 输入：Z 点旋度场</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span> x(ip1jmp1, klevel)       <span class="co">! 输出：U 点旋转梯度 x</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span> y(ip1jm, klevel)         <span class="co">! 输出：V 点旋转梯度 y</span></span></code></pre></div>
+<p>公式：<code>y(ij) = (rot(ij) - rot(ij-1)) * cvsurcuv(ij)</code>，<code>x(ij) = (rot(ij) - rot(ij-iip1)) * cusurcvu(ij)</code>。极点置零，周期性修正。</p>
+<h3 id="nxgrad_gam--gamma-权重旋转梯度">nxgrad_gam — gamma 权重旋转梯度</h3>
+<p>使用 gamma 度量比 <code>cvscuvgam</code>/<code>cuscvugam</code> 替代标准 <code>cvsurcuv</code>/<code>cusurcvu</code>。用于 <code>laplacien_rotgam</code> 内部。</p>
+<h2 id="laplacian-复合算子-1">Laplacian 复合算子</h2>
+<h3 id="laplacien--标准标量-laplacian">laplacien — 标准标量 Laplacian</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> laplacien(klevel, teta, divgra)</span></code></pre></div>
+<p>内部链：<code>teta → divgra</code>（复制）→ <code>filtreg</code> → <code>grad</code> → <code>divergf</code>。即 <code>div_f(grad(teta))</code>：先滤波再取梯度的滤波散度。</p>
+<h3 id="laplacien_gam--gamma-权重-laplacian">laplacien_gam — gamma 权重 Laplacian</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> laplacien_gam(klevel, cuvsga, cvusga, unsaigam,</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>                          unsapolnga, unsapolsga, teta, divgra)</span></code></pre></div>
+<p>内部链：<code>teta → divgra</code>（复制）→ <code>grad</code> → <code>diverg_gam</code>。无滤波。gamma 度量数组由 <code>comdissipn.h</code> 提供。</p>
+<h3 id="laplacien_rot--旋转-laplacian">laplacien_rot — 旋转 Laplacian</h3>
+<div class="sourceCode" id="cb9"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> laplacien_rot(klevel, rotin, rotout, ghx, ghy)</span></code></pre></div>
+<p>内部链：<code>rotin</code> → <code>filtreg</code> → <code>nxgrad</code> → <code>rotatf</code>。即 <code>rot_f(nxgrad(rotin))</code>：先滤波再取旋转梯度的滤波旋度。</p>
+<h3 id="laplacien_rotgam--gamma-旋转-laplacian">laplacien_rotgam — gamma 旋转 Laplacian</h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> laplacien_rotgam(klevel, rotin, rotout)</span></code></pre></div>
+<p>内部链：<code>rotin</code> → <code>nxgrad_gam</code> → <code>rotat_nfil</code> → <code>× unsairz_gam</code>。无滤波。gamma 面积归一化在最后一步完成。</p>
+<h2 id="耗散复合算子-1">耗散复合算子</h2>
+<h3 id="gradiv--迭代-graddiv标准版">gradiv — 迭代 grad(div)（标准版）</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> gradiv(klevel, xcov, ycov, ld, gdx, gdy)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span> xcov(ip1jmp1, klevel), ycov(ip1jm, klevel)  <span class="co">! 输入：协变风场</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span> ld                                        <span class="co">! 迭代次数</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span> gdx(ip1jmp1, klevel), gdy(ip1jm, klevel)     <span class="co">! 输出：耗散增量</span></span></code></pre></div>
+<p>迭代 <code>ld</code> 次，每次：<code>diverg(gdx,gdy) → filtreg(div) → grad(div) → × -cdivu</code>。<code>cdivu</code> 来自 <code>comdissipn.h</code>，由 <code>inidissip</code> 初始化。当 <code>lstardis=.false.</code> 时使用。</p>
+<h3 id="gradiv2--gamma-高阶-graddivstar-版">gradiv2 — gamma 高阶 grad(div)（star 版）</h3>
+<div class="sourceCode" id="cb12"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> gradiv2(klevel, xcov, ycov, ld, gdx, gdy)</span></code></pre></div>
+<p>单次 <code>divergf</code> → <code>laplacien</code> → (ld-2) 次 <code>laplacien_gam</code> → <code>filtreg</code> → <code>grad</code> → <code>× cdivu</code>（符号由 ld 决定）。gamma 度量数组 <code>cuvscvgam1</code>/<code>cvuscugam1</code>/<code>unsair_gam1</code> 来自 <code>comdissipn.h</code>。当 <code>lstardis=.true.</code> 时使用。</p>
+<h3 id="nxgrarot--迭代-ngradrot标准版">nxgrarot — 迭代 n×grad(rot)（标准版）</h3>
+<div class="sourceCode" id="cb13"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> nxgrarot(klevel, xcov, ycov, lr, grx, gry)</span></code></pre></div>
+<p>迭代 <code>lr</code> 次，每次：<code>rotat(grx,gry) → filtreg(rot) → nxgrad(rot) → × -crot</code>。<code>crot</code> 来自 <code>comdissipn.h</code>。当 <code>lstardis=.false.</code> 时使用。</p>
+<h3 id="nxgraro2--gamma-高阶-ngradrotstar-版">nxgraro2 — gamma 高阶 n×grad(rot)（star 版）</h3>
+<div class="sourceCode" id="cb14"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> nxgraro2(klevel, xcov, ycov, lr, grx, gry)</span></code></pre></div>
+<p>单次 <code>rotatf</code> → <code>laplacien_rot</code> → (lr-2) 次 <code>laplacien_rotgam</code> → <code>filtreg</code> → <code>nxgrad</code> → <code>× crot</code>。当 <code>lstardis=.true.</code> 时使用。</p>
+<h2 id="内部调用图">内部调用图</h2>
+<pre><code>gradiv (ld 迭代)                   gradiv2 (gamma star)
+  ├─ diverg                          ├─ divergf
+  ├─ filtreg                         ├─ laplacien (filtreg→grad→divergf)
+  └─ grad                            ├─ (ld-2)× laplacien_gam (grad→diverg_gam)
+                                     ├─ filtreg
+                                     └─ grad
+
+nxgrarot (lr 迭代)                 nxgraro2 (gamma star)
+  ├─ rotat                            ├─ rotatf
+  ├─ filtreg                          ├─ laplacien_rot (filtreg→nxgrad→rotatf)
+  └─ nxgrad                           ├─ (lr-2)× laplacien_rotgam (nxgrad_gam→rotat_nfil→×unsairz_gam)
+                                     ├─ filtreg
+                                     └─ nxgrad
+
+外部调用方:
+  dissip/dissip_p: gradiv2/gradiv (lstardis 分支)
+                   nxgraro2/nxgrarot (lstardis 分支)
+                   divgrad2/divgrad (第三路)
+  inidissip:       同上 (特征值估算, klevel=1)</code></pre>
+<h2 id="串并行差异">串并行差异</h2>
+<h3 id="叶子算子并行模式">叶子算子并行模式</h3>
+<p>所有 9 个叶子算子的并行化模式一致：<code>USE parallel_lmdz</code>，<code>c$OMP DO SCHEDULE(STATIC,OMP_CHUNK)</code> 在 <code>klevel</code> 外层循环，子域范围 <code>ijb=ij_begin, ije=ij_end</code> 加极点条件调整（<code>pole_nord</code> 跳过北极行，<code>pole_sud</code> 跳过南极行），<code>filtreg</code> → <code>filtreg_p</code> 带 <code>jjb/jje</code> 子域。无 halo 交换——叶子算子依赖调用者保证 halo 已同步。</p>
+<h3 id="复合算子并行模式">复合算子并行模式</h3>
+<p>四个 Laplacian 复合算子内部调用 <code>_p</code> 叶子算子，自身不增加额外 halo 交换（halo 由上层保证）。</p>
+<p>四个耗散复合算子有两种并行 halo 策略：</p>
+<table>
+<thead>
+<tr>
+<th>算子</th>
+<th>halo 策略</th>
+<th>额外模块</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gradiv_p</code></td>
+<td>阻塞 <code>exchange_Hallo</code> (MASTER/BARRIER)</td>
+<td><code>parallel_lmdz</code>, <code>times</code></td>
+</tr>
+<tr>
+<td><code>gradiv2_p</code></td>
+<td>异步 <code>Register_Hallo</code>/<code>SendRequest</code>/<code>WaitRequest</code></td>
+<td><code>parallel_lmdz</code>, <code>times</code>, <code>mod_hallo</code></td>
+</tr>
+<tr>
+<td><code>nxgrarot_p</code></td>
+<td>阻塞 <code>exchange_Hallo</code> (MASTER/BARRIER)</td>
+<td><code>parallel_lmdz</code>, <code>times</code></td>
+</tr>
+<tr>
+<td><code>nxgraro2_p</code></td>
+<td>异步 <code>Register_Hallo</code>/<code>SendRequest</code>/<code>WaitRequest</code></td>
+<td><code>parallel_lmdz</code>, <code>times</code>, <code>mod_hallo</code></td>
+</tr>
+</tbody>
+</table>
+<p>标准版（<code>gradiv_p</code>/<code>nxgrarot_p</code>）用阻塞 halo 交换，每次迭代在 <code>OMP MASTER</code> 块中同步。Star 版（<code>gradiv2_p</code>/<code>nxgraro2_p</code>）用异步非阻塞 halo，在 <code>OMP BARRIER</code> 之间注册和等待，允许计算/通信重叠。</p>
+<h3 id="输出数组分离">输出数组分离</h3>
+<p>串行耗散复合算子直接在 <code>gdx</code>/<code>gdy</code> 或 <code>grx</code>/<code>gry</code> 中就地迭代。并行版使用 <code>SAVE</code> 内部数组做迭代，最终用 <code>OMP DO</code> 把子域结果复制到独立的 <code>gdx_out</code>/<code>gdy_out</code>（或 <code>grx_out</code>/<code>gry_out</code>）输出数组。</p>
+<h2 id="已知异常">已知异常</h2>
+<p><code>gradiv2_p.F</code> L104 调用串行 <code>laplacien_gam</code>（不是 <code>laplacien_gam_p</code>）。对比 <code>divgrad2_p.F</code> L88 正确调用 <code>laplacien_gam_p</code>。这可能是一个遗留 bug 或有意为之（<code>laplacien_gam</code> 内部只调叶子算子，可能不需要额外 halo），但需确认。</p>
+<h2 id="调用方总览">调用方总览</h2>
+<p>所有 20 个活跃算子的外部调用方仅限于 <code>dissip.F</code>/<code>dissip_p.F</code>（耗散施加）和 <code>inidissip.F90</code>（特征值估算）。叶子算子和 Laplacian 复合算子没有外部直接调用方——它们只被其他 stencil 算子内部调用。</p>
+<table>
+<thead>
+<tr>
+<th>外部调用方</th>
+<th>调用的算子</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dissip.F</code> L81-108</td>
+<td><code>gradiv2</code>/<code>gradiv</code>, <code>nxgraro2</code>/<code>nxgrarot</code></td>
+<td>按 <code>lstardis</code> 分支选择</td>
+</tr>
+<tr>
+<td><code>dissip_p.F</code> L104-147</td>
+<td><code>gradiv2_p</code>/<code>gradiv_p</code>, <code>nxgraro2_p</code>/<code>nxgrarot_p</code></td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>dissip.F</code> L137-139</td>
+<td><code>divgrad2</code>/<code>divgrad</code></td>
+<td>第三路温度耗散</td>
+</tr>
+<tr>
+<td><code>dissip_p.F</code> L195-197</td>
+<td><code>divgrad2_p</code>/<code>divgrad_p</code></td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>inidissip.F90</code> L129-177</td>
+<td>全部 6 个复合算子</td>
+<td>特征值估算 (klevel=1)</td>
+</tr>
+</tbody>
+</table>
+<p><code>caldyn.F</code>/<code>caldyn_p.F</code>、COMMON <code>leapfrog.F</code>/<code>leapfrog_p.F</code> 和 MARS <code>phymars/leapfrog_nogcm.F</code> 不直接调用任何 stencil 算子。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>lstardis</code> 决定走标准路径（<code>gradiv</code>/<code>nxgrarot</code>）还是 star 路径（<code>gradiv2</code>/<code>nxgraro2</code>），由 <code>inidissip</code> 从 <code>run.def</code> 读取。</li>
+<li>gamma 度量数组（<code>cuvscvgam1</code>/<code>cvuscugam1</code>/<code>unsair_gam1</code> 等）来自 <code>comdissipn.h</code>，由 <code>inidissip</code> 在初始化时计算。</li>
+<li>叶子算子之间不可互换：<code>diverg</code>（无滤波）和 <code>divergf</code>（有滤波）在耗散迭代中的选择影响数值稳定性。</li>
+<li>并行版的 halo 交换是正确性前提：遗漏会导致子域边界处差分结果错误。</li>
+<li><code>divergst</code>/<code>rotatst</code>/<code>nxgradst</code> 是死代码，不参与 Mars 运行路径。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>gradiv2_p</code> 中调用串行 <code>laplacien_gam</code> 而非 <code>laplacien_gam_p</code> 是否为已知 bug 或有意设计。</li>
+<li>gamma 度量数组的具体数值来源（<code>inidissip</code> 幂迭代过程中的生成方式）需在 <code>inidissip</code> 页面补充。</li>
+<li><code>divergst</code>/<code>rotatst</code>/<code>nxgradst</code> 是否在任何 Earth/Venus 构建路径中被使用（当前搜索仅限 Mars COMMON）。</li>
+<li>阻塞 vs 异步 halo 策略的选择标准（标准版 vs star 版的性能差异）需在并行性能页面覆盖。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="differential-operators-overview.html">差分算子总览</a></li>
+<li><a href="common-dissip-mars-chain.html">Mars 水平耗散链路</a></li>
+<li><a href="../modules/dyn3d_common/inidissip.html">inidissip</a></li>
+<li><a href="dissip-serial-parallel.html">dissip 串并行对照</a></li>
+<li><a href="leapfrog-dissipation-conservation.html">leapfrog 耗散、sponge 和守恒修正</a></li>
+<li><a href="common-energy-vorticity-operators.html">动能、Bernoulli、位势涡度与位势高度算子</a></li>
+<li><a href="../modules/filtrez/filtreg-system.html">filtreg 系统</a></li>
+<li><a href="../modules/dyn3d_common/inigeom.html">inigeom</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

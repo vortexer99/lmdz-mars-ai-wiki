@@ -1,0 +1,109 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dynamics-initializers - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/dynamics-initializers.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="动力初始化辅助例程">动力初始化辅助例程</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d_common\inidissip.F90
+dyn3d_common\iniconst.F90
+dyn3d_common\iniacademic.F90</code></pre>
+<p>Mars 运行参与度：<code>必经/条件经过</code>。动力入口初始化常量、初态或耗散时经过；<code>iniacademic</code> 主要在无 start 或理想化初态分支中经过。</p>
+<h2 id="例程角色">例程角色</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iniconst.F90</code></td>
+<td>84</td>
+<td>读取 <code>disvert_type</code>, <code>pressure_exner</code>，选择垂直离散构造并初始化常量。</td>
+</tr>
+<tr>
+<td><code>inidissip.F90</code></td>
+<td>346</td>
+<td>读取并校验耗散配置，非法配置 abort。</td>
+</tr>
+<tr>
+<td><code>iniacademic.F90</code></td>
+<td>311</td>
+<td>构造理想化初始状态，调用 <code>conf_planete</code>, <code>exner_milieu</code>, <code>ugeostr</code> 等。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="初始化链">初始化链</h2>
+<ol type="1">
+<li><code>conf_gcm</code> 先写入运行控制变量。</li>
+<li><code>iniconst</code> 根据垂直离散类型调用 <code>disvert</code> 或 <code>disvert_noterre</code>，设置 pressure/Exner 相关常量。</li>
+<li><code>inigeom</code> 之后构造水平几何。</li>
+<li><code>inidissip</code> 读取耗散阶数、时间尺度和开关。</li>
+<li>当 <code>read_start=.false.</code> 或需要理想化补初始化时，<code>iniacademic</code> 构造初态；若 <code>iflag_phys==1</code> 且无 start，源码含 abort 保护。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>初始化顺序会影响全局模块状态，尤其是 <code>comconst_mod</code>、<code>comvert_mod</code>、<code>control_mod</code>。</li>
+<li><code>pressure_exner</code> 改变压力/Exner 计算路径，后续温度转换必须匹配。</li>
+<li><code>inidissip</code> 的 abort 是配置问题，不应在复现脚本中静默改默认值。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3d/conf_gcm.html">conf_gcm</a></li>
+<li><a href="../modules/dyn3d_common/inigeom.html">inigeom</a></li>
+<li><a href="../modules/dyn3d_common/inidissip.html">inidissip</a> — <code>inidissip.F90</code> 专页，覆盖特征值估算、垂直剖面和 <code>dissip_period</code> 计算。</li>
+<li><a href="common-dissip-mars-chain.html">Mars 水平耗散链路</a> — 从 inidissip 到 dissip 施加再到 conservative 修正的全链路数据流。</li>
+<li><a href="vertical-discretization.html">垂直离散构造</a></li>
+<li><a href="iniconst-planetary-constants.html">iniconst / conf_planete 行星常数初始化链</a></li>
+</ul>
+<h2 id="已确认">已确认</h2>
+<ul>
+<li><code>conf_planete</code> 的实际调用边界见行星常数页。COMMON 6.3 源码搜索显示它由 <code>iniacademic</code> 调用，常规 restart 路径由 <code>dynetat0</code> 读取 <code>start.nc:controle</code>。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

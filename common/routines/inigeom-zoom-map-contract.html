@@ -1,0 +1,375 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>inigeom-zoom-map-contract - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/inigeom-zoom-map-contract.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="inigeom-zoommap-几何契约">inigeom zoom/map 几何契约</h1>
+<h2 id="范围">范围</h2>
+<p>COMMON 源码：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\inigeom.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\serre_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\fxy.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\fxysinus.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\comgeom.h
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\comgeom2.h
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\grid\fxy_new.h
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\grid\fxy_sin.h</code></pre>
+<p>Mars 侧消费证据：</p>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\defrun_new.F
+LMDZ.MARS\libf\dynphy_lonlat\phymars\newstart.F
+LMDZ.MARS\libf\dynphy_lonlat\phymars\start2archive.F
+LMDZ.MARS\libf\dynphy_lonlat\phymars\ini_archive.F
+LMDZ.MARS\libf\dynphy_lonlat\phymars\datareadnc.F</code></pre>
+<p>本页不是 <code>inigeom.F</code> 的单文件页。单文件 inventory、数组清单和逐步面积计算见 <a href="../modules/dyn3d_common/inigeom.html">dyn3d_common/inigeom</a>。这里记录从 Mars 配置、zoom 参数、水平映射到 archive/header/physics 消费之间的契约。</p>
+<h2 id="总体链路">总体链路</h2>
+<pre class="text"><code>run.def 或 start/archive control
+  -&gt; Mars defrun_new
+  -&gt; COMMON logic_mod + serre_mod
+  -&gt; inigeom
+  -&gt; comgeom2.h 几何数组
+  -&gt; COMMON gcm/gcm_p iniphysiq
+  -&gt; Mars newstart/start2archive iniphysiq
+  -&gt; Mars ini_archive 写 start_archive.nc header/geometry
+  -&gt; Mars datareadnc/lect_start_archive 水平插值和守恒换算</code></pre>
+<p><code>serre_mod.F90</code> 只保存 zoom 和映射辅助状态：<code>clon/clat/grossismx/grossismy/dzoomx/dzoomy/taux/tauy</code>、<code>alphax/alphay</code>、<code>transx/transy</code>、<code>pxo/pyo</code>。<code>logic_mod</code> 的 <code>fxyhypb/ysinus</code> 决定 <code>inigeom</code> 使用哪一类水平映射。</p>
+<h2 id="zoom-控制参数">Zoom 控制参数</h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>来源/写入者</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>clon</code>, <code>clat</code></td>
+<td>Mars <code>defrun_new</code> 从 <code>run.def</code> 读，默认 <code>63/0</code></td>
+<td>zoom 中心经纬度，单位为度。</td>
+</tr>
+<tr>
+<td><code>grossismx</code>, <code>grossismy</code></td>
+<td><code>defrun_new</code> 从 <code>run.def</code> 读，默认 <code>1/1</code></td>
+<td>经向/纬向放大系数；小于 1 会触发警告。</td>
+</tr>
+<tr>
+<td><code>alphax</code>, <code>alphay</code></td>
+<td><code>defrun_new</code> 派生 <code>1 - 1/grossism*</code></td>
+<td>非双曲 <code>fxy</code> 分支的正弦扰动幅度。</td>
+</tr>
+<tr>
+<td><code>dzoomx</code>, <code>dzoomy</code></td>
+<td><code>defrun_new</code> 从 <code>run.def</code> 读，默认 <code>0/0</code></td>
+<td>双曲 zoom 区域的经纬范围。</td>
+</tr>
+<tr>
+<td><code>taux</code>, <code>tauy</code></td>
+<td><code>defrun_new</code> 从 <code>run.def</code> 读，默认 <code>2/2</code></td>
+<td>双曲 zoom 陡峭度。</td>
+</tr>
+<tr>
+<td><code>fxyhypb</code></td>
+<td><code>defrun_new</code> 从 <code>run.def</code> 读，默认 <code>.false.</code></td>
+<td><code>.true.</code> 时进入 <code>fxhyp/fyhyp</code> 双曲映射。</td>
+</tr>
+<tr>
+<td><code>ysinus</code></td>
+<td>Mars <code>defrun_new</code> 中强制 <code>.false.</code></td>
+<td>COMMON 保留 sinus(latitude) 旧分支；Mars 标准路径不会启用。</td>
+</tr>
+<tr>
+<td><code>transx</code>, <code>transy</code>, <code>pxo</code>, <code>pyo</code></td>
+<td><code>inigeom</code> 计算/写回</td>
+<td>非双曲正弦扰动分支的平移和相位参数。</td>
+</tr>
+</tbody>
+</table>
+<p>Mars <code>defrun_new</code> 还有两个门控：</p>
+<ul>
+<li>若 <code>grossismx==1</code> 且 <code>grossismy==1</code>，代码把 <code>fxyhypb</code> 强制设为 <code>.false.</code>，普通无 zoom 路径走非双曲 regular 分支。</li>
+<li>若存在 zoom 而 <code>fxyhypb=.false.</code>，Mars 版本会停止并要求在 <code>run.def</code> 中设置 <code>fxyhypb</code>；因此 Mars 实用 zoom 路径应按双曲映射复现。</li>
+</ul>
+<h2 id="inigeom-分支"><code>inigeom</code> 分支</h2>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>调用</th>
+<th>输出含义</th>
+<th>Mars 可达性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.not.fxyhypb .and. ysinus</code></td>
+<td><code>fxysinus</code>，包含 <code>libf/grid/fxy_sin.h</code></td>
+<td>纬度由 <code>asin</code> 型公式构造，regular longitude。</td>
+<td>Mars <code>defrun_new</code> 强制 <code>ysinus=.false.</code>，标准路径不可达。</td>
+</tr>
+<tr>
+<td><code>.not.fxyhypb .and. .not.ysinus</code></td>
+<td><code>inigeom</code> 先 Newton 迭代 <code>transx/transy</code>，再调用 <code>fxy</code>，包含 <code>libf/grid/fxy_new.h</code></td>
+<td>经/纬向使用带 <code>alphax/alphay</code> 的正弦扰动映射；无 zoom 时 <code>grossism*=1</code>，<code>alpha*=0</code>。</td>
+<td>Mars 无 zoom 标准路径可达。</td>
+</tr>
+<tr>
+<td><code>fxyhypb</code></td>
+<td><code>fyhyp</code> 和 <code>fxhyp</code></td>
+<td>双曲 zoom 映射；helper 会检查放大、范围、陡峭度和中心顺序条件。</td>
+<td>Mars zoom 标准路径。</td>
+</tr>
+</tbody>
+</table>
+<p><code>fxy_new.h</code> 中的非双曲函数可按下列关系复现：</p>
+<pre class="text"><code>fx = ripx + transx + alphax*sin(ripx + transx - pxo) - pi
+fxprim = 2*pi/iim * (1 + alphax*cos(ripx + transx - pxo))
+fy = (bigy + transy + alphay*sin(bigy + transy - pyo))/2 - pi/2
+fyprim = pi/jjm * (1 + alphay*cos(bigy + transy - pyo))</code></pre>
+<p><code>fxy_sin.h</code> 的纬度分支使用 <code>fy=asin(1+2*((1-rj)/jjm))</code> 和相应导数。该 include 位于 <code>libf/grid</code>，不是 <code>dyn3d_common</code> 本目录；复核构建或 include path 时要按源码树实际位置确认。</p>
+<h2 id="几何输出契约">几何输出契约</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>维度/网格</th>
+<th>消费方</th>
+<th>复现要点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rlonu</code>, <code>rlonv</code></td>
+<td>U/V 经度，rad</td>
+<td><code>iniphysiq</code>, <code>ini_archive</code>, <code>datareadnc</code>, archive 插值链</td>
+<td><code>iip1</code> 端点复制第 1 点形成周期闭合。</td>
+</tr>
+<tr>
+<td><code>rlatu</code>, <code>rlatv</code></td>
+<td>U/V 纬度，rad</td>
+<td><code>iniphysiq</code>, <code>ini_archive</code>, <code>datareadnc</code>, <code>newstart</code> 经纬选择</td>
+<td><code>rlatu(1)=pi/2</code>，<code>rlatu(jjp1)=-pi/2</code>，数组由北向南递减。</td>
+</tr>
+<tr>
+<td><code>xprimu/xprimv/yprimu/yprimv</code></td>
+<td>映射导数</td>
+<td>面积和 metric 计算</td>
+<td>极点 <code>yprimu</code> 置 0。</td>
+</tr>
+<tr>
+<td><code>aire</code>, <code>aireu</code>, <code>airev</code>, <code>aireij1..4</code></td>
+<td>scalar/U/V/四分面积</td>
+<td>动力算子、<code>iniphysiq</code>, <code>ini_archive</code>, <code>newstart/start2archive</code> 质量换算</td>
+<td>源码先算四分 cell，再汇总 scalar/U/V/Z 点面积。</td>
+</tr>
+<tr>
+<td><code>cu</code>, <code>cv</code>, <code>cuv</code>, <code>cvu</code></td>
+<td>C-grid metric</td>
+<td>动力算子、<code>iniphysiq</code>, <code>ini_archive</code></td>
+<td>近似读法为 <code>cu=rad*cos(lat)*dx/dX</code>、<code>cv=rad*dy/dY</code>；源码用四分 metric 汇总。</td>
+</tr>
+<tr>
+<td><code>alpha1..4</code></td>
+<td>四分面积权重</td>
+<td>插值/差分权重</td>
+<td>由 <code>aireij* / aire</code> 派生。</td>
+</tr>
+<tr>
+<td><code>unsaire*</code>, <code>unscu2</code>, <code>unscv2</code>, <code>*gam*</code></td>
+<td>逆面积、逆 metric 和耗散幂权重</td>
+<td>动力微分和耗散算子</td>
+<td><code>niter==2</code> 时对应 <code>gamdi_*</code> 为 0，否则 <code>coefdis/(niter-2)</code>。</td>
+</tr>
+<tr>
+<td><code>airesurg</code></td>
+<td><code>aire/g</code></td>
+<td>质量/压力换算</td>
+<td>Mars <code>lect_start_archive/newstart/start2archive</code> 中总质量、CO2 ice 或 pressure 面积加权会依赖 <code>aire</code> 和 <code>g</code>。</td>
+</tr>
+<tr>
+<td><code>fext</code></td>
+<td>V/Z 点 Coriolis extensive force</td>
+<td>旋度/位势涡度相关算子</td>
+<td>源码计算 <code>airez*sin(rlatv)*2*omeg</code>，物理单位需结合动力方程解释。</td>
+</tr>
+<tr>
+<td><code>constang</code></td>
+<td>angular momentum helper</td>
+<td>守恒诊断</td>
+<td>源码为 <code>rad*omeg*cu*cos(rlatu)</code>，两极置 0。</td>
+</tr>
+<tr>
+<td><code>apoln</code>, <code>apols</code></td>
+<td>两极面积和</td>
+<td>极点处理和守恒诊断</td>
+<td>通过 <code>SSUM(iim, aire(...))</code> 对北/南极行求和。</td>
+</tr>
+</tbody>
+</table>
+<p>面积和 metric 的可复现读法：</p>
+<pre class="text"><code>1. 先从所选水平映射得到 rlon/rlat 和映射导数。
+2. 对每个 scalar cell 计算四个 quarter-cell 面积和 quarter metric。
+3. 周期复制 iip1 端点。
+4. 汇总 scalar、U、V、Z 网格面积。
+5. 派生 alpha 权重、逆面积、耗散 gamma 权重和 metric 比值。
+6. 两极特殊处理，最后计算 fext 和 constang。</code></pre>
+<h2 id="mars-archiveheader-消费">Mars archive/header 消费</h2>
+<p><code>ini_archive.F</code> 把 zoom 与几何写入 <code>start_archive.nc</code> header：</p>
+<table>
+<thead>
+<tr>
+<th><code>tab_cntrl</code> 下标</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>19</td>
+<td><code>clon</code></td>
+</tr>
+<tr>
+<td>20</td>
+<td><code>clat</code></td>
+</tr>
+<tr>
+<td>21</td>
+<td><code>grossismx</code></td>
+</tr>
+<tr>
+<td>22</td>
+<td><code>grossismy</code></td>
+</tr>
+<tr>
+<td>23</td>
+<td><code>fxyhypb</code> 标志，<code>.true.</code> 写 1，<code>.false.</code> 写 0</td>
+</tr>
+<tr>
+<td>24</td>
+<td><code>dzoomx</code></td>
+</tr>
+<tr>
+<td>25</td>
+<td><code>dzoomy</code></td>
+</tr>
+<tr>
+<td>26</td>
+<td>非双曲分支下的 <code>ysinus</code> 标志</td>
+</tr>
+</tbody>
+</table>
+<p>同一例程还定义并写出 <code>rlonu/rlatu/rlonv/rlatv</code>，再写面向显示的 <code>latitude=rlatu/pi*180</code>、<code>longitude=rlonv/pi*180</code>，以及 <code>cu/cv/aire</code> 等 metric 字段。读取或复现 <code>start_archive.nc</code> 时，不能只看 <code>controle</code> 表；坐标和 metric 数组本身也是几何契约的一部分。</p>
+<h2 id="mars-工具链消费点">Mars 工具链消费点</h2>
+<table>
+<thead>
+<tr>
+<th>消费点</th>
+<th>调用/字段</th>
+<th>关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>COMMON 串行 <code>gcm.F90</code></td>
+<td><code>CALL inigeom</code> 后 <code>CALL iniphysiq(... rlatu, rlatv, rlonu, rlonv, aire, cu, cv, ...)</code></td>
+<td>标准 3D run 中 physics 初始化拿到动力几何。</td>
+</tr>
+<tr>
+<td>COMMON 并行 <code>gcm.F</code></td>
+<td>同样在 <code>inigeom</code> 后把几何传给 <code>iniphysiq</code></td>
+<td>并行入口共享同一 COMMON 几何契约。</td>
+</tr>
+<tr>
+<td>Mars <code>newstart.F</code></td>
+<td><code>defrun_new -&gt; iniconst -&gt; inigeom -&gt; iniphysiq</code></td>
+<td>从 archive 或 start 重建时，先按当前 <code>run.def</code>/control 重建几何，再进行 surface/archive 变量投影和 restart 写出。</td>
+</tr>
+<tr>
+<td>Mars <code>start2archive.F</code></td>
+<td><code>dynetat0/phyetat0</code> 后再次 <code>defrun_new(.FALSE.) -&gt; inigeom -&gt; iniphysiq</code></td>
+<td>将当前 start/startfi 合成 archive 前，确保 COMMON 几何与物理初始化状态一致。</td>
+</tr>
+<tr>
+<td>Mars <code>ini_archive.F</code></td>
+<td>写 <code>tab_cntrl(19:26)</code>、坐标、<code>cu/cv/aire</code></td>
+<td>archive header 保存 zoom 控制和实际几何数组。</td>
+</tr>
+<tr>
+<td>Mars <code>datareadnc.F</code></td>
+<td><code>grid_noro1(... rlonv, rlatu, ...)</code>、<code>avg_horiz(... rlonv, rlatu, ...)</code>、<code>interp_horiz(... rlonu, rlatv)</code></td>
+<td>surface.nc 的地形、热惯量等字段按当前几何边界重采样到动力网格。</td>
+</tr>
+<tr>
+<td>Mars <code>newstart.F</code> 局部选择和质量换算</td>
+<td>使用 <code>rlatu/rlonv</code> 选取格点，使用 <code>aire</code> 汇总 <code>ps</code> 和 surface CO2 ice</td>
+<td>用户交互或 archive 重建中，格点定位和总量守恒都依赖 <code>inigeom</code> 结果。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现清单">复现清单</h2>
+<ol type="1">
+<li>记录当前编译维度 <code>iim/jjm/llm</code> 与 <code>dimensions.h/paramet.h</code>。</li>
+<li>从 <code>run.def</code> 或 archive/start 控制恢复 <code>clon/clat/grossismx/grossismy/dzoomx/dzoomy/taux/tauy/fxyhypb</code>。</li>
+<li>按 Mars <code>defrun_new</code> 门控修正：无 zoom 时 <code>fxyhypb=.false.</code>；有 zoom 时要求 <code>fxyhypb=.true.</code>；<code>ysinus=.false.</code>。</li>
+<li>执行 <code>iniconst</code> 后再执行 <code>inigeom</code>，因为 <code>rad/g/omeg/pi</code> 等常量参与面积和 Coriolis 计算。</li>
+<li>核对 <code>rlonu/rlonv</code> 周期端点、<code>rlatu</code> 两极、<code>aire/cu/cv</code> 与 archive 或 restart 中保存的值。</li>
+<li>跨网格重建时，把 <code>datareadnc/lect_start_archive</code> 的水平插值结果视为依赖当前 <code>rlonu/rlatv/rlonv/rlatu</code> 的派生结果，不应与旧网格逐点比较。</li>
+</ol>
+<h2 id="风险和待确认">风险和待确认</h2>
+<ul>
+<li><code>fxy.F</code> 和 <code>fxysinus.F</code> 的 include 文件位于 <code>libf/grid</code>，构建系统如何传递 include path 需由构建页或实际编译命令确认。</li>
+<li><code>fext</code> 和 <code>constang</code> 的物理单位没有在 <code>inigeom.F</code> 内完整说明；本页只记录源码公式，具体动力方程含义需结合消费算子解释。</li>
+<li>Mars <code>defrun_new</code> 在非初始化校验分支使用局部/历史变量名和 <code>fxyhypbb</code> 拼写，本文只把它作为“run.def 与 start/control 必须一致”的校验路径，不把变量名等同于最终 <code>logic_mod%fxyhypb</code>。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3d_common/inigeom.html">dyn3d_common/inigeom</a></li>
+<li><a href="../modules/dyn3d_common/index.html">dyn3d_common 总览</a></li>
+<li><a href="horizontal-map-functions.html">水平映射函数组</a></li>
+<li><a href="mars-utility-common-state-consumers.html">Mars utility COMMON 状态消费链</a></li>
+<li><a href="mars-start-restart-archive-boundary.html">Mars start/restart/archive 文件职责边界</a></li>
+<li><a href="../modules/dyn3d/interp_horiz.html">dyn3d 水平面积交叠插值</a></li>
+<li><a href="../modules/phy_common/geometry-grid-layers.html">物理侧几何、regular lon-lat、垂直层和网格互转</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

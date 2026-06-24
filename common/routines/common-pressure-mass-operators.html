@@ -1,0 +1,270 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>common-pressure-mass-operators - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/common-pressure-mass-operators.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="压力与质量算子-family">压力与质量算子 family</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d_common\pression.F90
+dyn3d_common\massdair.F
+dyn3d_common\massbar.F90
+dyn3d_common\massbarxy.F90
+dyn3d_common\psextbar.F
+dyn3dpar\pression_p.F
+dyn3dpar\massdair_p.F
+dyn3dpar\massbar_p.F
+dyn3dpar\massbarxy_p.F</code></pre>
+<p>Mars 运行参与度：<code>必经</code>。每次 <code>ps</code> 更新后都需要重新计算压力和空气质量；<code>massbar/massbarxy</code> 在初始化阶段必经，<code>psextbar</code> 仅串行初始化调用。</p>
+<h2 id="例程定位">例程定位</h2>
+<p>这组短算子从地表压力 <code>ps</code> 和混合坐标系数 <code>ap/bp</code> 出发，依次构造 3D 压力场 <code>p</code>、每层空气质量 <code>masse</code>、质量在 U/V/Z 点的加权平均 <code>massebx/masseby/massebxy</code> 以及地表压力面积加权平均 <code>psexbarxy</code>。它们是 <code>caldyn</code> 初始化段和 <code>leapfrog</code> 主循环中压力/质量刷新的基础，被动力 tendency、能量诊断和耗散链路消费。</p>
+<h2 id="对照表">对照表</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>角色</th>
+<th>并行变体</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pression.F90</code></td>
+<td>27</td>
+<td>从 <code>ap/bp/ps</code> 计算层界压力 <code>p</code></td>
+<td><code>pression_p.F</code>（40 行）</td>
+</tr>
+<tr>
+<td><code>massdair.F</code></td>
+<td>108</td>
+<td>从层界压力计算每层空气质量 <code>masse</code></td>
+<td><code>massdair_p.F</code>（119 行）</td>
+</tr>
+<tr>
+<td><code>massbar.F90</code></td>
+<td>66</td>
+<td>质量在 U 和 V 点的加权平均</td>
+<td><code>massbar_p.F</code>（116 行）</td>
+</tr>
+<tr>
+<td><code>massbarxy.F90</code></td>
+<td>31</td>
+<td>质量在 Z 点的四邻加权平均</td>
+<td><code>massbarxy_p.F</code>（54 行）</td>
+</tr>
+<tr>
+<td><code>psextbar.F</code></td>
+<td>108</td>
+<td>地表压力面积加权在 Z 点的平均</td>
+<td>无 <code>_p</code> 变体</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<h3 id="pression层界压力">pression：层界压力</h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> pression( ngrid, ap, bp, ps, p )</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="dt">INTEGER</span>, <span class="dt">INTENT(IN)</span>  <span class="dt">::</span> ngrid</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="dt">REAL</span>,    <span class="dt">INTENT(IN)</span>  <span class="dt">::</span> ap(llmp1), bp(llmp1), ps(ngrid)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="dt">REAL</span>,    <span class="dt">INTENT(OUT)</span> <span class="dt">::</span> p(ngrid,llmp1)</span></code></pre></div>
+<p>公式：<code>p(:,l) = ap(l) + bp(l) * ps(:)</code>，对 <code>l=1..llmp1</code> 逐层计算。<code>l=1</code> 对应地表（<code>p=ps</code>），<code>l=llm+1</code> 对应模式顶（<code>p=0</code>，因为 <code>ap(llmp1)=0, bp(llmp1)=0</code>）。</p>
+<p>Include：<code>dimensions.h</code>、<code>paramet.h</code>。</p>
+<p>并行版 <code>pression_p</code> 额外 <code>USE parallel_lmdz</code>，用 <code>ij_begin-iip1</code> 到 <code>ij_end+2*iip1</code> 的子域范围扩展（保证 halo 带也有压力值），极点处缩减到 <code>ij_begin</code>/<code>ij_end</code>。OMP DO 调度。</p>
+<h3 id="massdair每层空气质量">massdair：每层空气质量</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> massdair( p, masse )</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="dt">REAL</span> p(ip1jmp1,llmp1), masse(ip1jmp1,llm)</span></code></pre></div>
+<p>公式：<code>masse(ij,l) = airesurg(ij) * (p(ij,l) - p(ij,l+1))</code>。使用 <code>airesurg</code>（来自 <code>comgeom.h</code>，由 <code>inigeom</code> 初始化）把压力差转为质量。每层循环后做周期边界复制：<code>masse(ij+iim,l) = masse(ij,l)</code> 把第一列复制到 <code>iip1</code> 列。</p>
+<p>Include：<code>dimensions.h</code>、<code>paramet.h</code>、<code>comgeom.h</code>。</p>
+<p>注意：源码注释掉了极点质量面积加权平均的段（原用于极点一致性处理），当前活跃路径不做极点平均。</p>
+<p>并行版 <code>massdair_p</code> 用 <code>ij_begin-iip1</code> 到 <code>ij_end+2*iip1</code> 的扩展子域，极点缩减。OMP DO 调度。</p>
+<h3 id="massbaruv-点质量平均">massbar：U/V 点质量平均</h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> massbar( masse, massebx, masseby )</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="dt">REAL</span>, <span class="dt">INTENT(IN)</span>  <span class="dt">::</span> masse(ip1jmp1,llm)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="dt">REAL</span>, <span class="dt">INTENT(OUT)</span> <span class="dt">::</span> massebx(ip1jmp1,llm)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="dt">REAL</span>, <span class="dt">INTENT(OUT)</span> <span class="dt">::</span> masseby(ip1jm,llm)</span></code></pre></div>
+<p>按 C-grid staggered 网格的面积权重把标量点质量插值到风点：</p>
+<ul>
+<li><code>massebx(ij,l) = masse(ij,l)*alpha1p2(ij) + masse(ij+1,l)*alpha3p4(ij+1)</code> — 定位于 U 点（纬向风点）。</li>
+<li><code>masseby(ij,l) = masse(ij,l)*alpha2p3(ij) + masse(ij+iip1,l)*alpha1p4(ij+iip1)</code> — 定位于 V 点（经向风点）。</li>
+</ul>
+<p><code>alpha1p2/alpha3p4/alpha2p3/alpha1p4</code> 来自 <code>comgeom.h</code>，由 <code>iniconst</code>/<code>inigeom</code> 初始化的面积权重组合系数。</p>
+<p>周期边界修正：<code>massebx(iip1,j) = massebx(1,j)</code>。</p>
+<p>并行版 <code>massbar_p</code> 按子域范围执行，极点条件缩减。OMP DO 调度。</p>
+<h3 id="massbarxyz-点质量平均">massbarxy：Z 点质量平均</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> massbarxy( masse, massebxy )</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="dt">REAL</span>, <span class="dt">INTENT(IN)</span>  <span class="dt">::</span> masse(ip1jmp1,llm)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="dt">REAL</span>, <span class="dt">INTENT(OUT)</span> <span class="dt">::</span> massebxy(ip1jm,llm)</span></code></pre></div>
+<p>四邻加权：<code>massebxy(ij,l) = masse(ij,l)*alpha2(ij) + masse(ij+1,l)*alpha3(ij+1) + masse(ij+iip1,l)*alpha1(ij+iip1) + masse(ij+iip2,l)*alpha4(ij+iip2)</code>。定位于 Z 点（涡度/角点）。</p>
+<p>使用原始 <code>alpha1/alpha2/alpha3/alpha4</code>（来自 <code>comgeom.h</code>），不是组合系数。周期边界修正同 <code>massbar</code>。</p>
+<p>并行版 <code>massbarxy_p</code> 用 <code>ij_begin-iip1</code> 到 <code>ij_end</code>，极点各缩减 <code>iip1</code>。OMP DO 调度。</p>
+<h3 id="psextbar地表压力面积加权平均">psextbar：地表压力面积加权平均</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> psextbar( ps, psexbarxy )</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="dt">REAL</span> ps(ip1jmp1), psexbarxy(ip1jm), pext(ip1jmp1)</span></code></pre></div>
+<p>先计算 <code>pext(ij) = ps(ij) * aire(ij)</code>，再做四邻加权平均到 Z 点：<code>psexbarxy(ij) = pext(ij)*alpha2(ij) + pext(ij+1)*alpha3(ij+1) + pext(ij+iip1)*alpha1(ij+iip1) + pext(ij+iip2)*alpha4(ij+iip2)</code>。</p>
+<p>周期边界修正同上。</p>
+<p>Include：<code>dimensions.h</code>、<code>paramet.h</code>、<code>comgeom.h</code>。</p>
+<p><strong>无并行变体</strong>：<code>caldyn_p.F</code> 中 <code>psextbar</code> 调用被注释掉（<code>cym</code> 标记），并行路径不产生 <code>psexbarxy</code>。</p>
+<h2 id="调用链路">调用链路</h2>
+<h3 id="caldyn-初始化段一次性">caldyn 初始化段（一次性）</h3>
+<p><code>caldyn.F</code>（串行）和 <code>caldyn_p.F</code>（并行）在初始化阶段调用完整五步链：</p>
+<ol type="1">
+<li><code>pression(ip1jmp1, ap, bp, ps, p)</code> — 初始 3D 压力。</li>
+<li><code>psextbar(ps, psexbarxy)</code> — 仅串行；并行注释掉。</li>
+<li><code>massdair(p, masse)</code> — 初始空气质量。</li>
+<li><code>massbar(masse, massebx, masseby)</code> — 初始 U/V 质量。</li>
+<li><code>massbarxy(masse, massebxy)</code> — 初始 Z 质量。</li>
+</ol>
+<h3 id="leapfrog-主循环反复刷新">leapfrog 主循环（反复刷新）</h3>
+<p><code>leapfrog.F</code> 和 <code>leapfrog_p.F</code> 在主循环中每当 <code>ps</code> 更新后调用子集：</p>
+<ul>
+<li><code>pression</code>/<code>pression_p</code>：每次 <code>ps</code> 变化后刷新 3D 压力（约 4 处调用点：初始化、tendency 后、conservation 前、physics 后）。</li>
+<li><code>massdair</code>/<code>massdair_p</code>：当需要质量相关量（如 <code>flumass</code>、<code>convmas</code>）时刷新（约 2 处调用点）。</li>
+<li><code>massbar</code>/<code>massbarxy</code>：主循环中<strong>不</strong>调用，仅初始化时使用。</li>
+</ul>
+<h3 id="leapfrog_nogcm">leapfrog_nogcm</h3>
+<p>MARS <code>phymars/leapfrog_nogcm.F</code> 同样调用 <code>pression</code> 和 <code>massdair</code>，但不调用 <code>massbar/massbarxy/psextbar</code>（因为不走完整 <code>caldyn</code> 初始化路径）。</p>
+<h2 id="网格位置和面积权重">网格位置和面积权重</h2>
+<p>所有面积权重系数由 <code>inigeom</code>/<code>iniconst</code> 初始化并存储在 <code>comgeom.h</code> 中。C-grid staggered 网格的约定：</p>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>网格位置</th>
+<th>系数</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>massebx</code></td>
+<td>U 点</td>
+<td><code>alpha1p2</code>, <code>alpha3p4</code></td>
+<td>纬向质量通量</td>
+</tr>
+<tr>
+<td><code>masseby</code></td>
+<td>V 点</td>
+<td><code>alpha2p3</code>, <code>alpha1p4</code></td>
+<td>经向质量通量</td>
+</tr>
+<tr>
+<td><code>massebxy</code></td>
+<td>Z 点</td>
+<td><code>alpha1</code>, <code>alpha2</code>, <code>alpha3</code>, <code>alpha4</code></td>
+<td>涡度/角点质量</td>
+</tr>
+<tr>
+<td><code>psexbarxy</code></td>
+<td>Z 点</td>
+<td><code>alpha1</code>, <code>alpha2</code>, <code>alpha3</code>, <code>alpha4</code></td>
+<td>地表压力角点平均</td>
+</tr>
+</tbody>
+</table>
+<p><code>alpha1(i,j) = aire(i+1/4,j-1/4) / aire(i,j)</code> 等四个系数分别对应四个象限的面积比。组合系数如 <code>alpha1p2 = alpha1 + alpha2</code> 是两个相邻象限的和。</p>
+<h2 id="串并行差异">串并行差异</h2>
+<table>
+<thead>
+<tr>
+<th>差异点</th>
+<th>串行</th>
+<th>并行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>子域</td>
+<td>全范围 <code>1..ip1jmp1</code></td>
+<td><code>ij_begin/ij_end</code> 子域</td>
+</tr>
+<tr>
+<td>halo 扩展</td>
+<td>无</td>
+<td><code>pression_p/massdair_p</code> 用 <code>ij_begin-iip1..ij_end+2*iip1</code> 覆盖 halo 带</td>
+</tr>
+<tr>
+<td>极点处理</td>
+<td><code>massdair</code> 无极点平均（注释掉）</td>
+<td><code>pole_nord/pole_sud</code> 条件缩减排量范围</td>
+</tr>
+<tr>
+<td>OMP</td>
+<td>无</td>
+<td>全部带 <code>c$OMP DO SCHEDULE(STATIC,OMP_CHUNK)</code></td>
+</tr>
+<tr>
+<td><code>psextbar</code></td>
+<td>有调用</td>
+<td><code>caldyn_p.F</code> 注释掉，无 <code>_p</code> 变体</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>pression</code> 是所有压力相关计算的起点；<code>ap/bp</code> 来自 <code>comvert_mod</code>，<code>ps</code> 是 prognostic 变量。</li>
+<li><code>airesurg</code>、<code>alpha1..alpha4</code>、<code>alpha1p2..alpha1p4</code> 等几何系数必须在 <code>inigeom</code>/<code>iniconst</code> 之后才可用。</li>
+<li>并行版的 halo 扩展范围意味着 <code>pression_p</code> 和 <code>massdair_p</code> 的输出覆盖了 halo 带，调用方无需额外 halo 交换即可使用。</li>
+<li><code>massbar/massbarxy</code> 只在初始化时被调用一次；后续主循环中不再刷新，因此假设 <code>massebx/masseby/massebxy</code> 在时间推进中保持不变或由其消费方自行更新。</li>
+<li><code>psextbar</code> 的并行缺失不影响 Mars 正常运行，因为 <code>psexbarxy</code> 在并行路径中不被消费。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>psexbarxy</code> 在串行 <code>caldyn.F</code> 中的消费方需在 caldyn 文件页中追踪确认。</li>
+<li><code>massbar/massbarxy</code> 输出 <code>massebx/masseby/massebxy</code> 在 <code>caldyn</code> 中的消费链需逐行核对（可能被 <code>flumass</code>、<code>bernoui</code> 或 tendency 组装使用）。</li>
+<li><code>massdair</code> 注释掉的极点面积加权平均在 Mars 配置下是否有激活路径。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="common-wind-massflux-operators.html">风场转换与质量通量算子组</a></li>
+<li><a href="mass-pressure-energy-overview.html">mass-pressure-energy-overview</a></li>
+<li><a href="caldyn-serial-parallel.html">caldyn-serial-parallel</a></li>
+<li><a href="caldyn-dynamic-tendencies.html">caldyn 动力 tendency 分段</a></li>
+<li><a href="exner-cpdet-helpers.html">exner-cpdet-helpers</a></li>
+<li><a href="leapfrog-state-contract.html">leapfrog-state-contract</a></li>
+<li><a href="vertical-discretization.html">vertical-discretization</a></li>
+<li><a href="../modules/dyn3d_common/inigeom.html">inigeom</a></li>
+<li><a href="dynamics-initializers.html">dynamics-initializers</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

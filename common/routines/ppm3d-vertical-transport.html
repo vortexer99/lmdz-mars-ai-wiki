@@ -1,0 +1,238 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ppm3d-vertical-transport - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/ppm3d-vertical-transport.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="ppm3d-垂直输送层序翻转和质量通量关系">ppm3d 垂直输送、层序翻转和质量通量关系</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d_common\ppm3d.F: L420-930（主例程垂直段 + FZPPM）
+dyn3d_common\ppm3d.F: L2058-2078（zflip）</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。本页覆盖 ppm3d 内部垂直输送逻辑、FZPPM 子例程和 zflip 工具子例程。垂直输送是 ppm3d 三段 split（x-y-z）的最后一段。和 <a href="ppm3d-entry-contract.html">ppm3d-entry-contract</a> 一样，当前 COMMON 并行构建中 PPM 路径不可达。</p>
+<h2 id="例程定位">例程定位</h2>
+<p>ppm3d 的输送分三段：水平 E-W（xtp）、水平 N-S（ytp）、垂直（FZPPM）。垂直段在主例程 L676-756 中先计算垂直质量通量 W，再调用 FZPPM 执行 PPM 垂直输送。zflip 是一个独立的层序翻转工具子例程，ppm3d.F 内部不调用它，LMDZ 的 interpre/interpost 自行实现翻转逻辑。</p>
+<h2 id="垂直质量通量计算主例程-l676-714">垂直质量通量计算（主例程 L676-714）</h2>
+<p>FZPPM 被调用前，主例程先从水平质量散度反推垂直质量通量，过程分三步：</p>
+<p><strong>第一步：柱质量散度累积（L680-688）。</strong> 对每一列 <code>(i,j)</code> 从顶层开始累加水平质量散度 <code>DPI</code>：</p>
+<pre><code>CRY(i,j) = sum(DPI(i,j,k), k=1..NLAY)</code></pre>
+<p><code>CRY</code> 在此处被复用为柱总质量散度（不是经向 Courant 数）。</p>
+<p><strong>第二步：地面气压更新（L696）。</strong> 利用静力假设，地面气压增量等于柱质量散度：</p>
+<pre><code>PS2(i,j) = PS1(i,j) + CRY(i,j)</code></pre>
+<p><strong>第三步：垂直质量通量递推（L700-708）。</strong> 从质量守恒递推每层界面通量：</p>
+<pre><code>W(i,j,1)   = DPI(i,j,1) - DBK(1)*CRY(i,j)
+W(i,j,k)   = W(i,j,k-1) + DPI(i,j,k) - DBK(k)*CRY(i,j)   k=2..NLAY-1
+W(i,j,NLAY)= 0</code></pre>
+<p><code>DBK(k)</code> 是混合 sigma-P 坐标 B 系数层差（<code>BP(k+1)-BP(k)</code>），<code>DBK(k)*CRY(i,j)</code> 项反映 sigma 坐标下气压变化对各层质量的影响。地面通量为零，顶层通量由散度驱动。</p>
+<p>递推完成后，更新 <code>delp2</code>（时间 n+1 的层厚度）为 <code>DAP(k) + DBK(k)*PS2(i,j)</code>。</p>
+<h2 id="fzppm-签名">FZPPM 签名</h2>
+<div class="sourceCode" id="cb5"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> FZPPM(IMR, JNP, NLAY, j1, DQ, WZ, P, DC, DQDT,</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">     &amp;</span>           AR, AL, A6, flux, wk1, wk2, wz2, delp, KORD)</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>方向</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IMR</code></td>
+<td>IN</td>
+<td>经向格点数</td>
+</tr>
+<tr>
+<td><code>JNP</code></td>
+<td>IN</td>
+<td>纬向格点数（含极点）</td>
+</tr>
+<tr>
+<td><code>NLAY</code></td>
+<td>IN</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td><code>j1</code></td>
+<td>IN</td>
+<td>极冠参数（LMDZ 用 2）</td>
+</tr>
+<tr>
+<td><code>DQ</code></td>
+<td>INOUT</td>
+<td>tracer 密度（= Q × delp），入口为水平输送后的值，出口为垂直输送后的值</td>
+</tr>
+<tr>
+<td><code>WZ</code></td>
+<td>IN</td>
+<td>垂直质量通量（即主例程计算的 <code>W</code>）</td>
+</tr>
+<tr>
+<td><code>P</code></td>
+<td>IN</td>
+<td>tracer 混合比 Q</td>
+</tr>
+<tr>
+<td><code>DC</code></td>
+<td>OUT</td>
+<td>PPM 单调斜率（复用为主例程传入的数组）</td>
+</tr>
+<tr>
+<td><code>DQDT</code></td>
+<td>WORK</td>
+<td>层间差值（复用为工作数组）</td>
+</tr>
+<tr>
+<td><code>AR</code>, <code>AL</code></td>
+<td>WORK</td>
+<td>PPM 右/左界面值</td>
+</tr>
+<tr>
+<td><code>A6</code></td>
+<td>WORK</td>
+<td>PPM 二次项系数（= 6×(Q̄ - (AL+AR)/2)）</td>
+</tr>
+<tr>
+<td><code>flux</code></td>
+<td>WORK</td>
+<td>垂直界面通量</td>
+</tr>
+<tr>
+<td><code>wk1</code>, <code>wk2</code></td>
+<td>WORK</td>
+<td>工作数组（分别暂存 P 和 delp）</td>
+</tr>
+<tr>
+<td><code>wz2</code></td>
+<td>WORK</td>
+<td>暂存 WZ 的纬度切片</td>
+</tr>
+<tr>
+<td><code>delp</code></td>
+<td>IN</td>
+<td>时间 n 的层厚度</td>
+</tr>
+<tr>
+<td><code>KORD</code></td>
+<td>IN</td>
+<td>垂直方向阶数选项（≥3 时使用 PPM，&lt;3 时退化为上游）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="fzppm-算法流程">FZPPM 算法流程</h2>
+<p>FZPPM 按纬度切片循环处理（L808-928），每个纬度 <code>j</code> 独立执行以下步骤：</p>
+<h3 id="1-单调斜率估计l787-801">1. 单调斜率估计（L787-801）</h3>
+<p>对内部层 k=2..NLAY-1，用三层加权平均计算 PPM 单调斜率：</p>
+<pre><code>c0 = delp(k) / (delp(k-1) + delp(k) + delp(k+1))
+c1 = (delp(k-1) + 0.5*delp(k)) / (delp(k+1) + delp(k))
+c2 = (delp(k+1) + 0.5*delp(k)) / (delp(k-1) + delp(k))
+tmp = c0 * (c1*DQDT(k) + c2*DQDT(k-1))
+DC(k) = sign(min(|tmp|, Qmax, Qmin), tmp)</code></pre>
+<p>其中 <code>Qmax = max(P(k-1),P(k),P(k+1)) - P(k)</code>，<code>Qmin = P(k) - min(P(k-1),P(k),P(k+1))</code>。这是 Colella &amp; Woodward 1984 的单调约束实现。</p>
+<h3 id="2-界面值初始猜测l825-878">2. 界面值初始猜测（L825-878）</h3>
+<p><strong>大气顶（k=1）</strong>：三格 PPM 抛物线拟合，用 <code>DQDT</code> 和 <code>delp</code> 构造二次函数系数 <code>a,b</code>，求顶界面值 <code>AL(1)</code>。如果 <code>wk1(1)*AL(1) ≤ 0</code>（符号改变），则 <code>AL(1)=0</code>，<code>flux(1)=0</code>。</p>
+<p><strong>地面（k=NLAY）</strong>：两格 PPM 零梯度条件。<code>AR(NLAY)</code> 和 <code>AL(NLAY)</code> 由 <code>DQDT(NLAY-1)</code> 和 <code>delp</code> 构造。如果 <code>wk1(NLAY)*AR(NLAY) ≤ 0</code>，则 <code>AR(NLAY)=0</code>。</p>
+<p><strong>内部（k=3..NLAY-1）</strong>：四阶插值，使用相邻层的单调斜率和层厚度加权：</p>
+<pre><code>AL(k) = wk1(k-1) + c1 + c2*(wk2(k)*(c1*(A1-A2) + A2*flux(k-1)) - wk2(k-1)*A1*flux(k))</code></pre>
+<p>然后 <code>AR(k) = AL(k+1)</code>（连续性），<code>A6(k) = 3*(2*wk1(k) - AL(k) - AR(k))</code>（二次项系数）。</p>
+<h3 id="3-单调性约束施加l892-899">3. 单调性约束施加（L892-899）</h3>
+<pre><code>call lmtppm(flux_top,   A6_top,   AR_top,   AL_top,   wk1_top,   IMR, 0)
+call lmtppm(flux_bottom,A6_bottom,AR_bottom,AL_bottom,wk1_bottom,IMR, 0)
+if (LMT &lt;= 2) call lmtppm(flux_int, A6_int, AR_int, AL_int, wk1_int, IMR*(NLAY-2), LMT)</code></pre>
+<p>顶/底边界始终施加单调约束（<code>LMT=0</code>）。内部层的约束取决于 <code>KORD</code>：<code>KORD=3</code> 时 <code>LMT=0</code>（全单调），<code>KORD=4</code> 时 <code>LMT=1</code>（半单调），<code>KORD=5</code> 时 <code>LMT=2</code>（正定）。</p>
+<h3 id="4-垂直通量计算l903-918">4. 垂直通量计算（L903-918）</h3>
+<p>对每个界面 k（实际索引 2 对应 k=1 和 k=2 之间），根据通量方向选择上/下界面值：</p>
+<pre><code>if wz2(i,k) &gt; 0:     flux = AR(k) + 0.5*CM*(AL(k) - AR(k) + A6(k)*(1 - 2/3*CM))
+else:                 flux = AL(k+1) + 0.5*CP*(AL(k+1) - AR(k+1) - A6(k+1)*(1 + 2/3*CP))</code></pre>
+<p>其中 <code>CM = wz2/wk2(k)</code> 和 <code>CP = wz2/wk2(k+1)</code> 是 Courant 数。最终通量 = wz2 × flux（界面值 × 质量通量）。</p>
+<h3 id="5-tracer-密度更新l920-927">5. tracer 密度更新（L920-927）</h3>
+<pre><code>DQ(i,j,1)   = DQ(i,j,1)   - flux(i,2)         ! 顶层：减去下界面流出
+DQ(i,j,NLAY)= DQ(i,j,NLAY)+ flux(i,NLAY)       ! 底层：加上上界面流入
+DQ(i,j,k)   = DQ(i,j,k)   + flux(i,k) - flux(i,k+1)   ! 内部：净通量</code></pre>
+<h3 id="6-混合比恢复主例程-l731-738">6. 混合比恢复（主例程 L731-738）</h3>
+<p>FZPPM 返回后，主例程用更新后的密度除以新层厚度恢复混合比：</p>
+<pre><code>Q(i,j,k,IC) = DQ(i,j,k,IC) / delp2(i,j,k)</code></pre>
+<h2 id="zflip-工具子例程">zflip 工具子例程</h2>
+<div class="sourceCode" id="cb12"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> zflip(q, im, km, nc)</span></code></pre></div>
+<p><code>zflip</code> 把三维数组 <code>q(im, km, nc)</code> 在垂直方向做翻转：<code>q(i,k,IC) ← q(i, km+1-k, IC)</code>。使用临时数组 <code>qtmp(im, km)</code> 暂存翻转后的值，然后写回。</p>
+<p>ppm3d.F 内部不调用 zflip。LMDZ 的 <a href="ppm3d-entry-contract.html">interpre/interpost</a> 自行实现垂直层序翻转（<code>field_ppm(l) = field(llm-l+1)</code>），因为 LMDZ 的翻转还涉及经向风取反和地面气压计算，不能简单调用 zflip。</p>
+<p>zflip 是 PPM Transport Core 提供给外部使用者的通用工具。当外部代码的垂直层序与 PPM 内部约定（k=1 为大气顶）不一致时使用。</p>
+<h2 id="垂直输送在-split-顺序中的位置">垂直输送在 split 顺序中的位置</h2>
+<p>ppm3d 主例程的输送顺序（L447-756）：</p>
+<ol type="1">
+<li><strong>水平段</strong>（L447-674，每个垂直层 k 循环）：
+<ul>
+<li>计算水平 Courant 数 <code>CRX/CRY</code></li>
+<li>计算水平质量通量 <code>xmass/ymass</code> 和散度 <code>DPI</code></li>
+<li>对每个 tracer IC：计算交叉项 → <code>xtp</code>（E-W）→ <code>ytp</code>（N-S）</li>
+</ul></li>
+<li><strong>垂直质量通量计算</strong>（L676-714）：从水平散度递推 <code>W</code></li>
+<li><strong>垂直段</strong>（L716-748，每个 tracer IC 循环）：
+<ul>
+<li><code>FZPPM</code> 垂直 PPM 输送</li>
+<li><code>qckxyz</code> 正值性检查（如果 <code>fill=.true.</code>）</li>
+<li>混合比恢复 <code>Q = DQ / delp2</code></li>
+</ul></li>
+</ol>
+<p>水平段按层循环（外层 k），垂直段按 tracer 循环（外层 IC），这是因为垂直输送需要所有层的完整柱信息。</p>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>FZPPM 的 <code>DQ</code> 入口值是水平输送后的 tracer 密度（= Q × delp1），不是原始混合比。复现结果必须从水平段输出开始。</li>
+<li>垂直质量通量 <code>W</code> 由水平散度递推得出，不依赖外部输入。这意味着垂直和水平输送是耦合的，不能独立测试。</li>
+<li><code>KORD=max(3, KORD)</code> 在主例程 L716 强制执行，即使用户传入 <code>KORD&lt;3</code>，FZPPM 实际使用的值至少为 3。</li>
+<li><code>qckxyz</code> 正值性检查在 FZPPM 之后执行，如果 <code>fill=.true.</code>（LMDZ 调用值为 <code>.true.</code>），会对所有负值做填充修正。</li>
+<li>LMDZ 不使用 zflip，自行在 interpre/interpost 中实现翻转。如果要用外部代码调用 ppm3d 并依赖 zflip，需注意 zflip 只做纯垂直翻转，不处理经向风取反和气压积分。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="ppm3d-entry-contract.html">ppm3d 入口契约</a></li>
+<li><a href="ppm3d-horizontal-transport.html">ppm3d 水平输送</a></li>
+<li><a href="ppm3d-limiters-filters.html">ppm3d limiter 和滤波</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>qckxyz</code> 正值性检查的具体算法和对 Mars 干大气 tracer 的影响，详见 <a href="ppm3d-limiters-filters.html">ppm3d-limiters-filters</a>。</li>
+<li>FZPPM 中 <code>cross</code> 标志（L645 <code>if(cross) then</code>）在垂直段是否有额外影响，需要水平输送子页确认。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

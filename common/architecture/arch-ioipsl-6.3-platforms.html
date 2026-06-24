@@ -1,0 +1,97 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>arch-ioipsl-6.3-platforms - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a class="active" href="project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>architecture/arch-ioipsl-6.3-platforms.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="arch-and-ioipsl-63-platform-updates">arch and IOIPSL 6.3 platform updates</h1>
+<p>页面状态：6.3 返工完成。 源码基线：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code>。 Mars 运行参与度：必经构建层。</p>
+<h2 id="新增-arch-平台">新增 arch 平台</h2>
+<p>6.3 新增平台覆盖 ADASTRA、BAO_YGG、MESOIPSL、MESU、ROMEO 以及 gfortran parallel 配置：</p>
+<pre class="text"><code>arch-ADASTRA-gnu.{env,fcm,path}
+arch-ADASTRA-ifort.{env,fcm,path}
+arch-BAO_YGG.{env,fcm,path}
+arch-MESOIPSL-gnu.{env,fcm,path}
+arch-MESU-gnu.{env,fcm,path}
+arch-X64_ROMEO_INTEL.{env,fcm,path}
+arch-gfortran-para.{fcm,path}
+arch-ifort_MESOIPSL.{env,fcm,path}</code></pre>
+<h2 id="gfortran--netcdf--ioipsl-路径变化">gfortran / NetCDF / IOIPSL 路径变化</h2>
+<p><code>arch-gfortran.path</code> 的重要变化：</p>
+<ul>
+<li>NetCDF 不再只靠 <code>$NETCDF/lib</code> 与 <code>$NETCDF/include</code>。</li>
+<li>改为使用 <code>nc-config --cflags</code>、<code>nf-config --fflags</code>、<code>nc-config --libs</code>、<code>nf-config --flibs</code>。</li>
+<li>IOIPSL include/lib 从旧 <code>ioipsl/modipsl/lib</code> 风格转向 sibling <code>../IOIPSL/inc</code> 和 <code>../IOIPSL/lib</code>。</li>
+</ul>
+<p>复现时如果旧脚本只设置 <code>$NETCDF</code>，6.3 gfortran 构建可能找不到正确 flags。</p>
+<h2 id="ioipsl-scripts">IOIPSL scripts</h2>
+<p>新增：</p>
+<pre class="text"><code>install_ioipsl_ADASTRA-gnu.bash
+install_ioipsl_ADASTRA-ifort.bash
+install_ioipsl_BAO_YGG.bash
+install_ioipsl_ifort_MESOIPSL.bash
+install_ioipsl_MESOIPSL-gnu.bash
+install_ioipsl_MESU-gnu.bash</code></pre>
+<p>删除旧脚本：</p>
+<pre class="text"><code>install_ioipsl_centos-ifort.bash
+install_ioipsl_ciclad-ifort.bash
+install_ioipsl_mesu.bash
+install_ioipsl_occigen.bash</code></pre>
+<p>SVN URL 从 <code>forge.ipsl.jussieu.fr</code> 系列迁到 <code>forge.ipsl.fr</code> 系列；部分脚本会把 IOIPSL 内部脚本 shebang 从 <code>/bin/ksh</code> patch 到 <code>/bin/bash</code>。</p>
+<h2 id="复现检查">复现检查</h2>
+<ol type="1">
+<li>先确认 arch 名是否属于 6.3 新增/修改平台。</li>
+<li>gfortran 构建要确认 <code>nc-config</code> 与 <code>nf-config</code> 可执行。</li>
+<li>IOIPSL 目录应按 6.3 <code>../IOIPSL/inc</code>、<code>../IOIPSL/lib</code> 布局。</li>
+<li>不再使用已删除的 centos/ciclad/occigen install 脚本。</li>
+<li>保存 <code>makelmdz_fcm --version</code> 或 <code>--version</code> 输出用于构建溯源。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="build-and-arch.html">build-and-arch</a></li>
+<li><a href="ioipsl-build-mars-contract.html">ioipsl-build-mars-contract</a></li>
+<li><a href="build-provenance-version-control.html">build-provenance-version-control</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

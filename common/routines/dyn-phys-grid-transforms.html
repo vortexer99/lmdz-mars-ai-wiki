@@ -1,0 +1,126 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dyn-phys-grid-transforms - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/dyn-phys-grid-transforms.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="动力物理格点互转例程组">动力/物理格点互转例程组</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dynphy_lonlat\gr_dyn_fi.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dynphy_lonlat\gr_dyn_fi_p.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dynphy_lonlat\gr_fi_dyn.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dynphy_lonlat\gr_fi_dyn_p.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>这组例程在动力二维网格 <code>(im,jm)</code> 和物理列网格 <code>ngrid/klon</code> 之间复制标量场。串行版本按固定 lon-lat 展开规则处理极点和周期经度；并行版本通过 <code>mod_interface_dyn_phys:index_i/index_j</code> 映射当前物理列。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过/接口兼容：COMMON 串行或并行动力-物理接口转换场时经过；Mars 物理初始化和部分 dyn1d 接口保持兼容。</code></pre>
+<h2 id="例程清单">例程清单</h2>
+<table>
+<thead>
+<tr>
+<th>例程</th>
+<th>文件</th>
+<th>行数</th>
+<th>方向</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gr_dyn_fi</code></td>
+<td><code>gr_dyn_fi.F</code></td>
+<td>38</td>
+<td>动力网格 -&gt; 物理列，串行。</td>
+</tr>
+<tr>
+<td><code>gr_dyn_fi_p</code></td>
+<td><code>gr_dyn_fi_p.F</code></td>
+<td>44</td>
+<td>动力网格 -&gt; 物理列，并行。</td>
+</tr>
+<tr>
+<td><code>gr_fi_dyn</code></td>
+<td><code>gr_fi_dyn.F</code></td>
+<td>40</td>
+<td>物理列 -&gt; 动力网格，串行。</td>
+</tr>
+<tr>
+<td><code>gr_fi_dyn_p</code></td>
+<td><code>gr_fi_dyn_p.F</code></td>
+<td>56</td>
+<td>物理列 -&gt; 动力网格，并行。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="串行展开规则">串行展开规则</h2>
+<p><code>gr_dyn_fi</code> 将 <code>pdyn(1,1,:)</code> 复制到 <code>pfi(1,:)</code>，将 <code>pdyn(1,jm,:)</code> 复制到 <code>pfi(ngrid,:)</code>，中间纬圈 <code>j=2:jm-1</code> 按 <code>ig=2+(j-2)*(im-1)</code> 展开 <code>im-1</code> 个经度点。</p>
+<p><code>gr_fi_dyn</code> 做反向操作：北极和南极物理点复制到整条动力极点行；中间纬圈从物理列复制 <code>im-1</code> 个点，并设置 <code>pdyn(im,j,:)=pdyn(1,j,:)</code> 保持周期端点一致。</p>
+<h2 id="并行版本">并行版本</h2>
+<p><code>gr_dyn_fi_p</code> 和 <code>gr_fi_dyn_p</code> 使用：</p>
+<ul>
+<li><code>mod_interface_dyn_phys:index_i/index_j</code></li>
+<li><code>dimphy:klon</code></li>
+<li><code>parallel_lmdz:OMP_CHUNK</code></li>
+</ul>
+<p>OpenMP 循环遍历本线程/本 rank 的 <code>klon</code> 物理列。<code>gr_dyn_fi_p</code> 直接读 <code>pdyn(index_i(ig),index_j(ig),l)</code>；<code>gr_fi_dyn_p</code> 写回同一位置，并在 <code>i==1</code> 时补写周期端点 <code>pdyn(im,j,ifield)</code>，还会把极点行扩展到所有经度。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>串行接口的动力经向维度通常是 <code>iip1</code>，但展开中只复制 <code>im-1</code> 个非重复经度点。</li>
+<li>并行接口不自行计算格点位置，完全依赖 <code>Init_interface_dyn_phys</code> 已初始化的索引。</li>
+<li><code>nfield</code> 是最后一维批量字段数，可用于一次转换多个层或多个变量。</li>
+<li>物理列中的两个极点是单点，写回动力网格时会扩展成整条极点行。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>并行 <code>_p</code> 版本在 Mars 当前 dyn1d 物理测试中是否会实际执行，需要编译宏和入口确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dynphy_lonlat/index.html">dynphy_lonlat 总览</a></li>
+<li><a href="../modules/dynphy_lonlat/calfis.html">calfis</a></li>
+<li><a href="../modules/dynphy_lonlat/inigeomphy_mod.html">inigeomphy_mod</a></li>
+<li><a href="../modules/dynphy_lonlat/mod_interface_dyn_phys.html">mod_interface_dyn_phys</a></li>
+<li><a href="calfis-p-grid-mapping.html">calfis_p 动力格点到物理列映射</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

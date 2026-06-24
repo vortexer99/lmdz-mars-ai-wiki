@@ -1,0 +1,201 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>libf-overview - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a class="active" href="libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/libf-overview.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="libf-总览">libf 总览</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf</code></pre>
+<h2 id="职责">职责</h2>
+<p><code>libf/</code> 汇集 COMMON 的 Fortran 源码。按当前 wiki 范围，它为 MARS 提供动力状态模块、串行/并行动力入口和 helper、lon-lat 动力-物理接口、公共物理层、滤波、IO 和通用数值工具。</p>
+<p>Mars 运行参与度：<code>条件经过</code>。MARS 源码中存在对 <code>dyn3d_common</code>、<code>dyn3d</code>、<code>dyn3dpar</code>、<code>dynphy_lonlat</code> 中若干模块的直接转发或 <code>USE</code>/<code>CALL</code> 使用；部分目录是接口兼容或构建候选，需逐页标注。</p>
+<h2 id="目录内容">目录内容</h2>
+<table>
+<thead>
+<tr>
+<th>子目录</th>
+<th>Mars 运行参与度</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dyn3d_common/</code></td>
+<td><code>必经</code>/<code>条件经过</code>/<code>接口兼容</code></td>
+<td>共享动力常量、控制状态、网格几何、restart、垂直坐标、差分算子、输送和 I/O helper。</td>
+</tr>
+<tr>
+<td><code>dyn3d/</code></td>
+<td><code>条件经过</code>/<code>接口兼容</code></td>
+<td>串行 GCM 入口、配置读取、主时间推进调度、串行算子 helper。</td>
+</tr>
+<tr>
+<td><code>dyn3dpar/</code></td>
+<td><code>接口兼容</code>/<code>条件经过</code></td>
+<td>并行动力入口、MPI/halo/domain decomposition；MARS dyn1d 直接转发 <code>parallel_lmdz</code>、<code>mod_const_mpi</code>。</td>
+</tr>
+<tr>
+<td><code>dynphy_lonlat/</code></td>
+<td><code>必经</code>/<code>条件经过</code>/<code>非 Mars 路径</code></td>
+<td>动力-物理接口、网格转换、物理几何初始化；<code>phyvenus</code> 和 <code>phytitan.old</code> 只作非 Mars 边界。</td>
+</tr>
+<tr>
+<td><code>phy_common/</code></td>
+<td><code>待确认</code>/<code>条件经过</code></td>
+<td>物理侧公共层、并行传输、XIOS/write_field、几何层。</td>
+</tr>
+<tr>
+<td><code>misc/</code></td>
+<td><code>接口兼容</code>/<code>条件经过</code></td>
+<td>IOIPSL、NetCDF95、插值、样条、断言和通用数值工具。</td>
+</tr>
+<tr>
+<td><code>filtrez/</code></td>
+<td><code>条件经过</code></td>
+<td>极区滤波和 FFT backend；串行 <code>dyn3d</code> 中 <code>use_filtre_fft</code> 会中止。</td>
+</tr>
+<tr>
+<td><code>grid/</code></td>
+<td><code>接口兼容</code></td>
+<td>网格函数头文件和维度定义辅助。</td>
+</tr>
+<tr>
+<td><code>evolution/</code></td>
+<td><code>非 Mars 路径</code></td>
+<td>PEM/evolution 独立流程，当前登记表已 blocked，不写专页。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与其他目录的关系">与其他目录的关系</h2>
+<table>
+<thead>
+<tr>
+<th>相关目录</th>
+<th>关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars</code></td>
+<td>使用 COMMON 的控制、常量、tracer、接口模块，并有 MARS 专用 <code>nogcm/leapfrog_nogcm</code>。</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d</code></td>
+<td>多个文件是到 COMMON 的直接路径转发，用于 1D 物理测试链保持接口。</td>
+</tr>
+<tr>
+<td><code>arch/</code> 和顶层构建脚本</td>
+<td>决定 <code>libf/</code> 下哪些源文件进入具体 build。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="关键文件">关键文件</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dyn3d_common\control_mod.F90</code></td>
+<td>保存 <code>nday/day_step/iphysiq/read_start</code> 等运行控制变量。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common\infotrac.F90</code></td>
+<td>tracer 数量、名称和同位素关系，入口初始化后分配 <code>q</code>。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common\comconst_mod.F90</code></td>
+<td>动力常量和行星参数状态。</td>
+</tr>
+<tr>
+<td><code>dyn3d\conf_gcm.F90</code></td>
+<td>读取并设置控制变量，是 COMMON <code>gcm</code> 和 MARS <code>phymars/nogcm</code> 的配置中心。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common\dynetat0.F90</code></td>
+<td>读取 <code>start.nc</code> 初始动力状态。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common\inigeom.F</code></td>
+<td>构造 <code>comgeom2.h</code> 中的几何数组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="典型流程">典型流程</h2>
+<ol type="1">
+<li>入口程序调用 <code>conf_gcm</code> 设置控制变量。</li>
+<li><code>infotrac_init</code> 确定 tracer 个数，入口程序据此分配 <code>q(iip1,jjp1,llm,nqtot)</code>。</li>
+<li>若 <code>read_start=.true.</code>，<code>dynetat0</code> 从 <code>start.nc</code> 读取动力状态；否则 <code>iniacademic</code> 构造理想化初态。</li>
+<li>在 <code>iflag_phys==1</code> 等路径下，<code>iniconst</code>、<code>inigeom</code>、<code>inifilr</code> 完成动力常量、几何和滤波初始化。</li>
+<li>入口进入 <code>leapfrog</code>，调用 <code>dyn3d_common</code> 和 <code>dyn3d</code> 的算子、输送、诊断、输出 helper。</li>
+</ol>
+<h2 id="范围排除">范围排除</h2>
+<ul>
+<li><code>libf/evolution</code>、COMMON <code>dyn3d/nogcm.F90</code> 和 COMMON <code>dyn3d/leapfrog_nogcm.F</code> 在 6.3 已删除。</li>
+<li><code>dynphy_lonlat/phyvenus</code> 与 <code>dynphy_lonlat/phytitan.old</code> 是其他行星变体，本 wiki 只在边界表中说明，不写专页。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>目录级复现应先确定入口和构建组合；同名文件不一定代表 Mars 使用。</li>
+<li>读单个文件页时，要同步查看 <code>control_mod</code>、<code>logic_mod</code>、<code>comconst_mod</code>、<code>temps_mod</code> 中被读写的共享状态。</li>
+<li>串行与并行动力很多文件成对存在，后续对照页应避免把并行 halo 行为套用到串行路径。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>phy_common</code> 中各文件对 MARS 的实际构建参与度需后续 P3/P4 页面补证据。</li>
+<li><code>filtrez</code> 在 Mars 常规 lon-lat 配置中的具体启用方式需结合运行配置确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../architecture/project-structure.html">项目结构</a></li>
+<li><a href="dyn3d_common/index.html">dyn3d_common 总览</a></li>
+<li><a href="dyn3d/index.html">dyn3d 总览</a></li>
+<li><a href="dynphy_lonlat/index.html">dynphy_lonlat 总览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

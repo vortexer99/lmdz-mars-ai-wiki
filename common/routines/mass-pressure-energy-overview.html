@@ -1,0 +1,116 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mass-pressure-energy-overview - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/mass-pressure-energy-overview.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="质量压力位势和能量例程总览">质量、压力、位势和能量例程总览</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>mass*, pression*, pbar, psextbar, geopot, exner* families in dyn3d_common</code></pre>
+<p>Mars 运行参与度：<code>必经/条件经过</code>。动力初始化、时间推进、诊断和热力转换都依赖这些例程。</p>
+<h2 id="分类">分类</h2>
+<table>
+<thead>
+<tr>
+<th>家族</th>
+<th>代表文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>mass</td>
+<td><code>massbar.F90</code>, <code>massbarxy.F90</code>, <code>massdair.F</code></td>
+<td>质量平均、空气质量和 staggered mass。</td>
+</tr>
+<tr>
+<td>pressure</td>
+<td><code>pression.F90</code>, <code>pbar.F</code>, <code>psextbar.F</code></td>
+<td>压力、压力平均和外推/边界压力。</td>
+</tr>
+<tr>
+<td>geopotential</td>
+<td><code>geopot.F</code></td>
+<td>位势高度或位势能相关诊断。</td>
+</tr>
+<tr>
+<td>Exner</td>
+<td><code>exner_hyb_m.F90</code>, <code>exner_milieu_m.F90</code></td>
+<td>hybrid 坐标中的 Exner 函数。</td>
+</tr>
+<tr>
+<td>energy</td>
+<td><code>ener_mod.F90</code>, <code>enercin</code> 调用链</td>
+<td>动能/能量诊断支持。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="使用链">使用链</h2>
+<ol type="1">
+<li>垂直离散写入 <code>ap/bp/presnivs</code>。</li>
+<li><code>pression</code> 和 Exner 相关例程根据 <code>ps</code>、<code>ap/bp</code> 构造压力层。</li>
+<li><code>massbar/massbarxy</code> 把质量放到 u/v 或中间网格。</li>
+<li><code>caldyn</code>、<code>advtrac</code>、<code>bilan_dyn</code> 等使用这些派生量。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>ap/bp</code>、<code>ps</code> 和 <code>masse</code> 必须来自同一次初始化/时间步，混用会破坏预算。</li>
+<li>pressure/Exner 选项由 <code>pressure_exner</code> 等配置控制。</li>
+<li><code>massbarxy_p</code> 这类并行变体需要和 halo 边界共同考虑。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="common-pressure-mass-operators.html">压力与质量算子 family</a></li>
+<li><a href="common-energy-vorticity-operators.html">动能、Bernoulli、位势涡度与位势高度算子</a></li>
+<li><a href="exner-cpdet-helpers.html">Exner 函数与 cp(T) 变比热路径</a></li>
+<li><a href="vertical-discretization.html">垂直离散构造</a></li>
+<li><a href="../modules/dyn3d/bilan_dyn.html">bilan_dyn</a></li>
+<li><a href="caldyn-serial-parallel.html">caldyn 串并行对照</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>各 pressure/Exner 公式的单位和层位置需在逐文件任务中补全。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

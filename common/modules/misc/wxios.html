@@ -1,0 +1,359 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>wxios - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/misc/wxios.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="wxiosf90">wxios.F90</h1>
+<p>页面状态：TASK-0172 完成。 源码路径：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\wxios.F90</code></pre>
+<p>Mars 运行参与度：条件经过。<code>CPP_XIOS</code> 构建中，COMMON <code>gcm</code>/并行初始化会调用 <code>wxios_init</code>，Mars <code>physiq_mod</code> 会调用 <code>wxios_context_init</code>，Mars <code>xios_output_mod</code> 通过 <code>wxios_domain_param</code> 或 <code>wxios_domain_param_unstructured</code> 初始化 horizontal domain，并用 <code>wxios_closedef</code> 关闭 context definition。未启用 <code>CPP_XIOS</code> 时，本文件主体不提供 <code>wxios</code> 模块能力。</p>
+<h2 id="文件职责">文件职责</h2>
+<p><code>wxios</code> 是 COMMON 对 XIOS v2 的薄封装，负责：</p>
+<ul>
+<li>初始化 XIOS 并保存默认 context 名和 communicator。</li>
+<li>创建或恢复当前 XIOS context。</li>
+<li>设置 calendar、time origin、start date 和 timestep。</li>
+<li>根据 COMMON 物理网格状态填充 regular lon-lat 或 unstructured XIOS domain。</li>
+<li>动态添加 vertical axis、file、field、field-to-file 关系。</li>
+<li>在 abort 或结束阶段关闭 XIOS context/finalize。</li>
+</ul>
+<p>它不定义 Mars physics 变量清单。Mars 变量、axis 语义和实际发送由 Mars <code>xios_output_mod.F90</code> 与 XML 文件控制；<code>wxios</code> 只提供 context/domain/file/field 操作工具。</p>
+<h2 id="编译边界和版本约束">编译边界和版本约束</h2>
+<p>整个文件位于：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ot">#ifdef CPP_XIOS</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">MODULE</span> wxios</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>...</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">END MODULE</span> wxios</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ot">#endif</span></span></code></pre></div>
+<p>文件还显式拒绝 XIOS v1：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ot">#ifdef XIOS1</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ot">#error &quot;XIOS v1 no longer supported, use XIOS v2.&quot;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ot">#endif</span></span></code></pre></div>
+<p>因此依赖本模块的调用点必须处在 XIOS 构建条件中，或由构建系统保证 <code>CPP_XIOS</code> 已启用。</p>
+<h2 id="模块状态">模块状态</h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>类型</th>
+<th>并行属性</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>g_comm</code></td>
+<td>integer save</td>
+<td><code>THREADPRIVATE</code> 指令中列出</td>
+<td><code>xios_initialize</code> 返回的 communicator。</td>
+</tr>
+<tr>
+<td><code>g_ctx_name</code></td>
+<td>character save, default <code>"LMDZ"</code></td>
+<td>见待确认</td>
+<td>默认 context name，<code>wxios_init</code> 写入，<code>wxios_context_init/wxios_set_context</code> 读取。</td>
+</tr>
+<tr>
+<td><code>g_ctx</code></td>
+<td><code>xios_context</code> save</td>
+<td><code>THREADPRIVATE</code> 指令中列出</td>
+<td>保存 <code>xios_get_handle(g_ctx_name,...)</code> 得到的 context handle。</td>
+</tr>
+<tr>
+<td><code>g_flag_xml</code></td>
+<td>logical save</td>
+<td><code>THREADPRIVATE</code></td>
+<td>最近一次 field 是否由 XML 预定义。</td>
+</tr>
+<tr>
+<td><code>g_field_name</code></td>
+<td>character, default <code>"nofield"</code></td>
+<td><code>THREADPRIVATE</code></td>
+<td>最近一次处理的 field 名，避免重复创建。</td>
+</tr>
+<tr>
+<td><code>missing_val_omp</code>, <code>missing_val</code></td>
+<td>real</td>
+<td><code>missing_val</code> 为 <code>THREADPRIVATE</code></td>
+<td>当前文件内未见实质使用。</td>
+</tr>
+</tbody>
+</table>
+<p>源码 OpenMP 指令写为 <code>THREADPRIVATE(g_comm,g_cts_name,g_ctx)</code>，其中 <code>g_cts_name</code> 与声明的 <code>g_ctx_name</code> 不一致。页面按源码事实记录：<code>g_ctx_name</code> 是否真正 threadprivate 需要编译器/OpenMP 诊断或运行验证确认。</p>
+<h2 id="例程清单">例程清单</h2>
+<table>
+<thead>
+<tr>
+<th>例程</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>reformadate(odate, ndate)</code></td>
+<td>把 <code>36day</code>、<code>1hr</code>、<code>1mth</code> 这类 IOIPSL 风格片段写入 <code>xios_duration</code> 的 day/hour/month。</td>
+</tr>
+<tr>
+<td><code>reformaop(op)</code></td>
+<td>把 <code>inst(X)</code>、<code>once</code>、<code>t_max(X)</code>、<code>t_min(X)</code> 映射到 XIOS <code>instant/once/maximum/minimum</code>；其他默认 <code>average</code>。</td>
+</tr>
+<tr>
+<td><code>wxios_init(xios_ctx_name, locom, outcom, type_ocean)</code></td>
+<td>调用 <code>xios_initialize</code>，可传 local communicator，可返回 XIOS communicator，并保存 <code>g_comm/g_ctx_name</code>。</td>
+</tr>
+<tr>
+<td><code>wxios_context_init()</code></td>
+<td>在 <code>COMM_LMDZ_PHY</code> 上初始化 <code>g_ctx_name</code> context，设为 current context，并调用 <code>xios_solve_inheritance</code>。</td>
+</tr>
+<tr>
+<td><code>wxios_set_context()</code></td>
+<td>重新获取并激活 <code>g_ctx_name</code> context。</td>
+</tr>
+<tr>
+<td><code>wxios_set_cal(...)</code></td>
+<td>根据 <code>earth_360d/earth_365d/gregorian</code> 设置 calendar、origin/start date 和 timestep；其他 calendar abort。</td>
+</tr>
+<tr>
+<td><code>wxios_set_timestep(ts)</code></td>
+<td>以 <code>mdtime%timestep=ts</code> 形式设置 XIOS timestep。</td>
+</tr>
+<tr>
+<td><code>wxios_domain_param(dom_id, flip_coordinates)</code></td>
+<td>为 regular lon-lat domain 写入 <code>ni_glo/nj_glo</code>、local j-slice、lon/lat 1D 值和 MPI overlap mask。</td>
+</tr>
+<tr>
+<td><code>wxios_domain_param_unstructured(dom_id, flip_coordinates)</code></td>
+<td>为 unstructured domaingroup 写入 lon/lat、cell bounds、<code>i_index</code> 和 <code>nvertex</code>。</td>
+</tr>
+<tr>
+<td><code>wxios_add_vaxis(axis_id, axis_size, axis_value)</code></td>
+<td>设置 XIOS axis <code>n_glo/value</code>，并检查 axis 是否有效。</td>
+</tr>
+<tr>
+<td><code>wxios_add_file(fname, ffreq, flvl)</code></td>
+<td>如果 XML 中没有该 file，则在 <code>defile</code> 下添加 file <code>fname</code>，输出名为 <code>"X"//fname</code>，并设置频率和 level；若 XML 已定义则只启用。</td>
+</tr>
+<tr>
+<td><code>wxios_add_field(fieldname, fieldgroup, fieldlongname, fieldunit)</code></td>
+<td>向 field group 添加 field，设置 standard name、unit 和 default fill value。</td>
+</tr>
+<tr>
+<td><code>wxios_add_field_to_file(...)</code></td>
+<td>按 2D/3D 选择 field group，创建或启用 field，把 field 加到 file，并设置 operation、freq_op、level、axis。</td>
+</tr>
+<tr>
+<td><code>wxios_closedef()</code></td>
+<td>调用 <code>xios_close_context_definition()</code>。</td>
+</tr>
+<tr>
+<td><code>wxios_close()</code></td>
+<td>依次调用 <code>xios_context_finalize()</code> 和 <code>xios_finalize()</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="初始化和关闭链">初始化和关闭链</h2>
+<h3 id="common-gcmxios-初始化">COMMON GCM/XIOS 初始化</h3>
+<pre class="text"><code>dyn3d/gcm.F90
+  -&gt; wxios_init(&quot;LMDZ&quot;)
+
+dyn3dpar/mod_const_mpi.F90
+  -&gt; wxios_init(&quot;LMDZ&quot;, outcom=COMM_LMDZ, type_ocean=...)
+  -&gt; wxios_init(&quot;LMDZ&quot;, outcom=COMM_LMDZ)
+  -&gt; wxios_init(&quot;LMDZ&quot;)</code></pre>
+<p><code>wxios_init</code> 只调用 <code>xios_initialize</code> 并保存 context name/communicator；源码中 <code>wxios_context_init</code> 的调用被注释掉，context 初始化由后续 physics/Mars 路径触发。</p>
+<h3 id="mars-physics-context-和-domain">Mars physics context 和 domain</h3>
+<pre class="text"><code>Mars physiq_mod
+  -&gt; wxios_context_init
+
+Mars xios_output_mod:initialize_xios_output
+  -&gt; xios_set_axis_attr(&quot;presnivs&quot;/&quot;altitude&quot;/&quot;interlayer&quot;/&quot;soil_layers&quot;/&quot;subslope&quot;)
+  -&gt; if grid_type==unstructured:
+         wxios_domain_param_unstructured(&quot;dom_glo&quot;)
+     else:
+         wxios_domain_param(&quot;dom_glo&quot;)
+  -&gt; xios_define_calendar(...)
+  -&gt; xios_set_time_origin(...)
+  -&gt; xios_set_start_date(...)
+  -&gt; wxios_closedef()</code></pre>
+<p>Mars <code>xios_output_mod</code> 直接定义垂直 axis 和 Mars calendar；<code>wxios</code> 在这条链中主要负责 horizontal domain 与 context definition close。</p>
+<h3 id="关闭路径">关闭路径</h3>
+<pre class="text"><code>dyn3d/abort_gcm.F
+  -&gt; wxios_close()
+
+dyn3dpar/parallel_lmdz.F90
+  -&gt; wxios_close()</code></pre>
+<p>Mars <code>xios_output_mod:finalize_xios_output</code> 也会调用 XIOS context finalize，但不经 <code>wxios_close</code>。</p>
+<h2 id="regular-lon-lat-domain">regular lon-lat domain</h2>
+<p><code>wxios_domain_param(dom_id, flip_coordinates)</code> 从 <code>geometry_mod</code> 收集当前 physics grid 的角度制经纬度：</p>
+<ol type="1">
+<li>可选 <code>flip_coordinates</code> 时对 <code>latitude_deg/longitude_deg</code> 取负。</li>
+<li>调用物理 transfer <code>gather</code> 到 <code>rlat_glo/rlon_glo</code>，再 <code>bcast</code> 给所有 rank。</li>
+<li><code>OMP MASTER</code> 从全局物理列数组构造 regular 轴：
+<ul>
+<li><code>io_lat(1)=rlat_glo(1)</code>。</li>
+<li><code>io_lat(nbp_lat)=rlat_glo(klon_glo)</code>。</li>
+<li>中间纬度取 <code>rlat_glo(2+(i-2)*nbp_lon)</code>。</li>
+<li>若 <code>klon_glo==1</code>，<code>io_lon(1)=rlon_glo(1)</code>；否则 <code>io_lon(1:nbp_lon)=rlon_glo(2:nbp_lon+1)</code>。</li>
+</ul></li>
+<li>设置 XIOS domain：
+<ul>
+<li><code>ni_glo=nbp_lon</code>, <code>ibegin=0</code>, <code>ni=nbp_lon</code>, <code>type="rectilinear"</code>。</li>
+<li><code>nj_glo=nbp_lat</code>, <code>jbegin=jj_begin-1</code>, <code>nj=jj_nb</code>, <code>data_dim=2</code>。</li>
+<li><code>lonvalue_1d=io_lon</code>, <code>latvalue_1d=io_lat(jj_begin:jj_end)</code>。</li>
+</ul></li>
+<li>非 sequential 模式下构造 <code>mask(nbp_lon,jj_nb)</code>，屏蔽 MPI overlap，南极特殊 rank 可重新打开最后一行。</li>
+</ol>
+<p>这个 domain 是当前 MPI rank 的纬向块，和 <a href="../phy_common/mod_grid_phy_lmdz.html">mod_grid_phy_lmdz</a> 的 <code>nbp_lon/nbp_lat/klon_glo</code> 约定一致。</p>
+<h2 id="unstructured-domain">unstructured domain</h2>
+<p><code>wxios_domain_param_unstructured(dom_id, flip_coordinates)</code> 直接消费 <a href="../phy_common/geometry_mod.html">geometry_mod</a> 的局部几何状态：</p>
+<table>
+<thead>
+<tr>
+<th>输入状态</th>
+<th>转换</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>longitude</code>, <code>latitude</code></td>
+<td><code>*180/PI</code>，可选取负</td>
+<td>cell center lon/lat。</td>
+</tr>
+<tr>
+<td><code>boundslon</code>, <code>boundslat</code></td>
+<td><code>*180/PI</code>，可选取负，传入前 <code>TRANSPOSE</code></td>
+<td>cell vertex bounds。</td>
+</tr>
+<tr>
+<td><code>ind_cell_glo</code></td>
+<td><code>gather_omp</code> 后减 1</td>
+<td>XIOS <code>i_index</code>，Fortran 1-based 转 XIOS 0-based。</td>
+</tr>
+<tr>
+<td><code>nvertex</code>, <code>klon_glo</code></td>
+<td>直接使用</td>
+<td>XIOS <code>nvertex</code> 和 global cell count。</td>
+</tr>
+<tr>
+<td><code>ij_begin</code>, <code>ij_nb</code>, <code>klon_mpi</code></td>
+<td>物理并行状态</td>
+<td>当前 rank unstructured slice。</td>
+</tr>
+</tbody>
+</table>
+<p>该例程设置 domaingroup 属性：<code>ni_glo=klon_glo</code>、<code>ibegin=ij_begin-1</code>、<code>ni=ij_nb</code>、<code>type="unstructured"</code>，并写入 bounds 与 cell index。</p>
+<h2 id="filefield-动态定义">file/field 动态定义</h2>
+<p><code>wxios_add_file</code> 和 <code>wxios_add_field_to_file</code> 是旧 IOIPSL/XIOS 桥接风格的动态定义 helper：</p>
+<ul>
+<li><code>wxios_add_file(fname, ffreq, flvl)</code>：
+<ul>
+<li>如果 <code>xios_is_valid_file(fname)</code> 为假，则在 file group <code>defile</code> 下添加 <code>fname</code>，输出文件名设为 <code>"X"//fname</code>。</li>
+<li><code>ffreq</code> 经 <code>reformadate</code> 转成 <code>xios_duration</code>。</li>
+<li>如果 XML 已定义 <code>fname</code>，则只 <code>xios_set_file_attr(fname, enabled=.TRUE.)</code>。</li>
+</ul></li>
+<li><code>wxios_add_field_to_file(...)</code>：
+<ul>
+<li><code>fdim==2</code> 使用 <code>fields_2D</code>，否则使用 <code>fields_3D</code>。</li>
+<li>若 field 已由 XML 定义并且不是上一字段，则设置 <code>g_flag_xml=.TRUE.</code>，后续只启用该 field。</li>
+<li>若 field 未定义，则调用 <code>wxios_add_field</code> 动态创建，再把 field 加到 file。</li>
+<li><code>op</code> 经 <code>reformaop</code> 转为 <code>average/instant/once/maximum/minimum</code>。</li>
+<li>3D 字段默认 axis：<code>fid&lt;=6</code> 用 <code>presnivs</code>，否则用 <code>plev</code>；可用 <code>nam_axvert</code> 覆盖。</li>
+</ul></li>
+</ul>
+<p>Mars 当前 <code>xios_output_mod</code> 主要使用 XML 和 <code>xios_set_axis_attr/xios_send_field</code> 路径；这些动态 file/field helper 是 COMMON 通用 XIOS 桥接能力。</p>
+<h2 id="与-xios_writefield-的关系">与 xios_writefield 的关系</h2>
+<p><a href="../phy_common/xios_writefield.html">xios_writefield</a> 使用本模块的三个例程：</p>
+<table>
+<thead>
+<tr>
+<th>xios_writefield 调用</th>
+<th>wxios 提供的能力</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>wxios_domain_param("domain")</code></td>
+<td>regular lon-lat domain 属性。</td>
+</tr>
+<tr>
+<td><code>wxios_domain_param_unstructured("domaingroup")</code></td>
+<td>unstructured domaingroup 属性。</td>
+</tr>
+<tr>
+<td><code>wxios_set_context()</code></td>
+<td>临时 <code>context_lmdz_&lt;field&gt;</code> 发送结束后恢复默认 <code>LMDZ</code> context。</td>
+</tr>
+</tbody>
+</table>
+<p>二者分工不同：<code>xios_writefield</code> 是按字段名创建临时 context/file/field 的 dump helper；<code>wxios</code> 是更底层的 context、domain、axis、file 和 field 操作封装。</p>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>必须启用 <code>CPP_XIOS</code>，且不能使用 <code>XIOS1</code>。</li>
+<li><code>wxios_init</code> 之后还需要 <code>wxios_context_init</code> 才会在 <code>COMM_LMDZ_PHY</code> 上创建并激活 context。</li>
+<li>Mars physics 输出 domain id 是 <code>"dom_glo"</code>；临时 <code>xios_writefield</code> 使用 <code>"domain"</code> 或 <code>"domaingroup"</code>。</li>
+<li>regular domain 的 lon/lat 来自 <code>geometry_mod</code> 的角度制局部数组 gather 后重构，不直接读取 <code>regular_lonlat_mod:lon_reg/lat_reg</code>。</li>
+<li>unstructured domain 的 bounds 使用弧度几何状态乘 <code>180/PI</code>，并把 <code>ind_cell_glo</code> 转成 0-based <code>i_index</code>。</li>
+<li><code>wxios_set_cal</code> 只接受 <code>earth_360d</code>、<code>earth_365d</code> 和 <code>gregorian</code>；Mars <code>xios_output_mod</code> 自己定义 user-defined calendar。</li>
+<li>动态 file 输出名会加 <code>X</code> 前缀，即 <code>fname</code> 对应 <code>"X"//fname</code>。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>THREADPRIVATE(g_comm,g_cts_name,g_ctx)</code> 中 <code>g_cts_name</code> 疑似为 <code>g_ctx_name</code> 拼写错误；实际线程私有行为需编译器诊断或 OpenMP 运行验证。</li>
+<li><code>missing_val_omp/missing_val</code> 在本文件内未见消费方，是否为旧接口遗留需更大范围确认。</li>
+<li><code>wxios_add_field_to_file</code> 中 <code>axis_id</code> 固定长度 20，源码注释标注 dangerous；长 axis 名是否会截断需调用方约束。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">misc 总览</a></li>
+<li><a href="../phy_common/write-field-xios.html">XIOS/write_field 输出封装组页</a></li>
+<li><a href="../phy_common/xios_writefield.html">xios_writefield</a></li>
+<li><a href="../../routines/xios-domain-field-setup.html">XIOS domain/axis/field setup</a></li>
+<li><a href="../phy_common/mod_grid_phy_lmdz.html">mod_grid_phy_lmdz</a></li>
+<li><a href="../phy_common/geometry_mod.html">geometry_mod</a></li>
+<li><a href="../../routines/history-xios-getin-boundary.html">history-xios-getin-boundary</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

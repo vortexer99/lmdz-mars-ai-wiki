@@ -1,0 +1,415 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>calfis-p-parallel-transfer - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/calfis-p-parallel-transfer.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="calfis_p-并行-transfer-架构">calfis_p 并行 transfer 架构</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dynphy_lonlat\calfis_p.F: L1-1520（并行物理调用接口）
+phy_common\mod_phys_lmdz_para.F90: L1-78（MPI/OMP 分布初始化）
+phy_common\mod_phys_lmdz_mpi_data.F90: L1-220（MPI 分布表）
+phy_common\mod_phys_lmdz_omp_data.F90: L1-126（OMP 线程列分布）
+phy_common\mod_phys_lmdz_transfert_para.F90（MPI+OMP 统一 transfer 封装）
+phy_common\physics_distribution_mod.F90（物理分布初始化链）</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。Mars 并行动力启用物理时（<code>apphys</code> 为真），<code>calfis_p</code> 在 MPI rank 和 OpenMP 线程两层执行完整的 scatter → call_physiq → gather 流程。</p>
+<h2 id="例程定位">例程定位</h2>
+<p>本页聚焦 <code>calfis_p</code> 中 MPI 与 OpenMP 两层并行的数据搬运机制，以及它与 <code>phy_common</code> transfer 基础设施的关系。场映射和 tendency 回写的逐场细节已由 <a href="calfis-p-grid-mapping.html">calfis-p-grid-mapping</a> 和 <a href="calfis-p-physiq-contract.html">calfis-p-physiq-contract</a> 覆盖。</p>
+<h2 id="两层并行数据流">两层并行数据流</h2>
+<p><code>calfis_p</code> 的并行数据搬运分为三个层次：</p>
+<pre class="text"><code>动力网格 (iip1,jjp1,llm)
+    ↓ scatter (OMP DO / MASTER, klon=klon_mpi)
+rank 级物理列 z*(klon_mpi, llm, ...)
+    ↓ OMP scatter (手动拷贝, offset=klon_omp_begin-1)
+线程级物理列 *_omp(klon_omp, llm, ...)
+    ↓ call_physiq (nsplit_phys 循环)
+线程级 tendency *_omp(klon_omp, llm, ...)
+    ↓ OMP gather (手动拷贝回)
+rank 级 tendency z*(klon_mpi, llm, ...)
+    ↓ MPI wind exchange (手写 ISSEND/IRECV)
+扩展数组 zdufi2/zdvfi2(klon_mpi+iim, llm)
+    ↓ gather (OMP DO / MASTER)
+动力网格 tendency pdufi/pdvfi/pdhfi/pdqfi/pdpsfi</code></pre>
+<h2 id="编译守卫">编译守卫</h2>
+<p><code>calfis_p</code> 的并行实现依赖三层预处理守卫：</p>
+<table>
+<thead>
+<tr>
+<th>守卫</th>
+<th>控制范围</th>
+<th>Mars 并行动力</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CPP_PARA</code></td>
+<td><code>parallel_lmdz</code>（omp_chunk、AllGather_Field、jj_begin/jj_end）、<code>Write_Field</code>、<code>Times</code>、<code>cpdet_mod</code></td>
+<td>启用</td>
+</tr>
+<tr>
+<td><code>CPP_PHYS</code></td>
+<td><code>dimphy</code>、<code>mod_phys_lmdz_mpi_data</code>、<code>mod_phys_lmdz_omp_data</code>、<code>mod_interface_dyn_phys</code>、<code>callphysiq_mod</code></td>
+<td>启用</td>
+</tr>
+<tr>
+<td><code>CPP_MPI</code></td>
+<td><code>mpif.h</code>、<code>MPI_Status</code>、<code>MPI_ISSEND/IRECV/WAITALL</code></td>
+<td>启用</td>
+</tr>
+</tbody>
+</table>
+<p>如果没有 <code>CPP_PHYS</code>，源码打印 <code>calfis_p: for now can only work with parallel physics</code> 并 <code>stop</code>。<code>CPP_MPI</code> 控制手写 wind exchange 内的 MPI 调用；非 MPI 构建跳过整段交换。</p>
+<h2 id="rank-级-scatteromp-指令模式">rank 级 scatter：OMP 指令模式</h2>
+<p>rank 级 scatter 把动力二维数组转为 <code>klon_mpi</code> 物理列，全程使用 <code>klon=klon_mpi</code>。OMP 指令遵循固定模式：</p>
+<p><strong>标量场逐层 scatter</strong>（zplev、zpk、zteta、zqfi、zplay）：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP DO SCHEDULE(STATIC,OMP_CHUNK)</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>      <span class="kw">DO</span> l <span class="kw">=</span> <span class="dv">1</span>, llm</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>        <span class="kw">do</span> ig0 <span class="kw">=</span> <span class="dv">1</span>, klon</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>          i <span class="kw">=</span> index_i(ig0);  j <span class="kw">=</span> index_j(ig0)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>          zpk(ig0,l) <span class="kw">=</span> ppk(i,j,l)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">enddo</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>      ENDO</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP </span><span class="re">END</span><span class="co"> DO NOWAIT</span></span></code></pre></div>
+<p>所有线程共享 <code>index_i/index_j</code>（非 THREADPRIVATE），但写入 <code>z*</code> 数组的不同 <code>ig0</code> 位置，因此不存在竞争。<code>NOWAIT</code> 允许后续独立 scatter 立即启动。</p>
+<p><strong>MASTER 独占段</strong>（zpsrf、timer、moyzon）：</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP MASTER</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>      <span class="kw">do</span> ig0 <span class="kw">=</span> <span class="dv">1</span>, klon</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>        zpsrf(ig0) <span class="kw">=</span> pps(index_i(ig0), index_j(ig0))</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>      <span class="kw">enddo</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span></code></pre></div>
+<p><code>zpsrf</code> scatter 放在 MASTER 段是因为后续 OMP DO 隐式 barrier 会等待 master 完成。</p>
+<p><strong>BARRIER 同步点</strong>：scatter 完成后、进入 OMP 线程级切片前有一个显式 <code>c$OMP BARRIER</code>（L752），确保所有线程看到完整的 rank 级 <code>z*</code> 数组。</p>
+<h2 id="omp-线程级-scattergather">OMP 线程级 scatter/gather</h2>
+<h3 id="first_omp-分配">first_omp 分配</h3>
+<p>每个 OpenMP 线程首次进入时（<code>first_omp</code> 标志，THREADPRIVATE），按 <code>klon_omp</code> 分配 <code>*_omp</code> 工作区：</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP BARRIER</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>      <span class="kw">if</span> (first_omp) <span class="kw">then</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>        klon <span class="kw">=</span> klon_omp</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>        <span class="kw">allocate</span>(zplev_omp(klon, llm<span class="kw">+</span><span class="dv">1</span>))</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>        <span class="kw">allocate</span>(zplay_omp(klon, llm))</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        <span class="co">! ... 共 20 个 allocate ...</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>        <span class="kw">allocate</span>(zdqfic_omp(klon, llm, nqtot))</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>        <span class="kw">allocate</span>(flxwfi_omp(klon, llm))</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>        first_omp <span class="kw">=</span> <span class="cn">.false.</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>      <span class="kw">endif</span></span></code></pre></div>
+<p><code>first_omp</code> 是 <code>THREADPRIVATE</code>，因此每个线程独立判断和分配。分配完成后所有线程的 <code>*_omp</code> 数组维度为 <code>klon_omp</code>（可能不同线程列数不同，余数优先给低编号线程）。</p>
+<h3 id="手动-scatter">手动 scatter</h3>
+<p>BARRIER 后，源码把 <code>klon</code> 改为 <code>klon_omp</code>，设置 <code>offset = klon_omp_begin - 1</code>，然后逐数组手动拷贝：</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>      klon <span class="kw">=</span> klon_omp</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>      offset <span class="kw">=</span> klon_omp_begin <span class="kw">-</span> <span class="dv">1</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>      <span class="kw">do</span> l <span class="kw">=</span> <span class="dv">1</span>, llm<span class="kw">+</span><span class="dv">1</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>        <span class="kw">do</span> i <span class="kw">=</span> <span class="dv">1</span>, klon</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>          zplev_omp(i, l) <span class="kw">=</span> zplev(offset<span class="kw">+</span>i, l)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">enddo</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>      <span class="kw">enddo</span></span></code></pre></div>
+<p>被 scatter 到 <code>*_omp</code> 的数组共 14 个：<code>zplev_omp</code>、<code>zplay_omp</code>、<code>zpk_omp</code>、<code>zphi_omp</code>、<code>zphis_omp</code>、<code>presnivs_omp</code>、<code>zufi_omp</code>、<code>zvfi_omp</code>、<code>zrfi_omp</code>、<code>ztfi_omp</code>、<code>zqfi_omp</code>、<code>zdufi_omp</code>、<code>zdvfi_omp</code>、<code>zdtfi_omp</code>、<code>zdqfi_omp</code>。</p>
+<p>这不是 <code>phy_common</code> 的 <code>scatter_omp</code> 泛型调用，而是手写循环。原因可能是 <code>calfis_p</code> 在 <code>CPP_PARA+CPP_PHYS</code> 内编译，直接依赖物理列数组布局，而 <code>scatter_omp</code> 泛型接口不一定覆盖所有维度和类型组合。</p>
+<h3 id="手动-gather">手动 gather</h3>
+<p>physics 调用后（包括 <code>nsplit_phys</code> 循环和 tendency 平均），源码把 <code>*_omp</code> 结果拷贝回 rank 级 <code>z*</code>：</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>      <span class="kw">do</span> l <span class="kw">=</span> <span class="dv">1</span>, llm</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>        <span class="kw">do</span> i <span class="kw">=</span> <span class="dv">1</span>, klon</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>          zufi(offset<span class="kw">+</span>i, l) <span class="kw">=</span> zufi_omp(i, l)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>        <span class="kw">enddo</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>      <span class="kw">enddo</span></span></code></pre></div>
+<p>gather 回 <code>z*</code> 的数组共 13 个（含 <code>zdpsrf</code>）。之后 <code>klon</code> 恢复为 <code>klon_mpi</code>，<code>500 CONTINUE</code> 标签后 BARRIER 同步。</p>
+<h2 id="mpi-wind-exchange">MPI wind exchange</h2>
+<p>physics 结束后，<code>calfis_p</code> 在 <code>using_mpi</code> 为真时执行一段手写 MPI 交换，这是 <code>calfis_p</code> 唯一直接使用 MPI 调用的段落：</p>
+<h3 id="发送阶段">发送阶段</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>      <span class="kw">IF</span> (using_mpi) <span class="kw">THEN</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>      <span class="kw">if</span> (MPI_rank <span class="op">&gt;</span> <span class="dv">0</span>) <span class="kw">then</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP DO SCHEDULE(STATIC,OMP_CHUNK)</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>       <span class="kw">DO</span> l <span class="kw">=</span> <span class="dv">1</span>, llm</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>        du_send(<span class="dv">1</span>:iim, l) <span class="kw">=</span> zdufi(<span class="dv">1</span>:iim, l)</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>        dv_send(<span class="dv">1</span>:iim, l) <span class="kw">=</span> zdvfi(<span class="dv">1</span>:iim, l)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>       <span class="kw">ENDDO</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP </span><span class="re">END</span><span class="co"> DO NOWAIT</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP BARRIER</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP MASTER</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP CRITICAL (MPI)</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>        <span class="kw">call</span> MPI_ISSEND(du_send, iim<span class="kw">*</span>llm, MPI_REAL8, MPI_Rank<span class="kw">-</span><span class="dv">1</span>, <span class="dv">401</span>, ..<span class="co">.)</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>        <span class="kw">call</span> MPI_ISSEND(dv_send, iim<span class="kw">*</span>llm, MPI_REAL8, MPI_Rank<span class="kw">-</span><span class="dv">1</span>, <span class="dv">402</span>, ..<span class="co">.)</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> CRITICAL (MPI)</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP BARRIER</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>      <span class="kw">endif</span></span></code></pre></div>
+<p><code>rank &gt; 0</code> 的 rank 把前 <code>iim</code> 列 <code>zdufi/zdvfi</code> 打包发送给 <code>rank-1</code>。打包用 OMP DO 并行化，发送用 MASTER + CRITICAL(MPI) 保护。</p>
+<h3 id="接收阶段">接收阶段</h3>
+<div class="sourceCode" id="cb9"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>      <span class="kw">if</span> (MPI_rank <span class="op">&lt;</span> MPI_Size<span class="kw">-</span><span class="dv">1</span>) <span class="kw">then</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP BARRIER</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP MASTER</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP CRITICAL (MPI)</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>        <span class="kw">call</span> MPI_IRECV(du_recv, iim<span class="kw">*</span>llm, MPI_REAL8, MPI_Rank<span class="kw">+</span><span class="dv">1</span>, <span class="dv">401</span>, ...<span class="co">)</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">call</span> MPI_IRECV(dv_recv, iim<span class="kw">*</span>llm, MPI_REAL8, MPI_Rank<span class="kw">+</span><span class="dv">1</span>, <span class="dv">402</span>, ...<span class="co">)</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> CRITICAL (MPI)</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>      <span class="kw">endif</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP BARRIER</span></span></code></pre></div>
+<p><code>rank &lt; size-1</code> 从 <code>rank+1</code> 接收。BARRIER 确保所有线程在 WAITALL 前同步。</p>
+<h3 id="等待和组装">等待和组装</h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP MASTER</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP CRITICAL (MPI)</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>      <span class="kw">if</span> (MPI_rank<span class="op">&gt;</span><span class="dv">0</span> <span class="op">.and.</span> MPI_rank<span class="op">&lt;</span>MPI_Size<span class="kw">-</span><span class="dv">1</span>) <span class="kw">then</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>        <span class="kw">call</span> MPI_WAITALL(<span class="dv">4</span>, Req(<span class="dv">1</span>), Status, ierr)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>      <span class="kw">else if</span> (MPI_rank<span class="op">&gt;</span><span class="dv">0</span>) <span class="kw">then</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">call</span> MPI_WAITALL(<span class="dv">2</span>, Req(<span class="dv">1</span>), Status, ierr)</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>      <span class="kw">else if</span> (MPI_rank<span class="op">&lt;</span>MPI_Size<span class="kw">-</span><span class="dv">1</span>) <span class="kw">then</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>        <span class="kw">call</span> MPI_WAITALL(<span class="dv">2</span>, Req(<span class="dv">3</span>), Status, ierr)</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>      <span class="kw">endif</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> CRITICAL (MPI)</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP BARRIER</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>      <span class="kw">ENDIF</span> <span class="co">! using_mpi</span></span></code></pre></div>
+<p>中间 rank 等待 4 个 request（2 发 + 2 收），边界 rank 等待 2 个。</p>
+<h3 id="扩展数组构造">扩展数组构造</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP DO SCHEDULE(STATIC,OMP_CHUNK)</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>      <span class="kw">DO</span> l <span class="kw">=</span> <span class="dv">1</span>, llm</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>        zdufi2(<span class="dv">1</span>:klon, l) <span class="kw">=</span> zdufi(<span class="dv">1</span>:klon, l)</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>        zdufi2(klon<span class="kw">+</span><span class="dv">1</span>:klon<span class="kw">+</span>iim, l) <span class="kw">=</span> du_recv(<span class="dv">1</span>:iim, l)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>        zdvfi2(<span class="dv">1</span>:klon, l) <span class="kw">=</span> zdvfi(<span class="dv">1</span>:klon, l)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>        zdvfi2(klon<span class="kw">+</span><span class="dv">1</span>:klon<span class="kw">+</span>iim, l) <span class="kw">=</span> dv_recv(<span class="dv">1</span>:iim, l)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>        <span class="co">! 同时清零 jj_begin / jj_end tendency ...</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>      <span class="kw">ENDDO</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP </span><span class="re">END</span><span class="co"> DO NOWAIT</span></span></code></pre></div>
+<p>这段同时完成三件事：构造扩展数组、清零边界纬圈 tendency、为后续 gather 做准备。<code>OMP DO</code> 并行化层循环。</p>
+<h2 id="与-phy_common-transfer-基础设施的关系">与 phy_common transfer 基础设施的关系</h2>
+<h3 id="直接使用的-phy_common-符号">直接使用的 phy_common 符号</h3>
+<table>
+<thead>
+<tr>
+<th>来源模块</th>
+<th>符号</th>
+<th>calfis_p 中的用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data</code></td>
+<td><code>mpi_master</code>（别名 <code>mpi_root_xx</code>）</td>
+<td>引入但未在主线直接使用</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data</code></td>
+<td><code>MPI_rank, MPI_Size, is_north_pole_dyn, is_south_pole_dyn</code></td>
+<td>rank/pole 判断</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_omp_data</code></td>
+<td><code>klon_omp, klon_omp_begin</code></td>
+<td>线程列切片</td>
+</tr>
+<tr>
+<td><code>mod_const_mpi</code></td>
+<td><code>COMM_LMDZ</code></td>
+<td>MPI wind exchange communicator</td>
+</tr>
+<tr>
+<td><code>parallel_lmdz</code></td>
+<td><code>omp_chunk, using_mpi, AllGather_Field, jj_begin/jj_end</code></td>
+<td>OMP chunk、MPI 标志、全局场收集</td>
+</tr>
+</tbody>
+</table>
+<h3 id="不直接使用的-phy_common-transfer">不直接使用的 phy_common transfer</h3>
+<p><code>calfis_p</code> 不调用 <code>mod_phys_lmdz_transfert_para</code> 的 <code>bcast/scatter/gather</code> 泛型，也不调用 <code>mod_phys_lmdz_mpi_transfert</code> 或 <code>mod_phys_lmdz_omp_transfert</code> 的任何过程。原因是：</p>
+<ol type="1">
+<li><p><strong>scatter 路径不同</strong>：<code>phy_common</code> 的 <code>scatter_mpi</code>/<code>scatter_omp</code> 在 <code>klon_glo</code>（全局物理列）和 <code>klon_mpi</code>/<code>klon_omp</code> 之间搬运，使用 <code>klon_mpi_para_begin/end</code> 分布表。<code>calfis_p</code> 的 scatter 是从动力 <code>(iip1,jjp1)</code> 二维格点到 <code>klon_mpi</code> 一维列，由 <code>index_i/index_j</code> 驱动，两者映射方式不同。</p></li>
+<li><p><strong>gather 路径不同</strong>：<code>phy_common</code> 的 <code>gather_mpi</code> 从 <code>klon_mpi</code> 收集回 <code>klon_glo</code>。<code>calfis_p</code> 的 gather 是从 <code>klon_mpi</code> 一维列写回 <code>(iip1,jjp1)</code> 二维动力格点，由 <code>gr_fi_dyn_p</code> 和手动回写完成。</p></li>
+<li><p><strong>wind exchange 独有</strong>：MPI wind exchange 是 <code>calfis_p</code> 特有的跨 rank 通信，服务于 <code>pdvfi</code> 跨纬带 stencil。<code>phy_common</code> 的 MPI transfer 族不包含这类自定义 stencil 交换。</p></li>
+</ol>
+<h3 id="allgather_fieldtitan-专用">AllGather_Field：Titan 专用</h3>
+<p><code>AllGather_Field</code> 来自 <code>parallel_lmdz</code>，不是 <code>phy_common</code> transfer。它只在 Titan 分支（<code>planet_type=="titan"</code>）和 <code>flag_moyzon</code> 为真时使用，把整个二维动力场收集到所有 rank，用于计算 zonal/global mean 剖面。Mars 主线不经过这段。</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>      <span class="kw">if</span> (planet_type<span class="op">.eq.</span><span class="st">&quot;titan&quot;</span>) <span class="kw">then</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>        <span class="kw">call</span> AllGather_Field(pp, iip1<span class="kw">*</span>jjp1, llmp1)</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>        <span class="kw">call</span> AllGather_Field(pteta, iip1<span class="kw">*</span>jjp1, llm)</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>        <span class="co">! ... 计算 plevmoy, tmoy, tetamoy, phimoy 等全局均值 ...</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>      <span class="kw">endif</span></span></code></pre></div>
+<h2 id="运行时并行守卫">运行时并行守卫</h2>
+<p>除了编译守卫，<code>calfis_p</code> 在运行时还有多层条件分支：</p>
+<table>
+<thead>
+<tr>
+<th>守卫</th>
+<th>类型</th>
+<th>控制范围</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>using_mpi</code></td>
+<td>logical</td>
+<td>MPI wind exchange 整段（L1182-1241）</td>
+</tr>
+<tr>
+<td><code>is_north_pole_dyn</code></td>
+<td>logical</td>
+<td>scatter 极点 kstart=2、极点 wind 投影、gather 极点行扩展</td>
+</tr>
+<tr>
+<td><code>is_south_pole_dyn</code></td>
+<td>logical</td>
+<td>scatter 极点 kend=klon-1、极点 wind 投影、jj_end 不清零</td>
+</tr>
+<tr>
+<td><code>firstcal</code></td>
+<td>SAVE logical</td>
+<td>首次调用分配、debut 标志</td>
+</tr>
+<tr>
+<td><code>first_omp</code></td>
+<td>THREADPRIVATE logical</td>
+<td>每个线程首次 <code>_omp</code> 分配</td>
+</tr>
+<tr>
+<td><code>flag_moyzon</code></td>
+<td>logical</td>
+<td>Titan/Venus zonal mean 分支（moyzon_ch/moyzon_mu）</td>
+</tr>
+<tr>
+<td><code>MPI_rank</code></td>
+<td>integer</td>
+<td>wind exchange 发送/接收边界判断</td>
+</tr>
+</tbody>
+</table>
+<h2 id="threadprivate-清单">THREADPRIVATE 清单</h2>
+<p><code>calfis_p</code> 声明的 THREADPRIVATE 变量分为两组：</p>
+<p><strong>OMP 工作区</strong>（20 个数组 + 1 个标志）：</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP THREADPRIVATE(zplev_omp, zplay_omp, zpk_omp, zphi_omp, zphis_omp,</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP+              presnivs_omp, zufi_omp, zvfi_omp, ztfi_omp,</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP+              zrfi_omp, zqfi_omp, zdufi_omp, zdvfi_omp,</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP+              zdtfi_omp, zdqfi_omp, zdpsrf_omp, flxwfi_omp,</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP+              zdufic_omp, zdvfic_omp, zdtfic_omp, zdqfic_omp)</span></span></code></pre></div>
+<p><strong>控制标志</strong>（3 个）：</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP THREADPRIVATE(first_omp)</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="co">c$OMP THREADPRIVATE(firstcal, debut)</span></span></code></pre></div>
+<p><code>firstcal</code> 和 <code>debut</code> 都是 THREADPRIVATE，这意味着每个线程独立维护首次调用状态。首次调用初始化在 <code>OMP MASTER</code> 段完成 rank 级分配，<code>first_omp</code> 控制线程级分配。</p>
+<h2 id="save-工作区生命周期">SAVE 工作区生命周期</h2>
+<p>rank 级 <code>z*</code> 数组使用 <code>ALLOCATABLE, SAVE</code>：首次调用时分配，后续调用复用同一内存。线程级 <code>*_omp</code> 数组同理，但每个线程独立分配。</p>
+<p><code>du_send/dv_send/du_recv/dv_recv</code> 是固定维度 <code>(iim, llm)</code> 的 SAVE 数组，不需要分配。<code>zdufi2/zdvfi2</code> 是 <code>ALLOCATABLE, SAVE</code>，维度 <code>klon+iim</code>，首次调用时分配。</p>
+<h2 id="与串行-calfis-的并行差异">与串行 calfis 的并行差异</h2>
+<table>
+<thead>
+<tr>
+<th>方面</th>
+<th>串行 calfis</th>
+<th>并行 calfis_p</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>域</td>
+<td>全局 <code>(iip1,jjp1)</code></td>
+<td>本 rank <code>(jj_begin:jj_end)</code></td>
+</tr>
+<tr>
+<td>列索引</td>
+<td><code>ngridmx</code> 全局物理列</td>
+<td><code>klon_mpi</code> 本地物理列</td>
+</tr>
+<tr>
+<td>OMP</td>
+<td>无</td>
+<td>两层：rank 级 OMP DO + 线程级 klon_omp</td>
+</tr>
+<tr>
+<td>MPI</td>
+<td>无</td>
+<td>wind exchange（ISSEND/IRECV）</td>
+</tr>
+<tr>
+<td>极点</td>
+<td>直接包含在 ngridmx 中</td>
+<td>由 <code>is_north/south_pole_dyn</code> 控制</td>
+</tr>
+<tr>
+<td>AllGather</td>
+<td>无</td>
+<td>Titan 专用</td>
+</tr>
+<tr>
+<td>工作区</td>
+<td>固定维度</td>
+<td>ALLOCATABLE, SAVE</td>
+</tr>
+<tr>
+<td>编译守卫</td>
+<td>无 CPP_PARA/CPP_PHYS</td>
+<td>CPP_PARA + CPP_PHYS + CPP_MPI</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>calfis_p</code> 的 OMP scatter/gather 是手写循环，不是 <code>phy_common</code> 的 <code>scatter_omp</code>/<code>gather_omp</code> 调用。调试时不能用 <code>phy_common</code> transfer 的 buffer/barrier 语义来推理 <code>calfis_p</code> 的数据搬运。</li>
+<li>MPI wind exchange 使用 <code>COMM_LMDZ</code>（动力 communicator），不是 <code>COMM_LMDZ_PHY</code>（物理 communicator）。两者可能在某些配置中不同。</li>
+<li><code>CRITICAL(MPI)</code> 保护 MPI 调用，但不保护 <code>du_send/dv_send</code> 的打包。打包在 <code>OMP DO</code> 中完成，BARRIER 后才由 MASTER 发送。如果去掉 BARRIER，MASTER 可能在打包完成前发送不完整数据。</li>
+<li><code>first_omp</code> 的 THREADPRIVATE 语义意味着不同线程可能在不同调用中完成首次分配。如果 <code>klon_omp</code> 在运行中变化（理论上不会），已分配的数组不会自动调整。</li>
+<li>rank 级 <code>z*</code> 数组的 OMP DO scatter 中，<code>index_i/index_j</code> 是模块级共享数组（非 THREADPRIVATE），所有线程读取同一映射表但写入不同 <code>ig0</code> 位置，无竞争。</li>
+<li>最后一 rank 的 <code>du_recv/dv_recv</code> 未接收数据（<code>MPI_rank==MPI_Size-1</code> 不进入接收分支），<code>zdufi2(klon+1:)</code> 保持旧值。但 <code>pdvfi</code> 回写时 <code>is_south_pole_dyn</code> 分支覆盖了最后一 rank 的极点处理。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p 模块页</a></li>
+<li><a href="calfis-p-grid-mapping.html">calfis_p 动力格点到物理列映射</a></li>
+<li><a href="calfis-p-physiq-contract.html">calfis_p 与 call_physiq 接口契约</a></li>
+<li><a href="calfis-p-date-planet-branches.html">calfis_p 日期与行星分支</a></li>
+<li><a href="leapfrog-p-physics-coupling.html">leapfrog-p-physics-coupling</a></li>
+<li><a href="../modules/phy_common/mod_phys_lmdz_para.html">mod_phys_lmdz_para</a></li>
+<li><a href="../modules/phy_common/mpi-data-transfer.html">MPI data/transfer</a></li>
+<li><a href="../modules/phy_common/omp-data-transfer.html">OMP data/transfer</a></li>
+<li><a href="../modules/phy_common/physics_distribution_mod.html">physics_distribution_mod</a></li>
+<li><a href="../modules/phy_common/parallel-transfer-6d.html">parallel-transfer-6d</a></li>
+<li><a href="leapfrog-p-distribution-halo.html">leapfrog_p 分布和 halo 调度</a></li>
+<li><a href="../themes/serial-parallel-dynamics.html">serial-parallel-dynamics</a></li>
+<li><a href="phys-transfer-mpi-core.html">phys-transfer-mpi-core</a></li>
+<li><a href="phys-transfer-omp-core.html">phys-transfer-omp-core</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>COMM_LMDZ</code> 和 <code>COMM_LMDZ_PHY</code> 在 Mars 并行配置中是否为同一 communicator。</li>
+<li><code>using_mpi</code> 标志在纯 OpenMP（无 MPI）构建中是否始终为假，此时 wind exchange 是否完全跳过。</li>
+<li><code>calfis_p</code> 不调用 <code>phy_common</code> transfer 泛型是设计选择还是历史遗留；未来是否可能统一。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

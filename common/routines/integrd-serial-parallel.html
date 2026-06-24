@@ -1,0 +1,110 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>integrd-serial-parallel - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/integrd-serial-parallel.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="integrd-串并行对照">integrd 串并行对照</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d\integrd.F
+dyn3dpar\integrd_p.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。动力主循环在完成 tendency 计算后调用积分例程更新状态；串并行入口不同。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>integrd</code> 把 <code>caldyn</code>、物理 tendency、耗散和外部 forcing 产生的增量合并到 prognostic state 中，并检查积分后的物理合理性。并行版在本地子域上执行同样任务，并保留负地表压等异常 abort 保护。</p>
+<h2 id="对照表">对照表</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>串行</th>
+<th>并行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>行数</td>
+<td>269</td>
+<td>407</td>
+</tr>
+<tr>
+<td>主例程</td>
+<td><code>integrd</code></td>
+<td><code>integrd_p</code></td>
+</tr>
+<tr>
+<td>控制依赖</td>
+<td><code>control_mod: planet_type, force_conserv_tracer</code></td>
+<td>同类控制量加并行范围</td>
+</tr>
+<tr>
+<td>异常处理</td>
+<td><code>abort_gcm</code></td>
+<td><code>abort_gcm</code>，含负 surface pressure 检查</td>
+</tr>
+<tr>
+<td>状态更新</td>
+<td>全局数组</td>
+<td>子域数组与边界同步前后约束</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>读取当前状态和 tendency。</li>
+<li>按时间步把动量、热力、质量和 tracer tendency 加到 prognostic arrays。</li>
+<li>根据 <code>force_conserv_tracer</code> 等开关处理 tracer 守恒修正。</li>
+<li>检查压力或质量是否出现非法值。</li>
+<li>把更新后状态返回主循环，供下一次滤波、物理或输出使用。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>integrd</code> 是状态写回点，调试守恒误差时应同时检查其输入 tendency 和输出状态。</li>
+<li>并行版的负压 abort 通常说明上游 tendency、质量通量或 halo 边界已有问题。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>各 tendency 数组的完整名称和单位需在 leapfrog hard task 中逐项绑定。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

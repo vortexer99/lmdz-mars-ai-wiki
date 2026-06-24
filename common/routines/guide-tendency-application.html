@@ -1,0 +1,209 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>guide-tendency-application - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/guide-tendency-application.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="guide-forcing-叠加到动力状态">guide forcing 叠加到动力状态</h1>
+<p>页面状态：TASK-0134 完成。 源码范围：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\guide_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\guide_p_mod.F90</code></pre>
+<p>Mars 运行参与度：接口兼容 + 条件边界。只有由 <code>leapfrog/leapfrog_p</code> 调用 <code>guide_main</code> 时经过；6.3 源码中该调用受 <code>CPP_IOIPSL</code> + <code>planet_type=="earth"</code> 条件包围。Mars/generic <code>ok_guide</code> 初始化路径调用 <code>relaxetat0("relax.nc")</code>，不经过本页状态叠加链。</p>
+<h2 id="guide_main-职责">guide_main 职责</h2>
+<p><code>guide_main(itau,ucov,vcov,teta,q,masse,ps)</code> 直接修改动力预报变量。它不是返回一个独立 tendency，而是把 guide 目标场与当前状态的差值经 <code>guide_addfield</code> 加权后写回：</p>
+<pre class="text"><code>target = (1-tau) * Xgui1 + tau * Xgui2
+if guide_add:
+  f_add = target
+else:
+  f_add = target - current_state
+optional guide_zonave(f_add)
+guide_addfield(f_add, alpha_X)
+current_state = current_state + f_add</code></pre>
+<p><code>tau</code> 是两个 guide 输入时间片之间的线性权重；若 <code>iguide_read=0</code>，则固定 <code>tau=1</code>。<code>factt=dtvr*iperiod/daysec</code> 在首次进入时计算，用于 <code>tau2alpha</code> 和 guide 输出诊断。</p>
+<h2 id="变量叠加顺序">变量叠加顺序</h2>
+<p><code>guide_main</code> 的状态更新顺序固定为 U、T、P、Q、V：</p>
+<table>
+<thead>
+<tr>
+<th>开关</th>
+<th>目标场</th>
+<th>差值/forcing</th>
+<th>权重</th>
+<th>写回</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>guide_u</code></td>
+<td><code>ugui1/ugui2</code></td>
+<td><code>f_add</code> 或 <code>target-ucov</code></td>
+<td><code>alpha_u</code></td>
+<td><code>ucov += f_add</code></td>
+</tr>
+<tr>
+<td><code>guide_T</code></td>
+<td><code>tgui1/tgui2</code></td>
+<td><code>f_add</code> 或 <code>target-teta</code></td>
+<td><code>alpha_T</code></td>
+<td><code>teta += f_add</code></td>
+</tr>
+<tr>
+<td><code>guide_P</code></td>
+<td><code>psgui1/psgui2</code></td>
+<td><code>f_add(:,1)</code> 或 <code>target-ps</code></td>
+<td><code>alpha_P</code></td>
+<td><code>ps += f_add(:,1)</code> 后重算 <code>masse</code></td>
+</tr>
+<tr>
+<td><code>guide_Q</code></td>
+<td><code>qgui1/qgui2</code></td>
+<td><code>f_add</code> 或 <code>target-q</code></td>
+<td><code>alpha_Q</code></td>
+<td><code>q += f_add</code></td>
+</tr>
+<tr>
+<td><code>guide_v</code></td>
+<td><code>vgui1/vgui2</code></td>
+<td><code>f_add(1:ip1jm,:)</code> 或 <code>target-vcov</code></td>
+<td><code>alpha_v</code></td>
+<td><code>vcov += f_add(1:ip1jm,:)</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>guide_add=.TRUE.</code> 时，<code>target</code> 被解释为外部 forcing-like 增量；普通 nudging 则使用目标场减当前状态的差值。<code>guide_zon=.TRUE.</code> 时，会先把 <code>f_add</code> 做 zonal average，再乘权重并写回。</p>
+<h2 id="guide_addfield">guide_addfield</h2>
+<p>串行版 <code>guide_addfield(hsize,vsize,field,alpha)</code> 对所有水平点和垂直层执行：</p>
+<pre class="text"><code>field(:,l) = alpha * field(:,l) * alpha_pcor(l)</code></pre>
+<p>并行版按 <code>hsize</code> 判断 U/scalar 网格和 V 网格：</p>
+<ul>
+<li><code>hsize==ip1jm</code>：只处理 <code>ijb_v:ije_v</code>。</li>
+<li>其他情况：只处理 <code>ijb_u:ije_u</code>。</li>
+</ul>
+<p><code>alpha_pcor(l)</code> 是边界层修正。若 <code>guide_BL=.TRUE.</code>，所有层为 1；否则按</p>
+<pre class="text"><code>(1 + tanh((0.85 - presnivs(l)/preff)/0.05)) / 2</code></pre>
+<p>衰减靠近边界层的 nudging。<code>presnivs/preff</code> 越接近低层，系数越容易被压低。</p>
+<h2 id="guide_zonave">guide_zonave</h2>
+<p><code>guide_zonave(typ,hsize,vsize,field)</code> 可把 forcing 变成纬向平均场。首次调用时根据 <code>guide_reg</code> 和 <code>lon_min_g/lon_max_g</code> 计算平均经度范围：</p>
+<ul>
+<li><code>typ=1</code> 使用 <code>rlonu</code>，用于 U 网格。</li>
+<li><code>typ=2</code> 使用 <code>rlonv</code>，用于标量、P、Q、T 和 V 调用。</li>
+</ul>
+<p>随后对每个纬向行和垂直层，在 <code>imin(typ):imax(typ)</code> 经度范围内求平均，并把该平均值复制到整圈经度。若 <code>guide_reg=.FALSE.</code>，默认使用全经度范围。</p>
+<p>并行版只在本地纬向范围内做相同操作：V 网格用 <code>jjb_v:jje_v</code>，其他网格最终写 <code>jjb_u:jje_u</code>。源码中非 V 分支计算平均时也用 <code>jjb_v:jje_v</code> 扫描，再填回 U/scalar 本地行；这对南极缩减分布可能使极行行为不同，属于运行验证点。</p>
+<h2 id="guide-输出诊断">guide 输出诊断</h2>
+<p>若 <code>guide_sav=.TRUE.</code> 且 <code>MOD(itau,iguide_sav)==0</code>，<code>f_out</code> 为真：</p>
+<ul>
+<li>串行版先写 <code>SP</code>，再在各变量段写当前场、目标场或 <code>f_add/factt</code>。</li>
+<li>并行版在写 <code>SP</code> 前重算层中心压力并传给 <code>guide_out("SP",...,factt=1.)</code>；各变量调用 <code>guide_out(..., factt)</code>，由 guide 输出例程处理并行 gather/root 写。</li>
+</ul>
+<p>诊断中的 <code>f_add/factt</code> 表示把当前步增量换算为每“动力步天分数”的 forcing 量，不等同于物理包 tendency 单位。</p>
+<h2 id="ini_anal-分支">ini_anal 分支</h2>
+<p>首次进入 <code>guide_main</code> 时若 <code>ini_anal=.TRUE.</code>，源码直接把初始状态设为 guide 当前目标场并返回，不走常规 <code>guide_addfield</code>：</p>
+<ul>
+<li>U、T、Q、P 分别写 <code>ugui2/tgui2/qgui2/psgui2</code>。</li>
+<li>P 分支写 <code>ps</code> 后立即调用 <code>pression/massdair</code> 或 <code>_p</code> 版本刷新 <code>masse</code>。</li>
+<li>V 分支源码写的是 <code>vcov=ugui2</code>（并行版为 <code>vcov(ijb_v:ije_v,:)=ugui2(...)</code>），不是 <code>vgui2</code>；本页按 6.3 源码记录，设计意图待确认。</li>
+</ul>
+<h2 id="串并行差异">串并行差异</h2>
+<table>
+<thead>
+<tr>
+<th>环节</th>
+<th>串行 <code>guide_mod</code></th>
+<th>并行 <code>guide_p_mod</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>写回范围</td>
+<td>全局数组</td>
+<td><code>ijb_u:ije_u</code> 或 <code>ijb_v:ije_v</code> 本地段</td>
+</tr>
+<tr>
+<td><code>guide_addfield</code></td>
+<td>全水平域乘 <code>alpha*alpha_pcor</code></td>
+<td>按 U/scalar 或 V 本地段乘权重</td>
+</tr>
+<tr>
+<td><code>guide_zonave</code></td>
+<td>全纬向行和全经度可见</td>
+<td>本地纬向行可见；V 分支按 <code>jjb_v:jje_v</code></td>
+</tr>
+<tr>
+<td><code>guide_P</code> 后刷新</td>
+<td><code>pression</code> + <code>massdair</code></td>
+<td><code>pression_p</code> + <code>massdair_p</code></td>
+</tr>
+<tr>
+<td>输出</td>
+<td><code>guide_out</code> 直接写</td>
+<td><code>guide_out</code> 需并行 gather/root 语义</td>
+</tr>
+</tbody>
+</table>
+<p>并行版没有在 <code>guide_main</code> 入口执行注释掉的 <code>AllGather_Field</code>，所以正常路径依赖 <code>guide_read</code> 读全场、<code>guide_interp</code> 局部切片和本地写回。</p>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>先确认 <code>guide_add</code>：它决定 guide 场是外部增量还是目标状态。</li>
+<li><code>guide_zon</code> 会在加权前把 forcing 做纬向平均，影响所有变量。</li>
+<li><code>guide_P</code> 是唯一会立刻重算 <code>masse</code> 的分支；U/T/Q/V 只直接写对应状态。</li>
+<li>若低层 nudging 弱，检查 <code>guide_BL</code> 和 <code>alpha_pcor(l)</code>。</li>
+<li>并行调试时，按 <code>ijb_u/ije_u</code> 与 <code>ijb_v/ije_v</code> 分开看写回范围。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>ini_anal</code> 下 V 风写 <code>ugui2</code> 而非 <code>vgui2</code> 是否是历史 bug。</li>
+<li>并行 <code>guide_zonave</code> 的非 V 分支用 <code>jjb_v:jje_v</code> 做平均是否会影响极行或仅是可接受的本地行选择。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="guide-config-contract.html">guide 配置与初始化契约</a></li>
+<li><a href="guide-input-fields.html">guide 输入场读取</a></li>
+<li><a href="guide-interpolation-pressure.html">guide 压力层插值和 nudging 系数</a></li>
+<li><a href="guide-serial-parallel-delta.html">guide 串并行差异</a></li>
+<li><a href="leapfrog-p-physics-coupling.html">leapfrog-p-physics-coupling</a></li>
+<li><a href="common-pressure-mass-operators.html">common-pressure-mass-operators</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

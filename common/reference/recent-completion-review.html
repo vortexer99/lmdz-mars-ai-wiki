@@ -1,0 +1,163 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>recent-completion-review - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="file-index.html">文件索引</a>
+        <a href="source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>reference/recent-completion-review.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="近期完成任务复核记录">近期完成任务复核记录</h1>
+<p>页面状态：复核记录，面向近期 hard 父页、索引页和实用版收口页。 复核时间：2026-06-19 05:10。 复核范围：<code>TASK-0200</code>, <code>TASK-0201</code>, <code>TASK-0018</code>, <code>TASK-0014</code>, <code>TASK-0015</code>, <code>TASK-0011</code>。 Mars 运行参与度：接口兼容。本页复核 Mars 相关 COMMON wiki 页面，不复核 COMMON 全源码的所有分支。</p>
+<h2 id="复核级别">复核级别</h2>
+<p>本轮是源感知抽样复核，不是逐行最终审计。检查项包括：</p>
+<ul>
+<li>对应 wiki 页面存在，报告文件已入 git。</li>
+<li>根入口、file-index、coverage matrix 已能导航到新页面。</li>
+<li>页面中的 Markdown 相对链接均指向已存在页面。</li>
+<li>核心源码事实能在 <code>LMDZ.COMMON</code> 或 Mars consumer 源码中抽样对上。</li>
+<li>未把 Venus/Titan/evolution/PEM 等非 Mars 路径重新纳入实用版缺口。</li>
+</ul>
+<h2 id="已复核任务">已复核任务</h2>
+<table>
+<thead>
+<tr>
+<th>任务</th>
+<th>页面</th>
+<th>复核结论</th>
+<th>证据摘要</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TASK-0200</td>
+<td><a href="practical-wiki-acceptance.html">practical-wiki-acceptance</a></td>
+<td>通过</td>
+<td>当前页面按功能面给出“实用版已达标”；原始报告中的“接近但未达标”已被后续 <code>TASK-0201</code> 和 H1-H4 父页更新所覆盖。</td>
+</tr>
+<tr>
+<td>TASK-0201</td>
+<td><a href="../routines/history-xios-getin-boundary.html">history-xios-getin-boundary</a></td>
+<td>通过</td>
+<td><code>conf_gcm</code> 输出配置、<code>ioipsl_getin_p_mod</code> root-read/bcast、Mars <code>conf_phys</code> 的 <code>outputs_per_sol/output_diagfi/callstats/diagsoil</code> 与页面说明一致。</td>
+</tr>
+<tr>
+<td>TASK-0018</td>
+<td><a href="../themes/restart-io.html">restart-io</a></td>
+<td>通过</td>
+<td>restart、history/dynav、Mars physics diagfi/stats、XIOS/getin 和 archive 工具链边界已串到同一阅读路径；链接检查通过。</td>
+</tr>
+<tr>
+<td>TASK-0014</td>
+<td><a href="../themes/dynamics-time-integration.html">dynamics-time-integration</a></td>
+<td>通过</td>
+<td><code>conf_gcm</code> 的时间推进键、<code>leapfrog</code> 中 <code>caldyn/caladvtrac/integrd/calfis/addfi/sponge/dissip/writehist/writedynav/dynredem1</code> 门控可由源码抽样确认。</td>
+</tr>
+<tr>
+<td>TASK-0015</td>
+<td><a href="../themes/serial-parallel-dynamics.html">serial-parallel-dynamics</a></td>
+<td>通过</td>
+<td><code>dyn3dpar/gcm.F</code> 中 <code>init_const_mpi/init_parallel/Read_Distrib/SetDistrib/Init_Mod_hallo</code> 和 <code>distrib_phys(mpi_rank), comm_lmdz</code> 物理初始化接口与页面说明一致。</td>
+</tr>
+<tr>
+<td>TASK-0011</td>
+<td><a href="symbol-index.html">symbol-index</a></td>
+<td>通过</td>
+<td>索引只链接已存在页面，并把未完成 hard 符号保留为纯文本任务提示；入口、主题、模块、I/O 和配置键覆盖实用反查。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="源码抽样">源码抽样</h2>
+<p>本轮抽查了以下源码范围：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\conf_gcm.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\gcm.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\leapfrog.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\gcm.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\Bands.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\parallel_lmdz.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\ioipsl_getin_p_mod.F90
+LMDZ.MARS\libf\phymars\conf_phys.F
+LMDZ.MARS\libf\phymars\write_output_mod.F90</code></pre>
+<h2 id="本轮结论">本轮结论</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>结果</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>页面和报告</td>
+<td>通过</td>
+<td>6 个任务均有目标页面和 <code>TASK-*-report.md</code>，且已入 git。</td>
+</tr>
+<tr>
+<td>导航入口</td>
+<td>通过</td>
+<td>根入口、file-index、coverage matrix 均已接入相关页面。</td>
+</tr>
+<tr>
+<td>链接存在性</td>
+<td>通过</td>
+<td>本轮 6 个目标页面的 Markdown 相对链接未发现缺失目标。</td>
+</tr>
+<tr>
+<td>源码事实</td>
+<td>通过</td>
+<td>核心调用链和配置边界通过源码抽样复核。</td>
+</tr>
+<tr>
+<td>实用版状态</td>
+<td>通过</td>
+<td>当前 wiki 已可按 Mars run 主链完成实用版阅读和定位；剩余 hard 页属于深度增强。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="残余风险">残余风险</h2>
+<ul>
+<li>本轮没有实际运行 <code>CPP_IOIPSL/CPP_XIOS</code> 构建或 Mars case，因此 XIOS XML、平台 I/O 行为和运行脚本习惯仍需实测或运行目录证据。</li>
+<li><code>TASK-0016/0017/0019/0020/0021/0022/0023</code> 等 hard 页仍未完成；它们不阻断实用版验收，但会影响逐文件深度追踪。</li>
+<li>Mars physics <code>diagfi.nc/stats.nc/XIOS</code> 字段清单属于 MARS physics wiki 或后续输出深度页，不在 COMMON 实用版复核中展开。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

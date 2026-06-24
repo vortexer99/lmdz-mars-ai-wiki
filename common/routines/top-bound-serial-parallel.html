@@ -1,0 +1,100 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>top-bound-serial-parallel - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/top-bound-serial-parallel.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="top_bound-串并行对照">top_bound 串并行对照</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d\top_bound.F
+dyn3dpar\top_bound_p.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。顶部边界处理或 sponge/top boundary 配置开启时经过。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>top_bound</code> 处理模式顶部的动量、温度或质量相关边界条件。它和 <code>sponge_mod</code>、<code>conf_gcm</code> 中的 top-bound 配置共同决定高层阻尼或边界 forcing 如何进入动力方程。</p>
+<h2 id="对照表">对照表</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>角色</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>top_bound.F</code></td>
+<td>199</td>
+<td>串行顶部边界处理。</td>
+</tr>
+<tr>
+<td><code>top_bound_p.F</code></td>
+<td>250</td>
+<td>并行顶部边界处理。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>读取顶部边界相关配置和当前高层状态。</li>
+<li>计算需施加的边界 tendency 或修正。</li>
+<li>写回顶部附近层的动力变量。</li>
+<li>并行版按子域处理水平范围。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>顶边界效果通常只影响高层，但可通过波动/质量调整向下传播。</li>
+<li>需要同时记录 <code>conf_gcm</code> 中 top-bound 开关和 <code>sponge_mod</code> 配置。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="sponge-serial-parallel.html">sponge 串并行对照</a></li>
+<li><a href="../modules/dyn3d/conf_gcm.html">conf_gcm</a></li>
+<li><a href="leapfrog-p-physics-coupling.html">leapfrog_p 并行动力-物理耦合</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>各 top-bound 分支的物理含义需结合 <code>conf_gcm</code> 参数名逐项确认。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

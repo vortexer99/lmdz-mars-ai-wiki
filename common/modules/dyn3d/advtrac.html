@@ -1,0 +1,483 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>advtrac - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d/advtrac.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="dyn3dadvtracf90">dyn3d/advtrac.F90</h1>
+<p>页面状态：TASK-0164 完成。</p>
+<p>源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\advtrac.F90</code></p>
+<p>Mars 运行参与度：<code>条件经过</code>。串行 Mars 3D 动力时间步在 <code>leapfrog -&gt; caladvtrac -&gt; advtrac</code> 链中进入本文件；只有累计步数 <code>iadvtr == iapp_tracvl</code> 时才真正执行 tracer advection。当前 6.3 <code>infotrac_init</code> 标准白名单只允许 <code>iadv=0/10/14</code>，因此 Mars 标准可达的串行输送主要是 Van Leer <code>vlsplt</code> 和第 1 个 tracer 的饱和水汽 <code>vlspltqs</code> 路径。PPM、Prather、<code>advn</code>、<code>pentes_ini</code> 分支保留在源码中，但标准初始化通常会在进入本文件前阻断对应 <code>iadv</code>。</p>
+<h2 id="文件角色">文件角色</h2>
+<p><code>advtrac.F90</code> 是串行动力 tracer advection 调度器，不是具体数值格式内核。它负责：</p>
+<ul>
+<li>累计多个动力步的水平质量通量 <code>pbaru/pbarv</code>。</li>
+<li>在一轮 tracer 输送的第一个动力步保存空气质量 <code>massem</code>。</li>
+<li>到第 <code>iapp_tracvl</code> 步时调用 <code>groupe</code> 生成 pole-grouped 通量和垂直通量 <code>wg</code>。</li>
+<li>计算 <code>flxw</code>、DP/P 风险诊断和每日 CFL 诊断。</li>
+<li>对 <code>iq=1,nqperes</code> 的父 tracer 按 <code>iadv(iq)</code> 选择具体输送格式。</li>
+<li>在 <code>ok_iso_verif</code> 时执行输送前后 isotope 一致性检查。</li>
+<li>完成实际输送后把内部累计计数 <code>iadvtr</code> 复位为 0。</li>
+</ul>
+<p>并行构建不使用本文件；对应源码是 <code>dyn3dpar/advtrac_p.F90</code> 中被 <a href="../dyn3dpar/leapfrog_p.html">leapfrog_p</a> 调用的 <code>advtrac_p</code>，其当前可达数值调度集中在 <a href="../dyn3dpar/vlspltgen_p.html">vlspltgen_p</a>。</p>
+<h2 id="例程清单">例程清单</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th style="text-align: right;">源码行</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>advtrac</code></td>
+<td>subroutine</td>
+<td style="text-align: right;">3</td>
+<td>串行 tracer advection 调度器；累计通量、门控输送、分派 <code>iadv</code> 格式。</td>
+</tr>
+</tbody>
+</table>
+<p>文件总行数：407。</p>
+<h2 id="useinclude-和外部例程">USE、include 和外部例程</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>符号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>infotrac</code></td>
+<td><code>nqtot</code>, <code>iadv</code>, <code>nqperes</code>, <code>ok_iso_verif</code></td>
+<td>tracer 数量、父 tracer 数、advection scheme 和 isotope 检查开关。</td>
+</tr>
+<tr>
+<td><code>control_mod</code></td>
+<td><code>iapp_tracvl</code>, <code>day_step</code></td>
+<td>tracer advection 累计频率和 CFL 诊断输出周期。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>dtvr</code></td>
+<td>动力时间步，用于 DP/P、CFL 和下游输送时间步。</td>
+</tr>
+<tr>
+<td><code>dimensions.h</code>, <code>paramet.h</code></td>
+<td><code>ip1jmp1</code>, <code>ip1jm</code>, <code>llm</code>, <code>iip1</code>, <code>jjm</code> 等</td>
+<td>水平/垂直数组维度和网格常数。</td>
+</tr>
+<tr>
+<td><code>comgeom2.h</code></td>
+<td>几何/网格常数</td>
+<td>被下游质量平均和通量处理使用。</td>
+</tr>
+<tr>
+<td><code>iniprint.h</code></td>
+<td><code>lunout</code>, <code>prt_level</code> 等</td>
+<td>CFL 和诊断输出。</td>
+</tr>
+<tr>
+<td><code>minmax</code></td>
+<td>external</td>
+<td>DP/P 范围诊断。</td>
+</tr>
+</tbody>
+</table>
+<p>主要被调用例程：</p>
+<table>
+<thead>
+<tr>
+<th>例程</th>
+<th>当前角色</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>groupe</code></td>
+<td>把累计质量通量整理成 <code>pbarug/pbarvg/wg</code>，并处理极区 grouping。</td>
+</tr>
+<tr>
+<td><code>massbar</code></td>
+<td>计算 <code>massebx/masseby</code>，供 PPM 格式转换使用。当前标准 Mars 白名单通常阻断 PPM，但调用仍位于实际输送段内。</td>
+</tr>
+<tr>
+<td><code>check_isotopes_seq</code></td>
+<td><code>ok_iso_verif</code> 条件下，输送前后检查 isotope 一致性。</td>
+</tr>
+<tr>
+<td><code>vlsplt</code></td>
+<td><code>iadv=10</code> 标准 Van Leer split 主路径。</td>
+</tr>
+<tr>
+<td><code>vlspltqs</code></td>
+<td><code>iadv=14</code> 饱和水汽路径；6.3 白名单只允许第 1 个 tracer。</td>
+</tr>
+<tr>
+<td><code>adaptdt</code></td>
+<td>为 <code>advn/Prather/PPM</code> 保留分支计算子步长。</td>
+</tr>
+<tr>
+<td><code>advn</code></td>
+<td><code>iadv=12/13</code> 历史 pseudo amont 格式。</td>
+</tr>
+<tr>
+<td><code>pentes_ini</code></td>
+<td><code>iadv=20</code> slope/moments 初始化格式。</td>
+</tr>
+<tr>
+<td><code>prather</code></td>
+<td><code>iadv=30</code> moments 格式。</td>
+</tr>
+<tr>
+<td><code>interpre</code>, <code>ppm3d</code>, <code>interpost</code></td>
+<td><code>iadv=11/16/17/18</code> 的 PPM 格式转换、输送和写回。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="参数契约">参数契约</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> advtrac(pbaru,pbarv,p,masse,q,iapptrac,teta,flxw,pk)</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>Intent</th>
+<th>维度</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pbaru</code></td>
+<td>IN</td>
+<td><code>(ip1jmp1,llm)</code></td>
+<td>当前动力步 U 点水平质量通量。</td>
+</tr>
+<tr>
+<td><code>pbarv</code></td>
+<td>IN</td>
+<td><code>(ip1jm,llm)</code></td>
+<td>当前动力步 V 点水平质量通量。</td>
+</tr>
+<tr>
+<td><code>p</code></td>
+<td>IN</td>
+<td><code>(ip1jmp1,llmp1)</code></td>
+<td>层界压力；饱和路径 <code>vlspltqs</code> 使用。</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td>IN</td>
+<td><code>(ip1jmp1,llm)</code></td>
+<td>当前空气质量；首个累计步复制到 <code>massem</code>。</td>
+</tr>
+<tr>
+<td><code>q</code></td>
+<td>INOUT</td>
+<td><code>(ip1jmp1,llm,nqtot)</code></td>
+<td>tracer mixing ratio/state；具体内核原地更新。</td>
+</tr>
+<tr>
+<td><code>iapptrac</code></td>
+<td>OUT</td>
+<td>scalar</td>
+<td>当前累计步号，等于内部 <code>iadvtr</code>。</td>
+</tr>
+<tr>
+<td><code>teta</code></td>
+<td>IN</td>
+<td><code>(ip1jmp1,llm)</code></td>
+<td>位温；饱和路径使用。</td>
+</tr>
+<tr>
+<td><code>flxw</code></td>
+<td>OUT</td>
+<td><code>(ip1jmp1,llm)</code></td>
+<td>实际输送轮次的垂直质量通量诊断，<code>wg/REAL(iapp_tracvl)</code>。</td>
+</tr>
+<tr>
+<td><code>pk</code></td>
+<td>IN</td>
+<td><code>(ip1jmp1,llm)</code></td>
+<td>Exner 相关状态；饱和路径使用。</td>
+</tr>
+</tbody>
+</table>
+<p>注意：当 <code>iadvtr</code> 尚未达到 <code>iapp_tracvl</code> 时，本例程不会设置 <code>flxw</code> 新值，也不会更新 <code>q</code>；它只累计 <code>pbaruc/pbarvc</code> 并返回 <code>iapptrac</code>。</p>
+<h2 id="持久状态和工作数组">持久状态和工作数组</h2>
+<table>
+<thead>
+<tr>
+<th>名称</th>
+<th>属性</th>
+<th>维度</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iadvtr</code></td>
+<td><code>SAVE</code>, <code>DATA 0</code></td>
+<td>scalar</td>
+<td>当前 tracer advection 累计步数；达到 <code>iapp_tracvl</code> 后复位。</td>
+</tr>
+<tr>
+<td><code>pbaruc</code>, <code>pbarvc</code></td>
+<td><code>SAVE</code></td>
+<td>U/V 通量维度</td>
+<td>累计多个动力步的水平质量通量。</td>
+</tr>
+<tr>
+<td><code>massem</code></td>
+<td><code>SAVE</code></td>
+<td><code>(ip1jmp1,llm)</code></td>
+<td>本轮 tracer advection 开始时的空气质量。</td>
+</tr>
+<tr>
+<td><code>countcfl</code></td>
+<td><code>SAVE</code></td>
+<td>scalar</td>
+<td>CFL 诊断累计步数，达到 <code>day_step</code> 时输出并清零。</td>
+</tr>
+<tr>
+<td><code>cflxmax/cflymax/cflzmax</code></td>
+<td><code>SAVE</code></td>
+<td><code>(llm)</code></td>
+<td>每日最大 CFL 诊断缓存。</td>
+</tr>
+<tr>
+<td><code>massebx/masseby</code></td>
+<td>local</td>
+<td>U/V massbar 维度</td>
+<td>PPM 格式转换使用的质量平均。</td>
+</tr>
+<tr>
+<td><code>qppm</code>, <code>fluxwppm</code>, <code>apppm/bpppm</code>, <code>unatppm/vnatppm</code>, <code>psppm</code></td>
+<td>local</td>
+<td>PPM 工作维度</td>
+<td><code>interpre -&gt; ppm3d -&gt; interpost</code> 保留路径使用。</td>
+</tr>
+</tbody>
+</table>
+<p><code>pbaruc/pbarvc</code> 只在 <code>iadvtr==0</code> 时清零；如果外部调用序列被打断，下一次调用会继续累积上一次未完成轮次的通量。</p>
+<h2 id="控制流">控制流</h2>
+<h3 id="1-初始化和累计">1. 初始化和累计</h3>
+<pre class="text"><code>if iadvtr == 0:
+  pbaruc = 0
+  pbarvc = 0
+
+for each level:
+  pbaruc += pbaru
+  pbarvc += pbarv
+
+if iadvtr == 0:
+  massem = masse
+
+iadvtr = iadvtr + 1
+iapptrac = iadvtr</code></pre>
+<p><code>massem</code> 保存的是本轮输送开始时的空气质量，之后即使后续动力步的 <code>masse</code> 变化，本轮 tracer advection 仍以 <code>massem</code> 作为输送前质量基准。</p>
+<h3 id="2-iapp_tracvl-门控">2. <code>iapp_tracvl</code> 门控</h3>
+<pre class="text"><code>if iadvtr != iapp_tracvl:
+  return</code></pre>
+<p>只有门控满足时才进入实际输送。<code>iapp_tracvl</code> 由 <code>conf_gcm</code> 设置，默认等于 <code>iperiod</code>，也可由 <code>getin("iapp_tracvl")</code> 覆盖。</p>
+<h3 id="3-通量整理与诊断">3. 通量整理与诊断</h3>
+<p>达到门控时：</p>
+<pre class="text"><code>groupe(massem,pbaruc,pbarvc) -&gt; pbarug,pbarvg,wg
+flxw = wg / REAL(iapp_tracvl)</code></pre>
+<p>随后源码计算每层 <code>DP/P</code> 估计：</p>
+<pre class="text"><code>zdp = pbarug(i-1)-pbarug(i) - pbarvg(j-1)+pbarvg(j) + wg(l+1)-wg(l)
+zdp = zdp * dtvr / massem
+if max(abs(zdpmin),abs(zdpmax)) &gt; 0.5:
+  print WARNING DP/P</code></pre>
+<p>CFL 诊断分别按通量正负选择上游质量：</p>
+<table>
+<thead>
+<tr>
+<th>CFL</th>
+<th>正通量分母</th>
+<th>负通量分母</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cflx</code></td>
+<td><code>masse(ij,l)</code></td>
+<td><code>masse(ij+1,l)</code></td>
+</tr>
+<tr>
+<td><code>cfly</code></td>
+<td><code>masse(ij,l)</code></td>
+<td><code>masse(ij+iip1,l)</code></td>
+</tr>
+<tr>
+<td><code>cflz</code></td>
+<td><code>masse(ij,l)</code></td>
+<td><code>masse(ij,l-1)</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>countcfl</code> 每次实际输送增加 <code>iapp_tracvl</code>；当 <code>countcfl==day_step</code> 时按垂直层写出 <code>L, CFL[xyz]max</code>，随后 <code>countcfl=0</code>。</p>
+<h3 id="4-按-iadv-分派">4. 按 <code>iadv</code> 分派</h3>
+<p>实际输送前先调用 <code>massbar(massem,massebx,masseby)</code>，然后在 <code>ok_iso_verif</code> 条件下检查 <code>q</code>。主循环只遍历 <code>iq=1,nqperes</code>，即由 <code>infotrac</code> 判定为直接由空气输送的父 tracer。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;"><code>iadv(iq)</code></th>
+<th>调用链</th>
+<th>当前 6.3 Mars 标准可达性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;"><code>0</code></td>
+<td><code>cycle</code></td>
+<td>可达；该 tracer 不由此处输送。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>10</code></td>
+<td><code>vlsplt(q,2.,massem,wg,pbarug,pbarvg,dtvr,iq)</code></td>
+<td>标准主路径。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>14</code></td>
+<td><code>vlspltqs(q,2.,massem,wg,pbarug,pbarvg,dtvr,p,pk,teta,iq)</code></td>
+<td>仅第 1 个 tracer 可通过白名单。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>12</code></td>
+<td><code>adaptdt -&gt; advn(...,mode=1)</code></td>
+<td>源码保留，标准白名单阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>13</code></td>
+<td><code>adaptdt -&gt; advn(...,mode=2)</code></td>
+<td>源码保留，标准白名单阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>20</code></td>
+<td><code>pentes_ini(q,...)</code></td>
+<td>源码保留，标准白名单阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>30</code></td>
+<td><code>adaptdt -&gt; prather</code></td>
+<td>源码保留，标准白名单阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>11</code></td>
+<td><code>adaptdt -&gt; interpre -&gt; ppm3d(IORD/JORD/KORD=2) -&gt; interpost</code></td>
+<td>源码保留，标准白名单阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>16</code></td>
+<td><code>adaptdt -&gt; interpre -&gt; ppm3d(3/3/3) -&gt; interpost</code></td>
+<td>源码保留，标准白名单阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>17</code></td>
+<td><code>adaptdt -&gt; interpre -&gt; ppm3d(4/4/4) -&gt; interpost</code></td>
+<td>源码保留，标准白名单阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>18</code></td>
+<td><code>adaptdt -&gt; interpre -&gt; ppm3d(5/5/5) -&gt; interpost</code></td>
+<td>源码保留，标准白名单阻断。</td>
+</tr>
+</tbody>
+</table>
+<p>循环结束后若 <code>ok_iso_verif</code> 为真，再执行一次 <code>check_isotopes_seq</code>。最后 <code>iadvtr=0</code>，下一次调用会开启新的累计轮次。</p>
+<h2 id="ppm-保留分支">PPM 保留分支</h2>
+<p>PPM 分支在单文件内占用较长代码段，复现时要注意它不是直接调用 <code>ppm3d</code> 就结束：</p>
+<pre class="text"><code>adaptdt(iadv,dtbon,n,pbarug,massem)
+检查垂直 CFLmaxz
+interpre(q,qppm,wg,fluxwppm,massem,apppm,bpppm,massebx,masseby,pbarug,pbarvg,unatppm,vnatppm,psppm)
+for indice = 1..n:
+  ppm3d(..., IORD,JORD,KORD by iadv)
+interpost(q,qppm)</code></pre>
+<p><code>interpre</code>/<code>interpost</code> 负责 LMDZ 与 PPM3d 的数组、垂直层序和通量格式转换；只测试 <code>ppm3d</code> 内核不能代表 <code>advtrac</code> 的 PPM 分支。当前 6.3 初始化通常阻断 <code>11/16/17/18</code>，所以这段主要用于历史兼容或本地补丁审查。</p>
+<h2 id="mars-边界">Mars 边界</h2>
+<ul>
+<li>Mars 串行动力若启用 tracer，会通过 <code>leapfrog -&gt; caladvtrac -&gt; advtrac</code> 条件经过本文件。</li>
+<li>本文件本身不读取 <code>planet_type</code>；Mars/Earth 后处理差异在调用者 <code>caladvtrac</code> 中处理。</li>
+<li>本文件直接消费 <code>infotrac</code> 的 <code>nqtot/nqperes/iadv</code>，因此 <code>traceur.def</code> 与 <code>infotrac_init</code> 是复现入口。</li>
+<li>标准 Mars 6.3 可达输送格式应先按 <code>iadv=10/14/0</code> 判断；旧格式分支存在不等于可达。</li>
+<li>并行 Mars 构建应读 <code>advtrac_p</code> 和 <code>vlspltgen_p</code>，不要把本页的串行局部数组和循环范围套到并行 band/halo 上。</li>
+</ul>
+<h2 id="复现检查点">复现检查点</h2>
+<ol type="1">
+<li>必须连续模拟从 <code>iadvtr=0</code> 到 <code>iapp_tracvl</code> 的多次调用；只截取最后一步会漏掉累计通量。</li>
+<li><code>massem</code> 来自本轮第一个累计步，不是实际输送步的当前 <code>masse</code>。</li>
+<li><code>flxw</code> 是 <code>wg/iapp_tracvl</code>，不是原始 <code>wg</code>。</li>
+<li><code>nqperes</code> 只覆盖父 tracer；子 tracer 的更新由具体内核的 family 逻辑处理。</li>
+<li><code>ok_iso_verif</code> 检查不改变正常数值路径，但会引入额外输出和 abort 风险。</li>
+<li><code>massbar</code> 即使在标准 <code>iadv=10/14</code> 路径中也会被调用；它主要服务保留 PPM 分支。</li>
+<li>CFL 诊断使用当前实参 <code>masse</code>，而通量 grouping 使用 <code>massem</code>；复现时不要混淆。</li>
+<li><code>iadvtr</code> 是 <code>SAVE</code> 状态，单元测试之间需要重新加载程序或显式设计调用序列。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../routines/caladvtrac-tracer-loop.html">caladvtrac 到 tracer advection 循环</a></li>
+<li><a href="../../routines/advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
+<li><a href="../../themes/transport-advection.html">Transport And Advection</a></li>
+<li><a href="../dyn3d_common/infotrac.html">infotrac</a></li>
+<li><a href="../../routines/infotrac-advection-schemes.html">infotrac advection schemes</a></li>
+<li><a href="vlsplt.html">vlsplt</a></li>
+<li><a href="vlspltqs.html">vlspltqs</a></li>
+<li><a href="../dyn3d_common/ppm3d.html">ppm3d</a></li>
+<li><a href="../dyn3d_common/advn.html">advn</a></li>
+<li><a href="../dyn3d_common/prather.html">prather</a></li>
+<li><a href="../dyn3d_common/pentes_ini.html">pentes_ini</a></li>
+<li><a href="../dyn3dpar/vlspltgen_p.html">vlspltgen_p</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>目标 Mars 生产 <code>traceur.def</code> 中 <code>iadv</code> 的实际分布和父子 tracer family 情况。</li>
+<li><code>countcfl==day_step</code> 使用严格相等判断；若 <code>day_step</code> 不是 <code>iapp_tracvl</code> 的整数倍，CFL 日输出是否会被跳过需运行配置验证。</li>
+<li><code>massbar</code> 在标准 <code>iadv=10/14</code> 路径中仍被调用的性能影响，源码未说明是否有意保留。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

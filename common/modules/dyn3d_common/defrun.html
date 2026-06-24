@@ -1,0 +1,277 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>defrun - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d_common/defrun.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="defrunf">defrun.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\defrun.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>LMDZ.COMMON\libf\dyn3d_common</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>defrun.F</code> 定义旧式 <code>SUBROUTINE defrun(tapedef, etatinit, clesphy0)</code>，从固定格式 <code>gcm.def</code> 顺序读取运行参数和物理开关，写入 <code>control_mod</code>、<code>logic_mod</code>、<code>serre_mod</code> 以及 <code>clesphy0</code>。文件头部源码注释明确写着“似乎不再使用，因此未为行星使用更新”。当前串行入口实际调用 <code>conf_gcm</code>。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>接口兼容：源码注释称本例程似乎不再使用；COMMON/MARS 主链搜索未发现对 defrun 的直接调用。保留为旧式 gcm.def 顺序读取逻辑说明。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>defrun</code></td>
+<td>subroutine</td>
+<td>6</td>
+<td>从 <code>gcm.def</code> 读取旧式运行控制参数和物理键。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>control_mod</code></td>
+<td>-</td>
+<td>写 <code>dayref/anneeref/nday/day_step/iperiod/...</code> 等控制变量。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td><code>purmats</code>, <code>iflag_phys</code>, <code>fxyhypb</code>, <code>ysinus</code></td>
+<td>写或比较主逻辑开关和网格函数分支。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>serre_mod</code></td>
+<td><code>clon</code>, <code>clat</code>, <code>grossismx</code>, <code>grossismy</code>, <code>dzoomx</code>, <code>dzoomy</code>, <code>alphax</code>, <code>alphay</code>, <code>taux</code>, <code>tauy</code></td>
+<td>写或比较 zoom 参数。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ABORT_gcm</code></td>
+<td><code>dyn3d/abort_gcm.F</code></td>
+<td>373, 379, 385, 391</td>
+<td>zoom 参数与 start 文件不一致时退出。</td>
+</tr>
+<tr>
+<td><code>OPEN</code>, <code>READ</code>, <code>WRITE</code>, <code>CLOSE</code></td>
+<td>Fortran I/O</td>
+<td>多处</td>
+<td>打开 <code>gcm.def</code> 并按固定顺序读取/打印。</td>
+</tr>
+<tr>
+<td><code>STOP</code></td>
+<td>Fortran 运行时</td>
+<td>多处</td>
+<td>遇到不一致或非法 zoom 参数时停止。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tapedef</code></td>
+<td>调用参数</td>
+<td>integer</td>
+<td>-</td>
+<td>作为打开 <code>gcm.def</code> 的 Fortran unit。</td>
+</tr>
+<tr>
+<td><code>etatinit</code></td>
+<td>调用参数</td>
+<td>logical</td>
+<td>-</td>
+<td>控制是初始化 zoom 参数还是与已有 start 参数比较。</td>
+</tr>
+<tr>
+<td><code>gcm.def</code></td>
+<td>当前运行目录</td>
+<td>固定顺序文本</td>
+<td>多种</td>
+<td>旧式运行配置文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>clesphy0(20)</code></td>
+<td>调用方数组</td>
+<td>real(20)</td>
+<td>-</td>
+<td>旧物理开关编码数组。</td>
+</tr>
+<tr>
+<td><code>control_mod</code> 变量</td>
+<td>module 全局</td>
+<td>多种</td>
+<td>多种</td>
+<td>日期、步数、输出、耗散和旧物理开关。</td>
+</tr>
+<tr>
+<td><code>logic_mod</code> 变量</td>
+<td>module 全局</td>
+<td>logical/integer</td>
+<td>-</td>
+<td><code>purmats/iflag_phys/fxyhypb/ysinus</code>。</td>
+</tr>
+<tr>
+<td><code>serre_mod</code> 变量</td>
+<td>module 全局</td>
+<td>real/logical</td>
+<td>度或无量纲</td>
+<td>zoom 参数和 <code>alphax/alphay</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p>例程打开 <code>gcm.def</code>，向 unit 6 打印读取结果，写多个 module 全局变量；不一致时可能 <code>STOP</code> 或 <code>ABORT_gcm</code>。由于输入是严格顺序读取，<code>gcm.def</code> 行顺序错误会造成后续字段整体错位。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>打开 <code>gcm.def</code>。</li>
+<li>按固定顺序读取 <code>dayref/anneeref/nday/day_step/iperiod/...</code>、耗散、物理开关等。</li>
+<li>将 <code>cycle_diurne/soil_model/new_oliq/ok_orodr/ok_orolf/ok_limitvrai</code> 等旧物理开关编码进 <code>clesphy0</code>。</li>
+<li>若 <code>etatinit=.false.</code>，继续读取 zoom 参数，并与已经从 start 文件读出的 <code>clon/clat/grossismx/grossismy/fxyhypb/dzoomx/dzoomy/taux/tauy/ysinus</code> 比较。</li>
+<li>若 <code>etatinit=.true.</code>，直接从文件读取并设置 zoom 参数。</li>
+<li>检查 <code>grossismx/grossismy&gt;=1</code>，计算 <code>alphax=1-1/grossismx</code>、<code>alphay=1-1/grossismy</code>。</li>
+<li>关闭文件返回。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>open gcm.def on unit tapedef
+read fixed-order run parameters into control_mod and logic_mod
+build clesphy0 from old physical switches
+if not etatinit:
+    read zoom values and compare with current start-file state
+    abort on mismatch
+else:
+    read zoom values into serre_mod
+validate grossismx/grossismy and compute alphax/alphay
+close gcm.def</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>dynamics configuration</td>
+<td>旧式配置读取；现代入口由 <code>conf_gcm</code> 取代。</td>
+</tr>
+<tr>
+<td>grid initialization</td>
+<td>读取或校验 <code>fxyhypb/ysinus</code> 和 zoom 参数，为 <code>inigeom</code> 提供状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<p>固定格式 Fortran，使用 <code>#include</code> 头文件和顺序 <code>READ</code>。文件顶部的醒目注释是重要证据：此例程“似乎不再使用”，且未为行星使用更新。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现旧 <code>defrun</code> 必须使用完全匹配的 <code>gcm.def</code> 行顺序。</li>
+<li><code>clesphy0</code> 只覆盖 20 个旧物理键槽，其中前两项存 <code>iflag_con/nbapp_rad</code>，后续布尔开关以 0/1 编码。</li>
+<li><code>etatinit=.false.</code> 时不接受 run 配置与 start 文件 zoom 参数不一致。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>是否仍有未纳入 <code>rg</code> 搜索范围的旧工具或外部脚本调用 <code>defrun</code>。</li>
+<li><code>clesph0.h</code> 中旧物理键对现代 Mars 物理的意义当前不可直接外推。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn3d_common 总览</a></li>
+<li><a href="../dyn3d/conf_gcm.html">conf_gcm</a></li>
+<li><a href="inigeom.html">inigeom</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

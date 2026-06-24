@@ -1,0 +1,104 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>qminimum-serial-parallel - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/qminimum-serial-parallel.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="qminimum-串并行对照">qminimum 串并行对照</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d\qminimum.F
+dyn3dpar\qminimum_p.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。tracer 输送或物理加和后需要保证最小值时经过。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>qminimum</code> 对 tracer 场施加非负或最小阈值保护，避免 advection/physics 产生不可接受的负 mixing ratio。串行版还调用 <code>check_isotopes_seq</code> 检查 isotope 关系。</p>
+<h2 id="对照表">对照表</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>串行</th>
+<th>并行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>行数</td>
+<td>191</td>
+<td>107</td>
+</tr>
+<tr>
+<td>主例程</td>
+<td><code>qminimum</code></td>
+<td><code>qminimum_p</code></td>
+</tr>
+<tr>
+<td>isotope 检查</td>
+<td><code>check_isotopes_seq</code></td>
+<td>并行一致性由调用链保证或另行检查</td>
+</tr>
+<tr>
+<td>范围</td>
+<td>全局 tracer</td>
+<td>子域 tracer</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>遍历 tracer 和网格点。</li>
+<li>与最小阈值比较，必要时截断或重分配。</li>
+<li>对 isotope 或父子 tracer 做一致性保护。</li>
+<li>返回修正后的 <code>q</code>。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>qminimum</code> 是保护性修正，会改变严格守恒；分析 tracer budget 时必须记录是否触发。</li>
+<li>阈值和父子 tracer 关系来自 tracer 配置，不应硬编码为单一常数。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>并行版 isotope 检查的实际调用位置需结合 <code>advtrac_p</code> 和 <code>vlspltgen_p</code>。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

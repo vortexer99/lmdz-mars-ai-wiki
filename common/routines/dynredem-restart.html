@@ -1,0 +1,171 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dynredem-restart - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/dynredem-restart.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="dynredem-restart-写出串并行对照">dynredem restart 写出串并行对照</h1>
+<p>页面状态：6.3 返工完成。 源码基线：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code>。 Mars 运行参与度：条件经过；Mars 动力写 <code>restart.nc</code> 时经过。</p>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>libf/dyn3d_common/dynredem.F90
+libf/dyn3d_common/dynredem_mod.F90
+libf/dyn3dpar/dynredem_p.F90</code></pre>
+<h2 id="63-关键变化">6.3 关键变化</h2>
+<table>
+<thead>
+<tr>
+<th>变化</th>
+<th style="text-align: right;">串行位置</th>
+<th style="text-align: right;">并行位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>controle_descriptor</code></td>
+<td style="text-align: right;"><code>dynredem.F90:239</code></td>
+<td style="text-align: right;"><code>dynredem_p.F90:240</code></td>
+<td>描述 <code>controle</code> 数组每个 entry。</td>
+</tr>
+<tr>
+<td><code>descriptor</code> 维</td>
+<td style="text-align: right;"><code>dynredem.F90:222/233</code></td>
+<td style="text-align: right;"><code>dynredem_p.F90:223/234</code></td>
+<td>descriptor 条数维。</td>
+</tr>
+<tr>
+<td><code>description_size</code> 维</td>
+<td style="text-align: right;"><code>dynredem.F90:223/234</code></td>
+<td style="text-align: right;"><code>dynredem_p.F90:224/235</code></td>
+<td>每条描述字符串长度维。</td>
+</tr>
+<tr>
+<td><code>put_char1</code></td>
+<td style="text-align: right;"><code>dynredem_mod.F90:186</code></td>
+<td style="text-align: right;">同模块</td>
+<td>写字符数组到 NetCDF。</td>
+</tr>
+<tr>
+<td><code>int2fmtstr</code></td>
+<td style="text-align: right;"><code>dynredem_mod.F90:263</code></td>
+<td style="text-align: right;">同模块</td>
+<td>生成控制项编号。</td>
+</tr>
+<tr>
+<td><code>tab_cntrl(32)=time</code></td>
+<td style="text-align: right;"><code>dynredem.F90:415</code></td>
+<td style="text-align: right;"><code>dynredem_p.F90:432</code></td>
+<td>把当前 restart time 写回控制数组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="例程清单">例程清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>例程</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dynredem.F90</code></td>
+<td><code>dynredem0</code>, <code>dynredem1</code></td>
+<td>串行创建 restart，并追加时间记录和状态场。</td>
+</tr>
+<tr>
+<td><code>dynredem_p.F90</code></td>
+<td><code>dynredem0_p</code>, <code>dynredem1_p</code></td>
+<td>并行创建/追加 restart，root 负责 NetCDF 写。</td>
+</tr>
+<tr>
+<td><code>dynredem_mod.F90</code></td>
+<td><code>cre_var</code>, <code>put_var1</code>, <code>put_var2</code>, <code>put_char1</code>, <code>dynredem_write_u/v</code>, <code>dynredem_read_u</code>, <code>int2fmtstr</code>, <code>err</code></td>
+<td>NetCDF helper。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="创建流程">创建流程</h2>
+<pre class="text"><code>dynredem0 / dynredem0_p
+  -&gt; 构造 dscrpt_tab_cntrl 控制项描述表
+  -&gt; 按 planet_type 选择 temps 或 Time 维
+  -&gt; 定义 descriptor 和 description_size
+  -&gt; 写 controle_descriptor
+  -&gt; 定义 controle、经纬度、垂直层、hybrid 坐标、几何、area、phisinit
+  -&gt; 定义 ucov/vcov/teta/tracer/masse/ps 时间变量</code></pre>
+<p><code>controle_descriptor</code> 把半径、自转角速度、重力、Cp、kappa、sol 长、动力时间步、能量、压力、enstrophy、enthalpy、角动量、参考压力和 zoom 参数等说明写进 restart。</p>
+<h2 id="追加流程">追加流程</h2>
+<pre class="text"><code>dynredem1 / dynredem1_p
+  -&gt; 打开 restart.nc
+  -&gt; 查询 temps 或 Time
+  -&gt; nb += 1
+  -&gt; tab_cntrl(32) = time
+  -&gt; 重写 controle
+  -&gt; 写 time record 和 ucov/vcov/teta/masse/ps/q</code></pre>
+<p>6.3 的 <code>time</code> 由上层 <a href="../modules/dyn3d/leapfrog.html">leapfrog</a> 或 <a href="../modules/dyn3dpar/leapfrog_p.html">leapfrog_p</a> 传入。Mars 分支使用 <code>REAL(itau)/REAL(day_step)</code>、<code>time_0-floor(time_0)</code> 和 <code>day_end-day_ini</code> 的组合；非 Mars fallback 使用 <code>JH_cur</code>。<code>controle(32)</code> 和 time coordinate 应代表调用方传入的 restart time。</p>
+<h2 id="串并行差异">串并行差异</h2>
+<ul>
+<li>串行 <code>dynredem1</code> 直接写完整数组。</li>
+<li>并行 <code>dynredem1_p</code> 只在 root/rank 0 执行 NetCDF 写。</li>
+<li>并行 restart 写入前，字段是否已在 root 上完整准备由调用方保证。</li>
+</ul>
+<h2 id="复现检查">复现检查</h2>
+<ol type="1">
+<li>restart 文件应包含 <code>controle_descriptor</code>、<code>descriptor</code>、<code>description_size</code>。</li>
+<li><code>controle(32)</code> 应等于写文件时传入 <code>dynredem1*</code> 的 <code>time</code>。</li>
+<li>time coordinate 名可能是 <code>temps</code> 或 <code>Time</code>。</li>
+<li>并行问题要同时查 <code>leapfrog_p</code> 的 gather/swap。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../themes/restart-io.html">restart-io</a></li>
+<li><a href="../modules/dyn3d/leapfrog.html">leapfrog</a></li>
+<li><a href="../modules/dyn3dpar/leapfrog_p.html">leapfrog_p</a></li>
+<li><a href="leapfrog-output-restart.html">leapfrog-output-restart</a></li>
+<li><a href="leapfrog-p-output-restart.html">leapfrog-p-output-restart</a></li>
+<li><a href="restart-variable-sorting.html">restart-variable-sorting</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

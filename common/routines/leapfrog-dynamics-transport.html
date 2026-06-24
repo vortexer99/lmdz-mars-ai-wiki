@@ -1,0 +1,125 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>leapfrog-dynamics-transport - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/leapfrog-dynamics-transport.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="leapfrog-动力计算和-tracer-输送段">leapfrog 动力计算和 tracer 输送段</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\leapfrog.F
+LMDZ.MARS\libf\dynphy_lonlat\phymars\leapfrog_nogcm.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。COMMON 6.3 完整 GCM 入口会执行本页的动力/输送段；MARS nogcm 变体保留接口但把动力 tendency 清零，不调用 <code>caldyn/caladvtrac/integrd</code>。</p>
+<h2 id="完整-gcm-调用顺序">完整 GCM 调用顺序</h2>
+<p>每个 label 2 步中，完整 <code>leapfrog.F</code> 的动力段顺序是：</p>
+<ol type="1">
+<li><code>tpot2t</code> 把 <code>teta</code> 和 <code>pk</code> 转成温度 <code>temp</code>。</li>
+<li>构造 <code>tsurpk=cpp*temp/pk</code>。</li>
+<li><code>geopot(ip1jmp1,tsurpk,pk,pks,phis,phi)</code> 计算 geopotential。</li>
+<li><code>caldyn(...)</code> 计算 <code>du/dv/dteta/dp/w/pbaru/pbarv</code>。</li>
+<li>若 <code>planet_type=="generic"</code> 且 <code>ok_guide</code>，把 <code>uforc</code> nudging 加到 <code>du</code>。</li>
+<li>若 <code>forward .OR. leapf</code>，调用 <code>caladvtrac(q,pbaru,pbarv,p,masse,dq,teta,flxw,pk)</code>。</li>
+<li>若 <code>offline</code> 且启用 IOIPSL，调用 <code>fluxstokenc</code> 写 mass flux。</li>
+<li>调用 <code>integrd(nqtot,...,dv,du,dteta,dq,dp,...,q,ps,masse,phis)</code> 写回状态。</li>
+<li>Titan tidal 分支可额外加 <code>tidal_forces</code>。</li>
+</ol>
+<h2 id="tendency-输入输出">tendency 输入输出</h2>
+<table>
+<thead>
+<tr>
+<th>例程</th>
+<th>主要输入</th>
+<th>输出/副作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>caldyn</code></td>
+<td>当前 <code>ucov/vcov/teta/ps/masse/pk/pkf/phi</code></td>
+<td><code>du/dv/dteta/dp/w/pbaru/pbarv</code></td>
+</tr>
+<tr>
+<td><code>caladvtrac</code></td>
+<td><code>q/pbaru/pbarv/p/masse/teta/pk</code></td>
+<td><code>dq</code> 和 <code>flxw</code></td>
+</tr>
+<tr>
+<td><code>fluxstokenc</code></td>
+<td><code>pbaru/pbarv/masse/teta/phi/phis/dtvr/itau</code></td>
+<td>offline tracer flux history</td>
+</tr>
+<tr>
+<td><code>integrd</code></td>
+<td>上一步状态 <code>...m1</code> 和 tendency</td>
+<td>更新 <code>ucov/vcov/teta/q/ps/masse</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>integrd</code> 接收 <code>nqtot</code>，因此 tracer 维度由 <code>infotrac</code> contract 控制。</p>
+<h2 id="nodyn-和-nogcm">NODYN 和 nogcm</h2>
+<p>完整 <code>leapfrog.F</code> 有 <code>#ifdef NODYN</code> 分支：将 <code>dv/du/dteta/dq/dp/flxw</code> 置零，绕过 <code>caldyn/caladvtrac/integrd</code> 前的动力计算。</p>
+<p>MARS <code>phymars/leapfrog_nogcm.F</code> 则直接把：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>dv<span class="kw">=</span><span class="dv">0</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>du<span class="kw">=</span><span class="dv">0</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>dteta<span class="kw">=</span><span class="dv">0</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>dq<span class="kw">=</span><span class="dv">0</span></span></code></pre></div>
+<p>并跳过完整动力段和 <code>integrd</code>。它后续通过 physics 后的 pressure/CO2/temperature mixing 来替代部分再分布效果。</p>
+<h2 id="与已有-helper-页的关系">与已有 helper 页的关系</h2>
+<ul>
+<li><a href="caldyn-serial-parallel.html">caldyn 串并行对照</a>：解释 <code>du/dv/dteta/dp/w/pbaru/pbarv</code> 的动力来源。</li>
+<li><a href="advtrac-serial-parallel.html">advtrac 串并行对照</a>：解释 <code>iadv</code> 如何决定 tracer 输送路径。</li>
+<li><a href="integrd-serial-parallel.html">integrd 串并行对照</a>：解释 tendency 写回和非法压力检查。</li>
+<li><a href="fluxstokenc-serial-parallel.html">fluxstokenc 串并行对照</a>：解释 offline flux storage。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>caladvtrac</code> 使用步初状态和 <code>caldyn</code> 给出的 mass flux；不要把 physics 后的 <code>masse</code> 回填到这一段。</li>
+<li>完整 GCM 中 <code>caladvtrac</code> 只在 <code>forward</code> 或 <code>leapf</code> 步调用，不在 backward Matsuno 步调用。</li>
+<li>nogcm 页面中的 <code>q</code> 仍会被 physics 和 CO2 mixing 改变，但不是由 <code>caladvtrac</code> 改变。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>NODYN</code> 预处理构建与 nogcm 运行的实际使用差异，需要 build/arch 任务确认。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

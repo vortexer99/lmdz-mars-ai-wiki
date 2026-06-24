@@ -1,0 +1,102 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ioipsl_getin_p_mod - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/phy_common/ioipsl_getin_p_mod.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="ioipsl_getin_p_modf90">ioipsl_getin_p_mod.F90</h1>
+<p>页面状态：TASK-0170 / TASK-0218 完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\ioipsl_getin_p_mod.F90</code>。 Mars 运行参与度：条件经过；Mars 并行物理配置读取可经过本 wrapper。</p>
+<h2 id="文件定位">文件定位</h2>
+<p>本模块提供并行上下文中的 <code>getin_p</code> 泛型：master 读取配置，然后通过 <code>mod_phys_lmdz_transfert_para:bcast</code> 广播给其它 MPI ranks/OMP threads。</p>
+<h2 id="63-master-abstraction">6.3 master abstraction</h2>
+<p>关键变化：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">位置</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">12</td>
+<td><code>USE mod_phys_lmdz_para, ONLY : is_master</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">13</td>
+<td><code>USE mod_phys_lmdz_transfert_para, ONLY : bcast</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">18-25</td>
+<td><code>INTERFACE getin_p</code> 绑定 char/int/real/logical 标量和数组。</td>
+</tr>
+<tr>
+<td style="text-align: right;">43, 57, 73, 85, 97, 111, 123, 135, 149, 161, 173</td>
+<td>各类型例程用 <code>IF (is_master) CALL getin(...)</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>旧的 <code>is_mpi_root .AND. is_omp_root</code> 判断不再是 6.3 主线；master 语义集中到 <code>mod_phys_lmdz_para:is_master</code>。</p>
+<h2 id="调用模式">调用模式</h2>
+<pre class="text"><code>getin_p(key, VarOut)
+  -&gt; IF (is_master) CALL getin(key, VarOut)
+  -&gt; CALL bcast(VarOut)</code></pre>
+<p>字符 1D 例程对每个元素广播；其它标量/数组调用 <code>bcast(VarOut)</code> 泛型。该泛型在 6.3 支持到 5D/6D。</p>
+<h2 id="复现检查">复现检查</h2>
+<ol type="1">
+<li>配置只应由 master 读，非 master 通过 broadcast 同步。</li>
+<li>若某 rank/线程参数不同，先查 <code>is_master</code> 定义和 <code>bcast</code> 泛型。</li>
+<li>高维数组配置要确认 <code>parallel-transfer-6d</code> 已纳入构建。</li>
+<li>没有 IOIPSL 时，源码可改用 <code>ioipsl_getincom:getin</code> fallback。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="parallel-transfer-6d.html">parallel-transfer-6d</a></li>
+<li><a href="../../routines/history-xios-getin-boundary.html">history-xios-getin-boundary</a></li>
+<li><a href="../../themes/restart-io.html">restart-io</a></li>
+<li><a href="../../routines/getin-fallback-file-precedence.html">fallback getin 文件来源和 key 表</a></li>
+<li><a href="../../routines/getin-typed-parser.html">typed getin 解析契约</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

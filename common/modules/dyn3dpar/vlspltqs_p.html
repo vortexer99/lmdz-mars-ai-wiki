@@ -1,0 +1,243 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vlspltqs_p - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3dpar/vlspltqs_p.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="vlspltqs_pf">vlspltqs_p.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\vlspltqs_p.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>vlspltqs_p.F</code> 定义并行版饱和水汽 Van Leer split 输送。它只处理带饱和约束的 tracer 分支，主例程 <code>vlspltqs_p</code> 先把位温转换为温度并计算 <code>qsat</code>，再按 x-y-z-y-x 的 Strang split 顺序调用内部 <code>vlxqs_p</code>、<code>vlyqs_p</code> 和公共 <code>vlz_p</code>。并行版在 x/z 两段之间注册 halo 交换，使边界带和内区计算可以分开执行。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 并行动力构建在 tracer 输送选择饱和水汽 Van Leer 分支时经过。串行或非饱和 tracer 路径不会直接调用本文件。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vlspltqs_p</code></td>
+<td>subroutine</td>
+<td>4</td>
+<td>并行饱和 tracer split advection 调度。</td>
+</tr>
+<tr>
+<td><code>vlxqs_p</code></td>
+<td>internal subroutine</td>
+<td>230</td>
+<td>x 方向饱和约束 Van Leer 输送。</td>
+</tr>
+<tr>
+<td><code>vlyqs_p</code></td>
+<td>internal subroutine</td>
+<td>576</td>
+<td>y 方向饱和约束 Van Leer 输送。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖和调用">依赖和调用</h2>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>符号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>parallel_lmdz</code></td>
+<td>domain 范围、<code>ij_begin/ij_end</code> 等</td>
+<td>限定本 MPI/OMP 子域计算范围。</td>
+</tr>
+<tr>
+<td><code>mod_hallo</code></td>
+<td><code>Register_Hallo</code>, <code>SendRequest</code>, <code>WaitRecvRequest</code>, <code>WaitSendRequest</code></td>
+<td>交换 <code>zq</code> 与 <code>zm</code> 的邻接带。</td>
+</tr>
+<tr>
+<td><code>VAMPIR</code></td>
+<td><code>VTb</code>, <code>VTe</code></td>
+<td>halo 段计时。</td>
+</tr>
+<tr>
+<td><code>cpdet_mod</code></td>
+<td><code>tpot2t_glo_p</code></td>
+<td>将 <code>teta/pk</code> 转为温度，供饱和比湿计算。</td>
+</tr>
+<tr>
+<td>公共输送内核</td>
+<td><code>vlz_p</code></td>
+<td>z 方向 split 输送。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入输出和状态">输入、输出和状态</h2>
+<table>
+<thead>
+<tr>
+<th>参数/状态</th>
+<th>方向</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q</code></td>
+<td>inout</td>
+<td>tracer mixing ratio，目标 tracer 与其子 tracer 会被更新。</td>
+</tr>
+<tr>
+<td><code>pente_max</code></td>
+<td>in</td>
+<td>Van Leer slope limiter 上限。</td>
+</tr>
+<tr>
+<td><code>masse</code>, <code>pbaru</code>, <code>pbarv</code>, <code>w</code></td>
+<td>in</td>
+<td>气柱质量和三方向质量通量。</td>
+</tr>
+<tr>
+<td><code>pdt</code>, <code>teta</code>, <code>pk</code></td>
+<td>in</td>
+<td>温度转换和饱和约束所需状态。</td>
+</tr>
+<tr>
+<td><code>zq</code>, <code>zm</code>, <code>mu</code>, <code>mv</code>, <code>mw</code>, <code>qsat</code></td>
+<td>local</td>
+<td>工作数组；<code>qsat</code> 由温度和压力状态推得。</td>
+</tr>
+<tr>
+<td><code>SAVE testcpu/temps*</code></td>
+<td>saved</td>
+<td>性能计时状态，非物理状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>调用 <code>tpot2t_glo_p(teta,tempe,pk)</code> 得到全局并行温度场。</li>
+<li>根据温度、压力和目标 tracer 计算饱和比湿 <code>qsat</code>。</li>
+<li>为两个 halo 请求设置 tag 100 和 101。</li>
+<li>对 x 方向先计算南北边界带，注册 <code>zq/zm</code> halo 并异步发送。</li>
+<li>计算 x 方向内区，等待接收，进入 y 方向输送。</li>
+<li>对 z 方向重复边界带、halo、内区、等待的模式。</li>
+<li>再做第二次 y 方向，最后做第二次 x 方向，形成 x-y-z-y-x split。</li>
+<li>等待两个发送请求完成，把工作数组结果写回 <code>q</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>temperature = tpot2t_glo_p(teta, pk)
+qsat = saturation(temperature, pressure)
+prepare zq, zm and mass fluxes
+compute x boundary strips
+exchange halo(zq, zm) with request 100
+compute x interior
+wait recv request 100
+compute y pass
+compute z boundary strips
+exchange halo(zq, zm) with request 101
+compute z interior
+wait recv request 101
+compute second y pass
+compute final x pass
+wait send requests
+copy zq back to q</code></pre>
+<h2 id="与串行版本差异">与串行版本差异</h2>
+<table>
+<thead>
+<tr>
+<th>方面</th>
+<th>串行 <code>vlspltqs.F</code></th>
+<th>并行 <code>vlspltqs_p.F</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>温度转换</td>
+<td><code>tpot2t</code></td>
+<td><code>tpot2t_glo_p</code></td>
+</tr>
+<tr>
+<td>水平范围</td>
+<td>全局 <code>ip1jmp1</code></td>
+<td>本地 <code>ij_begin/ij_end</code> 与 halo</td>
+</tr>
+<tr>
+<td>边界处理</td>
+<td>直接全域数组循环</td>
+<td>x/z 方向拆边界带与内区，并注册 halo</td>
+</tr>
+<tr>
+<td>等待语义</td>
+<td>无 MPI 请求</td>
+<td><code>WaitRecvRequest</code>/<code>WaitSendRequest</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现并行结果时，必须在 x 和 z 两次方向输送后交换 <code>zq</code> 和 <code>zm</code>，否则 y pass 看到的邻接值会错。</li>
+<li><code>vlxqs_p</code> 的 <code>ijb_x/ije_x</code> 允许只计算子域的一段，这是边界带/内区重叠的基础。</li>
+<li>饱和约束依赖 <code>qsat</code>，不能把非饱和 <code>vlsplt_p</code> 的内核替换到这里。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>qsat</code> 的具体公式在本文件内展开，但其物理常数来源需要和水汽/热力学任务进一步核对。</li>
+<li>Mars 默认并行构建是否常走本文件取决于 tracer 配置和 <code>iadv</code> 选择。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li>待写：<code>modules/dyn3dpar/vlsplt_p.md</code>（TASK-0027）</li>
+<li><a href="vlspltgen_p.html">vlspltgen_p</a></li>
+<li><a href="../dyn3d/vlspltqs.html">vlspltqs 串行版</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

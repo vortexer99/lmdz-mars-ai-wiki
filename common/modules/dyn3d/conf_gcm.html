@@ -1,0 +1,335 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>conf_gcm - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d/conf_gcm.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="conf_gcmf90">conf_gcm.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\conf_gcm.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>LMDZ.COMMON\libf\dyn3d</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>conf_gcm.F90</code> 定义 <code>SUBROUTINE conf_gcm(tapedef, etatinit)</code>，是串行动力运行配置读取中心。它通过 <code>getin</code> 为 <code>control_mod</code>、<code>logic_mod</code>、<code>comconst_mod</code>、<code>serre_mod</code>、<code>sponge_mod</code> 和 <code>temps_mod</code> 中的控制变量设置默认值和用户覆盖值，并在 <code>etatinit</code> 分支中处理 zoom 参数的一致性。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>必经/条件经过：COMMON 6.3 `dyn3d/gcm.F90` 和 MARS `phymars/nogcm.F90` 都调用 `conf_gcm(99,.TRUE.)` 读取 run.def 参数；COMMON 6.3 已删除 `dyn3d/nogcm.F90`。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>conf_gcm</code></td>
+<td>subroutine</td>
+<td>4</td>
+<td>读取运行控制、物理/动力开关、耗散、sponge、zoom 和输出参数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IOIPSL</code> 或 <code>ioipsl_getincom</code></td>
+<td>-</td>
+<td>提供 <code>getin</code>。</td>
+<td>取决于 <code>CPP_IOIPSL</code>。</td>
+</tr>
+<tr>
+<td><code>control_mod</code></td>
+<td>多个控制变量</td>
+<td>写入日期、步长、输出、tracer、planet_type、restart 等控制状态。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>infotrac</code></td>
+<td><code>type_trac</code></td>
+<td>设置 tracer 系统类型。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>assert_m</code></td>
+<td><code>assert</code></td>
+<td>检查 <code>vert_prof_dissip</code>、<code>dzoomx/dzoomy</code> 合法性。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>sponge_mod</code></td>
+<td><code>callsponge</code>, <code>mode_sponge</code>, <code>nsponge</code>, <code>tetasponge</code></td>
+<td>读取 sponge 配置。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td>dissip/top-bound/<code>ngroup</code> 等</td>
+<td>写耗散、顶边界和 pole grouping 参数。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td><code>tidal</code>, <code>purmats</code>, <code>ok_guide</code>, <code>read_start</code>, <code>iflag_phys</code>, <code>iflag_trac</code>, <code>ok_strato</code>, <code>ok_gradsfile</code>, <code>ok_limit</code>, <code>ok_etat0</code>, <code>moyzon_*</code>, <code>fxyhypb</code>, <code>ysinus</code>, <code>read_orop</code></td>
+<td>写主流程逻辑开关。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>serre_mod</code></td>
+<td><code>clon</code>, <code>clat</code>, <code>grossismx</code>, <code>grossismy</code>, <code>dzoomx</code>, <code>dzoomy</code>, <code>alphax</code>, <code>alphay</code>, <code>taux</code>, <code>tauy</code></td>
+<td>写 zoom 和网格映射参数。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>temps_mod</code></td>
+<td><code>calend</code></td>
+<td>写日历类型。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getin</code></td>
+<td>IOIPSL/getin</td>
+<td>多处</td>
+<td>读取每个配置键的用户覆盖值。</td>
+</tr>
+<tr>
+<td><code>assert</code></td>
+<td><code>assert_m</code></td>
+<td>587, 897, 906</td>
+<td>断言耗散 profile 和 zoom 范围。</td>
+</tr>
+<tr>
+<td><code>stop</code>/<code>STOP 1</code></td>
+<td>Fortran 运行时</td>
+<td>多处</td>
+<td>遇到互斥 sponge、非法 FFT、zoom 不一致时停止。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tapedef</code></td>
+<td>调用参数</td>
+<td>integer</td>
+<td>-</td>
+<td>旧式配置单元号；本实现主要通过 <code>getin</code> 读取。</td>
+</tr>
+<tr>
+<td><code>etatinit</code></td>
+<td>调用参数</td>
+<td>logical</td>
+<td>-</td>
+<td>为 true 时初始化 zoom 参数；false 时与 start 文件读入值比较。</td>
+</tr>
+<tr>
+<td><code>run.def</code> 等 getin 数据源</td>
+<td>运行目录</td>
+<td>文本配置</td>
+<td>-</td>
+<td>用户配置覆盖来源。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>control_mod</code> 变量</td>
+<td>模块全局状态</td>
+<td>多种</td>
+<td>多种</td>
+<td><code>nday/day_step/iphysiq/read_start/planet_type</code> 等。</td>
+</tr>
+<tr>
+<td><code>logic_mod</code> 变量</td>
+<td>模块全局状态</td>
+<td>logical/integer</td>
+<td>-</td>
+<td><code>iflag_phys/ok_guide/purmats/read_orop</code> 等开关。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code> 耗散和顶边界变量</td>
+<td>模块全局状态</td>
+<td>real/integer</td>
+<td>秒、Pa、km 等</td>
+<td>耗散时间、sponge 和 top boundary 参数。</td>
+</tr>
+<tr>
+<td><code>serre_mod</code> zoom 变量</td>
+<td>模块全局状态</td>
+<td>real/logical</td>
+<td>度或无量纲</td>
+<td>zoom 中心、放大率、形状和分支。</td>
+</tr>
+<tr>
+<td><code>lunout</code>/<code>lmdz.out</code></td>
+<td>输出单元或文件</td>
+<td>文本</td>
+<td>-</td>
+<td>运行配置摘要。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p>本例程集中写大量 module 全局变量；如果 <code>lunout</code> 不是 5 或 6，会打开 <code>lmdz.out</code>；会打印完整配置摘要；互斥 sponge、非法 FFT、zoom 与 start 不一致等会 <code>STOP</code>。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>设置并读取 <code>lunout/prt_level</code>。</li>
+<li>读取日期、日历、运行长度、动力步长、物理步长、输出频率和 restart 选项。</li>
+<li>读取耗散、顶边界和 sponge 参数，并检查两套 sponge 不可同时使用。</li>
+<li>按 <code>planet_type</code> 设置行星相关默认值：例如 Titan tidal、Mars <code>vert_prof_dissip=1</code>。</li>
+<li>读取 <code>purmats/ok_guide/read_start/iflag_phys/iphysiq/cpofT/iflag_trac</code> 等主开关。</li>
+<li>读取 tracer、INCA、dyn output、filter、strato、limit/etat0/orography 开关。</li>
+<li>在 <code>etatinit=.false.</code> 时，将 run.def zoom 参数与已读 start 状态比较；不一致即停止。</li>
+<li>在 <code>etatinit=.true.</code> 时，直接设置 zoom 参数并计算 <code>alphax/alphay</code>。</li>
+<li>打印配置摘要。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>initialize lunout and print level
+for each run-control key:
+    set default
+    getin(key, variable)
+configure dissipation, top boundary, sponge
+configure planet-specific defaults
+configure physics, tracers, outputs, filters
+if not etatinit:
+    compare run.def zoom values with start-file values
+else:
+    initialize zoom values from run.def/defaults
+print all effective configuration values</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>dynamics-time-integration</td>
+<td>提供 <code>day_step/iperiod/purmats/ndynstep</code> 等时间推进控制。</td>
+</tr>
+<tr>
+<td>restart-io</td>
+<td>提供 <code>read_start/raz_date/timestart/ecritstart</code> 等 restart 控制。</td>
+</tr>
+<tr>
+<td>transport-advection</td>
+<td>提供 <code>iflag_trac/iapp_tracvl/force_conserv_tracer</code>。</td>
+</tr>
+<tr>
+<td>dynphys-interface</td>
+<td>提供 <code>iflag_phys/iphysiq/nsplit_phys</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<p>大量 <code>Config Key/Desc/Def/Help</code> 注释与 <code>getin</code> 调用成对出现，可作为自动生成配置说明的源材料。<code>etatinit</code> 分支保留了早期 <code>defrun</code> 注释语义，但实现已转为 <code>getin</code>。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>idissip</code> 是旧 Mars/Generic 参数，会先写 <code>dissip_period</code>，随后 <code>dissip_period</code> 键可覆盖它。</li>
+<li><code>use_filtre_fft</code> 在 <code>conf_gcm</code> 内若为 true 会 <code>STOP 1</code>，入口程序也会再次拒绝串行 FFT filter。</li>
+<li>Mars 默认 <code>vert_prof_dissip=1</code>，其他非 Earth 行星默认 0。</li>
+<li><code>iflag_top_bound&gt;=1</code> 与 <code>callsponge=.true.</code> 互斥。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>tapedef</code> 参数在当前 <code>getin</code> 路径中是否仍有实际作用，源码内未见直接读取。</li>
+<li><code>cpofT</code> 的 Mars 默认值为 false；实际 Mars 配置是否覆盖需运行配置确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn3d 总览</a></li>
+<li><a href="gcm.html">gcm</a></li>
+<li>COMMON 6.3 已删除 <code>dyn3d/nogcm.F90</code>。</li>
+<li><a href="../dyn3d_common/defrun.html">defrun</a></li>
+<li>待写：<code>control_mod.F90</code> 文件页（后续候选）</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,105 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>physics_distribution_mod - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/phy_common/physics_distribution_mod.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="physics_distribution_modf90">physics_distribution_mod.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\physics_distribution_mod.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>physics_distribution_mod.F90</code> 定义物理分布初始化模块 <code>physics_distribution_mod</code>。它把网格类型、顶点数、经纬向点数、垂直层数和 communicator 串联到三个初始化步骤：物理全局网格、物理 MPI/OMP 分布、<code>dimphy</code> 局部维度。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 物理初始化通过 COMMON `inigeomphy_mod` 调用 `init_physics_distribution` 时经过。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<p>| 符号 | 类型 | 行号 | 作用 | | --- | --- | --- | | <code>physics_distribution_mod</code> | module | 4 | 物理分布初始化封装。 | | <code>init_physics_distribution</code> | subroutine | 9 | 初始化物理网格、并行分布和 <code>dimphy</code>。 |</p>
+<h2 id="初始化流程">初始化流程</h2>
+<pre class="text"><code>init_grid_phy_lmdz(grid_type,nvertex,nbp_lon,nbp_lat,nbp_lev)
+init_phys_lmdz_para(nbp,nbp_lon,nbp_lat,communicator)
+OMP parallel:
+    init_dimphy(klon_omp,nbp_lev)</code></pre>
+<p>其中 <code>nbp</code> 是当前 MPI 进程物理列数，<code>nbp_lon/nbp_lat/nbp_lev</code> 分别是经向、纬向和垂直层规模。</p>
+<h2 id="依赖">依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="mod_grid_phy_lmdz.html">mod_grid_phy_lmdz</a>:<code>init_grid_phy_lmdz</code></td>
+<td>保存全局物理网格规模和 <code>klon_glo</code>。</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para:init_phys_lmdz_para,klon_omp</code></td>
+<td>初始化 MPI/OMP 物理列分布。</td>
+</tr>
+<tr>
+<td><code>dimphy:Init_dimphy</code></td>
+<td>用每个 OpenMP 线程的 <code>klon_omp</code> 初始化物理维度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>init_dimphy</code> 在 OpenMP parallel 区内调用，因此每个线程使用自己的 <code>klon_omp</code>。</li>
+<li>旧 <code>Init_Phys_lmdz</code> 代码整段注释保留，不是当前执行路径。</li>
+<li>本模块不分配几何数组；几何值由 <code>inigeomphy_mod</code> 后续传给 <code>geometry_mod</code>。</li>
+</ul>
+<h2 id="补充说明">补充说明</h2>
+<ul>
+<li>已由 <a href="mod_grid_phy_lmdz.html">mod_grid_phy_lmdz</a> 说明 <code>regular_lonlat=1</code>、<code>unstructured=0</code>；本页不再展开映射细节。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="mod_phys_lmdz_para.html">mod_phys_lmdz_para</a></li>
+<li><a href="mod_grid_phy_lmdz.html">mod_grid_phy_lmdz</a></li>
+<li><a href="../../routines/parallel-physics-grid-distribution.html">parallel physics grid distribution</a></li>
+<li><a href="geometry-grid-layers.html">物理侧几何/经纬网格/垂直层</a></li>
+<li><a href="../dynphy_lonlat/inigeomphy_mod.html">inigeomphy_mod</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

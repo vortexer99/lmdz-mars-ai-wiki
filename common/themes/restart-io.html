@@ -1,0 +1,139 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>restart-io - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a class="active" href="index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>themes/restart-io.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="restart--history--io-主题">Restart / history / I/O 主题</h1>
+<p>页面状态：6.3 返工完成。 源码基线：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code>。 Mars 运行参与度：条件经过。</p>
+<h2 id="主题结论">主题结论</h2>
+<p>6.3 后，COMMON restart 主契约是：</p>
+<pre class="text"><code>leapfrog / leapfrog_p 写 restart 时传分支化 time
+  -&gt; dynredem1 / dynredem1_p 接收 time
+  -&gt; tab_cntrl(32) = time
+  -&gt; NetCDF time coordinate 写 time
+  -&gt; dynredem0 / dynredem0_p 写 controle_descriptor</code></pre>
+<p>当前 wiki 正文不再保留旧版“restart 写 <code>start_time</code>”主线。</p>
+<h2 id="参与文件">参与文件</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>页面</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dyn3d/leapfrog.F</code></td>
+<td><a href="../modules/dyn3d/leapfrog.html">leapfrog</a></td>
+<td>串行时间推进和 restart 调用。</td>
+</tr>
+<tr>
+<td><code>dyn3dpar/leapfrog_p.F</code></td>
+<td><a href="../modules/dyn3dpar/leapfrog_p.html">leapfrog_p</a></td>
+<td>并行时间推进和 root 写 restart 调用。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common/dynredem.F90</code></td>
+<td><a href="../routines/dynredem-restart.html">dynredem-restart</a></td>
+<td>串行 restart NetCDF 创建/追加。</td>
+</tr>
+<tr>
+<td><code>dyn3dpar/dynredem_p.F90</code></td>
+<td><a href="../routines/dynredem-restart.html">dynredem-restart</a></td>
+<td>并行 restart NetCDF 创建/追加。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common/dynredem_mod.F90</code></td>
+<td><a href="../routines/dynredem-restart.html">dynredem-restart</a></td>
+<td><code>put_char1/int2fmtstr</code> 等 NetCDF helper。</td>
+</tr>
+<tr>
+<td><code>phy_common/ioipsl_getin_p_mod.F90</code></td>
+<td><a href="../modules/phy_common/ioipsl_getin_p_mod.html">ioipsl_getin_p_mod</a></td>
+<td>6.3 改用 <code>is_master</code>。</td>
+</tr>
+<tr>
+<td><code>phy_common/geometry_mod.F90</code></td>
+<td><a href="../routines/geometry-output-cell-area.html">geometry-output-cell-area</a></td>
+<td>lon-lat 输出面积独立缓存。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="restart-写入流程">Restart 写入流程</h2>
+<pre class="text"><code>gcm/gcm_p 初始化
+  -&gt; dynredem0 / dynredem0_p 创建 restart skeleton
+leapfrog 时间推进
+  -&gt; 达到 ecritstart 或最终步
+  -&gt; 计算当前日期/小时 JH_cur
+  -&gt; Mars 分支按 itau/day_step/time_0/day_end 组合 restart time
+  -&gt; 非 Mars fallback 使用 JH_cur
+  -&gt; dynredem1 / dynredem1_p 写 time 到 tab_cntrl(32) 和 time coordinate</code></pre>
+<p>串行 <code>leapfrog.F</code> 的 Mars restart 分支在 910-916 和 1065-1070 行使用 <code>REAL(itau)/REAL(day_step)</code> 相关表达式，非 Mars fallback 在 921 和 1074 行使用 <code>JH_cur</code>。并行 <code>leapfrog_p.F</code> 同样分支化：Mars 分支在 1822-1830 和 2047-2053 行使用 <code>itau/day_step/time_0/day_end</code> 组合，非 Mars fallback 在 1833 和 2056 行使用 <code>JH_cur</code>。</p>
+<h2 id="io-边界">I/O 边界</h2>
+<ul>
+<li>动力 history/dynav 仍由 <code>inithist/writehist/initdynav/writedynav</code> 系列承担。</li>
+<li>6.3 的 <code>ioipsl_getin_p_mod</code> 用 <code>is_master</code> 代替旧 <code>is_mpi_root .AND. is_omp_root</code>。</li>
+<li>lon-lat 输出面积应使用 <code>cell_area_for_lonlat_outputs</code>，不要混用 physics cell area。</li>
+</ul>
+<h2 id="复现检查表">复现检查表</h2>
+<ol type="1">
+<li>新 restart 文件必须能看到 <code>controle_descriptor</code>。</li>
+<li><code>controle(32)</code> 应与写文件时传入 <code>dynredem1*</code> 的 <code>time</code> 一致；Mars 分支不一定等于 <code>JH_cur</code>。</li>
+<li>并行 restart 的 root 写入前字段必须完整。</li>
+<li>getin 配置差异查 <code>is_master</code> 和 broadcast。</li>
+<li>输出面积差异区分 physics 面积和 lon-lat output 面积。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../routines/dynredem-restart.html">dynredem-restart</a></li>
+<li><a href="../modules/dyn3d/leapfrog.html">leapfrog</a></li>
+<li><a href="../modules/dyn3dpar/leapfrog_p.html">leapfrog_p</a></li>
+<li><a href="../routines/leapfrog-p-output-restart.html">leapfrog-p-output-restart</a></li>
+<li><a href="../routines/history-xios-getin-boundary.html">history-xios-getin-boundary</a></li>
+<li><a href="../routines/geometry-output-cell-area.html">geometry-output-cell-area</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

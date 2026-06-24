@@ -1,0 +1,375 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>filtreg_mod - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/filtrez/filtreg_mod.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="filtreg_modf90-滤波初始化模块">filtreg_mod.F90 滤波初始化模块</h1>
+<h2 id="页面状态">页面状态</h2>
+<p>源码范围：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\filtreg_mod.F90</code></pre>
+<p>源码行数：559。</p>
+<p>Mars 运行参与度：<code>条件经过</code>。Mars 3D GCM 和 Mars <code>nogcm</code> 在动力初始化后调用 <code>inifilr</code>；<code>newstart</code>、<code>start2archive</code> 等 Mars 工具链在构造或转换 start/archive 文件前也调用它，以便后续压力、几何或动力变量处理拥有同一套纬向滤波状态。</p>
+<h2 id="文件职责">文件职责</h2>
+<p><code>filtreg_mod</code> 是 <code>filtrez</code> 目录的滤波状态初始化模块。它不直接滤波字段，而是在 <code>inifilr</code> 中：</p>
+<ul>
+<li>读取当前水平网格几何和 zoom/stretch 状态；</li>
+<li>调用 <code>inifgn</code> 构造离散 Laplacian 特征值和特征函数；</li>
+<li>计算 U/scalar 网格与 V/Z 网格的滤波纬带、起滤波模态和滤波系数；</li>
+<li>分配并填充矩阵滤波路径使用的北半球、南半球矩阵；</li>
+<li>在 <code>CPP_PARA</code> 且 <code>use_filtre_fft</code> 为真时初始化全局和本地 FFT 滤波 backend。</li>
+</ul>
+<p>实际施加滤波的是 <code>filtreg.F</code> 和 <code>dyn3dpar/filtreg_p.F</code>；它们消费本模块保存的矩阵数组和 <code>coefils.h</code> 中的滤波边界状态。</p>
+<h2 id="符号清单">符号清单</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>定义位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>filtreg_mod</code></td>
+<td>module</td>
+<td>行 4</td>
+<td>保存纬向滤波矩阵和初始化入口。</td>
+</tr>
+<tr>
+<td><code>matriceun(iim,iim,jfiltnu)</code></td>
+<td>allocatable module state</td>
+<td>行 6, 235</td>
+<td>scalar/U 网格北半球普通滤波矩阵；<code>j=2..jfiltnu</code> 使用，极点行避开。</td>
+</tr>
+<tr>
+<td><code>matriceus(iim,iim,jjm-jfiltsu+1)</code></td>
+<td>allocatable module state</td>
+<td>行 6, 236</td>
+<td>scalar/U 网格南半球普通滤波矩阵；索引用 <code>j-jfiltsu+1</code>。</td>
+</tr>
+<tr>
+<td><code>matricevn(iim,iim,jfiltnv)</code></td>
+<td>allocatable module state</td>
+<td>行 6, 237</td>
+<td>V/Z 网格北半球普通滤波矩阵。</td>
+</tr>
+<tr>
+<td><code>matricevs(iim,iim,jjm-jfiltsv+1)</code></td>
+<td>allocatable module state</td>
+<td>行 7, 238</td>
+<td>V/Z 网格南半球普通滤波矩阵。</td>
+</tr>
+<tr>
+<td><code>matrinvn(iim,iim,jfiltnu)</code></td>
+<td>allocatable module state</td>
+<td>行 7, 239</td>
+<td>scalar/U 网格北半球 inverse filter 矩阵。</td>
+</tr>
+<tr>
+<td><code>matrinvs(iim,iim,jjm-jfiltsu+1)</code></td>
+<td>allocatable module state</td>
+<td>行 7, 240</td>
+<td>scalar/U 网格南半球 inverse filter 矩阵。</td>
+</tr>
+<tr>
+<td><code>inifilr</code></td>
+<td>subroutine</td>
+<td>行 11-557</td>
+<td>构造滤波纬带、系数、矩阵和可选 FFT 状态。</td>
+</tr>
+<tr>
+<td><code>first_call_inifilr</code></td>
+<td><code>SAVE</code> local logical</td>
+<td>行 41</td>
+<td>只在第一次调用 <code>inifilr</code> 时分配矩阵数组。</td>
+</tr>
+</tbody>
+</table>
+<p>本文件没有 <code>THREADPRIVATE</code> 声明；并行路径通过模块全局数组和 <code>coefils.h</code> 状态共享初始化结果。</p>
+<h2 id="依赖和状态">依赖和状态</h2>
+<h3 id="use-依赖"><code>USE</code> 依赖</h3>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>条件</th>
+<th>使用内容</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>logic_mod</code></td>
+<td>always</td>
+<td><code>fxyhypb</code>, <code>ysinus</code></td>
+<td>判断 sinusoidal/非 hyperbolic zoom 情况，必要时覆盖 <code>colat0</code> 和 <code>alphax</code>。</td>
+</tr>
+<tr>
+<td><code>serre_mod</code></td>
+<td>always</td>
+<td><code>alphax</code></td>
+<td>stretch 系数，进入 <code>lamdamax</code> 公式；<code>alphax==1</code> 直接停止。</td>
+</tr>
+<tr>
+<td><code>mod_filtre_fft</code></td>
+<td><code>CPP_PARA</code></td>
+<td><code>use_filtre_fft</code>, <code>Init_filtre_fft</code></td>
+<td>并行构建中初始化全局 FFT 滤波系数。</td>
+</tr>
+<tr>
+<td><code>mod_filtre_fft_loc</code></td>
+<td><code>CPP_PARA</code></td>
+<td><code>Init_filtre_fft_loc</code></td>
+<td>并行构建中初始化本地 FFT 滤波系数。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="include-状态"><code>include</code> 状态</h3>
+<table>
+<thead>
+<tr>
+<th>include</th>
+<th>提供内容</th>
+<th>本页相关使用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimensions.h</code></td>
+<td><code>iim</code>, <code>jjm</code>, <code>llm</code> 等编译维度</td>
+<td>决定矩阵和纬向循环尺寸。</td>
+</tr>
+<tr>
+<td><code>paramet.h</code></td>
+<td><code>jjp1</code>, <code>ip1jmp1</code> 等派生维度</td>
+<td>参与南北半球索引。</td>
+</tr>
+<tr>
+<td><code>comgeom.h</code></td>
+<td><code>rlatu</code>, <code>rlatv</code>, <code>xprimu</code>, <code>eignfnu</code>, <code>eignfnv</code> 等几何/特征函数数组</td>
+<td>计算纬向尺度、特征函数矩阵和滤波系数。</td>
+</tr>
+<tr>
+<td><code>coefils.h</code></td>
+<td><code>coefilu</code>, <code>coefilv</code>, <code>coefilu2</code>, <code>coefilv2</code>, <code>modfrstu</code>, <code>modfrstv</code>, <code>jfiltn*</code>, <code>jfilts*</code> 等滤波状态</td>
+<td><code>inifilr</code> 写入，<code>filtreg</code>/<code>filtreg_p</code> 消费。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用关系">调用关系</h2>
+<h3 id="主要调用方">主要调用方</h3>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>源码位置</th>
+<th>参与度</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dyn3d/gcm.F90</code></td>
+<td><code>CALL inifilr</code> 约行 415</td>
+<td>Mars 3D 串行条件经过</td>
+<td>在 <code>inigeom</code> 之后、动力主循环之前初始化滤波状态。</td>
+</tr>
+<tr>
+<td><code>dyn3dpar/gcm.F</code></td>
+<td><code>CALL inifilr</code> 约行 433</td>
+<td>Mars 3D 并行条件经过</td>
+<td>并行动力入口同样在主循环前初始化滤波状态。</td>
+</tr>
+<tr>
+<td>MARS <code>dynphy_lonlat/phymars/nogcm.F90</code></td>
+<td><code>CALL inifilr</code> 约行 408</td>
+<td>Mars <code>nogcm</code> 条件经过</td>
+<td>Mars 侧保留的 no-GCM/utility 式入口复用 COMMON 滤波初始化。</td>
+</tr>
+<tr>
+<td>MARS <code>phymars/newstart.F</code></td>
+<td><code>use filtreg_mod, only: inifilr</code>; <code>CALL inifilr</code> 约行 1943</td>
+<td>工具链条件经过</td>
+<td>在计算压力 <code>pression</code> 前初始化几何相关滤波状态。</td>
+</tr>
+<tr>
+<td>MARS <code>phymars/start2archive.F</code></td>
+<td><code>use filtreg_mod, only: inifilr</code>; <code>call inifilr</code></td>
+<td>工具链条件经过</td>
+<td>在 <code>inigeom</code> 后、<code>iniphysiq</code> 前初始化滤波状态。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common/iniacademic.F90</code></td>
+<td><code>CALL inifilr</code></td>
+<td>idealized/academic 条件经过</td>
+<td>理想化初始化路径在 <code>inigeom</code> 后调用。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="被调例程和后续消费者">被调例程和后续消费者</h3>
+<p><code>inifilr</code> 调用 <code>inifgn(eignvl)</code>，由 <a href="filter-helpers.html">filter-helpers</a> 覆盖。矩阵路径后续由 <a href="filtreg-system.html">filtreg-system</a> 中的串行 <code>filtreg.F</code> 和并行 <code>dyn3dpar/filtreg_p.F</code> 消费。</p>
+<h2 id="初始化流程">初始化流程</h2>
+<h3 id="1-读取网格尺度并计算特征值">1. 读取网格尺度并计算特征值</h3>
+<p><code>inifilr</code> 首先设置 <code>pi = 2*asin(1.)</code>，把 <code>xprimu(i)</code> 拷贝到 <code>dlonu(i)</code>，调用 <code>inifgn(eignvl)</code> 计算离散 Laplacian 特征值。随后从 <code>rlatu(j)-rlatu(j+1)</code> 得到 <code>dlatu(j)</code>。</p>
+<p>普通构建分支用显式循环求：</p>
+<ul>
+<li><code>dxmin = min(dlonu(:))</code></li>
+<li><code>dymin = min(dlatu(:))</code></li>
+</ul>
+<p><code>CRAY</code> 分支则用 <code>ISMIN</code> 找最小值位置。</p>
+<h3 id="2-计算-colat0-和-lamdamax">2. 计算 <code>colat0</code> 和 <code>lamdamax</code></h3>
+<p>默认：</p>
+<pre class="text"><code>colat0 = min(0.5, dymin / dxmin)</code></pre>
+<p>这表示规则网格从约 60 度纬度附近开始滤波；zoom 网格则在纬向长度和经向长度相近时开始向极区滤波。</p>
+<p>特殊分支：</p>
+<pre class="text"><code>if (.not. fxyhypb .and. ysinus) then
+  colat0 = 0.6
+  alphax = 0.
+endif</code></pre>
+<p>若 <code>alphax == 1.</code>，例程打印错误并 <code>STOP</code>。否则：</p>
+<pre class="text"><code>lamdamax = iim / (pi * colat0 * (1 - alphax))
+rlamda(i) = lamdamax / sqrt(abs(eignvl(i)))   for i=2..iim</code></pre>
+<p><code>rlamda(1)</code> 没有在源码中赋值，因为后续模态循环从 <code>k=2</code> 开始，零波数不进入滤波系数构造。</p>
+<h3 id="3-初始化系数和纬带边界">3. 初始化系数和纬带边界</h3>
+<p><code>coefilu/coefilv/coefilu2/coefilv2</code> 先在全部 <code>i=1..iim, j=1..jjm</code> 上清零。</p>
+<p>默认滤波纬带为：</p>
+<pre class="text"><code>jfiltnu = 2
+jfiltsu = jjm
+jfiltnv = 1
+jfiltsv = jjm</code></pre>
+<p>随后例程在北半球和南半球分别扫描 scalar/U 纬度 <code>rlatu</code> 与 V/Z 纬度 <code>rlatv</code>。当同时满足：</p>
+<pre class="text"><code>cos(latitude) / colat0 &lt; 1
+rlamda(imx) * cos(latitude) &lt; 1</code></pre>
+<p>对应 <code>jfiltn*</code> 或 <code>jfilts*</code> 被更新。源码明确不在 U/scalar 极点滤波；V 网格没有极点行，因此 <code>jfiltnv</code> 从 1 开始。</p>
+<p>边界检查包括：</p>
+<ul>
+<li><code>jfiltnu &lt;= jjm/2 + 1</code></li>
+<li><code>jfiltsu &lt;= jjm + 1</code></li>
+<li><code>jfiltnv &lt;= jjm/2</code></li>
+<li><code>jfiltsv &lt;= jjm</code></li>
+</ul>
+<p>任一越界都会打印错误并 <code>STOP</code>。</p>
+<p>当 <code>jfiltnv &gt;= jjm/2</code> 或 <code>jfiltnu &gt;= jjm/2</code> 时，源码有一个 limit-case 修正：若南北滤波带在赤道附近相遇，则把 <code>jfiltsv</code> 或 <code>jfiltsu</code> 推到南侧下一行，避免同一纬带被两侧重复覆盖。源码注释本身也提示这里是边界情形处理。</p>
+<h3 id="4-分配矩阵">4. 分配矩阵</h3>
+<p>只在 <code>first_call_inifilr</code> 为真时分配：</p>
+<pre class="text"><code>matriceun(iim,iim,jfiltnu)
+matriceus(iim,iim,jjm-jfiltsu+1)
+matricevn(iim,iim,jfiltnv)
+matricevs(iim,iim,jjm-jfiltsv+1)
+matrinvn(iim,iim,jfiltnu)
+matrinvs(iim,iim,jjm-jfiltsu+1)</code></pre>
+<p>随后 <code>first_call_inifilr</code> 置为 <code>.FALSE.</code>。源码没有 <code>DEALLOCATE</code> 或尺寸变化后的重新分配逻辑；同一进程内若第二次调用时网格或滤波纬带尺寸不同，会复用第一次分配的数组形状。这在标准 GCM 启动的一次性初始化中不是问题，但在工具链或测试中重复初始化不同网格时需要特别注意。</p>
+<h3 id="5-构造滤波系数">5. 构造滤波系数</h3>
+<p><code>modfrstu(j)</code> 和 <code>modfrstv(j)</code> 默认置为 <code>iim</code>，表示所有模态保留。然后对北/南 scalar/U 纬带和北/南 V/Z 纬带分别寻找第一个满足：</p>
+<pre class="text"><code>rlamda(k) * cos(latitude) &lt; 1</code></pre>
+<p>的模态 <code>k</code>，将其记录为 <code>modfrstu(j)</code> 或 <code>modfrstv(j)</code>。从该模态到 <code>modemax=iim</code>，写入：</p>
+<pre class="text"><code>coefilu(k,j)  = cof - 1
+coefilu2(k,j) = cof*cof - 1
+coefilv(k,j)  = cof - 1
+coefilv2(k,j) = cof*cof - 1</code></pre>
+<p>其中 <code>cof = rlamda(k) * cos(latitude)</code>。因此低模态不滤波，高模态从 <code>modfrst*</code> 起按纬度和特征值衰减。</p>
+<h3 id="6-构造普通滤波矩阵">6. 构造普通滤波矩阵</h3>
+<p>scalar/U 网格使用 <code>eignfnv</code> 参与矩阵构造：</p>
+<pre class="text"><code>eignft(i,k) = eignfnv(k,i) * coff
+matriceu    = eignfnv * eignft</code></pre>
+<p>其中若 <code>i &lt; modfrstu(j)</code>，<code>coff</code> 强制为 0。北半球写入 <code>matriceun(:,:,j)</code>，南半球写入 <code>matriceus(:,:,j-jfiltsu+1)</code>。</p>
+<p>V/Z 网格使用 <code>eignfnu</code>：</p>
+<pre class="text"><code>eignft(i,k) = eignfnu(k,i) * coff
+matricev    = eignfnu * eignft</code></pre>
+<p>北半球写入 <code>matricevn(:,:,j)</code>，南半球写入 <code>matricevs(:,:,j-jfiltsv+1)</code>。</p>
+<p>乘法实现按编译条件选择：</p>
+<ul>
+<li><code>CRAY</code>：<code>MXM</code></li>
+<li><code>BLAS</code>：<code>SGEMM</code></li>
+<li>否则：三重循环手写矩阵乘法</li>
+</ul>
+<h3 id="7-构造-inverse-filter-矩阵">7. 构造 inverse filter 矩阵</h3>
+<p>inverse filter 只为 scalar/U 网格构造：</p>
+<pre class="text"><code>coff = coefilu(i,j) / (1 + coefilu(i,j))</code></pre>
+<p>同样使用 <code>eignfnv * eignft</code> 得到：</p>
+<ul>
+<li>北半球 <code>matrinvn(:,:,j)</code></li>
+<li>南半球 <code>matrinvs(:,:,j-jfiltsu+1)</code></li>
+</ul>
+<p>源码没有为 V/Z 网格构造 <code>matrinv</code> 对应矩阵；串行和并行滤波例程也只在 <code>iaire == 3</code> 的 inverse 分支消费 <code>matrinvn/matrinvs</code>。</p>
+<h3 id="8-可选-fft-初始化">8. 可选 FFT 初始化</h3>
+<p>在 <code>CPP_PARA</code> 构建中，如果 <code>use_filtre_fft</code> 为真，<code>inifilr</code> 调用：</p>
+<pre class="text"><code>Init_filtre_fft(coefilu, modfrstu, jfiltnu, jfiltsu,
+                coefilv, modfrstv, jfiltnv, jfiltsv)
+Init_filtre_fft_loc(coefilu, modfrstu, jfiltnu, jfiltsu,
+                    coefilv, modfrstv, jfiltnv, jfiltsv)</code></pre>
+<p>这说明 FFT backend 不取代本例程的系数和纬带判定，而是复用同一套 <code>coefil*</code>、<code>modfrst*</code> 和 <code>jfiltn*/jfilts*</code> 状态。</p>
+<h2 id="复现顺序">复现顺序</h2>
+<p>最小复现上下文必须先完成：</p>
+<ol type="1">
+<li>编译维度和水平网格常量可用：<code>dimensions.h</code>, <code>paramet.h</code>。</li>
+<li>几何初始化已写入 <code>comgeom.h</code> 数组：<code>rlatu</code>, <code>rlatv</code>, <code>xprimu</code>, <code>eignfnu</code>, <code>eignfnv</code> 等。</li>
+<li><code>logic_mod</code> 与 <code>serre_mod</code> 已给出 <code>fxyhypb</code>, <code>ysinus</code>, <code>alphax</code>。</li>
+<li><code>coefils.h</code> 中的滤波状态数组已按编译维度存在。</li>
+<li>调用 <code>inifilr</code>。</li>
+<li>后续调用 <code>filtreg</code> 或 <code>filtreg_p</code> 时，按 <code>iaire</code> 和 <code>ifiltre</code> 选择普通矩阵、inverse 矩阵或 FFT 路径。</li>
+</ol>
+<p>在 Mars 3D GCM 中，调用顺序是 <code>conf_gcm/iniconst/inigeom</code> 等初始化之后进入 <code>inifilr</code>，再进入动力主循环；Mars <code>newstart/start2archive</code> 工具链也在 <code>inigeom</code> 后调用。</p>
+<h2 id="风险和待确认">风险和待确认</h2>
+<ul>
+<li><code>first_call_inifilr</code> 只控制分配，不控制重分配。若同一进程里对不同水平网格重复调用，数组形状可能与第二次计算出的 <code>jfiltn*/jfilts*</code> 不一致；源码没有保护这一情形。</li>
+<li><code>ysinus</code> 特殊分支会把 <code>alphax</code> 改为 0，这是对 <code>serre_mod</code> 全局状态的写入副作用，不只是局部计算。</li>
+<li><code>rlamda(1)</code> 未赋值但也不被滤波系数循环读取；审查时不应把它误判为运行期 bug。</li>
+<li>待确认：Mars 标准 <code>run.def</code> 中 <code>use_filtre_fft</code> 的默认开启状态仍应由 <code>conf_gcm</code> 并行 hard 页最终整合确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">filtrez 总览</a></li>
+<li><a href="filtreg-system.html">filtreg-system</a></li>
+<li><a href="filter-helpers.html">filter-helpers</a></li>
+<li><a href="fft-backends.html">fft-backends</a></li>
+<li><a href="../dyn3d/gcm.html">dyn3d/gcm</a></li>
+<li><a href="../dyn3dpar/gcm.html">dyn3dpar/gcm</a></li>
+<li><a href="../../routines/mars-start-restart-archive-boundary.html">mars-start-restart-archive-boundary</a></li>
+<li><a href="../../routines/common-gcm-mars-run-entry.html">common-gcm-mars-run-entry</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

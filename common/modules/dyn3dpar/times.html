@@ -1,0 +1,198 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>times - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3dpar/times.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="timesf90">times.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\times.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>times.F90</code> 定义模块 <code>times</code>，为并行动力提供 wall-clock/CPU 计时和按 rank、按 band 数的统计表。它的主要消费者是 <a href="bands.html">bands</a> 的自适应分布调整例程。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 并行动力启用 dyn3dpar timing 和 adaptive bands 时经过；串行入口不经过。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>times</code></td>
+<td>module</td>
+<td>1</td>
+<td>计时统计模块。</td>
+</tr>
+<tr>
+<td><code>init_timer</code></td>
+<td>subroutine</td>
+<td>26</td>
+<td>分配并清零所有 timer 表。</td>
+</tr>
+<tr>
+<td><code>start_timer</code></td>
+<td>subroutine</td>
+<td>50</td>
+<td>开始某类 timer。</td>
+</tr>
+<tr>
+<td><code>suspend_timer</code> / <code>resume_timer</code></td>
+<td>subroutine</td>
+<td>69 / 86</td>
+<td>暂停和恢复某类 timer。</td>
+</tr>
+<tr>
+<td><code>stop_timer</code></td>
+<td>subroutine</td>
+<td>102</td>
+<td>停止 timer 并更新平均和离散度。</td>
+</tr>
+<tr>
+<td><code>allgather_timer</code></td>
+<td>subroutine</td>
+<td>137</td>
+<td>汇总累计时间表。</td>
+</tr>
+<tr>
+<td><code>allgather_timer_average</code></td>
+<td>subroutine</td>
+<td>172</td>
+<td>汇总平均、离散度和迭代次数。</td>
+</tr>
+<tr>
+<td><code>InitTime</code></td>
+<td>subroutine</td>
+<td>212</td>
+<td>开启全局计时并初始化系统/CPU 时间基准。</td>
+</tr>
+<tr>
+<td><code>DiffTime</code></td>
+<td>function</td>
+<td>224</td>
+<td>返回距上次调用的 wall-clock 时间差。</td>
+</tr>
+<tr>
+<td><code>DiffCpuTime</code></td>
+<td>function</td>
+<td>238</td>
+<td>返回距上次调用的 CPU 时间差。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="模块状态">模块状态</h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nb_timer=4</code></td>
+<td>计时类型数。</td>
+</tr>
+<tr>
+<td><code>timer_caldyn=1</code>、<code>timer_vanleer=2</code>、<code>timer_dissip=3</code>、<code>timer_physic=4</code></td>
+<td>与 band 调整阶段对应。</td>
+</tr>
+<tr>
+<td><code>stopped/running/suspended</code></td>
+<td>timer 状态枚举。</td>
+</tr>
+<tr>
+<td><code>timer_table(max_size,nb_timer,0:mpi_size-1)</code></td>
+<td>累计耗时。</td>
+</tr>
+<tr>
+<td><code>timer_table_sqr</code></td>
+<td>累计平方，用于估算离散度。</td>
+</tr>
+<tr>
+<td><code>timer_iteration</code></td>
+<td>每个 band 数、timer 类型和 rank 的样本数。</td>
+</tr>
+<tr>
+<td><code>timer_average</code>、<code>timer_delta</code></td>
+<td>平均耗时和标准差式离散度。</td>
+</tr>
+<tr>
+<td><code>AllTimer_IsActive</code></td>
+<td>全局开关；未开启时 start/stop 不记录。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="计时更新逻辑">计时更新逻辑</h2>
+<p><code>init_timer</code> 以 <code>jjm+1</code> 作为 <code>max_size</code> 分配统计表。<code>start_timer</code> 记录起始时间并把状态置为 running；<code>suspend_timer</code> 把当前运行段累加到 <code>timer_running</code> 并进入 suspended；<code>resume_timer</code> 重新记录起点；<code>stop_timer</code> 完成一次样本记录。</p>
+<p><code>stop_timer</code> 使用当前 <code>parallel_lmdz:jj_nb</code> 作为 band 数索引，把本次耗时写入 <code>timer_table(jj_nb,no_timer,mpi_rank)</code>，同时增加平方和与迭代次数，并计算：</p>
+<pre class="text"><code>average = sum / N
+delta = sqrt(abs(sum_sq - sum*sum/N)/(N-1))</code></pre>
+<p>当样本数小于 2 时，<code>delta=0</code>。</p>
+<h2 id="mpi-汇总">MPI 汇总</h2>
+<p><code>allgather_timer</code> 和 <code>allgather_timer_average</code> 只在 <code>using_mpi</code> 且 timer active 时调用 <code>MPI_ALLGATHER</code>。前者同步累计和平方和，后者同步平均、离散度和迭代次数。datatype 使用 <code>MPI_REAL_LMDZ</code> 与 <code>MPI_INTEGER</code>，通信器是 <code>COMM_LMDZ</code>。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>统计表第三维是 rank，范围 <code>0:mpi_size-1</code>。</li>
+<li>timer 样本绑定当前 <code>jj_nb</code>，因此调整 band 前后会落到不同表格行。</li>
+<li><code>AllTimer_IsActive</code> 由 <code>InitTime</code> 设置；未调用时所有 timer 子程序基本空转。</li>
+<li>状态错误只打印消息并把状态重置，不走统一 abort。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>InitTime</code> 的实际调用点和 timer 是否默认开启，需要从 <code>leapfrog_p</code> 或并行 driver 补证。</li>
+<li><code>DiffTime/DiffCpuTime</code> 是否被外部使用需后续符号索引核对。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="bands.html">bands</a></li>
+<li><a href="parallel_lmdz.html">parallel_lmdz</a></li>
+<li><a href="gcm.html">并行 gcm</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

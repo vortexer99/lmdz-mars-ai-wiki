@@ -1,0 +1,197 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>bands - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3dpar/bands.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="bandsf90">bands.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\bands.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>bands.F90</code> 定义模块 <code>Bands</code>，保存并行动力不同阶段的纬向 band 数量和物理列分布。它可从 <code>Bands_${iim}x${jjm}x${llm}_${mpi_size}prc.dat</code> 读取历史分布，也可根据 timing 统计把 band 从慢 rank 调整到快 rank。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 并行动力入口使用 COMMON dyn3dpar band 分布时经过；串行 Mars 路径不经过。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Bands</code></td>
+<td>module</td>
+<td>4</td>
+<td>band 分布和自适应调整模块。</td>
+</tr>
+<tr>
+<td><code>AllocateBands</code></td>
+<td>subroutine</td>
+<td>20</td>
+<td>分配所有 rank 的 band 数组。</td>
+</tr>
+<tr>
+<td><code>Read_distrib</code></td>
+<td>subroutine</td>
+<td>34</td>
+<td>读取或生成默认分布。</td>
+</tr>
+<tr>
+<td><code>Set_Bands</code></td>
+<td>subroutine</td>
+<td>93</td>
+<td>派生 vanleer2 和 physics 分布。</td>
+</tr>
+<tr>
+<td><code>AdjustBands_caldyn</code></td>
+<td>subroutine</td>
+<td>141</td>
+<td>根据 caldyn timing 调整 caldyn band。</td>
+</tr>
+<tr>
+<td><code>AdjustBands_vanleer</code></td>
+<td>subroutine</td>
+<td>206</td>
+<td>根据 Van Leer timing 调整输送 band。</td>
+</tr>
+<tr>
+<td><code>AdjustBands_dissip</code></td>
+<td>subroutine</td>
+<td>272</td>
+<td>根据耗散 timing 调整 dissip band。</td>
+</tr>
+<tr>
+<td><code>AdjustBands_physic</code></td>
+<td>subroutine</td>
+<td>338</td>
+<td>根据 physics timing 调整物理列分布。</td>
+</tr>
+<tr>
+<td><code>WriteBands</code></td>
+<td>subroutine</td>
+<td>393</td>
+<td>写出当前分布文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="模块状态">模块状态</h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bands_caldyn=1</code>、<code>bands_vanleer=2</code>、<code>bands_dissip=3</code></td>
+<td>band 类型编号。</td>
+</tr>
+<tr>
+<td><code>jj_Nb_Caldyn</code></td>
+<td>caldyn 阶段每个 rank 的纬向 band 数。</td>
+</tr>
+<tr>
+<td><code>jj_Nb_vanleer</code>、<code>jj_Nb_vanleer2</code></td>
+<td>tracer 输送阶段的分布及派生分布。</td>
+</tr>
+<tr>
+<td><code>jj_Nb_dissip</code></td>
+<td>耗散阶段分布。</td>
+</tr>
+<tr>
+<td><code>jj_Nb_physic</code>、<code>jj_Nb_physic_bis</code></td>
+<td>物理列相关的纬向/辅助分布。</td>
+</tr>
+<tr>
+<td><code>distrib_phys</code></td>
+<td>每个 rank 传给物理初始化的物理列数或起始分配信息。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="读取和默认分布">读取和默认分布</h2>
+<p><code>Read_distrib</code> 构造文件名 <code>Bands_${iim}x${jjm}x${llm}_${mpi_size}prc.dat</code>。若文件存在，按块读取 caldyn、vanleer、dissip 和 physics 分布；若不存在，则把 <code>jjm+1</code> 个纬向 band 尽量平均分给 MPI ranks，同时把 <code>iim*(jjm-1)+2</code> 个物理列平均分配。</p>
+<h2 id="set_bands"><code>Set_Bands</code></h2>
+<p><code>Set_Bands</code> 依据读取结果补充派生状态：</p>
+<ol type="1">
+<li>计算 <code>jj_Nb_vanleer2</code>。</li>
+<li>根据 <code>distrib_phys</code> 推导物理侧 <code>jj_para_begin/end</code> 范围。</li>
+<li>填写 <code>jj_Nb_physic</code> 和 <code>jj_Nb_physic_bis</code>，供物理接口和重分布使用。</li>
+</ol>
+<h2 id="自适应调整">自适应调整</h2>
+<p>四个 <code>AdjustBands_*</code> 例程都依赖 <a href="times.html">times</a> 中的 <code>timer_average/timer_delta/timer_iteration</code>。典型逻辑是：</p>
+<ol type="1">
+<li><code>allgather_timer_average</code> 汇总所有 rank 的计时。</li>
+<li>找出当前阶段平均耗时最大和最小的 rank。</li>
+<li>若慢 rank 的 band 数允许减少，且快 rank 增加一个 band 的预测耗时低于慢 rank 当前耗时，则移动一个 band。</li>
+<li>physics 版本还结合 <code>mod_phys_lmdz_para:klon_mpi_para_nb</code> 处理物理列数量。</li>
+</ol>
+<h2 id="输出格式">输出格式</h2>
+<p><code>WriteBands</code> 使用和 <code>Read_distrib</code> 相同的文件名，以 formatted 文本写出当前 caldyn、vanleer、dissip 和 physics 分布。并行入口中通常只让 <code>mpi_rank==0</code> 写出，避免多个 rank 同时覆盖文件。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>band 数组下标是 <code>0:MPI_Size-1</code>，与 Fortran 默认 1 起始不同。</li>
+<li>默认分布使用 <code>jjm+1</code>，包含极点 band。</li>
+<li>physics 分布的总列数是 <code>iim*(jjm-1)+2</code>，即中间纬向列加两个极点。</li>
+<li>调整例程一次最多移动一个 band，避免一次计时噪声导致大幅重排。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>Bands_*prc.dat</code> 在典型 Mars 作业中是否被保留并复用，需要运行目录样例确认。</li>
+<li><code>jj_Nb_vanleer2</code> 的下游使用点应在 <code>vlsplt_p</code> 或后续并行输送页中继续补全。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="parallel_lmdz.html">parallel_lmdz</a></li>
+<li><a href="../../routines/leapfrog-p-distribution-halo.html">leapfrog-p-distribution-halo</a></li>
+<li><a href="times.html">times</a></li>
+<li><a href="gcm.html">并行 gcm</a></li>
+<li><a href="mod_hallo.html">mod_hallo</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,338 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mod_grid_phy_lmdz - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/phy_common/mod_grid_phy_lmdz.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mod_grid_phy_lmdzf90">mod_grid_phy_lmdz.F90</h1>
+<p>页面状态：TASK-0180 完成。 源码基线：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code>。 Mars 运行参与度：条件经过。Mars 3D 物理初始化经 <code>inigeomphy_mod -&gt; physics_distribution_mod -&gt; init_grid_phy_lmdz</code> 设置本模块；Mars 1D/testphys 也通过 <code>init_physics_distribution(regular_lonlat,4,1,1,1,...)</code> 设置单列网格。后续 diagfi/stats/XIOS/restart/surface 初始化读取 <code>klon_glo/nbp_lon/nbp_lat/grid_type</code> 或调用 <code>Grid1Dto2D_glo</code>。</p>
+<h2 id="源码范围">源码范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\mod_grid_phy_lmdz.F90</code></pre>
+<p>文件行数：468。</p>
+<h2 id="模块职责">模块职责</h2>
+<p><code>mod_grid_phy_lmdz</code> 是物理侧全局网格状态模块。它不分配经纬度、面积或垂直层数组；这些由 <code>regular_lonlat_mod</code>、<code>geometry_mod</code> 和 <code>vertical_layers_mod</code> 保存。本模块只保存网格类型、顶点数、全局经纬/垂直规模和全局物理列数，并提供两组泛型映射：</p>
+<table>
+<thead>
+<tr>
+<th>泛型</th>
+<th>方向</th>
+<th>典型用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Grid1Dto2D_glo</code></td>
+<td><code>klon_glo</code> 物理列 -&gt; <code>(nbp_lon, nbp_lat)</code> lon-lat 场</td>
+<td>Mars diagfi/stats/debug 输出前，把 gather 后的全局物理列展开为二维网格。</td>
+</tr>
+<tr>
+<td><code>Grid2Dto1D_glo</code></td>
+<td><code>(nbp_lon, nbp_lat)</code> lon-lat 场 -&gt; <code>klon_glo</code> 物理列</td>
+<td>从带极点重复经度的二维场回到物理列表示。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="模块状态">模块状态</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th style="text-align: right;">行号</th>
+<th>类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unstructured</code></td>
+<td style="text-align: right;">10</td>
+<td>integer parameter = 0</td>
+<td>非结构/ICO 类网格枚举。Mars lon-lat GCM 主线通常不走这一类，但 XIOS/diagfi 会检查它。</td>
+</tr>
+<tr>
+<td><code>regular_lonlat</code></td>
+<td style="text-align: right;">11</td>
+<td>integer parameter = 1</td>
+<td>regular longitude-latitude 网格枚举；Mars lon-lat 3D 和 1D 初始化都以此传入。</td>
+</tr>
+<tr>
+<td><code>grid_type</code></td>
+<td style="text-align: right;">13</td>
+<td>integer, save</td>
+<td>当前物理网格类型，由 <code>init_grid_phy_lmdz</code> 写入。</td>
+</tr>
+<tr>
+<td><code>nvertex</code></td>
+<td style="text-align: right;">14</td>
+<td>integer, save</td>
+<td>每个 cell 的顶点数；regular lon-lat 初始化传 <code>4</code>。Mars <code>topmons_mod</code> 读取它。</td>
+</tr>
+<tr>
+<td><code>nbp_lon</code></td>
+<td style="text-align: right;">15</td>
+<td>integer, save</td>
+<td>全局 regular 网格经向点数，注释标为 <code>iim</code>。</td>
+</tr>
+<tr>
+<td><code>nbp_lat</code></td>
+<td style="text-align: right;">16</td>
+<td>integer, save</td>
+<td>全局 regular 网格纬向点数，注释标为 <code>jjmp1</code>；1D 时为 <code>1</code>。</td>
+</tr>
+<tr>
+<td><code>nbp_lev</code></td>
+<td style="text-align: right;">17</td>
+<td>integer, save</td>
+<td>垂直层数，注释标为 <code>llm</code>。</td>
+</tr>
+<tr>
+<td><code>klon_glo</code></td>
+<td style="text-align: right;">18</td>
+<td>integer, save</td>
+<td>全局物理列数，去掉两极重复经度后的列数。</td>
+</tr>
+</tbody>
+</table>
+<p>这些变量都是模块 <code>SAVE</code> 状态，不是 <code>THREADPRIVATE</code>。它们必须在使用任何物理输出、transfer 或 Mars surface/restart helper 前完成初始化。</p>
+<h2 id="初始化入口">初始化入口</h2>
+<p><code>init_grid_phy_lmdz(grid_type_, nvertex_, nbp_lon_, nbp_lat_, nbp_lev_)</code> 定义在 39-59 行。它只做赋值和 <code>klon_glo</code> 推导：</p>
+<pre class="text"><code>grid_type = grid_type_
+nvertex   = nvertex_
+nbp_lon   = nbp_lon_
+nbp_lat   = nbp_lat_
+nbp_lev   = nbp_lev_
+
+if nbp_lon * nbp_lat == 1:
+    klon_glo = 1
+else:
+    klon_glo = nbp_lon * nbp_lat - 2 * (nbp_lon - 1)</code></pre>
+<p>公式含义：</p>
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th style="text-align: right;"><code>klon_glo</code></th>
+<th>解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1D/testphys</td>
+<td style="text-align: right;"><code>1</code></td>
+<td>单列模式不展开极点和经圈。</td>
+</tr>
+<tr>
+<td>3D regular lon-lat</td>
+<td style="text-align: right;"><code>nbp_lon * nbp_lat - 2*(nbp_lon-1)</code></td>
+<td>二维 lon-lat 场有北极 <code>nbp_lon</code> 个重复经度和南极 <code>nbp_lon</code> 个重复经度；物理列表示每个极点只保留一个点，因此每个极点少 <code>nbp_lon-1</code> 个点。</td>
+</tr>
+</tbody>
+</table>
+<p>在 Mars lon-lat 3D 路径中，<a href="../dynphy_lonlat/inigeomphy_mod.html">inigeomphy_mod</a> 对 <code>iim*jjm&gt;1</code> 调用：</p>
+<pre class="text"><code>init_physics_distribution(regular_lonlat, 4, nbp, iim, jjm+1, nlayer, communicator)</code></pre>
+<p>随后 <a href="physics_distribution_mod.html">physics_distribution_mod</a> 调用 <code>init_grid_phy_lmdz</code>，再初始化物理并行分布和 <code>dimphy</code>。</p>
+<h2 id="泛型接口库存">泛型接口库存</h2>
+<p><code>Grid1Dto2D_glo</code> 接口从 20 行开始，覆盖 integer/real/logical 三种类型，每种支持 1 到 4 维输入。<code>Grid2Dto1D_glo</code> 接口从 28 行开始，覆盖同样的类型和 rank。</p>
+<table>
+<thead>
+<tr>
+<th>方向</th>
+<th>类型族</th>
+<th>public wrapper</th>
+<th>private kernel</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1D -&gt; 2D</td>
+<td>integer</td>
+<td><code>grid1dTo2d_glo_i/i1/i2/i3</code></td>
+<td><code>grid1dTo2d_glo_igen</code></td>
+</tr>
+<tr>
+<td>1D -&gt; 2D</td>
+<td>real</td>
+<td><code>grid1dTo2d_glo_r/r1/r2/r3</code></td>
+<td><code>grid1dTo2d_glo_rgen</code></td>
+</tr>
+<tr>
+<td>1D -&gt; 2D</td>
+<td>logical</td>
+<td><code>grid1dTo2d_glo_l/l1/l2/l3</code></td>
+<td><code>grid1dTo2d_glo_lgen</code></td>
+</tr>
+<tr>
+<td>2D -&gt; 1D</td>
+<td>integer</td>
+<td><code>grid2dTo1d_glo_i/i1/i2/i3</code></td>
+<td><code>grid2dTo1d_glo_igen</code></td>
+</tr>
+<tr>
+<td>2D -&gt; 1D</td>
+<td>real</td>
+<td><code>grid2dTo1d_glo_r/r1/r2/r3</code></td>
+<td><code>grid2dTo1d_glo_rgen</code></td>
+</tr>
+<tr>
+<td>2D -&gt; 1D</td>
+<td>logical</td>
+<td><code>grid2dTo1d_glo_l/l1/l2/l3</code></td>
+<td><code>grid2dTo1d_glo_lgen</code></td>
+</tr>
+</tbody>
+</table>
+<p>Wrapper 的职责是按额外维度计算 <code>dimsize</code>。例如 real 3D 物理列输入 <code>VarIn(klon_glo, a, b)</code> 会传入 <code>dimsize = a*b</code>；kernel 把第一维之外的维度作为线性 trailing block 处理。这样同一套两极展开/压缩规则可复用于 2D surface field、3D column field、带 tracer/soil/slope 等额外维度的数组。</p>
+<h2 id="grid1dto2d_glo-展开规则"><code>Grid1Dto2D_glo</code> 展开规则</h2>
+<p>三个 private kernel 的逻辑相同，只是数据类型不同。以 296-328 行的 integer 版本为例，输入逻辑尺寸是：</p>
+<pre class="text"><code>VarIn (klon_glo, dimsize)
+VarOut(nbp_lon * nbp_lat, dimsize)
+offset = nbp_lon</code></pre>
+<p>步骤：</p>
+<ol type="1">
+<li>对每个 trailing index <code>i</code>，把全局物理列 <code>ij=1:klon_glo</code> 写到二维线性场的 <code>ij + nbp_lon - 1</code>。</li>
+<li>把二维场第一纬圈 <code>1:nbp_lon</code> 全部填成 <code>VarIn(1,i)</code>，即北极单物理点复制到所有经度。</li>
+<li>把二维场最后一纬圈 <code>nbp_lon*(nbp_lat-1)+1 : nbp_lon*nbp_lat</code> 全部填成 <code>VarIn(klon_glo,i)</code>，即南极单物理点复制到所有经度。</li>
+</ol>
+<p>因此对 3D regular lon-lat，线性对应是：</p>
+<pre class="text"><code>2D row 1                         &lt;- physical column 1, repeated nbp_lon times
+2D rows 2 .. nbp_lat-1            &lt;- physical columns 2 .. klon_glo-1
+2D row nbp_lat                    &lt;- physical column klon_glo, repeated nbp_lon times</code></pre>
+<p>Mars <code>writediagfi.F</code> 在并行模式中先 <code>Gather(px, dx*_glop)</code> 到 <code>klon_glo</code> 全局物理列，再调用 <code>Grid1Dto2D_glo</code> 得到 <code>dx*_glo(nbp_lon,nbp_lat,...)</code>，最后额外复制第一经度到 <code>nbp_lon+1</code> 形成 NetCDF lon wrap。</p>
+<h2 id="grid2dto1d_glo-压缩规则"><code>Grid2Dto1D_glo</code> 压缩规则</h2>
+<p>2D 到 1D 的 private kernel 定义在 399-466 行，输入逻辑尺寸是：</p>
+<pre class="text"><code>VarIn (nbp_lon * nbp_lat, dimsize)
+VarOut(klon_glo, dimsize)
+offset = nbp_lon</code></pre>
+<p>步骤：</p>
+<ol type="1">
+<li>对每个 trailing index <code>i</code>，先把二维线性场的 <code>ij + nbp_lon - 1</code> 复制到 <code>VarOut(ij,i)</code>。</li>
+<li>然后显式执行 <code>VarOut(1,i)=VarIn(1,i)</code>。</li>
+</ol>
+<p>第二步会把北极物理列改成二维场第一个格点。南极物理列没有类似显式覆盖，因为第一步已经把 <code>VarOut(klon_glo,i)</code> 对应到最后一纬圈的第一个位置：<code>klon_glo + nbp_lon - 1 = nbp_lon*(nbp_lat-1)+1</code>。</p>
+<p>复现时要注意：<code>Grid2Dto1D_glo</code> 不对极点重复经度做平均；它取北极/南极纬圈的第一个经度位置。因此输入二维场若在极点经向不一致，压缩会静默丢弃其他经度。</p>
+<h2 id="mars-使用点">Mars 使用点</h2>
+<table>
+<thead>
+<tr>
+<th>使用方</th>
+<th>使用符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>COMMON <a href="../dynphy_lonlat/inigeomphy_mod.html">inigeomphy_mod</a></td>
+<td><code>regular_lonlat</code>, <code>klon_glo</code></td>
+<td>初始化 physical distribution 后，用 <code>klon_glo</code> 分配全局物理几何数组。</td>
+</tr>
+<tr>
+<td>COMMON <a href="physics_distribution_mod.html">physics_distribution_mod</a></td>
+<td><code>init_grid_phy_lmdz</code></td>
+<td>将 grid type、顶点数、lon/lat/lev 写入本模块。</td>
+</tr>
+<tr>
+<td>COMMON <a href="xios_writefield.html">xios_writefield</a></td>
+<td><code>nbp_lon</code>, <code>nbp_lat</code>, <code>klon_glo</code>, <code>grid_type</code></td>
+<td>按 regular/unstructured 选择 XIOS domain 和 field shape。</td>
+</tr>
+<tr>
+<td>COMMON <a href="../misc/write-field-debug.html">write_field_phy</a></td>
+<td><code>Grid1Dto2D_glo</code>, <code>nbp_lon</code>, <code>nbp_lat</code>, <code>klon_glo</code></td>
+<td>调试写场前把 gather 后的物理列转成 lon-lat。</td>
+</tr>
+<tr>
+<td>Mars <code>writediagfi.F</code>, <code>writediagmicrofi.F</code>, <code>writediagsoil.F90</code>, <code>wstats_mod.F90</code></td>
+<td><code>Grid1Dto2D_glo</code>, <code>klon_glo</code>, <code>nbp_lon</code>, <code>nbp_lat</code></td>
+<td>正式 diagfi/stats 输出从物理列变成 NetCDF lon-lat 场。</td>
+</tr>
+<tr>
+<td>Mars <code>xios_output_mod.F90</code></td>
+<td><code>grid_type</code>, <code>unstructured</code>, <code>nbp_lon</code>, <code>nbp_lat</code>, <code>klon_glo</code></td>
+<td>建立 XIOS domain，unstructured 时走专门 domain helper。</td>
+</tr>
+<tr>
+<td>Mars <code>surfini_mod.F90</code>, <code>slope_mod.F90</code></td>
+<td><code>klon_glo</code>, <code>nbp_lon</code>, <code>nbp_lat</code></td>
+<td>surface/ice cap/slope 初始化按全局物理列和 lon-lat 分辨率循环。</td>
+</tr>
+<tr>
+<td>Mars <code>iostart.F90</code>, <code>phyredem.F90</code>, <code>phyetat0_mod.F90</code></td>
+<td><code>klon_glo</code>, <code>nbp_lon</code>, <code>nbp_lat</code>, <code>nbp_lev</code></td>
+<td>physics start/restart 读写的维度和控制量。</td>
+</tr>
+<tr>
+<td>Mars <code>parse_tracer_file.F90</code></td>
+<td><code>grid_type</code>, <code>regular_lonlat</code></td>
+<td><code>tracer.def</code> 解析时在 <code>lmdz</code>/<code>dynamico</code> 类型之间分支。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>初始化顺序必须是：<code>inigeomphy_mod</code> 或 1D 初始化先调用 <code>init_physics_distribution</code>，再进入任何读取 <code>klon_glo/nbp_lon/nbp_lat</code> 的物理输出、surface 或 restart 例程。</li>
+<li>Mars lon-lat 输出常见形状是 <code>nbp_lon+1</code>，这是输出层额外添加周期经度后的结果；本模块的 2D 映射只生成 <code>nbp_lon * nbp_lat</code>，不负责 <code>+1</code> wrap。</li>
+<li><code>grid_type==unstructured</code> 是接口兼容分支。Mars lon-lat GCM 主线初始化传 <code>regular_lonlat</code>；若实际运行接入 DYNAMICO/非结构网格，输出路径会依据 <code>grid_type</code> 改走 unstructured 分支。</li>
+<li><code>Grid1Dto2D_glo</code> 会复制两极，<code>Grid2Dto1D_glo</code> 会选取两极第一个经度位置；二者不是守恒平均算子。</li>
+<li>1D 情况 <code>nbp_lon=nbp_lat=klon_glo=1</code>，diagfi/stats 等输出例程通常有单列专门分支，不能套用 3D 的极点重复经度逻辑。</li>
+<li>模块内没有 <code>ALLOCATE</code>、文件 I/O、MPI 或 OpenMP 调用；并行 gather/scatter 由 <code>mod_phys_lmdz_para</code> 和 transfer 模块完成。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>Grid2Dto1D_glo</code> 对极点重复经度只取第一个经度位置，这是源码事实；调用方是否保证极点经向值一致，需要逐调用点确认。</li>
+<li>Mars DYNAMICO/unstructured 实际运行是否经过 COMMON 本模块的 <code>unstructured</code> 分支，需要结合具体 build target 和运行脚本确认；本页只标注接口兼容边界。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phy_common 总览</a></li>
+<li><a href="physics_distribution_mod.html">physics_distribution_mod</a></li>
+<li><a href="../dynphy_lonlat/inigeomphy_mod.html">inigeomphy_mod</a></li>
+<li><a href="geometry-grid-layers.html">物理侧几何/经纬网格/垂直层</a></li>
+<li><a href="write-field-xios.html">XIOS/write_field 输出封装组页</a></li>
+<li><a href="../misc/write-field-debug.html">write_field 调试写场接口</a></li>
+<li><a href="../../routines/history-xios-getin-boundary.html">history/XIOS/getin 边界</a></li>
+<li><a href="../../routines/parallel-physics-grid-distribution.html">parallel physics grid distribution</a></li>
+<li><a href="../../routines/xios-domain-field-setup.html">XIOS domain/axis/field setup</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

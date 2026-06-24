@@ -1,0 +1,104 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>fluxstokenc-serial-parallel - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/fluxstokenc-serial-parallel.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="fluxstokenc-串并行对照">fluxstokenc 串并行对照</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d\fluxstokenc.F
+dyn3dpar\fluxstokenc_p.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。启用 flux storage 或相关 history 输出时经过。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>fluxstokenc</code> 把动力通量整理并写入 NetCDF/history 输出。并行版在写出前后增加 halo 交换，使输出场在子域边界一致。</p>
+<h2 id="对照表">对照表</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>串行</th>
+<th>并行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>行数</td>
+<td>170</td>
+<td>247</td>
+</tr>
+<tr>
+<td>输出</td>
+<td><code>histwrite</code></td>
+<td><code>histwrite</code></td>
+</tr>
+<tr>
+<td>并行通信</td>
+<td>无</td>
+<td><code>Register_Hallo</code>, <code>SendRequest</code>, <code>WaitRequest</code></td>
+</tr>
+<tr>
+<td>角色</td>
+<td>全局通量写出</td>
+<td>子域通量交换后写出</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>接收质量或 tracer 通量场。</li>
+<li>按输出变量布局重排。</li>
+<li>并行版先交换边界带。</li>
+<li>调用 <code>histwrite</code> 写入 history/NetCDF。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>输出差异不一定来自物理通量，可能来自并行写出前的边界交换。</li>
+<li><code>histwrite</code> 的文件 ID 和变量定义来自初始化例程，需与 <code>initfluxsto</code> 或 history 初始化配套。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>具体输出变量名和文件名需由 flux storage 初始化任务补齐。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

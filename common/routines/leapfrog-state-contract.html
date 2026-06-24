@@ -1,0 +1,228 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>leapfrog-state-contract - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/leapfrog-state-contract.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="leapfrog-状态契约">leapfrog 状态契约</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\leapfrog.F
+LMDZ.MARS\libf\dynphy_lonlat\phymars\leapfrog_nogcm.F</code></pre>
+<p>Mars 运行参与度：<code>必经</code> 到 <code>条件经过</code>。COMMON 6.3 完整 GCM 入口调用 <code>leapfrog.F</code>；Mars 侧 <code>phymars/nogcm.F90</code> 调用 MARS 树中的 <code>leapfrog_nogcm.F</code>，只作为消费 COMMON 状态模块的边界说明，不是 COMMON 6.3 源文件。两者共享动力状态数组契约，但 MARS nogcm 变体关闭大部分动力 tendency。</p>
+<h2 id="入口接口">入口接口</h2>
+<p>两个例程入口形状一致：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> leapfrog(ucov,vcov,teta,ps,masse,phis,q,time_0)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> leapfrog_nogcm(ucov,vcov,teta,ps,masse,phis,q,time_0)</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>实参</th>
+<th>维度</th>
+<th>读写</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ucov</code></td>
+<td><code>ip1jmp1,llm</code></td>
+<td>inout</td>
+<td>纬向 covariant wind</td>
+</tr>
+<tr>
+<td><code>vcov</code></td>
+<td><code>ip1jm,llm</code></td>
+<td>inout</td>
+<td>经向 covariant wind</td>
+</tr>
+<tr>
+<td><code>teta</code></td>
+<td><code>ip1jmp1,llm</code></td>
+<td>inout</td>
+<td>potential temperature</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td><code>ip1jmp1</code></td>
+<td>inout</td>
+<td>surface pressure, Pa</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td><code>ip1jmp1,llm</code></td>
+<td>inout</td>
+<td>layer air mass</td>
+</tr>
+<tr>
+<td><code>phis</code></td>
+<td><code>ip1jmp1</code></td>
+<td>inout</td>
+<td>surface geopotential</td>
+</tr>
+<tr>
+<td><code>q</code></td>
+<td><code>ip1jmp1,llm,nqtot</code></td>
+<td>inout</td>
+<td>advected tracers</td>
+</tr>
+<tr>
+<td><code>time_0</code></td>
+<td>scalar</td>
+<td>in</td>
+<td>restart/start time offset；源码注释称不直接用于动力计算</td>
+</tr>
+</tbody>
+</table>
+<p><code>nqtot</code> 来自 <code>infotrac</code>，因此调用 <code>leapfrog*</code> 前必须已经完成 tracer 初始化和 <code>q</code> 分配。</p>
+<h2 id="主要-use-依赖">主要 USE 依赖</h2>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>使用状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>infotrac</code></td>
+<td><code>nqtot</code>，isotope 检查 <code>ok_iso_verif</code>；nogcm 还用 <code>tname</code> 定位 <code>co2</code></td>
+</tr>
+<tr>
+<td><code>control_mod</code></td>
+<td><code>planet_type/nday/day_step/iperiod/iphysiq/iconser/dissip_period/iecri/ecritstart</code> 等调度控制</td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td><code>forward/leapf/apphys/conser/apdiss/purmats</code> 等时间步门控；nogcm 不使用 <code>apdiss</code></td>
+</tr>
+<tr>
+<td><code>temps_mod</code></td>
+<td><code>jD_ref/jH_ref/itaufin/day_ini/day_ref/start_time/dt/hour_ini/day_end</code></td>
+</tr>
+<tr>
+<td><code>comvert_mod</code></td>
+<td><code>ap/bp/pressure_exner/presnivs</code>；nogcm 额外读取 <code>aps/bps/pseudoalt/preff/scaleheight</code></td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>daysec/dtvr/dtphys/dtdiss/cpp/iflag_top_bound</code> 等常量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="局部工作数组">局部工作数组</h2>
+<table>
+<thead>
+<tr>
+<th>数组</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>p(ip1jmp1,llmp1)</code></td>
+<td>interface pressure，由 <code>pression</code> 从 <code>ps/ap/bp</code> 计算</td>
+</tr>
+<tr>
+<td><code>pks/pk/pkf</code></td>
+<td>surface/mid-layer Exner，按 <code>pressure_exner</code> 选择 <code>exner_hyb</code> 或 <code>exner_milieu</code></td>
+</tr>
+<tr>
+<td><code>phi</code></td>
+<td>geopotential，输出和 physics 之前会重算</td>
+</tr>
+<tr>
+<td><code>pbaru/pbarv</code></td>
+<td><code>caldyn</code> 给出的 mass flux，用于 tracer advection 和 offline flux storage</td>
+</tr>
+<tr>
+<td><code>ucovm1/vcovm1/tetam1/psm1/massem1</code></td>
+<td>上一时间层状态，进入 <code>integrd</code></td>
+</tr>
+<tr>
+<td><code>du/dv/dteta/dq/dp</code></td>
+<td>动力 tendency</td>
+</tr>
+<tr>
+<td><code>dufi/dvfi/dtetafi/dqfi/dpfi</code></td>
+<td>physics tendency</td>
+</tr>
+<tr>
+<td><code>dudis/dvdis/dtetadis</code></td>
+<td>dissipation tendency</td>
+</tr>
+</tbody>
+</table>
+<p>nogcm 变体额外保存 <code>kpd/tau_ps/tau_co2/tau_teta/mq</code> 等，用来做 pressure、CO2 和 temperature 的松弛混合。</p>
+<h2 id="初始-pressuremassexner">初始 pressure/mass/exner</h2>
+<p>两个例程进入时间循环前都会：</p>
+<ol type="1">
+<li>根据 <code>nday/less1day/ndynstep</code> 计算 <code>itaufin</code>，再设 <code>itaufinp1=itaufin+1</code>。</li>
+<li>清零 dissipation、top-bound、physics tendency 数组。</li>
+<li>设 <code>itau=0</code>，并由 <code>iflag_phys</code> 推出 <code>physics</code> 是否启用。</li>
+<li>清零 <code>dq</code>，调用 <code>pression(ip1jmp1,ap,bp,ps,p)</code>。</li>
+<li>按 <code>pressure_exner</code> 调用 <code>exner_hyb</code> 或 <code>exner_milieu</code>。</li>
+<li>检查 <code>pk</code> 是否随层号严格递减；失败则 <code>abort_gcm</code>。</li>
+</ol>
+<p>完整 <code>leapfrog.F</code> 在每次物理写回和耗散前后会重新刷新 <code>p/masse/pk</code>；nogcm 在 physics 后的 pressure mixing 中也会刷新 <code>p/masse/pk</code>。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>masse</code> 不是独立输入常量；<code>ps</code> 改变后要由 <code>pression + massdair</code> 同步。</li>
+<li><code>q</code> 的第三维必须是 <code>nqtot</code>，不是物理 tracer 数。</li>
+<li><code>dt</code> 在 forward 步为 <code>dtvr</code>，进入 leapfrog 后为 <code>2*dtvr</code>。</li>
+<li><code>time_0</code> 对完整 GCM Mars restart 写出时间有影响；MARS nogcm 变体只在入口形参保留它。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>time_0</code> 在 MARS <code>phymars/leapfrog_nogcm.F</code> 的具体传入值和 archive/restart 时间一致性需由 Mars restart 任务确认。</li>
+<li>nogcm 中 <code>aps/bps/pseudoalt/preff/scaleheight</code> 的实际使用较少，保留为接口兼容状态。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="infotrac-state-contract.html">infotrac 状态契约</a></li>
+<li><a href="vertical-discretization.html">垂直离散构造</a></li>
+<li><a href="mass-pressure-energy-overview.html">质量压力能量总览</a></li>
+<li><a href="../modules/dyn3d_common/inigeom.html">inigeom</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

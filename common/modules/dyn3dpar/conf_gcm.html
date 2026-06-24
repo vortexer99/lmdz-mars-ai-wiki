@@ -1,0 +1,415 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>conf_gcm - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3dpar/conf_gcm.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="dyn3dparconf_gcmf90">dyn3dpar/conf_gcm.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\conf_gcm.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>LMDZ.COMMON\libf\dyn3dpar</code></pre>
+<p>页面状态：TASK-0038 hard 父文件页。源码行数：1036。</p>
+<h2 id="文件定位">文件定位</h2>
+<p><code>conf_gcm.F90</code> 定义 <code>SUBROUTINE conf_gcm(tapedef, etatinit)</code>，是并行动力入口的运行配置读取中心。它通过 <code>getin</code> 从 <code>run.def</code> 等配置源读取日期、时间步、physics/tracer、restart、输出、耗散、sponge、zoom 和并行专用开关，然后直接写入 <code>control_mod</code>、<code>logic_mod</code>、<code>comconst_mod</code>、<code>serre_mod</code>、<code>sponge_mod_p</code>、<code>mod_filtre_fft</code>、<code>mod_hallo</code> 等模块全局状态。</p>
+<p>与串行 <a href="../dyn3d/conf_gcm.html">dyn3d/conf_gcm</a> 相比，本文件主体同构，但额外处理 OpenMP <code>adjust</code> 限制、并行 FFT filter 开关、MPI 全局 buffer allocation 开关，并使用并行 sponge 模块 <code>sponge_mod_p</code>。串并行差异的横向对照见 <a href="../../routines/conf-gcm-serial-parallel-delta.html">conf_gcm 串并行配置差异</a>。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 并行动力构建或并行入口测试经过 `dyn3dpar/gcm.F -&gt; conf_gcm(99,.TRUE.)`。串行 Mars 3D 正常入口使用 `dyn3d/conf_gcm.F90`；MARS dyn1d 不是本文件直接入口。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>conf_gcm</code></td>
+<td>subroutine</td>
+<td>6</td>
+<td>读取并行动力运行配置，写 COMMON/parallel 模块全局状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块和-include">依赖的模块和 include</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IOIPSL</code> 或 <code>ioipsl_getincom</code></td>
+<td>根据 <code>CPP_IOIPSL</code> 选择正式 IOIPSL 或本地 fallback <code>getin</code>。</td>
+</tr>
+<tr>
+<td><code>misc_mod</code></td>
+<td>提供 <code>lunout/prt_level/abort_gcm</code> 等运行输出和错误终止基础。</td>
+</tr>
+<tr>
+<td><code>mod_filtre_fft:use_filtre_fft</code></td>
+<td>并行 polar filter 是否使用 FFT。</td>
+</tr>
+<tr>
+<td><code>mod_hallo:use_mpi_alloc</code></td>
+<td>halo/通信 buffer 是否使用 <code>MPI_ALLOC_MEM</code> 风格的全局内存。</td>
+</tr>
+<tr>
+<td><code>control_mod</code></td>
+<td>写 <code>planet_type/day_step/iphysiq/nday/ndynstep/ok_dyn*</code> 等主控制状态。</td>
+</tr>
+<tr>
+<td><code>infotrac:type_trac</code></td>
+<td>写 tracer 系统类型。</td>
+</tr>
+<tr>
+<td><code>assert_m:assert</code></td>
+<td>校验 <code>vert_prof_dissip</code> 和 zoom 范围等。</td>
+</tr>
+<tr>
+<td><code>sponge_mod_p</code></td>
+<td>写并行 sponge 配置 <code>callsponge/mode_sponge/nsponge/tetasponge</code>。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td>写耗散垂直剖面、top-bound sponge 和 <code>ngroup</code> 等。</td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td>写 <code>purmats/ok_guide/read_start/iflag_phys/iflag_trac/fxyhypb/ysinus</code> 等逻辑门。</td>
+</tr>
+<tr>
+<td><code>serre_mod</code></td>
+<td>写 zoom 中心、放大率、范围、陡峭度和 <code>alphax/alphay</code>。</td>
+</tr>
+<tr>
+<td><code>temps_mod:calend</code></td>
+<td>写日历类型。</td>
+</tr>
+<tr>
+<td><code>dimensions.h</code>, <code>paramet.h</code>, <code>comdissnew.h</code>, <code>iniprint.h</code></td>
+<td>提供网格维度、耗散控制和打印级别共享状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入和输出">输入和输出</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>方向</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tapedef</code></td>
+<td>输入参数</td>
+<td>历史配置单元号；当前实现主要通过 <code>getin</code>，本文件内未直接读取该单元。</td>
+</tr>
+<tr>
+<td><code>etatinit</code></td>
+<td>输入参数</td>
+<td><code>.TRUE.</code> 时初始化 zoom 状态；<code>.FALSE.</code> 时把 <code>run.def</code> zoom 参数与已读 start/control 状态比较。</td>
+</tr>
+<tr>
+<td><code>run.def</code> / include def 文件</td>
+<td>输入</td>
+<td><code>getin</code> 数据源；实际文件优先级见 <a href="../misc/ioipsl-getin-system.html">IOIPSL getin 系统</a>。</td>
+</tr>
+<tr>
+<td><code>lmdz.out</code> 或标准输出</td>
+<td>输出</td>
+<td><code>lunout</code> 不是 5/6 时打开 <code>lmdz.out</code>，并写完整配置摘要。</td>
+</tr>
+<tr>
+<td>module 全局变量</td>
+<td>输出</td>
+<td>后续 <code>dyn3dpar/gcm.F</code>、<code>iniconst/inigeom/inidissip/iniphysiq</code>、<code>leapfrog_p</code>、history/restart、bands/halo/filter 读取这些状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="主要-getin-键">主要 getin 键</h2>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>键</th>
+<th>写入状态</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输出和运行上限</td>
+<td><code>lunout</code>, <code>prt_level</code>, <code>itaumax</code></td>
+<td><code>misc_mod</code>/<code>control_mod</code></td>
+<td>设置日志输出和最大步数上限。</td>
+</tr>
+<tr>
+<td>行星和日历</td>
+<td><code>planet_type</code>, <code>calend</code>, <code>dayref</code>, <code>anneeref</code></td>
+<td><code>control_mod</code>, <code>temps_mod</code></td>
+<td>Mars/generic/Earth 分支和日期基准。</td>
+</tr>
+<tr>
+<td>restart/日期重置</td>
+<td><code>raz_date</code>, <code>resetvarc</code>, <code>starttime</code>, <code>timestart</code>, <code>ecritstart</code></td>
+<td><code>control_mod</code></td>
+<td>决定初始时间、restart 重置和中途写 start/restart。</td>
+</tr>
+<tr>
+<td>运行长度</td>
+<td><code>nday</code>, <code>ndynstep</code>, <code>less1day</code>, <code>fractday</code></td>
+<td><code>control_mod</code></td>
+<td>后续入口程序派生 <code>itaufin</code>。</td>
+</tr>
+<tr>
+<td>调度</td>
+<td><code>day_step</code>, <code>nsplit_phys</code>, <code>iperiod</code>, <code>iphysiq</code>, <code>iapp_tracvl</code></td>
+<td><code>control_mod</code></td>
+<td><code>dyn3dpar/gcm.F</code> 随后检查 <code>iphysiq/iperiod</code> 和 <code>day_step</code> 整除关系。</td>
+</tr>
+<tr>
+<td>tracer/守恒</td>
+<td><code>force_conserv_tracer</code>, <code>iconser</code>, <code>iflag_trac</code>, <code>type_trac</code>, <code>config_inca</code></td>
+<td><code>control_mod</code>, <code>logic_mod</code>, <code>infotrac</code></td>
+<td>影响 tracer 初始化、advection 和守恒诊断。</td>
+</tr>
+<tr>
+<td>输出</td>
+<td><code>iecri</code>, <code>periodav</code>, <code>output_grads_dyn</code>, <code>ok_dynzon</code>, <code>ok_dyn_ins</code>, <code>ok_dyn_ave</code></td>
+<td><code>control_mod</code>, <code>logic_mod</code></td>
+<td>并行入口只在 <code>mpi_rank==0</code> 初始化 history/dynav。</td>
+</tr>
+<tr>
+<td>耗散</td>
+<td><code>idissip</code>, <code>dissip_period</code>, <code>lstardis</code>, <code>nitergdiv</code>, <code>nitergrot</code>, <code>niterh</code>, <code>tetagdiv</code>, <code>tetagrot</code>, <code>tetatemp</code>, <code>coefdis</code></td>
+<td><code>control_mod</code>, <code>comdissnew.h</code></td>
+<td><code>idissip</code> 是旧 Mars/Generic 键；<code>dissip_period</code> 存在时覆盖它。</td>
+</tr>
+<tr>
+<td>垂直耗散剖面</td>
+<td><code>dissip_factz</code>, <code>dissip_deltaz</code>, <code>dissip_zref</code>, <code>dissip_fac_mid</code>, <code>dissip_fac_up</code>, <code>dissip_hdelta</code>, <code>dissip_pupstart</code>, <code>vert_prof_dissip</code></td>
+<td><code>comconst_mod</code>, <code>control_mod</code></td>
+<td>Earth strato 和 Mars/non-Earth 默认不同；Mars 默认 <code>vert_prof_dissip=1</code>。</td>
+</tr>
+<tr>
+<td>sponge/top-bound</td>
+<td><code>iflag_top_bound</code>, <code>mode_top_bound</code>, <code>tau_top_bound</code>, <code>callsponge</code>, <code>nsponge</code>, <code>mode_sponge</code>, <code>tetasponge</code></td>
+<td><code>comconst_mod</code>, <code>sponge_mod_p</code></td>
+<td><code>iflag_top_bound&gt;=1</code> 与 <code>callsponge=.true.</code> 互斥。</td>
+</tr>
+<tr>
+<td>网格/zoom</td>
+<td><code>ngroup</code>, <code>clon</code>, <code>clat</code>, <code>grossismx</code>, <code>grossismy</code>, <code>fxyhypb</code>, <code>dzoomx</code>, <code>dzoomy</code>, <code>taux</code>, <code>tauy</code>, <code>ysinus</code></td>
+<td><code>comconst_mod</code>, <code>serre_mod</code>, <code>logic_mod</code></td>
+<td><code>etatinit</code> 决定初始化或一致性校验，后续 <code>inigeom</code> 消费。</td>
+</tr>
+<tr>
+<td>物理/guide/start</td>
+<td><code>purmats</code>, <code>ok_guide</code>, <code>read_start</code>, <code>iflag_phys</code>, <code>cpofT</code>, <code>ip_ebil_dyn</code>, <code>ok_limit</code>, <code>ok_etat0</code>, <code>read_orop</code></td>
+<td><code>logic_mod</code>, <code>control_mod</code></td>
+<td>入口程序决定读取 start、idealized 初始化、physics 初始化和 guide 边界。</td>
+</tr>
+<tr>
+<td>并行专用</td>
+<td><code>adjust</code>, <code>offline</code>, <code>use_filtre_fft</code>, <code>use_mpi_alloc</code></td>
+<td><code>control_mod</code>, <code>mod_filtre_fft</code>, <code>mod_hallo</code></td>
+<td>并行版新增或放宽的配置点，见下一节。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="并行特有行为">并行特有行为</h2>
+<table>
+<thead>
+<tr>
+<th>行为</th>
+<th>源码位置</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>adjust</code> OpenMP 限制</td>
+<td>104-117</td>
+<td><code>CPP_OMP</code> 下进入 OpenMP parallel 区检查线程数；若线程数大于 1 且 <code>adjust=.true.</code>，调用 <code>abort_gcm</code>。</td>
+</tr>
+<tr>
+<td><code>offline .AND. adjust</code> warning</td>
+<td>537-544</td>
+<td>不停止运行，但提示 <code>defstoke.nc/fluxstoke.nc/fluxstokev.nc</code> 不会创建，只保留 <code>phystoke.nc</code>。</td>
+</tr>
+<tr>
+<td><code>use_filtre_fft</code></td>
+<td>590-596</td>
+<td>并行版只读入 <code>mod_filtre_fft:use_filtre_fft</code>；不像串行版直接拒绝 true。源码注释说明此时 <code>grossismx</code> 尚未定义，zoom/FFT 兼容检查被注释。</td>
+</tr>
+<tr>
+<td><code>use_mpi_alloc</code></td>
+<td>607-615</td>
+<td>写入 <code>mod_hallo:use_mpi_alloc</code>，由 halo 通信 buffer allocation 消费；细节见 <a href="mod_hallo.html">mod_hallo</a>。</td>
+</tr>
+<tr>
+<td><code>sponge_mod_p</code></td>
+<td>20, 414-440</td>
+<td>使用并行 sponge 状态模块，配置键与串行 sponge 语义相同。</td>
+</tr>
+</tbody>
+</table>
+<p><code>conf_gcm</code> 自身不建立 MPI decomposition。并行分布链在 <a href="gcm.html">dyn3dpar/gcm</a> 中发生：<code>conf_gcm</code> 之后才调用 <code>init_const_mpi -&gt; init_parallel -&gt; Read_Distrib -&gt; set_bands -&gt; SetDistrib -&gt; Init_Mod_hallo</code>。因此排查并行配置时要先看本页的 <code>getin</code> 写入，再看 <code>gcm.F</code> 的 MPI/bands/halo 初始化。</p>
+<h2 id="zoom-分支">Zoom 分支</h2>
+<p><code>etatinit</code> 控制 zoom 处理方式：</p>
+<table>
+<thead>
+<tr>
+<th>分支</th>
+<th>行号</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.not.etatinit</code></td>
+<td>687-871</td>
+<td>从 <code>run.def</code> 读 <code>clon/clat/grossismx/grossismy/fxyhypb/dzoomx/dzoomy/taux/tauy/ysinus</code> 到局部变量，并与当前 <code>serre_mod/logic_mod</code> 状态比较；差异超过 <code>0.001</code> 或布尔不一致时 <code>STOP</code>。</td>
+</tr>
+<tr>
+<td><code>etatinit</code></td>
+<td>873-970</td>
+<td>直接初始化 <code>serre_mod/logic_mod</code> zoom 状态；默认 <code>grossism*=1</code>、<code>fxyhypb=.TRUE.</code>、<code>dzoom*=0.2</code>、<code>taux/tauy=3</code>、<code>ysinus=.TRUE.</code>，并派生 <code>alphax=1-1/grossismx</code>、<code>alphay=1-1/grossismy</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>Mars utility 的 <code>defrun_new</code> 另有 Mars 专用门控，特别是 <code>ysinus=.false.</code>、无 zoom 强制 <code>fxyhypb=.false.</code>、有 zoom 要求双曲映射；几何消费链见 <a href="../../routines/inigeom-zoom-map-contract.html">inigeom zoom/map 几何契约</a>。本页只记录 COMMON 并行 <code>conf_gcm.F90</code> 的源码行为，不把 Mars <code>defrun_new</code> 的默认值混入本文件。</p>
+<h2 id="核心流程">核心流程</h2>
+<pre class="text"><code>open lmdz.out if lunout is not 5/6
+read adjust and validate OpenMP compatibility
+read run length, date, restart, timestep, output and tracer controls
+read dissipation, vertical profile, top-bound sponge and sponge_mod_p controls
+read planet-specific defaults and physics/guide/start switches
+read parallel-only use_filtre_fft and use_mpi_alloc
+derive vert_prof_dissip default from planet_type/ok_strato
+if etatinit:
+    initialize zoom state in serre_mod/logic_mod
+else:
+    compare run.def zoom keys against already-loaded state
+print effective configuration summary</code></pre>
+<h2 id="调用方和消费方">调用方和消费方</h2>
+<table>
+<thead>
+<tr>
+<th>方向</th>
+<th>例程/页面</th>
+<th>关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>调用方</td>
+<td><a href="gcm.html">dyn3dpar/gcm</a></td>
+<td><code>run.def</code> 存在检查后调用 <code>conf_gcm(99,.TRUE.)</code>；随后做 <code>iphysiq/iperiod</code>、<code>day_step/iperiod</code>、<code>day_step/iphysiq</code> 检查。</td>
+</tr>
+<tr>
+<td>时间推进</td>
+<td><a href="../../routines/dynamics-control-logic-gates.html">dynamics-control-logic-gates</a>, <a href="../../routines/leapfrog-p-time-scheduler.html">leapfrog-p-time-scheduler</a></td>
+<td>消费 <code>day_step/iperiod/iphysiq/forward/leapf/apphys/apdiss</code> 等门控。</td>
+</tr>
+<tr>
+<td>并行分布</td>
+<td><a href="parallel_lmdz.html">parallel_lmdz</a>, <a href="bands.html">bands</a>, <a href="mod_hallo.html">mod_hallo</a></td>
+<td><code>conf_gcm</code> 后建立 MPI/OMP/bands/halo；<code>use_mpi_alloc</code> 进入 <code>mod_hallo</code>。</td>
+</tr>
+<tr>
+<td>几何和滤波</td>
+<td><a href="../dyn3d_common/inigeom.html">dyn3d_common/inigeom</a>, <a href="../../routines/inigeom-zoom-map-contract.html">inigeom zoom/map 几何契约</a>, <a href="../filtrez/index.html">filtrez 总览</a></td>
+<td>zoom 状态由 <code>inigeom</code> 消费；<code>use_filtre_fft</code> 影响后续滤波路径。</td>
+</tr>
+<tr>
+<td>耗散和 sponge</td>
+<td><a href="../dyn3d_common/inidissip.html">dyn3d_common/inidissip</a>, <a href="../../routines/common-dissip-mars-chain.html">common-dissip-mars-chain</a></td>
+<td>耗散周期、迭代次数、垂直剖面和 sponge/top-bound 参数在后续初始化和时间推进中消费。</td>
+</tr>
+<tr>
+<td>输出/restart</td>
+<td><a href="../../routines/leapfrog-p-output-restart.html">leapfrog-p-output-restart</a>, <a href="../../routines/history-field-registration.html">history-field-registration</a></td>
+<td><code>ok_dyn*</code>, <code>iecri</code>, <code>periodav</code>, <code>ecritstart</code> 决定 root rank 输出和 restart 门控。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="串并行差异要点">串并行差异要点</h2>
+<ul>
+<li>串行页 <a href="../dyn3d/conf_gcm.html">dyn3d/conf_gcm</a> 记录相同主配置管线；并行页额外覆盖 <code>adjust</code>、<code>use_filtre_fft</code>、<code>use_mpi_alloc</code> 和 <code>sponge_mod_p</code>。</li>
+<li>串行版会拒绝 <code>use_filtre_fft=.true.</code>；并行版只读取该开关，留给并行滤波链消费。</li>
+<li><code>adjust</code> 在串行版不是关键路径；并行版在 OpenMP 多线程时直接 abort。</li>
+<li>history 初始化不是本文件完成的：并行入口 <code>gcm.F</code> 后续只在 <code>mpi_rank==0</code> 建立 history/dynav 文件。</li>
+<li><code>ngroup</code> 是共享配置，不是并行专属；它约束极区经度分组，要求 <code>iim</code> 与 <code>2**ngroup</code> 兼容。</li>
+</ul>
+<h2 id="风险和待确认">风险和待确认</h2>
+<ul>
+<li><code>tapedef</code> 参数仍保留在签名中，但当前源码主要通过 <code>getin</code>；是否仍有外部旧式单元语义需结合更早版本或构建配置确认。</li>
+<li><code>use_filtre_fft</code> 与 zoom 的兼容检查在并行版被注释，源码注释称此时 <code>grossismx</code> 未定义；实际并行 FFT filter 与 zoom 同用时应通过运行测试或滤波页进一步确认。</li>
+<li><code>use_mpi_alloc</code> 的性能收益和平台兼容性不由本文件判断；这里只确认配置写入 <code>mod_hallo</code>。</li>
+<li><code>adjust</code> 的数值/物理意图不在本文件附近解释；本页只记录 OpenMP 约束和 offline warning。</li>
+<li>并行 Mars 是否为某个生产脚本默认入口需结合 <code>makelmdz_fcm</code> target 和实验脚本确认；源码层面只确认条件可达。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="gcm.html">dyn3dpar/gcm</a></li>
+<li><a href="../dyn3d/conf_gcm.html">dyn3d/conf_gcm</a></li>
+<li><a href="../../routines/conf-gcm-serial-parallel-delta.html">conf_gcm 串并行配置差异</a></li>
+<li><a href="../../routines/dynamics-control-logic-gates.html">dynamics-control-logic-gates</a></li>
+<li><a href="../../routines/common-gcm-mars-run-entry.html">common-gcm-mars-run-entry</a></li>
+<li><a href="parallel_lmdz.html">parallel_lmdz</a></li>
+<li><a href="bands.html">bands</a></li>
+<li><a href="mod_hallo.html">mod_hallo</a></li>
+<li><a href="../../routines/leapfrog-p-output-restart.html">leapfrog-p-output-restart</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

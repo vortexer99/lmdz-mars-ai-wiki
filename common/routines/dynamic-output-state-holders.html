@@ -1,0 +1,246 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dynamic-output-state-holders - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/dynamic-output-state-holders.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="动力输出状态持有者">动力输出状态持有者</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\temps_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\temps_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\com_io_dyn_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\inithist.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\writehist.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\initdynav.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\writedynav.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\dynetat0.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\dynredem.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\dynredem_p.F90</code></pre>
+<p>页面状态：TASK-0199 完成。 Mars 运行参与度：<code>必经/条件经过</code>。<code>temps_mod</code> 是 GCM 时间推进和 restart 的共享状态层，Mars 3D 和 Mars nogcm 路径都会消费；<code>com_io_dyn_mod</code> 只在 COMMON 动力 history/dynav 输出开启且 <code>CPP_IOIPSL</code> 编译进入时条件经过。</p>
+<h2 id="职责边界">职责边界</h2>
+<p>本页只解释状态持有者如何连接 I/O 注册和时间步写出：</p>
+<ul>
+<li><code>temps_mod</code> 保存动力时间、参考日期、当前步长和 Mars 初始小时。</li>
+<li><code>com_io_dyn_mod</code> 保存 dynamics history 文件名常量和 IOIPSL file id。</li>
+<li><code>inithist/initdynav</code> 从 <code>temps_mod:itau_dyn</code> 读取初始化时间基准，并把 <code>histbeg</code> 返回的 file id 写入 <code>com_io_dyn_mod</code>。</li>
+<li><code>writehist/writedynav</code> 再读取同一批 file id，并用 <code>itau_dyn + time</code> 构造 <code>histwrite</code> 的时间步。</li>
+</ul>
+<p>字段注册清单、<code>ok_dyn_*</code> 门控和 Mars physics 输出边界见 <a href="history-field-registration.html">history/dynav 字段注册和写出门控</a>。</p>
+<h2 id="temps_mod-状态"><code>temps_mod</code> 状态</h2>
+<p>串行 <code>dyn3d/temps_mod.F90</code> 和并行 <code>dyn3dpar/temps_mod.F90</code> 定义同名模块和同一批核心变量。并行版额外声明 OpenMP <code>THREADPRIVATE</code>，并在注释中要求打开 OpenMP parallel section 时把新增变量加入 <code>COPYIN</code>。</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>类型</th>
+<th>写入/维护方</th>
+<th>被 history/dynav 使用方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>itau_dyn</code></td>
+<td><code>INTEGER</code></td>
+<td><code>gcm/nogcm</code> 新运行置 0；<code>dynetat0</code> 从 restart <code>tab_cntrl(31)</code> 恢复；<code>dynredem*</code> 用它写出累计动力步。</td>
+<td><code>inithist/initdynav</code> 取作 <code>tau0</code>；<code>writehist/writedynav</code> 用 <code>itau_w=itau_dyn+time</code>。</td>
+</tr>
+<tr>
+<td><code>itaufin</code></td>
+<td><code>INTEGER</code></td>
+<td><code>leapfrog/leapfrog_p/leapfrog_nogcm</code> 由 <code>nday/day_step/fractday/ndynstep</code> 推出。</td>
+<td>不直接传给 history API；输出门用局部 <code>itau</code> 与 <code>itaufin</code> 判断最终步。</td>
+</tr>
+<tr>
+<td><code>itau_phy</code></td>
+<td><code>INTEGER</code></td>
+<td>主流程和 physics 调度状态。</td>
+<td>history/dynav 串行例程不直接使用。</td>
+</tr>
+<tr>
+<td><code>day_ini</code>, <code>day_end</code></td>
+<td><code>INTEGER</code></td>
+<td><code>gcm/nogcm</code>、<code>dynetat0</code>、Mars utility 和 <code>leapfrog*</code> 维护运行起止日。</td>
+<td>参与 <code>leapfrog*</code> 日期计算和 restart，间接决定输出时间上下文。</td>
+</tr>
+<tr>
+<td><code>annee_ref</code>, <code>day_ref</code></td>
+<td><code>INTEGER</code></td>
+<td>新运行从 <code>anneeref/dayref</code> 复制；restart 从 <code>controle</code> 恢复。</td>
+<td>传入 <code>inithist/initdynav</code> 的 <code>day0/anne0</code>，并由 <code>ymds2ju</code> 生成 history 起始 Julian day。</td>
+</tr>
+<tr>
+<td><code>jD_ref</code>, <code>jH_ref</code></td>
+<td><code>REAL</code></td>
+<td><code>gcm/gcm_p</code> 用 <code>ymds2ju</code> 派生，<code>leapfrog*</code> 用它计算当前 Julian day/hour。</td>
+<td>history 例程不直接使用；用于 GCM 日期和 restart 输出一致性。</td>
+</tr>
+<tr>
+<td><code>start_time</code>, <code>hour_ini</code></td>
+<td><code>REAL</code></td>
+<td><code>conf_gcm</code>/restart/Mars utility 设置；<code>leapfrog*</code> 检查二者不能同时非零。</td>
+<td>不进入 <code>histwrite</code>，但影响当前日期和 restart 时间解释。</td>
+</tr>
+<tr>
+<td><code>dt</code></td>
+<td><code>REAL</code></td>
+<td><code>leapfrog*</code> 在 Matsuno 和 leapfrog 阶段切换为 <code>dtvr</code> 或 <code>2*dtvr</code>。</td>
+<td>history 例程使用调用方传入的 <code>time_step/tstep</code>，不直接读取 <code>dt</code>。</td>
+</tr>
+<tr>
+<td><code>calend</code></td>
+<td><code>CHARACTER(len=10)</code></td>
+<td><code>conf_gcm</code> 读取。</td>
+<td>IOIPSL/XIOS 日期配置链可使用；history 四个串行例程不直接读取。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="com_io_dyn_mod-状态"><code>com_io_dyn_mod</code> 状态</h2>
+<p><code>com_io_dyn_mod.F90</code> 没有分配数组、没有 <code>SAVE</code> 声明，也没有 OpenMP 指令；模块变量天然保持在进程全局模块状态中。它把文件名和 file id 分成 instant 与 averaged 两组。</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>常量/id</th>
+<th>写入者</th>
+<th>读取者</th>
+<th>生命周期</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>instant 文件名</td>
+<td><code>dynhist_file</code>, <code>dynhistv_file</code>, <code>dynhistu_file</code></td>
+<td>编译期参数常量</td>
+<td><code>inithist</code></td>
+<td>始终可读，默认 <code>dyn_hist.nc/dyn_histv.nc/dyn_histu.nc</code>。</td>
+</tr>
+<tr>
+<td>instant file id</td>
+<td><code>histid</code>, <code>histvid</code>, <code>histuid</code></td>
+<td><code>inithist</code> 的三次 <code>histbeg</code> 返回值</td>
+<td><code>writehist</code> 的 <code>histwrite/histsync</code></td>
+<td>只有 <code>ok_dyn_ins</code> 初始化成功后有效。</td>
+</tr>
+<tr>
+<td>averaged 文件名</td>
+<td><code>dynhistave_file</code>, <code>dynhistvave_file</code>, <code>dynhistuave_file</code></td>
+<td>编译期参数常量</td>
+<td><code>initdynav</code></td>
+<td>始终可读，默认 <code>dyn_hist_ave.nc/dyn_histv_ave.nc/dyn_histu_ave.nc</code>。</td>
+</tr>
+<tr>
+<td>averaged file id</td>
+<td><code>histaveid</code>, <code>histvaveid</code>, <code>histuaveid</code></td>
+<td><code>initdynav</code> 的三次 <code>histbeg</code> 返回值</td>
+<td><code>writedynav</code> 的 <code>histwrite/histsync</code></td>
+<td>只有 <code>ok_dyn_ave</code> 初始化成功后有效。</td>
+</tr>
+</tbody>
+</table>
+<p>源码搜索只发现 <code>com_io_dyn_mod</code> 被 <code>inithist.F</code>、<code>writehist.F</code>、<code>initdynav.F90</code>、<code>writedynav.F90</code> 使用。并行 <code>_p</code> history 实现通过实参传递 file id，不直接使用这个模块；当前 6.3 <code>dyn3dpar/gcm.F</code> 的 root 分支仍调用串行 <code>inithist/initdynav</code> 初始化这些模块 id。</p>
+<h2 id="初始化到写出的状态链">初始化到写出的状态链</h2>
+<pre class="text"><code>gcm / gcm_p / Mars nogcm
+  -&gt; 设置 temps_mod: annee_ref, day_ref, day_ini, start_time, itau_dyn
+  -&gt; 若 ok_dyn_ins:
+       inithist(day_ref, annee_ref, time_step, t_ops, t_wrt)
+         tau0 = temps_mod:itau_dyn
+         histbeg(..., tau0, zjulian, tstep, ..., com_io_dyn_mod:histuid/histvid/histid)
+  -&gt; 若 ok_dyn_ave:
+       initdynav(day_ref, annee_ref, time_step, t_ops, t_wrt)
+         tau0 = temps_mod:itau_dyn
+         histbeg(..., tau0, zjulian, tstep, ..., histuaveid/histvaveid/histaveid)
+
+leapfrog / leapfrog_p / Mars leapfrog_nogcm
+  -&gt; 局部 itau 按时间循环递增
+  -&gt; 若 ok_dyn_ins 且 MOD(itau,iecri)==0:
+       writehist(time=itau, ...)
+         itau_w = temps_mod:itau_dyn + time
+         histwrite(com_io_dyn_mod:hist*id, field, itau_w, ...)
+  -&gt; 若 ok_dyn_ave 且 (MOD(itau,iperiod)==0 或 itau==itaufin):
+       writedynav(time=itau, ...)
+         itau_w = temps_mod:itau_dyn + time
+         histwrite(com_io_dyn_mod:hist*aveid, field, itau_w, ...)</code></pre>
+<p><code>itau_dyn</code> 表示 restart 基准中的累计动力步，<code>time</code> 实参是当前运行段内的局部 <code>itau</code>。因此续跑时 history/dynav 写出的步号不是从 0 重新开始，而是以 <code>itau_dyn + itau</code> 延续。</p>
+<h2 id="restart-对时间状态的影响">Restart 对时间状态的影响</h2>
+<p><code>dynetat0.F90</code> 读取 <code>start.nc</code> 的 <code>controle</code> 和 <code>Time</code>：</p>
+<ul>
+<li><code>tab_cntrl(4/5)</code> 参与恢复 <code>day_ref/annee_ref</code>。</li>
+<li><code>tab_cntrl(29)</code> 在新格式中恢复 <code>hour_ini</code>。</li>
+<li><code>tab_cntrl(30)</code> 恢复 <code>day_ini</code>。</li>
+<li><code>tab_cntrl(31)</code> 恢复 <code>itau_dyn</code>。</li>
+<li><code>tab_cntrl(32)</code> 恢复 <code>start_time</code>。</li>
+<li>若存在 <code>Time</code> 变量，<code>dynetat0</code> 选定 <code>timestart</code> 对应索引后把 <code>time0 + hour_ini</code> 折算回 <code>day_ini/hour_ini</code>。</li>
+</ul>
+<p><code>dynredem.F90</code> 和 <code>dynredem_p.F90</code> 写 restart 时把 <code>itau_dyn + itaufin</code> 写入 <code>tab_cntrl(31)</code>，把当前写出时间写入 <code>tab_cntrl(32)</code>。这和 history 写出中的 <code>itau_dyn + time</code> 是同一类累计步号语义：restart 记录运行段结束时的累计步，history 记录运行段中每次写出的累计步。</p>
+<h2 id="并行和-openmp-边界">并行和 OpenMP 边界</h2>
+<p>并行 <code>dyn3dpar/temps_mod.F90</code> 把 <code>dt/jD_ref/jH_ref/start_time/hour_ini/day_ini/day_end/annee_ref/day_ref/itau_dyn/itau_phy/itaufin/calend</code> 都声明为 <code>THREADPRIVATE</code>。<code>dyn3dpar/gcm.F</code> 中保留注释说明打开 OpenMP parallel section 时应 <code>COPYIN</code> 这些变量。当前 history/dynav 初始化在 <code>gcm.F</code> 的 root 分支调用串行 <code>inithist/initdynav</code>，写出则在 <code>leapfrog_p</code> 的 root/gather 输出段调用串行 <code>writehist/writedynav</code>。</p>
+<p>复现并行 history 时间时要区分两层状态：</p>
+<ul>
+<li><code>temps_mod</code> 在并行构建中是 threadprivate 时间状态，必须在进入相关并行区时保持 copyin 一致。</li>
+<li><code>com_io_dyn_mod</code> 不是 threadprivate；当前可达 root 输出路径依赖 root 初始化后的模块 file id。</li>
+</ul>
+<h2 id="排查顺序">排查顺序</h2>
+<ol type="1">
+<li>检查是否从 restart 读取：若 <code>read_start</code> 为真，先看 <code>dynetat0</code> 是否正确恢复 <code>itau_dyn/day_ini/hour_ini/start_time</code>。</li>
+<li>检查是否开启 <code>ok_dyn_ins/ok_dyn_ave</code> 且编译包含 <code>CPP_IOIPSL</code>；否则 <code>com_io_dyn_mod</code> 的 id 不会被有效设置。</li>
+<li>检查初始化是否先于写出发生：<code>histid/hist*aveid</code> 只有 <code>inithist/initdynav</code> 后才有效。</li>
+<li>检查写出时间是否符合预期：<code>histwrite</code> 使用 <code>itau_dyn + itau</code>，不是单独的局部 <code>itau</code>。</li>
+<li>并行运行若时间状态异常，优先核对 <code>temps_mod</code> threadprivate copyin，而不是修改 <code>com_io_dyn_mod</code>。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>dyn3dpar/gcm.F</code> 中 OpenMP <code>COPYIN</code> 片段当前是注释形式；实际构建路径是否由预处理或旧 OpenMP 语法启用，需要结合编译配置实测确认。</li>
+<li>IOIPSL history 文件内部 time axis 对 <code>tau0/tstep/itau_w</code> 的解释未做生成文件 header 实测；本页只记录源码传参语义。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="common-state-control-contract.html">COMMON 状态/控制模块契约</a></li>
+<li><a href="history-field-registration.html">history/dynav 字段注册和写出门控</a></li>
+<li><a href="history-xios-getin-boundary.html">history/XIOS/getin 输出配置边界</a></li>
+<li><a href="history-output-serial-parallel.html">history/dynav 输出串并行对照</a></li>
+<li><a href="dynredem-restart.html">dynredem restart</a></li>
+<li><a href="leapfrog-p-output-restart.html">并行 leapfrog_p 输出/restart</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

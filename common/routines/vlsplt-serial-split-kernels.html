@@ -1,0 +1,411 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vlsplt-serial-split-kernels - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/vlsplt-serial-split-kernels.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="vlsplt-串行-split-内核和几何边界处理">vlsplt 串行 split 内核和几何/边界处理</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d\vlsplt.F: L1-139（vlsplt 主例程）
+dyn3d\vlsplt.F: L140-519（vlx，E-W 输送）
+dyn3d\vlsplt.F: L520-888（vly，N-S 输送）
+dyn3d\vlsplt.F: L889-1060（vlz，垂直输送）
+dyn3d\vlsplt.F: L1091-1135（minmaxq 诊断）</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。<code>vlsplt</code> 是串行 <code>advtrac</code> 中 <code>iadv=10</code>（Van Leer）路径的核心输送例程。本页聚焦三个方向内核的数值格式、几何处理和边界条件。父子 tracer 比例输送和饱和路径详见 <a href="vlsplt-serial-family-tracers.html">vlsplt-serial-family-tracers</a>。</p>
+<h2 id="例程定位">例程定位</h2>
+<p>vlsplt 的输送核心由三个 RECURSIVE 子例程 vlx、vly、vlz 组成，分别处理 E-W、N-S 和垂直方向。三者共享 Van Leer 斜率限制框架，但各自的几何处理和边界条件差异显著。主例程 vlsplt 通过 x-y-z-y-x 五步 Strang split 将它们组合成二阶时间精度的输送算子。</p>
+<h2 id="x-y-z-y-x-strang-split">x-y-z-y-x Strang Split</h2>
+<h3 id="通量缩放">通量缩放</h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>zzpbar <span class="kw">=</span> <span class="fl">0.5</span> <span class="kw">*</span> pdt    <span class="co">! 水平半时间步</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>zzw    <span class="kw">=</span> pdt           <span class="co">! 垂直全时间步</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>mu <span class="kw">=</span> pbaru <span class="kw">*</span> zzpbar    <span class="co">! E-W 缩放通量</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>mv <span class="kw">=</span> pbarv <span class="kw">*</span> zzpbar    <span class="co">! N-S 缩放通量</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>mw <span class="kw">=</span> w <span class="kw">*</span> zzw           <span class="co">! 垂直缩放通量</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>mw(:,llm<span class="kw">+</span><span class="dv">1</span>) <span class="kw">=</span> <span class="fl">0.</span>       <span class="co">! 顶部无通量</span></span></code></pre></div>
+<p>水平通量使用半时间步 <code>0.5*pdt</code>，垂直通量使用全时间步 <code>pdt</code>。这是 Strang split 的标准做法：水平两步各半步，垂直一步全步。</p>
+<h3 id="split-顺序">Split 顺序</h3>
+<pre><code>vlx(zq, pente_max, zm, mu, iq)   ! E-W 半步
+vly(zq, pente_max, zm, mv, iq)   ! N-S 半步
+vlz(zq, pente_max, zm, mw, iq)   ! 垂直全步
+vly(zq, pente_max, zm, mv, iq)   ! N-S 半步
+vlx(zq, pente_max, zm, mu, iq)   ! E-W 半步</code></pre>
+<p>这是对称的 Strang split，保证二阶时间精度。x-y-z-y-x 而非 x-y-z-x-y 的选择使得首尾都是 vlx，有利于 E-W 方向的周期边界一致性。</p>
+<h3 id="工作数组和回写">工作数组和回写</h3>
+<p>主例程将 <code>q(:,:,iq)</code> 和 <code>masse</code> 复制到工作数组 <code>zq</code> 和 <code>zm</code>，split 全部在工作数组上操作，完成后回写：</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">CALL SCOPY(ijp1llm, q(1,1,iq), 1, zq(1,1,iq), 1)</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co">CALL SCOPY(ijp1llm, masse, 1, zm(1,1,iq), 1)</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co">! ... split 操作 ...</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>q(:,:,iq) <span class="kw">=</span> zq(:,:,iq)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>q(ij<span class="kw">+</span>iim,l,iq) <span class="kw">=</span> q(ij,l,iq)    <span class="co">! 经向周期包裹</span></span></code></pre></div>
+<p>回写时做 E-W 周期包裹：<code>iip1</code> 位置的值从 <code>1</code> 位置复制。</p>
+<h2 id="vlxe-w-输送">vlx：E-W 输送</h2>
+<h3 id="签名">签名</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">RECURSIVE</span> <span class="kw">SUBROUTINE</span> vlx(q,pente_max,masse,u_m,iq)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">USE</span> infotrac, <span class="kw">ONLY</span>: nqtot,nqfils,nqdesc,iqfils,qperemin,masseqmin</span></code></pre></div>
+<p><code>masse</code> 维度为 <code>(ip1jmp1,llm,nqtot)</code>，每个 tracer 有独立的质量场。<code>u_m</code> 是缩放后的 E-W 质量通量。</p>
+<h3 id="van-leer-斜率">Van Leer 斜率</h3>
+<h4 id="pente_max---1e-5标准-van-leer-scheme-i">pente_max &gt; -1e-5（标准 Van Leer scheme I）</h4>
+<div class="sourceCode" id="cb6"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">! 相邻差分</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>dxqu(ij) <span class="kw">=</span> q(ij<span class="kw">+</span><span class="dv">1</span>,l,iq) <span class="kw">-</span> q(ij,l,iq)</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co">! 最大允许斜率</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>dxqmax(ij,l) <span class="kw">=</span> pente_max <span class="kw">*</span> <span class="bu">min</span>(<span class="kw">|</span>dxqu(ij<span class="kw">-</span><span class="dv">1</span>)<span class="kw">|</span>, <span class="kw">|</span>dxqu(ij)<span class="kw">|</span>)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="co">! 中心斜率（相邻同号取平均，异号置零）</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span>(dxqu(ij<span class="kw">-</span><span class="dv">1</span>)<span class="kw">*</span>dxqu(ij) <span class="op">&gt;</span> <span class="dv">0</span>) <span class="kw">THEN</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>   dxq(ij,l) <span class="kw">=</span> dxqu(ij<span class="kw">-</span><span class="dv">1</span>) <span class="kw">+</span> dxqu(ij)</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="kw">ELSE</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>   dxq(ij,l) <span class="kw">=</span> <span class="fl">0.</span>    <span class="co">! 局部极值</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>dxq(ij,l) <span class="kw">=</span> <span class="fl">0.5</span> <span class="kw">*</span> dxq(ij,l)</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="co">! Van Leer 限制</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>dxq(ij,l) <span class="kw">=</span> <span class="bu">sign</span>(<span class="bu">min</span>(<span class="kw">|</span>dxq(ij,l)<span class="kw">|</span>, dxqmax(ij,l)), dxq(ij,l))</span></code></pre></div>
+<p><code>pente_max</code> 通常取 2（标准 Van Leer 限制）或 0（退化为上游格式）。CRAY 平台使用 <code>cvmgp</code> 向量函数替代条件分支。</p>
+<h4 id="pente_max---1e-5乘积斜率">pente_max &lt; -1e-5（乘积斜率）</h4>
+<div class="sourceCode" id="cb7"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>zz(ij) <span class="kw">=</span> dxqu(ij<span class="kw">-</span><span class="dv">1</span>) <span class="kw">*</span> dxqu(ij)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>zz(ij) <span class="kw">=</span> zz(ij) <span class="kw">+</span> zz(ij)    <span class="co">! 2*dxqu(ij-1)*dxqu(ij)</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span>(zz(ij) <span class="op">&gt;</span> <span class="dv">0</span>) <span class="kw">THEN</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>   dxq(ij,l) <span class="kw">=</span> zz(ij) <span class="kw">/</span> (dxqu(ij<span class="kw">-</span><span class="dv">1</span>) <span class="kw">+</span> dxqu(ij))   <span class="co">! 调和平均形式</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">ELSE</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>   dxq(ij,l) <span class="kw">=</span> <span class="fl">0.</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span></code></pre></div>
+<p>这是 harmonic-mean 风格的斜率，不使用 <code>pente_max</code> 做额外限制。</p>
+<h3 id="周期包裹">周期包裹</h3>
+<p>E-W 方向的周期边界通过 <code>iip1</code> 间距复制实现：</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> ij <span class="kw">=</span> iip1<span class="kw">+</span>iip1, ip1jm, iip1</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>   dxqu(ij) <span class="kw">=</span> dxqu(ij<span class="kw">-</span>iim)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>   dxq(ij<span class="kw">-</span>iim,l) <span class="kw">=</span> dxq(ij,l)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>   u_mq(ij,l) <span class="kw">=</span> u_mq(ij<span class="kw">-</span>iim,l)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span></code></pre></div>
+<p>计算域从 <code>iip2</code> 到 <code>ip1jm</code>，<code>iip1</code> 步长的端点通过 <code>iim</code> 间距复制保持周期一致。</p>
+<h3 id="通量计算">通量计算</h3>
+<div class="sourceCode" id="cb9"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (u_m(ij,l) <span class="op">&gt;</span> <span class="dv">0</span>) <span class="kw">THEN</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>   zdum(ij,l) <span class="kw">=</span> <span class="fl">1.</span> <span class="kw">-</span> u_m(ij,l) <span class="kw">/</span> masse(ij,l,iq)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>   u_mq(ij,l) <span class="kw">=</span> u_m(ij,l) <span class="kw">*</span> (q(ij,l,iq) <span class="kw">+</span> <span class="fl">0.5</span><span class="kw">*</span>zdum(ij,l)<span class="kw">*</span>dxq(ij,l))</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="kw">ELSE</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>   zdum(ij,l) <span class="kw">=</span> <span class="fl">1.</span> <span class="kw">+</span> u_m(ij,l) <span class="kw">/</span> masse(ij<span class="kw">+</span><span class="dv">1</span>,l,iq)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>   u_mq(ij,l) <span class="kw">=</span> u_m(ij,l) <span class="kw">*</span> (q(ij<span class="kw">+</span><span class="dv">1</span>,l,iq) <span class="kw">-</span> <span class="fl">0.5</span><span class="kw">*</span>zdum(ij,l)<span class="kw">*</span>dxq(ij<span class="kw">+</span><span class="dv">1</span>,l))</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span></code></pre></div>
+<p><code>zdum</code> 表示上游格点未被通量覆盖的质量比例。通量 = 质量通量 × (上游混合比 + 半斜率修正 × 未覆盖比例)。这是标准的 Van Leer 上游加权格式。</p>
+<h3 id="cfl--1-semi-lagrangian-累积">CFL &gt; 1 Semi-Lagrangian 累积</h3>
+<p>当 <code>zdum &lt; 0</code> 时，表示通量超过了格点质量（CFL &gt; 1），此时标记 <code>iadvplus(ij,l) = 1</code> 并置通量为零，等待特殊处理。</p>
+<p>Semi-Lagrangian 累积段逐格点追踪通量跨越的多个格点：</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">! 正向通量（u_m &gt; 0）</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">do</span> <span class="kw">while</span> (zu_m <span class="op">&gt;</span> masse(ijq,l,iq))</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>   u_mq(ij,l) <span class="kw">=</span> u_mq(ij,l) <span class="kw">+</span> q(ijq,l,iq) <span class="kw">*</span> masse(ijq,l,iq)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>   zu_m <span class="kw">=</span> zu_m <span class="kw">-</span> masse(ijq,l,iq)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>   i <span class="kw">=</span> <span class="bu">mod</span>(i<span class="kw">-</span><span class="dv">2</span><span class="kw">+</span>iim, iim) <span class="kw">+</span> <span class="dv">1</span>        <span class="co">! E-W 周期索引</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>   ijq <span class="kw">=</span> (j<span class="kw">-</span><span class="dv">1</span>)<span class="kw">*</span>iip1 <span class="kw">+</span> i</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="kw">enddo</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="co">! 最后部分格点</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>u_mq(ij,l) <span class="kw">=</span> u_mq(ij,l) <span class="kw">+</span> zu_m <span class="kw">*</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="bu">     (</span>q(ijq,l,iq) <span class="kw">+</span> <span class="fl">0.5</span><span class="kw">*</span>(<span class="fl">1.</span><span class="kw">-</span>zu_m<span class="kw">/</span>masse(ijq,l,iq))<span class="kw">*</span>dxq(ijq,l))</span></code></pre></div>
+<p>反向通量（<code>u_m &lt; 0</code>）结构对称。索引 <code>i = mod(i-2+iim, iim) + 1</code> 实现 E-W 周期环绕。这段代码不向量化（注释：<code>cette partie est mal vectorisee</code>），只在 <code>n0 &gt; 0</code> 时执行。</p>
+<h3 id="通量散度更新">通量散度更新</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>new_m <span class="kw">=</span> <span class="bu">max</span>(masse(ij,l,iq) <span class="kw">+</span> u_m(ij<span class="kw">-</span><span class="dv">1</span>,l) <span class="kw">-</span> u_m(ij,l), masseqmin)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>q(ij,l,iq) <span class="kw">=</span> (q(ij,l,iq)<span class="kw">*</span>masse(ij,l,iq) <span class="kw">+</span> u_mq(ij<span class="kw">-</span><span class="dv">1</span>,l) <span class="kw">-</span> u_m(ij,l,iq)) <span class="kw">/</span><span class="co"> new_m</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>masse(ij,l,iq) <span class="kw">=</span> new_m</span></code></pre></div>
+<p>守恒形式：新混合比 = (旧 tracer 质量 + 净通量) / 新空气质量。<code>masseqmin</code> 防止除零。</p>
+<h2 id="vlyn-s-输送">vly：N-S 输送</h2>
+<h3 id="签名-1">签名</h3>
+<div class="sourceCode" id="cb12"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">RECURSIVE</span> <span class="kw">SUBROUTINE</span> vly(q,pente_max,masse,masse_adv_v,iq)</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">USE</span> infotrac, <span class="kw">ONLY</span>: nqtot,nqfils,nqdesc,iqfils,qperemin,masseqmin</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="kw">USE</span> comconst_mod, <span class="kw">ONLY</span>: pi</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="kw">include</span> <span class="st">&quot;comgeom.h&quot;</span>    <span class="co">! aire, rlonu, rlonv, apoln, apols 等</span></span></code></pre></div>
+<p>vly 比 vlx 复杂得多，因为需要处理极点几何。</p>
+<h3 id="首次初始化save-语义">首次初始化（SAVE 语义）</h3>
+<p>vly 在首次调用时计算并缓存以下几何量：</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span>(first) <span class="kw">THEN</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>   <span class="kw">do</span> i <span class="kw">=</span> <span class="dv">2</span>, iip1</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>      coslon(i) <span class="kw">=</span> <span class="bu">cos</span>(rlonv(i))</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>      sinlon(i) <span class="kw">=</span> <span class="bu">sin</span>(rlonv(i))</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>      coslondlon(i) <span class="kw">=</span> coslon(i) <span class="kw">*</span> (rlonu(i)<span class="kw">-</span>rlonu(i<span class="kw">-</span><span class="dv">1</span>)) <span class="kw">/</span> pi</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>      sinlondlon(i) <span class="kw">=</span> sinlon(i) <span class="kw">*</span> (rlonu(i)<span class="kw">-</span>rlonu(i<span class="kw">-</span><span class="dv">1</span>)) <span class="kw">/</span> pi</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>   <span class="kw">ENDDO</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>   <span class="co">! i=1 从 iip1 复制（周期包裹）</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>   airej2  <span class="kw">=</span> SSUM(iim, aire(iip2), <span class="dv">1</span>)           <span class="co">! j=2 纬圈面积和</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>   airejjm <span class="kw">=</span> SSUM(iim, aire(ip1jm<span class="kw">-</span>iim), <span class="dv">1</span>)      <span class="co">! j=jjm-1 纬圈面积和</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span></code></pre></div>
+<p><code>sinlon/coslon</code> 和带 <code>dlon</code> 权重的版本用于极点斜率滤波。<code>airej2/airejjm</code> 是极点相邻纬圈的参考面积，用于面积加权平均。</p>
+<h3 id="极点平均混合比">极点平均混合比</h3>
+<div class="sourceCode" id="cb14"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> i <span class="kw">=</span> <span class="dv">1</span>, iim</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>   airescb(i) <span class="kw">=</span> aire(i<span class="kw">+</span>iip1) <span class="kw">*</span> q(i<span class="kw">+</span>iip1,l,iq)           <span class="co">! j=2 格点</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>   airesch(i) <span class="kw">=</span> aire(i<span class="kw">+</span>ip1jm<span class="kw">-</span>iip1) <span class="kw">*</span> q(i<span class="kw">+</span>ip1jm<span class="kw">-</span>iip1,l,iq) <span class="co">! j=jjm-1 格点</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>qpns <span class="kw">=</span> SSUM(iim, airescb, <span class="dv">1</span>) <span class="kw">/</span> airej2    <span class="co">! 北极平均（面积加权）</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>qpsn <span class="kw">=</span> SSUM(iim, airesch, <span class="dv">1</span>) <span class="kw">/</span> airejjm   <span class="co">! 南极平均（面积加权）</span></span></code></pre></div>
+<p>极点混合比是相邻纬圈的面积加权平均，用于计算极点处的斜率。</p>
+<h3 id="n-s-斜率">N-S 斜率</h3>
+<div class="sourceCode" id="cb15"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co">! v 点差分</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>dyqv(ij) <span class="kw">=</span> q(ij,l,iq) <span class="kw">-</span> q(ij<span class="kw">+</span>iip1,l,iq)</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="co">! 标量点斜率（相邻 v 点平均）</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>dyq(ij,l) <span class="kw">=</span> <span class="fl">0.5</span> <span class="kw">*</span> (dyqv(ij<span class="kw">-</span>iip1) <span class="kw">+</span> dyqv(ij))</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>dyqmax(ij) <span class="kw">=</span> pente_max <span class="kw">*</span> <span class="bu">min</span>(<span class="kw">|</span>dyqv(ij<span class="kw">-</span>iip1)<span class="kw">|</span>, <span class="kw">|</span>dyqv(ij)<span class="kw">|</span>)</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="co">! 极点斜率（与极点平均的差）</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>dyq(ij,l) <span class="kw">=</span> qpns <span class="kw">-</span> q(ij<span class="kw">+</span>iip1,l,iq)              <span class="co">! 北极</span></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>dyq(ip1jm<span class="kw">+</span>ij,l) <span class="kw">=</span> q(ip1jm<span class="kw">+</span>ij<span class="kw">-</span>iip1,l,iq) <span class="kw">-</span> qpsn  <span class="co">! 南极</span></span></code></pre></div>
+<h3 id="极点斜率-sincos-滤波">极点斜率 sin/cos 滤波</h3>
+<p>极点处 dyq 需要滤波以保证物理一致性（极点没有确定的经度方向）：</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co">! 投影到 sin/cos 分量</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>dyn1 <span class="kw">=</span> <span class="fu">SUM</span>(sinlondlon(ij) <span class="kw">*</span> dyq(ij,l))       <span class="co">! 北极 sin 分量</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>dyn2 <span class="kw">=</span> <span class="fu">SUM</span>(coslondlon(ij) <span class="kw">*</span> dyq(ij,l))       <span class="co">! 北极 cos 分量</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>dys1 <span class="kw">=</span> <span class="fu">SUM</span>(sinlondlon(ij) <span class="kw">*</span> dyq(ip1jm<span class="kw">+</span>ij,l)) <span class="co">! 南极 sin 分量</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>dys2 <span class="kw">=</span> <span class="fu">SUM</span>(coslondlon(ij) <span class="kw">*</span> dyq(ip1jm<span class="kw">+</span>ij,l)) <span class="co">! 南极 cos 分量</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="co">! 重构</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>dyq(ij,l) <span class="kw">=</span> dyn1<span class="kw">*</span>sinlon(ij) <span class="kw">+</span> dyn2<span class="kw">*</span>coslon(ij)              <span class="co">! 北极</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>dyq(ip1jm<span class="kw">+</span>ij,l) <span class="kw">=</span> dys1<span class="kw">*</span>sinlon(ij) <span class="kw">+</span> dys2<span class="kw">*</span>coslon(ij)       <span class="co">! 南极</span></span></code></pre></div>
+<p>这相当于将极点斜率投影到最低两个 Fourier 模态（sin 和 cos），滤掉高阶分量。权重 <code>dlon/pi</code> 确保积分归一化。</p>
+<h3 id="goto-8888-和极点斜率归零">GOTO 8888 和极点斜率归零</h3>
+<div class="sourceCode" id="cb17"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">goto</span> <span class="dv">8888</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="co">! ... 被跳过的限制器代码（fn/fs 比例限制）...</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="dv">8888</span> <span class="kw">continue</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> ij <span class="kw">=</span> <span class="dv">1</span>, iip1</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>   dyq(ij,l) <span class="kw">=</span> <span class="fl">0.</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>   dyq(ip1jm<span class="kw">+</span>ij,l) <span class="kw">=</span> <span class="fl">0.</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span></code></pre></div>
+<p><code>GOTO 8888</code> 无条件跳过了 <code>fn/fs</code> 比例限制器段（L662-L676），直接到 <code>continue</code>。之后立即将所有极点 dyq 置零。这意味着 <strong>LMDZ 实际运行中极点处不使用斜率</strong>，极点的 Van Leer 修正被完全禁用。</p>
+<p>被跳过的代码（L663-L676）实现了 <code>fn = min(pente_max*|dyqv|/|dyq|, 1.)</code> 比例限制，曾经用于约束极点斜率幅度，但当前已被弃用。注释块（L683-L747）中还保留了多次历史测试的残迹。</p>
+<h3 id="非极点斜率限制">非极点斜率限制</h3>
+<div class="sourceCode" id="cb18"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> ij <span class="kw">=</span> iip2, ip1jm</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>   <span class="kw">IF</span>(dyqv(ij)<span class="kw">*</span>dyqv(ij<span class="kw">-</span>iip1) <span class="op">&gt;</span> <span class="fl">0.</span>) <span class="kw">THEN</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>      dyq(ij,l) <span class="kw">=</span> <span class="bu">sign</span>(<span class="bu">min</span>(<span class="kw">|</span>dyq(ij,l)<span class="kw">|</span>, dyqmax(ij)), dyq(ij,l))</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>   <span class="kw">ELSE</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>      dyq(ij,l) <span class="kw">=</span> <span class="fl">0.</span>    <span class="co">! 极值点</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>   <span class="kw">ENDIF</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span></code></pre></div>
+<p>与 vlx 相同的 Van Leer 限制逻辑，但作用在 N-S 方向。</p>
+<h3 id="通量计算-1">通量计算</h3>
+<div class="sourceCode" id="cb19"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span>(masse_adv_v(ij,l) <span class="op">&gt;</span> <span class="dv">0</span>) <span class="kw">THEN</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>   qbyv(ij,l) <span class="kw">=</span> q(ij<span class="kw">+</span>iip1,l,iq) <span class="kw">+</span> dyq(ij<span class="kw">+</span>iip1,l) <span class="kw">*</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>                 <span class="fl">0.5</span><span class="kw">*</span>(<span class="fl">1.</span> <span class="kw">-</span> masse_adv_v(ij,l)<span class="kw">/</span>masse(ij<span class="kw">+</span>iip1,l,iq))</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="kw">ELSE</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>   qbyv(ij,l) <span class="kw">=</span> q(ij,l,iq) <span class="kw">-</span> dyq(ij,l) <span class="kw">*</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>                 <span class="fl">0.5</span><span class="kw">*</span>(<span class="fl">1.</span> <span class="kw">+</span> masse_adv_v(ij,l)<span class="kw">/</span>masse(ij,l,iq))</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>qbyv(ij,l) <span class="kw">=</span> masse_adv_v(ij,l) <span class="kw">*</span> qbyv(ij,l)</span></code></pre></div>
+<p>与 vlx 相同的上游加权格式，但索引沿 j 方向（步长 <code>iip1</code>）。</p>
+<h3 id="通量散度更新-1">通量散度更新</h3>
+<div class="sourceCode" id="cb20"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>newmasse <span class="kw">=</span> masse(ij,l,iq) <span class="kw">+</span> masse_adv_v(ij,l) <span class="kw">-</span> masse_adv_v(ij<span class="kw">-</span>iip1,l)</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>q(ij,l,iq) <span class="kw">=</span> (q(ij,l,iq)<span class="kw">*</span>masse(ij,l,iq) <span class="kw">+</span> qbyv(ij,l) <span class="kw">-</span> qbyv(ij<span class="kw">-</span>iip1,l)) <span class="co">/ newmasse</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>masse(ij,l,iq) <span class="kw">=</span> newmasse</span></code></pre></div>
+<p>N-S 方向的通量散度。注意 <code>masse_adv_v</code> 的索引间距是 <code>iip1</code>（一行经度格点数），而 vlx 中 <code>u_m</code> 的间距是 1。</p>
+<h3 id="极点-ssum-累积和质量分配">极点 SSUM 累积和质量分配</h3>
+<div class="sourceCode" id="cb21"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co">! 北极</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="co">convpn  = SSUM(iim, qbyv(1,l), 1)           ! 净 tracer 通量</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="co">convmpn = SSUM(iim, masse_adv_v(1,l), 1)    ! 净质量通量</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>massepn <span class="kw">=</span> SSUM(iim, masse(<span class="dv">1</span>,l,iq), <span class="dv">1</span>)       <span class="co">! 极点空气质量</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>qpn <span class="kw">=</span> <span class="fu">SUM</span>(masse(ij,l,iq)<span class="kw">*</span>q(ij,l,iq))        <span class="co">! 极点 tracer 质量</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>qpn <span class="kw">=</span> (qpn <span class="kw">+</span> convpn) <span class="kw">/</span> (massepn <span class="kw">+</span> convmpn)  <span class="co">! 新混合比</span></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> ij <span class="kw">=</span> <span class="dv">1</span>, iip1</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>   q(ij,l,iq) <span class="kw">=</span> qpn                          <span class="co">! 均匀赋值</span></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a><span class="co">! 南极（符号相反）</span></span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a><span class="co">convps  = -SSUM(iim, qbyv(ip1jm-iim,l), 1)</span></span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a><span class="co">convmps = -SSUM(iim, masse_adv_v(ip1jm-iim,l), 1)</span></span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>masseps <span class="kw">=</span> SSUM(iim, masse(ip1jm<span class="kw">+</span><span class="dv">1</span>,l,iq), <span class="dv">1</span>)</span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>qps <span class="kw">=</span> (<span class="fu">SUM</span>(masse<span class="kw">*</span>q) <span class="kw">+</span> convps) <span class="kw">/</span> (masseps <span class="kw">+</span> convmps)</span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> ij <span class="kw">=</span> ip1jm<span class="kw">+</span><span class="dv">1</span>, ip1jmp1</span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a>   q(ij,l,iq) <span class="kw">=</span> qps</span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span></code></pre></div>
+<p>极点处理的关键特征：</p>
+<ul>
+<li>使用 <code>SSUM</code> 对所有经度方向的通量求和，得到极点的净输入。</li>
+<li>新混合比 = (旧 tracer 总质量 + 净 tracer 通量) / (旧空气总质量 + 净空气通量)。</li>
+<li>极点所有经度格点赋予相同的混合比，保证极点处的物理一致性。</li>
+<li>注释块（L849-L870）保留了"新版本"代码（使用 <code>apoln</code> 面积加权分配 <code>masse</code>），但当前未启用。</li>
+</ul>
+<h2 id="vlz垂直输送">vlz：垂直输送</h2>
+<h3 id="签名-2">签名</h3>
+<div class="sourceCode" id="cb22"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">RECURSIVE</span> <span class="kw">SUBROUTINE</span> vlz(q,pente_max,masse,w,iq)</span></code></pre></div>
+<p><code>w</code> 维度为 <code>(ip1jmp1,llm+1)</code>，包含 <code>llm+1</code> 个界面（顶部和底部）。</p>
+<h3 id="垂直斜率">垂直斜率</h3>
+<div class="sourceCode" id="cb23"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co">! 界面差分（从 l=2 开始）</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>dzqw(ij,l) <span class="kw">=</span> q(ij,l<span class="kw">-</span><span class="dv">1</span>,iq) <span class="kw">-</span> q(ij,l,iq)</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="co">! 标量点斜率</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span>(dzqw(ij,l)<span class="kw">*</span>dzqw(ij,l<span class="kw">+</span><span class="dv">1</span>) <span class="op">&gt;</span> <span class="fl">0.</span>) <span class="kw">THEN</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>   dzq(ij,l) <span class="kw">=</span> <span class="fl">0.5</span><span class="kw">*</span>(dzqw(ij,l) <span class="kw">+</span> dzqw(ij,l<span class="kw">+</span><span class="dv">1</span>))</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a><span class="kw">ELSE</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>   dzq(ij,l) <span class="kw">=</span> <span class="fl">0.</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>dzqmax <span class="kw">=</span> pente_max <span class="kw">*</span> <span class="bu">min</span>(<span class="kw">|</span>dzqw(ij,l)<span class="kw">|</span>, <span class="kw">|</span>dzqw(ij,l<span class="kw">+</span><span class="dv">1</span>)<span class="kw">|</span>)</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>dzq(ij,l) <span class="kw">=</span> <span class="bu">sign</span>(<span class="bu">min</span>(<span class="kw">|</span>dzq(ij,l)<span class="kw">|</span>, dzqmax), dzq(ij,l))</span></code></pre></div>
+<p>与 vlx 相同的 Van Leer 限制框架，但作用在垂直方向。</p>
+<h3 id="顶底边界斜率归零">顶底边界斜率归零</h3>
+<div class="sourceCode" id="cb24"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> ij <span class="kw">=</span> <span class="dv">1</span>, ip1jmp1</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>   dzq(ij,<span class="dv">1</span>)  <span class="kw">=</span> <span class="fl">0.</span>    <span class="co">! 顶层</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>   dzq(ij,llm) <span class="kw">=</span> <span class="fl">0.</span>    <span class="co">! 底层</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span></code></pre></div>
+<p>顶层和底层的斜率被强制置零，防止边界处出现非物理的斜率外推。</p>
+<h3 id="通量计算-2">通量计算</h3>
+<div class="sourceCode" id="cb25"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> l <span class="kw">=</span> <span class="dv">1</span>, llm<span class="kw">-</span><span class="dv">1</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>   <span class="kw">IF</span>(w(ij,l<span class="kw">+</span><span class="dv">1</span>) <span class="op">&gt;</span> <span class="fl">0.</span>) <span class="kw">THEN</span></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>      sigw <span class="kw">=</span> w(ij,l<span class="kw">+</span><span class="dv">1</span>) <span class="kw">/</span> masse(ij,l<span class="kw">+</span><span class="dv">1</span>,iq)</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>      wq(ij,l<span class="kw">+</span><span class="dv">1</span>) <span class="kw">=</span> w(ij,l<span class="kw">+</span><span class="dv">1</span>) <span class="kw">*</span> (q(ij,l<span class="kw">+</span><span class="dv">1</span>,iq) <span class="kw">+</span> <span class="fl">0.5</span><span class="kw">*</span>(<span class="fl">1.</span><span class="kw">-</span>sigw)<span class="kw">*</span>dzq(ij,l<span class="kw">+</span><span class="dv">1</span>)<span class="co">)</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>   <span class="kw">ELSE</span></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>      sigw <span class="kw">=</span> w(ij,l<span class="kw">+</span><span class="dv">1</span>) <span class="kw">/</span> masse(ij,l,iq)</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>      wq(ij,l<span class="kw">+</span><span class="dv">1</span>) <span class="kw">=</span> w(ij,l<span class="kw">+</span><span class="dv">1</span>) <span class="kw">*</span> (q(ij,l,iq) <span class="kw">-</span> <span class="fl">0.5</span><span class="kw">*</span>(<span class="fl">1.</span><span class="kw">+</span>sigw)<span class="kw">*</span>dzq(ij,l))</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>   <span class="kw">ENDIF</span></span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span></code></pre></div>
+<p><code>sigw = w/masse</code> 是 sigma 坐标的垂直 Courant 数。通量公式与 vlx/vly 结构相同。</p>
+<h3 id="无通量边界">无通量边界</h3>
+<div class="sourceCode" id="cb26"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> ij <span class="kw">=</span> <span class="dv">1</span>, ip1jmp1</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>   wq(ij,llm<span class="kw">+</span><span class="dv">1</span>) <span class="kw">=</span> <span class="fl">0.</span>    <span class="co">! 底部（地面）</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>   wq(ij,<span class="dv">1</span>)     <span class="kw">=</span> <span class="fl">0.</span>    <span class="co">! 顶部（模式顶）</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span></code></pre></div>
+<p>顶底两个界面都强制零通量。这与 vlsplt 主例程中 <code>mw(:,llm+1) = 0.</code> 一致，但 vlz 内部再次确保边界为零。</p>
+<h3 id="通量散度更新-2">通量散度更新</h3>
+<div class="sourceCode" id="cb27"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>newmasse <span class="kw">=</span> masse(ij,l,iq) <span class="kw">+</span> w(ij,l<span class="kw">+</span><span class="dv">1</span>) <span class="kw">-</span> w(ij,l)</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>q(ij,l,iq) <span class="kw">=</span> (q(ij,l,iq)<span class="kw">*</span>masse(ij,l,iq) <span class="kw">+</span> wq(ij,l<span class="kw">+</span><span class="dv">1</span>) <span class="kw">-</span> wq(ij,l)) <span class="kw">/</span> newmasse</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>masse(ij,l,iq) <span class="kw">=</span> newmasse</span></code></pre></div>
+<p>垂直方向不需要极点处理或周期包裹，结构最简单。</p>
+<h2 id="minmaxq-诊断">minmaxq 诊断</h2>
+<div class="sourceCode" id="cb28"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> minmaxq(zq,qmin,qmax,comment)</span></code></pre></div>
+<p>受 <code>#ifdef isminismax</code> 编译保护。使用 <code>ismin/ismax</code> 外部函数找全局极值位置，如果超出 <code>[qmin, qmax]</code> 范围则打印位置和值。在 vlsplt 主例程中以注释形式存在（<code>c call minmaxq(...)</code>），开发调试时取消注释可追踪每步 split 后的极值变化。</p>
+<p>默认范围：<code>qmin = 0., qmax = 1.e33</code>（在主例程 DATA 语句中定义）。</p>
+<h2 id="三方向对比">三方向对比</h2>
+<table>
+<thead>
+<tr>
+<th>特征</th>
+<th>vlx (E-W)</th>
+<th>vly (N-S)</th>
+<th>vlz (垂直)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>行数</td>
+<td>L140-519（380 行）</td>
+<td>L520-888（369 行）</td>
+<td>L889-1060（172 行）</td>
+</tr>
+<tr>
+<td>斜率限制</td>
+<td>Van Leer scheme I 或乘积</td>
+<td>同左</td>
+<td>同左</td>
+</tr>
+<tr>
+<td>周期/边界</td>
+<td>E-W 周期包裹（iim 间距）</td>
+<td>极点特殊处理</td>
+<td>顶底零通量</td>
+</tr>
+<tr>
+<td>极点处理</td>
+<td>无</td>
+<td>SSUM 累积+面积加权分配</td>
+<td>无</td>
+</tr>
+<tr>
+<td>极点斜率</td>
+<td>不适用</td>
+<td>sin/cos 投影后归零（GOTO 8888）</td>
+<td>顶底归零</td>
+</tr>
+<tr>
+<td>CFL &gt; 1</td>
+<td>Semi-Lagrangian 累积（逐格点追踪）</td>
+<td>无</td>
+<td>无</td>
+</tr>
+<tr>
+<td>通量索引间距</td>
+<td>1（连续 i）</td>
+<td>iip1（跨一行）</td>
+<td>1（连续 l）</td>
+</tr>
+<tr>
+<td>通量散度</td>
+<td>标准守恒</td>
+<td>标准守恒 + 极点 SSUM</td>
+<td>标准守恒</td>
+</tr>
+<tr>
+<td>RECURSIVE</td>
+<td>是（父子 tracer）</td>
+<td>是（父子 tracer）</td>
+<td>是（父子 tracer）</td>
+</tr>
+<tr>
+<td>几何缓存</td>
+<td>无</td>
+<td>sinlon/coslon/airej2/airejjm（SAVE）</td>
+<td>无</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>pente_max = 2</code> 是标准 Van Leer 限制，<code>pente_max = 0</code> 退化为上游格式，<code>pente_max &lt; -1e-5</code> 使用乘积斜率。LMDZ Mars 通常使用 <code>pente_max = 2</code>。</li>
+<li>vlx 的 Semi-Lagrangian 累积段只在 <code>zdum &lt; 0</code>（CFL &gt; 1）时触发。对 Mars 典型分辨率和时间步长，这种情况很少见但不能排除。该段不向量化，是性能瓶颈之一。</li>
+<li>vly 的 <code>GOTO 8888</code> 无条件跳过极点限制器并随后归零极点 dyq。这意味着极点处的 Van Leer 修正完全不起作用，极点输送退化为使用相邻纬圈值的简单上游格式。</li>
+<li>vly 极点 <code>SSUM</code> 累积使用旧注释版的均匀质量分配。注释块中的"新版本"使用 <code>aire(ij)</code> 面积加权分配但未被启用。</li>
+<li>vlz 的 <code>w(ij,llm+1)</code> 在主例程已置零，但 vlz 内部再次对 <code>wq(ij,llm+1)</code> 和 <code>wq(ij,1)</code> 置零，提供双重保护。</li>
+<li>三个方向内核都更新 <code>masse</code> 场，使得后续方向的输送使用已更新的质量。这是 split transport 的固有特征，也是保证守恒的关键。</li>
+<li>CRAY 和非 CRAY 路径在斜率计算和通量计算中都有分支（<code>#ifdef CRAY</code>），CRAY 路径使用 <code>cvmgp</code> 向量函数。当前 LMDZ 构建通常走非 CRAY 路径。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="vlsplt-serial-family-tracers.html">vlsplt 串行父子 tracer 和饱和路径</a></li>
+<li><a href="advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
+<li><a href="advn-flux-updates.html">advn 通量更新</a></li>
+<li><a href="advn-dispatcher-order.html">advn 调度顺序</a></li>
+<li><a href="vlsplt-p-halo-split.html">vlsplt_p 并行 halo 与 split 内核</a></li>
+<li><a href="vlsplt-serial-parallel-delta.html">vlsplt 串并行 Van Leer 差异对照</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Mars 配置中 <code>pente_max</code> 的实际值，以及是否有 tracer 使用 <code>pente_max = 0</code>（上游格式）或负值（乘积斜率）。</li>
+<li>vly 极点"新版本"代码（面积加权质量分配）是否有配置启用，还是永远停留在注释状态。</li>
+<li>Semi-Lagrangian 累积段在 Mars 高分辨率运行中是否被触发。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

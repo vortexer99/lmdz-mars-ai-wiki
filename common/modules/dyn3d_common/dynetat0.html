@@ -1,0 +1,456 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dynetat0 - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d_common/dynetat0.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="dynetat0f90">dynetat0.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\dynetat0.F90</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>LMDZ.COMMON\libf\dyn3d_common</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>dynetat0.F90</code> 定义 <code>SUBROUTINE dynetat0</code>，从动力 restart/start NetCDF 文件读取控制数组、网格、几何、动力状态、tracer、气柱质量和地表压力。它同时根据 <code>planet_type</code> 区分 Earth-like、Titan 和 planeto-like/Mars start 文件布局，并处理 <code>timestart</code> 选择多时间片。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>必经/条件经过：COMMON 6.3 `gcm` 和 MARS `phymars/nogcm.F90` 在 read_start 路径调用 `dynetat0(&quot;start.nc&quot;,...)`；MARS newstart/start2archive 也调用 dynetat0 读取起始状态。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dynetat0</code></td>
+<td>subroutine</td>
+<td>4</td>
+<td>读取动力 start/restart NetCDF 初态。</td>
+</tr>
+<tr>
+<td><code>check_dim</code></td>
+<td>internal subroutine</td>
+<td>307</td>
+<td>检查文件维度与编译维度一致。</td>
+</tr>
+<tr>
+<td><code>get_var1</code></td>
+<td>internal subroutine</td>
+<td>320</td>
+<td>读取一维变量。</td>
+</tr>
+<tr>
+<td><code>get_var2</code></td>
+<td>internal subroutine</td>
+<td>328</td>
+<td>读取二维变量并修正经度周期端点。</td>
+</tr>
+<tr>
+<td><code>get_var2_t</code></td>
+<td>internal subroutine</td>
+<td>350</td>
+<td>读取含时间维的二维变量。</td>
+</tr>
+<tr>
+<td><code>get_var3</code></td>
+<td>internal subroutine</td>
+<td>380</td>
+<td>读取 U 网格三维变量。</td>
+</tr>
+<tr>
+<td><code>get_var3u_t</code></td>
+<td>internal subroutine</td>
+<td>387</td>
+<td>读取 U 网格含时间维三维变量并修正周期端点。</td>
+</tr>
+<tr>
+<td><code>get_var3v_t</code></td>
+<td>internal subroutine</td>
+<td>418</td>
+<td>读取 V 网格含时间维三维变量并修正周期端点。</td>
+</tr>
+<tr>
+<td><code>err</code></td>
+<td>internal subroutine</td>
+<td>449</td>
+<td>统一处理 NetCDF 错误并调用 <code>ABORT_gcm</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>infotrac</code></td>
+<td><code>tname</code>, <code>nqtot</code>, isotope 相关数组</td>
+<td>确定 tracer 变量名和缺失 tracer 的默认/同位素初始化。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>netcdf</code></td>
+<td><code>nf90_open</code>, <code>NF90_NOWRITE</code>, <code>nf90_noerr</code>, <code>nf90_strerror</code>, <code>nf90_get_var</code>, <code>nf90_inq_varid</code>, <code>nf90_inq_dimid</code>, <code>nf90_inquire_dimension</code>, <code>nf90_close</code></td>
+<td>NetCDF 文件读 API。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>control_mod</code></td>
+<td><code>planet_type</code>, <code>timestart</code></td>
+<td>判断 start 文件布局和选择时间片。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comvert_mod</code></td>
+<td><code>pa</code>, <code>preff</code></td>
+<td>写垂直坐标参考参数。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>im</code>, <code>jm</code>, <code>lllm</code>, <code>daysec</code>, <code>dtvr</code>, <code>rad</code>, <code>omeg</code>, <code>g</code>, <code>cpp</code>, <code>kappa</code>, <code>pi</code></td>
+<td>写维度和物理常量。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td><code>fxyhypb</code>, <code>ysinus</code></td>
+<td>写网格函数分支。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>serre_mod</code></td>
+<td><code>clon</code>, <code>clat</code>, <code>grossismx</code>, <code>grossismy</code></td>
+<td>写 zoom 参数。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>temps_mod</code></td>
+<td><code>annee_ref</code>, <code>day_ref</code>, <code>itau_dyn</code>, <code>start_time</code>, <code>day_ini</code>, <code>hour_ini</code></td>
+<td>写时间和日期状态。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>ener_mod</code></td>
+<td><code>etot0</code>, <code>ptot0</code>, <code>ztot0</code>, <code>stot0</code>, <code>ang0</code></td>
+<td>写初始能量/角动量诊断基准。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NF90_OPEN</code>, <code>NF90_CLOSE</code></td>
+<td>NetCDF</td>
+<td>68, 291</td>
+<td>打开和关闭 start 文件。</td>
+</tr>
+<tr>
+<td><code>get_var1/2/2_t/3u_t/3v_t</code></td>
+<td>本文件内部</td>
+<td>多处</td>
+<td>读取控制、经纬度、几何和状态变量。</td>
+</tr>
+<tr>
+<td><code>check_dim</code></td>
+<td>本文件内部</td>
+<td>139-141</td>
+<td>核对 <code>im/jm/llm</code>。</td>
+</tr>
+<tr>
+<td><code>nf90_inq_varid</code>, <code>nf90_inq_dimid</code>, <code>nf90_inquire_dimension</code>, <code>nf90_get_var</code></td>
+<td>NetCDF</td>
+<td>168-205, 221-229, 272-285</td>
+<td>查询并读取时间轴和 tracer。</td>
+</tr>
+<tr>
+<td><code>ABORT_gcm</code></td>
+<td><code>dyn3d/abort_gcm.F</code></td>
+<td>多处</td>
+<td>缺变量、读失败、维度不符或找不到时间时退出。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fichnom</code></td>
+<td>调用参数</td>
+<td>character</td>
+<td>-</td>
+<td>NetCDF start 文件名，常见为 <code>start.nc</code>。</td>
+</tr>
+<tr>
+<td><code>controle</code></td>
+<td>NetCDF 变量</td>
+<td>real(100)</td>
+<td>多种</td>
+<td>编码维度、日期、常量、能量、垂直/zoom 参数。</td>
+</tr>
+<tr>
+<td><code>rlonu/rlatu/rlonv/rlatv</code></td>
+<td>NetCDF 变量</td>
+<td>1D</td>
+<td>rad</td>
+<td>U/V 网格经纬度。</td>
+</tr>
+<tr>
+<td><code>cu/cv/aire/phisinit</code></td>
+<td>NetCDF 变量</td>
+<td>2D</td>
+<td>多种</td>
+<td>几何伸长、面积和地表位势。</td>
+</tr>
+<tr>
+<td><code>temps</code> 或 <code>Time</code></td>
+<td>NetCDF 变量/维度</td>
+<td>1D</td>
+<td>day</td>
+<td>可用时间片。</td>
+</tr>
+<tr>
+<td><code>vcov/ucov/teta/masse/ps</code></td>
+<td>NetCDF 变量</td>
+<td>2D/3D + time</td>
+<td>多种</td>
+<td>动力状态变量。</td>
+</tr>
+<tr>
+<td>tracer 变量</td>
+<td>NetCDF 变量名来自 <code>tname(iq)</code></td>
+<td>3D + time</td>
+<td>tracer 单位</td>
+<td>各 tracer 初值。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vcov</code></td>
+<td>调用方数组</td>
+<td><code>(iip1,jjm,llm)</code></td>
+<td>covariant wind</td>
+<td>V covariant wind。</td>
+</tr>
+<tr>
+<td><code>ucov</code></td>
+<td>调用方数组</td>
+<td><code>(iip1,jjp1,llm)</code></td>
+<td>covariant wind</td>
+<td>U covariant wind。</td>
+</tr>
+<tr>
+<td><code>teta</code></td>
+<td>调用方数组</td>
+<td><code>(iip1,jjp1,llm)</code></td>
+<td>K</td>
+<td>位温。</td>
+</tr>
+<tr>
+<td><code>q</code></td>
+<td>调用方数组</td>
+<td><code>(iip1,jjp1,llm,nqtot)</code></td>
+<td>tracer 单位</td>
+<td>tracer 场。</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td>调用方数组</td>
+<td><code>(iip1,jjp1,llm)</code></td>
+<td>kg 或质量单位待确认</td>
+<td>层空气质量。</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td>调用方数组</td>
+<td><code>(iip1,jjp1)</code></td>
+<td>Pa</td>
+<td>地表压力。</td>
+</tr>
+<tr>
+<td><code>phis</code></td>
+<td>调用方数组</td>
+<td><code>(iip1,jjp1)</code></td>
+<td>m2 s-2 待确认</td>
+<td>地表位势。</td>
+</tr>
+<tr>
+<td><code>time0</code></td>
+<td>调用方标量</td>
+<td>real</td>
+<td>day fraction</td>
+<td>当前时间片在动力积分中的初始小数日。</td>
+</tr>
+<tr>
+<td>多个 module 状态</td>
+<td><code>comconst_mod/comvert_mod/temps_mod/...</code></td>
+<td>多种</td>
+<td>多种</td>
+<td>从 <code>controle</code> 解码出的常量、日期和 zoom 参数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p>例程写入动力常量、垂直坐标、时间、能量和 zoom 相关 module 全局状态；读取失败或维度不符会 abort；内部读取函数会检查经度周期端点，不一致时打印 warning 并把最后经度点改为第一个经度点。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>打开 NetCDF start 文件，读取 <code>controle</code> 数组。</li>
+<li>根据 <code>planet_type</code> 选择 Earth-like 或 planeto-like 布局：Mars/generic 使用 <code>idecal=4</code>，Earth/Titan 使用 <code>idecal=5</code>。</li>
+<li>从 <code>controle</code> 解码网格维度、日期、行星常量、能量、垂直坐标和 zoom 参数。</li>
+<li>对 Mars，把 <code>hour_ini</code> 从控制数组第 29 项读取；其他行星设为 0。</li>
+<li>检查 <code>im/jm/llm</code> 与编译维度 <code>iim/jjm/lllm</code> 一致。</li>
+<li>读取经纬度、<code>cu/cv/aire/phisinit</code>。</li>
+<li>读取 <code>temps</code> 或回退读取 <code>Time</code>，根据 <code>timestart</code> 选择最后时间片或匹配时间片。</li>
+<li>Mars 路径把 <code>day_ini/hour_ini/time0</code> 重组为整数日加小数日。</li>
+<li>读取 <code>vcov/ucov/teta</code>。</li>
+<li>对每个 tracer，按 <code>tname(iq)</code> 读取；缺失时置零，Earth isotope 路径可做理论初始化。</li>
+<li>读取 <code>masse</code> 和 <code>ps</code>，关闭文件。</li>
+<li>非 Mars 路径将 <code>time0</code> 的整数部分累加到 <code>day_ini</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>open start NetCDF
+read controle
+if planet_type is mars or generic:
+    decode planeto layout
+else:
+    decode earth-like layout
+write constants, dates, energy, vertical, zoom state
+check file dimensions against compiled dimensions
+read longitude/latitude and geometry fields
+read temps or Time axis
+select indextime from timestart or last value
+adjust Mars day_ini/hour_ini/time0
+read vcov, ucov, teta
+for each tracer name:
+    read tracer at selected time or initialize missing tracer
+read masse and ps
+close file</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>restart-io</td>
+<td>读取动力 <code>start.nc</code> 初态，是 <code>dynredem</code> 写出 restart 的反向路径。</td>
+</tr>
+<tr>
+<td>dynamics-time-integration</td>
+<td>提供进入 <code>leapfrog</code> 的初始状态。</td>
+</tr>
+<tr>
+<td>Mars start handling</td>
+<td>Mars 使用 planeto-like 控制数组布局，并处理 <code>timestart</code> 和 <code>hour_ini</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<p>Fortran 90 子程序内含多个内部读取 helper。读取 helper 同时做周期端点修正，这意味着输出数组可能不是 NetCDF 原值的逐字节拷贝。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>Mars/generic 的 <code>controle</code> 解码偏移与 Earth-like 不同，不能直接按 Earth start 文件布局解析 Mars start。</li>
+<li><code>timestart&lt;0</code> 默认选最后一个时间片；非负时必须在时间轴中找到误差小于 0.01 的时间。</li>
+<li>缺失 tracer 不一定 abort：会置零；Earth isotope 情况还可能按父 tracer 做简化初始化。</li>
+<li>经度周期端点不一致时，代码会强制 <code>iip1</code> 点等于第 1 点。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>controle</code> 数组各项单位除源码上下文外未全部显式声明，部分单位需结合写出端 <code>dynredem</code> 确认。</li>
+<li>Mars start 文件中 <code>hour_ini=tab_cntrl(29)</code> 的历史约定需和 MARS start 生成器对照。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn3d_common 总览</a></li>
+<li><a href="../dyn3d/gcm.html">gcm</a></li>
+<li>COMMON 6.3 已删除 <code>dyn3d/nogcm.F90</code>。</li>
+<li><a href="inigeom.html">inigeom</a></li>
+<li><a href="../../routines/dynredem-restart.html">dynredem restart 对照</a></li>
+<li><a href="../../routines/restart-variable-sorting.html">restart 变量读写和控制量重置契约</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

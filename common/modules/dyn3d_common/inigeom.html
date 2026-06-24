@@ -1,0 +1,362 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>inigeom - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d_common/inigeom.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="inigeomf">inigeom.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\inigeom.F</code></pre>
+<h2 id="所属目录模块">所属目录/模块</h2>
+<pre class="text"><code>LMDZ.COMMON\libf\dyn3d_common</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>inigeom.F</code> 定义 <code>SUBROUTINE inigeom</code>，根据行星半径、旋转角速度、zoom 参数和网格函数分支，构造动力网格经纬度、伸长系数、面积、面积权重、Coriolis extensive force、耗散幂权重和极点面积等几何数组。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>必经/条件经过：COMMON 6.3 `gcm` 和 MARS `phymars/nogcm.F90` 在 iflag_phys==1 初始化路径调用 inigeom；MARS newstart/start2archive/xvik 也调用 inigeom 构造几何。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inigeom</code></td>
+<td>subroutine</td>
+<td>6</td>
+<td>初始化动力水平网格几何和派生系数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖的模块">依赖的模块</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>only 列表</th>
+<th>用途</th>
+<th>待确认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>rad</code>, <code>g</code>, <code>omeg</code>, <code>pi</code></td>
+<td>使用/设置行星半径、重力、角速度和 pi。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td><code>fxyhypb</code>, <code>ysinus</code></td>
+<td>选择网格映射分支。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>serre_mod</code></td>
+<td><code>clon</code>, <code>clat</code>, <code>grossismx</code>, <code>grossismy</code>, <code>dzoomx</code>, <code>dzoomy</code>, <code>alphax</code>, <code>alphay</code>, <code>taux</code>, <code>tauy</code>, <code>transx</code>, <code>transy</code>, <code>pxo</code>, <code>pyo</code></td>
+<td>使用 zoom 参数并写平移参数。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>fxhyp_m</code></td>
+<td><code>fxhyp</code></td>
+<td>双曲正切经向/纬向映射中的 x 方向函数。</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>fyhyp_m</code></td>
+<td><code>fyhyp</code></td>
+<td>双曲正切映射中的 y 方向函数。</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用的关键例程">调用的关键例程</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>所在模块/文件</th>
+<th>调用位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fxysinus</code></td>
+<td><code>dyn3d_common/fxysinus.F</code></td>
+<td>168</td>
+<td><code>fxyhypb=.false.</code> 且 <code>ysinus=.true.</code> 时生成 sinus(latitude) 网格。</td>
+</tr>
+<tr>
+<td><code>fxy</code></td>
+<td><code>dyn3d_common/fxy.F</code></td>
+<td>209</td>
+<td><code>fxyhypb=.false.</code> 且 <code>ysinus=.false.</code> 时生成 sinusoidal derivative 网格。</td>
+</tr>
+<tr>
+<td><code>fyhyp</code></td>
+<td><code>dyn3d_common/fyhyp_m.F90</code></td>
+<td>220</td>
+<td>双曲正切 y 映射。</td>
+</tr>
+<tr>
+<td><code>fxhyp</code></td>
+<td><code>dyn3d_common/fxhyp_m.F90</code></td>
+<td>221</td>
+<td>双曲正切 x 映射。</td>
+</tr>
+<tr>
+<td><code>SSUM</code></td>
+<td>BLAS 或外部函数</td>
+<td>637, 638</td>
+<td>计算北/南极面积和。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入">输入</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>来源</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rad</code>, <code>g</code>, <code>omeg</code></td>
+<td><code>comconst_mod</code></td>
+<td>real</td>
+<td>m, m s-2, s-1</td>
+<td>行星半径、重力和自转角速度。</td>
+</tr>
+<tr>
+<td><code>fxyhypb</code>, <code>ysinus</code></td>
+<td><code>logic_mod</code></td>
+<td>logical</td>
+<td>-</td>
+<td>网格函数分支。</td>
+</tr>
+<tr>
+<td><code>clon/clat/grossismx/grossismy/dzoomx/dzoomy/taux/tauy</code></td>
+<td><code>serre_mod</code></td>
+<td>real</td>
+<td>度或无量纲</td>
+<td>zoom 中心、放大率、范围和陡峭度。</td>
+</tr>
+<tr>
+<td><code>nitergdiv/nitergrot/niterh/coefdis</code></td>
+<td><code>comdissnew.h</code></td>
+<td>integer/real</td>
+<td>-</td>
+<td>耗散幂权重参数。</td>
+</tr>
+<tr>
+<td><code>iim/jjm/iip1/jjp1</code></td>
+<td><code>dimensions.h/paramet.h</code></td>
+<td>integer</td>
+<td>-</td>
+<td>水平网格维度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输出">输出</h2>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>去向</th>
+<th>类型/维度</th>
+<th>单位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rlonu/rlonv/rlatu/rlatv</code></td>
+<td><code>comgeom2.h</code></td>
+<td>1D</td>
+<td>rad</td>
+<td>U/V 网格经纬度。</td>
+</tr>
+<tr>
+<td><code>xprimu/xprimv/yprimu/yprimv</code></td>
+<td><code>comgeom2.h</code></td>
+<td>1D</td>
+<td>无量纲</td>
+<td>映射导数。</td>
+</tr>
+<tr>
+<td><code>aire/aireu/airev/aireij*</code></td>
+<td><code>comgeom2.h</code></td>
+<td>2D</td>
+<td>m2</td>
+<td>标量、U、V 和四分面积。</td>
+</tr>
+<tr>
+<td><code>cu/cv/cuv/cvu</code></td>
+<td><code>comgeom2.h</code></td>
+<td>2D</td>
+<td>m</td>
+<td>伸长系数。</td>
+</tr>
+<tr>
+<td><code>alpha*</code></td>
+<td><code>comgeom2.h</code></td>
+<td>2D</td>
+<td>无量纲</td>
+<td>四分面积权重。</td>
+</tr>
+<tr>
+<td><code>unsaire*</code>, <code>unsair*_gam*</code>, <code>cuvscvgam*</code> 等</td>
+<td><code>comgeom2.h</code></td>
+<td>2D</td>
+<td>多种</td>
+<td>逆面积和耗散幂权重。</td>
+</tr>
+<tr>
+<td><code>fext</code>, <code>constang</code></td>
+<td><code>comgeom2.h</code></td>
+<td>2D</td>
+<td>待确认</td>
+<td>Coriolis extensive force 和角动量相关常数。</td>
+</tr>
+<tr>
+<td><code>apoln/apols</code></td>
+<td><code>comgeom2.h</code></td>
+<td>scalar</td>
+<td>m2</td>
+<td>北/南极总面积。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共享状态与副作用">共享状态与副作用</h2>
+<p>例程大量写入 <code>comgeom2.h</code> 和 <code>comdissnew.h</code> 中的共享数组；向 unit 6 打印网格信息；会设置 <code>pi=2*asin(1)</code>；会修改 <code>transx/transy/pxo/pyo</code> 等 zoom 辅助状态。</p>
+<h2 id="核心逻辑">核心逻辑</h2>
+<ol type="1">
+<li>根据 <code>nitergdiv/nitergrot/niterh</code> 和 <code>coefdis</code> 计算耗散幂指数 <code>gamdi_*</code>。</li>
+<li>设置 <code>pi</code>。</li>
+<li>根据 <code>fxyhypb</code> 和 <code>ysinus</code> 选择网格映射：
+<ul>
+<li><code>fxyhypb=.false., ysinus=.true.</code>：调用 <code>fxysinus</code>。</li>
+<li><code>fxyhypb=.false., ysinus=.false.</code>：Newton 迭代求 <code>transx/transy</code> 后调用 <code>fxy</code>。</li>
+<li><code>fxyhypb=.true.</code>：调用 <code>fyhyp</code> 与 <code>fxhyp</code>。</li>
+</ul></li>
+<li>设置极点纬度和极点导数。</li>
+<li>对每个纬度带和经度点计算四分面积 <code>aireij1..4</code>、四分伸长 <code>cuij/cvij</code>，并强制经度周期。</li>
+<li>汇总标量点面积 <code>aire</code> 和权重 <code>alpha1..4</code>。</li>
+<li>计算 U/V/Z 点面积、逆面积、<code>airesurg</code>、耗散幂权重和 Coriolis <code>fext</code>。</li>
+<li>计算 <code>cu/cv/cuv/cvu</code> 及其派生比值和幂权重。</li>
+<li>极点处设置 <code>cu/unscu2/cvu</code> 为 0，计算极区面积 <code>apoln/apols</code>。</li>
+<li>计算 <code>constang=rad*omeg*cu*cos(rlatu)</code> 并施加经度周期。</li>
+<li>打印 U/V 经纬度。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>compute dissipation gamma exponents
+select horizontal map branch from fxyhypb and ysinus
+build rlon/rlat and map derivatives
+for each scalar latitude and longitude:
+    compute quarter-cell areas and cu/cv pieces
+    enforce periodic longitude
+sum quarter areas into scalar, U, V, and Z areas
+derive alpha weights, inverse areas, and dissipation factors
+derive cu/cv/cuv/cvu metric factors
+set pole metrics and pole total areas
+compute Coriolis extensive fields and constang
+print grid coordinates</code></pre>
+<h2 id="参与的主题流程">参与的主题流程</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>参与方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>dynamics initialization</td>
+<td>在 <code>iniconst</code> 后构造动力水平几何。</td>
+</tr>
+<tr>
+<td>differential operators</td>
+<td>为梯度、散度、旋度、laplacian 和耗散算子提供 metric/area 权重。</td>
+</tr>
+<tr>
+<td>dynphys-interface</td>
+<td>输出的经纬度、面积和伸长系数传给物理初始化。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写法特点">写法特点</h2>
+<p>固定格式 Fortran，大量数组来自 include 头文件。网格几何按 staggered C-grid 语义处理 U、V、scalar、vorticity/Z 点，且显式处理极点和经度周期。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>fxyhypb/ysinus</code> 分支决定经纬度和导数生成方式，是复现几何的首要开关。</li>
+<li>极点面积通过 <code>SSUM(iim,aire(1,1),1)</code> 和南极对应行求和，极点 <code>cu</code> 被置 0。</li>
+<li>所有 <code>iip1</code> 经度端点都复制第 1 点，后续算子依赖这种周期闭合。</li>
+<li><code>gamdi_*</code> 在迭代次数等于 2 时设为 0，否则为 <code>coefdis/(niter-2)</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>fext</code> 和 <code>constang</code> 的单位未在本文件注释中完整声明，需要结合动力方程使用点确认。</li>
+<li><code>SSUM</code> 的链接来源需由构建或数值库任务确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn3d_common 总览</a></li>
+<li><a href="../dyn3d/gcm.html">gcm</a></li>
+<li>COMMON 6.3 已删除 <code>dyn3d/nogcm.F90</code>。</li>
+<li><a href="dynetat0.html">dynetat0</a></li>
+<li><a href="../../routines/horizontal-map-functions.html">水平映射函数组</a></li>
+<li><a href="../../routines/differential-operators-overview.html">差分算子总览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

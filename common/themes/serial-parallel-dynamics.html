@@ -1,0 +1,431 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>serial-parallel-dynamics - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a class="active" href="index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>themes/serial-parallel-dynamics.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="串行并行动力对照主题页">串行/并行动力对照主题页</h1>
+<p>页面状态：父级主题页，整合 <code>dyn3d</code>、<code>dyn3dpar</code>、串并行 helper 对照页和并行基础模块页面。 源码范围：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d</code>、<code>dyn3dpar</code>、<code>dyn3d_common</code> 和相关 <code>phy_common</code> 并行接口。 Mars 运行参与度：条件经过 + 接口兼容。串行 Mars 3D 或 Mars <code>nogcm</code> 类路径不经过 <code>dyn3dpar</code> 的 MPI halo/bands；Mars 并行动力构建会经过 <code>dyn3dpar</code> 入口、decomposition、halo、band 分布和 <code>_p</code> 动力例程。物理侧并行抽象对 Mars physics 并行初始化是接口兼容/条件经过。</p>
+<h2 id="读法">读法</h2>
+<p>这个主题页回答两个问题：</p>
+<ol type="1">
+<li>串行 <code>dyn3d</code> 和并行 <code>dyn3dpar</code> 在物理/数值职责上如何对应。</li>
+<li>并行版为了 decomposition、halo、band 和分布式 I/O 增加了哪些约束。</li>
+</ol>
+<p>最短阅读路径：</p>
+<ol type="1">
+<li><a href="../modules/dyn3d/index.html">dyn3d/index</a>：串行动力目录职责。</li>
+<li><a href="../modules/dyn3dpar/gcm.html">dyn3dpar/gcm</a>：并行入口在串行主链上增加 MPI/OMP 和 band 初始化。</li>
+<li><a href="../modules/dyn3dpar/leapfrog_p.html">leapfrog_p</a>：并行 Matsuno/leapfrog 主循环如何切换 band、halo、physics、耗散和 I/O。</li>
+<li><a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p</a>：并行动力-物理列映射、OMP split 调用和 tendency 回填。</li>
+<li><a href="../modules/dyn3dpar/parallel_lmdz.html">parallel_lmdz</a>：纬向 decomposition、rank/OMP 状态、gather/broadcast。</li>
+<li><a href="../modules/dyn3dpar/mod_hallo.html">mod_hallo</a>：halo/swap 请求注册、打包、发送、等待、解包。</li>
+<li><a href="../modules/dyn3dpar/bands.html">bands</a>：caldyn、Van Leer、dissip、physics 的 band 分布和自适应调整。</li>
+<li><a href="../routines/guide-serial-parallel-delta.html">guide-serial-parallel-delta</a>：nudging 的局部分布、halo、root 输出和 <code>factt</code> 差异。</li>
+<li>再读各串并行 helper 页：<code>caldyn</code>、<code>advtrac</code>、<code>integrd</code>、<code>dissip</code>、history/restart。</li>
+</ol>
+<h2 id="总览">总览</h2>
+<pre class="text"><code>串行 dyn3d
+  gcm/conf_gcm
+    -&gt; global arrays
+    -&gt; leapfrog
+       -&gt; caldyn
+       -&gt; advtrac
+       -&gt; integrd
+       -&gt; dissip
+       -&gt; bilan_dyn/writehist/writedynav/dynredem
+
+并行 dyn3dpar
+  gcm/conf_gcm
+    -&gt; init_const_mpi/init_parallel
+    -&gt; Read_Distrib/set_bands/SetDistrib
+    -&gt; Init_Mod_hallo per OpenMP thread
+    -&gt; local arrays + halo bands
+    -&gt; leapfrog_p
+       -&gt; caldyn_p
+       -&gt; advtrac_p / vlsplt*_p
+       -&gt; integrd_p
+       -&gt; dissip_p
+       -&gt; bilan_dyn_p/writehist_p/writedynav_p/dynredem_p</code></pre>
+<h2 id="入口层对照">入口层对照</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>串行 <code>dyn3d</code></th>
+<th>并行 <code>dyn3dpar</code></th>
+<th>复现影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>主程序</td>
+<td><code>dyn3d/gcm.F90</code></td>
+<td><code>dyn3dpar/gcm.F</code></td>
+<td>都读取 <code>run.def</code> 和 <code>conf_gcm</code>，但并行入口先建立 MPI/OMP 环境。</td>
+</tr>
+<tr>
+<td>初始态</td>
+<td><code>dynetat0("start.nc")</code> 读全局数组</td>
+<td>同样读动力初态，并结合并行分布使用</td>
+<td>初态变量含义一致，局部分布和收集路径不同。</td>
+</tr>
+<tr>
+<td>physics 初始化</td>
+<td><code>iniphysiq(..., dtphys/nsplit_phys, ...)</code></td>
+<td><code>iniphysiq(..., distrib_phys(mpi_rank), comm_lmdz, ..., dtphys/nsplit_phys, ...)</code></td>
+<td>并行版显式传 communicator 和本 rank 物理列分布。</td>
+</tr>
+<tr>
+<td>history/dynav 初始化</td>
+<td>串行全局 history id</td>
+<td>rank 0 初始化，domain 按并行分布定义</td>
+<td>并行输出问题要先查 rank 0、domain 和局部切片。</td>
+</tr>
+<tr>
+<td>时间推进</td>
+<td><code>leapfrog</code></td>
+<td><code>leapfrog_p</code></td>
+<td>调度概念一致，但并行版在阶段间切换 decomposition 和 halo。</td>
+</tr>
+</tbody>
+</table>
+<p>H2 时间推进主题负责解释 <code>forward/leapf/apphys/apdiss</code> 等调度；本页只说明这些调度进入并行后如何受到分布和通信约束。</p>
+<h2 id="并行基础层">并行基础层</h2>
+<p>并行版的核心新增状态在三个模块：</p>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+<th>关键状态/动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/dyn3dpar/parallel_lmdz.html">parallel_lmdz</a></td>
+<td>MPI/OMP rank、纬向 decomposition、局部 <code>ij</code> 范围、gather/broadcast</td>
+<td><code>mpi_rank/mpi_size</code>, <code>jj_begin/jj_end/jj_nb</code>, <code>ij_begin/ij_end</code>, <code>pole_nord/pole_sud</code>, <code>SetDistrib</code>。</td>
+</tr>
+<tr>
+<td><a href="../modules/dyn3dpar/mod_hallo.html">mod_hallo</a></td>
+<td>halo 和重分布请求</td>
+<td><code>Register_Hallo</code>, <code>Register_SwapField</code>, <code>SendRequest</code>, <code>WaitRequest</code>, OpenMP threadprivate buffer。</td>
+</tr>
+<tr>
+<td><a href="../modules/dyn3dpar/bands.html">bands</a></td>
+<td>不同计算阶段的 band 分布</td>
+<td><code>jj_Nb_Caldyn</code>, <code>jj_Nb_vanleer</code>, <code>jj_Nb_dissip</code>, <code>distrib_phys</code>, <code>WriteBands</code>。</td>
+</tr>
+<tr>
+<td><a href="../modules/dyn3dpar/times.html">times</a></td>
+<td>adaptive bands 计时统计</td>
+<td><code>timer_caldyn/vanleer/dissip/physic</code>、allgather timing。</td>
+</tr>
+</tbody>
+</table>
+<p>串行路径没有这些状态，因此串并行差异不应简单解释为“同一数组不同顺序”。并行版的数值等价依赖：正确的局部范围、正确的极点拥有者、正确的 halo 交换时机、正确的 stage-specific band。</p>
+<h2 id="主计算段对照">主计算段对照</h2>
+<table>
+<thead>
+<tr>
+<th>计算段</th>
+<th>串行页</th>
+<th>并行页/对照</th>
+<th>并行新增关注点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>动力 tendency</td>
+<td><a href="../routines/caldyn-serial-parallel.html">caldyn-serial-parallel</a></td>
+<td><code>caldyn_p</code></td>
+<td><code>massbarxy_p</code>、局部子域、halo 前置条件和调试输出。</td>
+</tr>
+<tr>
+<td>tracer 调度</td>
+<td><a href="../routines/advtrac-serial-parallel.html">advtrac-serial-parallel</a></td>
+<td><code>advtrac_p</code>, <a href="../modules/dyn3dpar/vlspltgen_p.html">vlspltgen_p</a>, <a href="../modules/dyn3dpar/vlspltqs_p.html">vlspltqs_p</a></td>
+<td>Van Leer/PPM/Prather 路径的 halo/swap、band 切换和 isotope 同步。</td>
+</tr>
+<tr>
+<td>状态积分</td>
+<td><a href="../routines/integrd-serial-parallel.html">integrd-serial-parallel</a></td>
+<td><code>integrd_p</code></td>
+<td>本地子域写回、负压 abort、边界同步前后约束。</td>
+</tr>
+<tr>
+<td>耗散</td>
+<td><a href="../routines/dissip-serial-parallel.html">dissip-serial-parallel</a></td>
+<td><code>dissip_p</code></td>
+<td>高阶 stencil 对 halo 宽度敏感，需先确认分布和边界带。</td>
+</tr>
+<tr>
+<td>friction/top_bound/addfi/qminimum</td>
+<td>对应 routines 串并行页</td>
+<td><code>_p</code> 对应例程</td>
+<td>多数职责一致，差异集中在局部范围、边界和并行诊断。</td>
+</tr>
+<tr>
+<td>守恒/输出</td>
+<td><a href="../routines/history-output-serial-parallel.html">history-output-serial-parallel</a>, <a href="../modules/dyn3d/bilan_dyn.html">bilan_dyn</a>, <a href="../modules/dyn3dpar/bilan_dyn_p.html">bilan_dyn_p</a></td>
+<td><code>writehist_p/writedynav_p/bilan_dyn_p</code></td>
+<td>rank 0/domain/local slice/tracer 写出差异。</td>
+</tr>
+<tr>
+<td>restart</td>
+<td><a href="../routines/dynredem-restart.html">dynredem-restart</a></td>
+<td><code>dynredem_p</code></td>
+<td>并行 root 写出和收集路径。</td>
+</tr>
+<tr>
+<td>physics 接口</td>
+<td><a href="../modules/dynphy_lonlat/calfis.html">calfis</a></td>
+<td><a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p</a></td>
+<td>物理列映射、OMP <code>call_physiq</code> split、MPI tendency 边界交换和 <code>addfi_p</code> 前的回填契约。</td>
+</tr>
+<tr>
+<td>guide/nudging</td>
+<td><a href="../modules/dyn3d/guide_mod.html">guide_mod</a>, <a href="../modules/dyn3dpar/guide_p_mod.html">guide_p_mod</a>, <a href="../routines/guide-serial-parallel-delta.html">guide-serial-parallel-delta</a></td>
+<td><code>guide_p_mod</code></td>
+<td>输入全场读取、本地插值/写回、halo、root-only <code>guide_ins.nc</code> 和 <code>factt</code> 诊断差异。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="数据布局和维度">数据布局和维度</h2>
+<p>串行页通常用全局水平维度描述：</p>
+<ul>
+<li><code>ip1jmp1,llm</code>：标量或纬向风等全局水平维度。</li>
+<li><code>ip1jm,llm</code>：经向交错网格。</li>
+<li><code>q(ip1jmp1,llm,nqtot)</code>：tracer 第三维来自 <code>infotrac%nqtot</code>。</li>
+</ul>
+<p>并行页仍保持相同物理含义，但只处理当前 rank/线程负责的局部范围。关键是：</p>
+<ul>
+<li><code>parallel_lmdz</code> 以 <code>jjm+1</code> 个纬向 band 做基本分布。</li>
+<li><code>ij_begin/ij_end</code> 决定本 rank 的连续水平片段。</li>
+<li><code>pole_nord/pole_sud</code> 影响极点 halo 和输出边界。</li>
+<li>并行 history/restart 需要把局部场写入或收集成全局 NetCDF 布局。</li>
+</ul>
+<p>因此调试并行差异时，先比较“局部范围和 halo 是否正确”，再比较数值公式。</p>
+<h2 id="通信发生在哪里">通信发生在哪里</h2>
+<p>并行计算不是每个 <code>_p</code> 例程都直接调用 MPI。通信可能来自三类位置：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>例子</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>简单上下 halo</td>
+<td><code>parallel_lmdz:exchange_hallo</code></td>
+<td>相邻 rank 交换边界行，适合直接上下 halo。</td>
+</tr>
+<tr>
+<td>注册式 halo/swap</td>
+<td><code>mod_hallo</code></td>
+<td>复杂字段、重分布和 OpenMP threadprivate buffer 使用请求对象。</td>
+</tr>
+<tr>
+<td>gather/broadcast/reduce</td>
+<td><code>parallel_lmdz</code> 或 <code>phy_common</code> transfer</td>
+<td>输出、物理侧全局检查、物理列分布和统计汇总。</td>
+</tr>
+</tbody>
+</table>
+<p>串行路径没有通信层；并行路径里“结果不一致”常常不是公式错，而是 halo 注册宽度、band 切换或 root-only 输出路径不对。</p>
+<h2 id="band-和阶段切换">Band 和阶段切换</h2>
+<p>并行版不是固定一种 decomposition 跑完所有阶段。<code>bands</code> 为不同阶段保存不同分布：</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>分布变量</th>
+<th>目的</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>caldyn</td>
+<td><code>jj_Nb_Caldyn</code></td>
+<td>动力 tendency 阶段。</td>
+</tr>
+<tr>
+<td>Van Leer/tracer</td>
+<td><code>jj_Nb_vanleer</code>, <code>jj_Nb_vanleer2</code></td>
+<td>输送阶段，可能需要不同 halo/swap 形态。</td>
+</tr>
+<tr>
+<td>dissip</td>
+<td><code>jj_Nb_dissip</code></td>
+<td>耗散 stencil 阶段。</td>
+</tr>
+<tr>
+<td>physics</td>
+<td><code>jj_Nb_physic</code>, <code>distrib_phys</code></td>
+<td>物理列分布和 <code>iniphysiq</code> 接口。</td>
+</tr>
+</tbody>
+</table>
+<p><code>times</code> 记录各阶段耗时，<code>AdjustBands_*</code> 可一次移动一个 band 做自适应平衡。复现实验时要保存 <code>Bands_*prc.dat</code> 或确认默认分布，否则串并行对照会受到分布差异影响。</p>
+<h2 id="物理侧并行接口">物理侧并行接口</h2>
+<p>动力并行与物理并行在 <code>iniphysiq</code> 和 <code>phy_common</code> transfer 层交汇：</p>
+<ul>
+<li>并行 <code>gcm</code> 给 <code>iniphysiq</code> 传 <code>distrib_phys(mpi_rank)</code> 和 <code>comm_lmdz</code>。</li>
+<li><a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p</a> 在 physics 步把动力局部场整理成物理列，按 <code>klon_omp</code> 调用 <code>call_physiq</code>，再把 tendency 回填给动力网格。</li>
+<li><a href="../modules/phy_common/mod_phys_lmdz_para.html">mod_phys_lmdz_para</a> 初始化物理侧 MPI/OMP 抽象。</li>
+<li><code>klon_loc</code>、<code>is_master</code> 是 <code>THREADPRIVATE</code>，因此 OpenMP 下每个线程物理列数不同。</li>
+<li>物理侧 scatter/gather/bcast/reduce 由 <code>mpi-data-transfer</code>、<code>omp-data-transfer</code> 和 transfer wrapper 承担。</li>
+</ul>
+<p>这意味着 Mars physics 输出或 tendency 的串并行差异，可能来自动力侧 decomposition，也可能来自物理侧列分布和 transfer。</p>
+<h2 id="io-和-restart-对照">I/O 和 restart 对照</h2>
+<table>
+<thead>
+<tr>
+<th>I/O 类型</th>
+<th>串行</th>
+<th>并行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>history 初始化</td>
+<td>全局 <code>histid/histvid/histuid</code> 等模块状态</td>
+<td>rank 0 初始化，domain 需要局部分布。</td>
+</tr>
+<tr>
+<td>history 写出</td>
+<td>全局数组写变量</td>
+<td><code>ijb:ije</code> 局部切片，部分 tracer 写出路径不同。</td>
+</tr>
+<tr>
+<td>dynav/zonal</td>
+<td>串行直接访问完整纬向网格</td>
+<td><code>bilan_dyn_p</code> 先处理 halo/局部纬向段，避免极点重复。</td>
+</tr>
+<tr>
+<td>restart</td>
+<td><code>dynredem0/1</code> 直接写 <code>restart.nc</code></td>
+<td><code>dynredem0_p/1_p</code> root 写出或收集后写。</td>
+</tr>
+</tbody>
+</table>
+<p>H1 <a href="restart-io.html">restart-io</a> 说明文件职责；本页补充并行为什么会多出 rank/domain/root 的诊断维度。</p>
+<h2 id="mars-范围判断">Mars 范围判断</h2>
+<table>
+<thead>
+<tr>
+<th>路径</th>
+<th>Mars 参与度</th>
+<th>处理方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>串行 <code>dyn3d/gcm</code></td>
+<td>条件经过</td>
+<td>Mars 3D seq 或接口参考路径。</td>
+</tr>
+<tr>
+<td>Mars <code>phymars/nogcm</code></td>
+<td>必经/条件经过，取决于运行形态</td>
+<td>与 COMMON <code>nogcm/leapfrog_nogcm</code> 同类，H2 已说明差异。</td>
+</tr>
+<tr>
+<td>并行 <code>dyn3dpar/gcm</code></td>
+<td>条件经过</td>
+<td>Mars 并行构建或实验经过；本页重点覆盖。</td>
+</tr>
+<tr>
+<td><code>dyn3dpar</code> halo/bands/times</td>
+<td>条件经过</td>
+<td>只在并行动力中经过，串行运行不走。</td>
+</tr>
+<tr>
+<td>Venus/Titan/evolution/PEM</td>
+<td>非 Mars 路径</td>
+<td>不纳入本主题。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现检查表">复现检查表</h2>
+<ol type="1">
+<li>先确认可执行文件是 <code>seq</code> 还是 <code>para</code>，不要把 <code>dyn3dpar</code> 问题套到串行运行。</li>
+<li>对并行运行，记录 MPI ranks、OMP threads、<code>Bands_*prc.dat</code> 是否存在。</li>
+<li>检查 <code>parallel_lmdz</code> 的 <code>jj_begin/jj_end/ij_begin/ij_end</code> 和极点 rank。</li>
+<li>对局部数值差异，先确认对应阶段是否已经 <code>SetDistrib</code> 到正确 band。</li>
+<li>对边界行差异，查 <code>exchange_hallo</code> 或 <code>mod_hallo</code> 请求注册宽度。</li>
+<li>对 tracer 差异，先查 scheme，再查 <code>advtrac_p/vlsplt*_p</code> 的 halo/swap。</li>
+<li>对 history/restart 差异，查 rank 0、IOIPSL domain、局部切片和 root 写出路径。</li>
+<li>对 physics 差异，同时查动力侧 <code>distrib_phys</code> 和物理侧 transfer。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Mars 标准并行作业是否保留并复用 <code>Bands_*prc.dat</code>，需要运行目录样例确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3d/index.html">dyn3d/index</a></li>
+<li><a href="../modules/dyn3dpar/gcm.html">dyn3dpar/gcm</a></li>
+<li><a href="../modules/dyn3dpar/leapfrog_p.html">leapfrog_p</a></li>
+<li><a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p</a></li>
+<li><a href="../modules/dyn3dpar/parallel_lmdz.html">parallel_lmdz</a></li>
+<li><a href="../modules/dyn3dpar/mod_hallo.html">mod_hallo</a></li>
+<li><a href="../modules/dyn3dpar/bands.html">bands</a></li>
+<li><a href="../modules/dyn3dpar/times.html">times</a></li>
+<li><a href="../routines/guide-serial-parallel-delta.html">guide-serial-parallel-delta</a></li>
+<li><a href="../routines/caldyn-serial-parallel.html">caldyn-serial-parallel</a></li>
+<li><a href="../routines/advtrac-serial-parallel.html">advtrac-serial-parallel</a></li>
+<li><a href="../routines/integrd-serial-parallel.html">integrd-serial-parallel</a></li>
+<li><a href="../routines/dissip-serial-parallel.html">dissip-serial-parallel</a></li>
+<li><a href="../routines/history-output-serial-parallel.html">history-output-serial-parallel</a></li>
+<li><a href="../routines/dynredem-restart.html">dynredem-restart</a></li>
+<li><a href="../modules/phy_common/mod_phys_lmdz_para.html">mod_phys_lmdz_para</a></li>
+<li><a href="restart-io.html">restart-io</a></li>
+<li><a href="dynamics-time-integration.html">dynamics-time-integration</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

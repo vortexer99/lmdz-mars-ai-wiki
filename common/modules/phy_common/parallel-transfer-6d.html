@@ -1,0 +1,92 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>parallel-transfer-6d - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/phy_common/parallel-transfer-6d.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="63-parallel-transfer-5d6d-support">6.3 parallel transfer 5D/6D support</h1>
+<p>页面状态：6.3 返工完成。 源码基线：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code>。 Mars 运行参与度：条件经过；Mars 并行物理初始化和配置广播可经过这些 transfer 泛型。</p>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>libf/phy_common/mod_phys_lmdz_mpi_transfert.F90
+libf/phy_common/mod_phys_lmdz_omp_transfert.F90
+libf/phy_common/mod_phys_lmdz_transfert_para.F90</code></pre>
+<h2 id="63-新能力">6.3 新能力</h2>
+<p>MPI 层 <code>bcast_mpi</code> 泛型在接口中包含：</p>
+<ul>
+<li>integer: <code>bcast_mpi_i</code> 到 <code>bcast_mpi_i6</code></li>
+<li>real: <code>bcast_mpi_r</code> 到 <code>bcast_mpi_r6</code></li>
+<li>logical: <code>bcast_mpi_l</code> 到 <code>bcast_mpi_l6</code></li>
+</ul>
+<p>源码位置：<code>mod_phys_lmdz_mpi_transfert.F90:7-11</code>。5D/6D 入口如 <code>bcast_mpi_i5/i6</code> 在第 119-133 行，<code>bcast_mpi_r5/r6</code> 在第 182-196 行，<code>bcast_mpi_l5/l6</code> 在第 245-259 行。</p>
+<p>封装层 <code>mod_phys_lmdz_transfert_para.F90:11-15</code> 同样把 <code>bcast_i5/i6</code>、<code>bcast_r5/r6</code>、<code>bcast_l5/l6</code> 纳入 <code>bcast</code> 泛型。调用方只需要 <code>CALL bcast(var)</code>，由 rank 和类型选择具体过程。</p>
+<h2 id="层次关系">层次关系</h2>
+<pre class="text"><code>调用方
+  -&gt; mod_phys_lmdz_transfert_para:bcast
+       -&gt; OMP MASTER 调 bcast_mpi
+       -&gt; bcast_omp 在线程内分发
+  -&gt; 所有 MPI ranks / OMP threads 得到同一配置或数组</code></pre>
+<p>因此 <code>ioipsl_getin_p_mod</code> 的模式是：master 调 <code>getin</code>，再 <code>CALL bcast(VarOut)</code>。</p>
+<h2 id="openmp-修复">OpenMP 修复</h2>
+<p>6.3 还修复了 OMP transfer 中几个竞态风险：</p>
+<ul>
+<li><code>grow_factor</code> 从 integer 改为 real，避免扩容比例被整数截断。</li>
+<li>logical buffer allocation 使用 <code>OMP SINGLE</code> 语义，避免部分线程看到未分配 buffer。</li>
+<li>real gather 改为通过 shared pointer 写输出，减少共享 buffer 复用风险。</li>
+</ul>
+<p>这些变更对 Mars 并行物理参数、诊断数组和高维场广播有直接影响，尤其是 hybrid MPI/OMP 运行。</p>
+<h2 id="复现检查">复现检查</h2>
+<ol type="1">
+<li>如果配置数组 rank 大于 4，确认 6.3 的 <code>bcast_*5/*6</code> 已被编译。</li>
+<li>物理 getin 差异先查 <code>ioipsl_getin_p_mod</code> 的 <code>is_master -&gt; bcast</code>。</li>
+<li>hybrid 运行的线程不一致问题要同时查 OMP buffer 分配和 <code>parallel_lmdz:omp_chunk</code>。</li>
+<li>不要把 MPI 泛型和 OMP 泛型混成一个过程；它们在 <code>transfert_para</code> 层组合。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="ioipsl_getin_p_mod.html">ioipsl_getin_p_mod</a></li>
+<li><a href="../dyn3dpar/parallel_lmdz.html">parallel_lmdz</a></li>
+<li><a href="../../routines/parallel-physics-grid-distribution.html">parallel physics grid distribution</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

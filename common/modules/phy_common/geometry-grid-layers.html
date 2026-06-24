@@ -1,0 +1,146 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>geometry-grid-layers - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/phy_common/geometry-grid-layers.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="物理侧几何经纬网格垂直层和网格模块组">物理侧几何、经纬网格、垂直层和网格模块组</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\geometry_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\regular_lonlat_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\vertical_layers_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\mod_grid_phy_lmdz.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>这组模块保存物理侧网格的基础状态：全局 regular lon-lat 网格、本线程局部物理列几何、垂直层数组，以及物理列一维/二维全局网格的互转工具。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 物理初始化通过 COMMON `inigeomphy_mod` 初始化物理几何和垂直层时经过；输出和物理参数化也读取这些状态。</code></pre>
+<h2 id="模块清单">模块清单</h2>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>文件行数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geometry_mod</code></td>
+<td>98</td>
+<td>保存 OpenMP 线程局部经纬度、边界、面积、输出专用面积和全局列号。</td>
+</tr>
+<tr>
+<td><code>regular_lonlat_mod</code></td>
+<td>55</td>
+<td>保存全局 regular lon-lat 经度、纬度和四边界。</td>
+</tr>
+<tr>
+<td><code>vertical_layers_mod</code></td>
+<td>56</td>
+<td>保存物理侧垂直坐标 <code>ap/bp/aps/bps/presnivs/pseudoalt</code>。</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td>468</td>
+<td>保存全局物理网格规模，并提供 1D/2D 网格互转泛型接口。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="geometry_mod"><code>geometry_mod</code></h2>
+<p><code>init_geometry</code> 分配并保存：</p>
+<ul>
+<li><code>longitude/latitude</code>，单位 rad。</li>
+<li><code>longitude_deg/latitude_deg</code>，由 rad 转 degree。</li>
+<li><code>boundslon/boundslat(klon,nvertex)</code>。</li>
+<li><code>cell_area</code>。</li>
+<li>可选 <code>ind_cell_glo</code>、<code>dx</code>、<code>dy</code>。</li>
+</ul>
+<p>这些数组都是 <code>SAVE,ALLOCATABLE</code>，并声明 <code>THREADPRIVATE</code>，因此每个 OpenMP 线程有自己的局部物理列几何。</p>
+<p>单文件细节见 <a href="geometry_mod.html">geometry_mod</a>。该页展开 <code>cell_area_for_lonlat_outputs</code>、可选 <code>ind_cell_glo/dx/dy</code>、Mars 3D/1D 初始化链和 XIOS/Mars physics 消费方。</p>
+<h2 id="regular_lonlat_mod"><code>regular_lonlat_mod</code></h2>
+<p><code>init_regular_lonlat</code> 保存全局经纬度数组和边界数组：</p>
+<ul>
+<li><code>lon_reg(nbp_lon)</code>、<code>lat_reg(nbp_lat)</code>。</li>
+<li><code>boundslon_reg(nbp_lon,2)</code>，注释中约定 1 east、2 west。</li>
+<li><code>boundslat_reg(nbp_lat,2)</code>，注释中约定 1 north、2 south。</li>
+</ul>
+<p>细节见 <a href="grid-coordinate-state.html">grid-coordinate-state</a>。该页说明 regular grid 是全局共享状态，不是 OpenMP threadprivate。</p>
+<h2 id="vertical_layers_mod"><code>vertical_layers_mod</code></h2>
+<p><code>init_vertical_layers</code> 保存 <code>preff</code>、<code>scaleheight</code>，并分配：</p>
+<ul>
+<li><code>ap/bp(nlayer+1)</code>：层界 hybrid pressure/sigma 坐标。</li>
+<li><code>aps/bps(nlayer)</code>：层中 hybrid 坐标。</li>
+<li><code>presnivs/pseudoalt(nlayer)</code>：参考压力和 pseudo-altitude。</li>
+</ul>
+<p>整组垂直状态也是 <code>THREADPRIVATE</code>，由 <code>inigeomphy_mod</code> 在 OpenMP parallel 区内初始化。</p>
+<p>细节见 <a href="grid-coordinate-state.html">grid-coordinate-state</a>。该页说明 <code>vertical_layers_mod</code> 如何从 <code>comvert_mod</code> 复制到物理侧，并被 Mars <code>iniwrite</code>、XIOS 初始化和 physics 参数化消费。</p>
+<h2 id="mod_grid_phy_lmdz"><code>mod_grid_phy_lmdz</code></h2>
+<p><code>init_grid_phy_lmdz</code> 保存 <code>grid_type/nvertex/nbp_lon/nbp_lat/nbp_lev</code>，并设置 <code>klon_glo</code>：</p>
+<pre class="text"><code>if nbp_lon*nbp_lat == 1:
+    klon_glo = 1
+else:
+    klon_glo = nbp_lon*nbp_lat - 2*(nbp_lon-1)</code></pre>
+<p>泛型接口 <code>grid1dTo2d_glo</code> 和 <code>grid2dTo1d_glo</code> 支持 integer/real/logical 以及 1 到 4 个附加维度。1D 到 2D 时，中间物理列从 offset=<code>nbp_lon</code> 开始填入全局二维数组，北极整行复制 <code>VarIn(1,:)</code>，南极整行复制 <code>VarIn(klon_glo,:)</code>；2D 到 1D 时反向抽取中间区，并强制 <code>VarOut(1,:)=VarIn(1,:)</code>。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>物理列一维布局去除了重复极点经度，所以 <code>klon_glo</code> 小于 <code>nbp_lon*nbp_lat</code>。</li>
+<li><code>geometry_mod</code> 是局部线程状态，<code>regular_lonlat_mod</code> 是全局 regular grid 状态，不能混用。</li>
+<li><code>vertical_layers_mod</code> 的源头通常是 <code>comvert_mod</code>，调用顺序必须在动力垂直离散初始化之后。</li>
+<li><code>mod_grid_phy_lmdz</code> 的泛型接口只做结构化 1D/2D 映射，不做插值。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>grid_type</code> 的枚举语义未在本组文件中定义，需要调用方或更高层约定补证。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="physics_distribution_mod.html">physics_distribution_mod</a></li>
+<li><a href="geometry_mod.html">geometry_mod</a></li>
+<li><a href="grid-coordinate-state.html">grid-coordinate-state</a></li>
+<li><a href="mod_phys_lmdz_para.html">mod_phys_lmdz_para</a></li>
+<li><a href="../dynphy_lonlat/inigeomphy_mod.html">inigeomphy_mod</a></li>
+<li><a href="../dynphy_lonlat/grid_atob_m.html">grid_atob_m</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

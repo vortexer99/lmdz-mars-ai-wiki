@@ -1,0 +1,265 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>guide-interpolation-pressure - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/guide-interpolation-pressure.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="guide-压力层插值和-nudging-系数">guide 压力层插值和 nudging 系数</h1>
+<p>页面状态：TASK-0133 完成。 源码范围：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\guide_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\guide_p_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\pres2lev_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\q_sat.F</code></pre>
+<p>Mars 运行参与度：接口兼容 + 条件边界。只有进入 <code>guide_main</code> 时才会经过本页逻辑；6.3 串行/并行 <code>leapfrog*</code> 中的 <code>guide_main</code> 调用受 <code>CPP_IOIPSL</code> + <code>planet_type=="earth"</code> 条件包围。Mars/generic <code>ok_guide</code> 初始化路径调用 <code>relaxetat0("relax.nc")</code>，不经过本页插值链。</p>
+<h2 id="调用时机">调用时机</h2>
+<p><code>guide_main</code> 首次进入时调用 <code>guide_init</code>，随后计算各变量的 nudging 系数：</p>
+<pre class="text"><code>factt = dtvr * iperiod / daysec
+tau2alpha(v/u/T/P/Q, factt, tau_min_X, tau_max_X, alpha_X)</code></pre>
+<p>若 <code>ini_anal=.TRUE.</code>，首次调用会立刻 <code>guide_interp(ps,teta)</code>，然后把 guide 目标场写回初始动力状态。常规运行中，只有 <code>MOD(itau,iguide_int)==0</code> 时才重新执行 <code>guide_interp</code>；两帧 guide 输入之间再用 <code>tau=reste</code> 做时间线性插值，后续叠加见 <a href="guide-tendency-application.html">guide forcing 叠加到动力状态</a>。</p>
+<h2 id="guide_interp-总流程">guide_interp 总流程</h2>
+<p><code>guide_interp(psi,teta)</code> 把读入的 guide 自然变量和压力层转换到 LMDZ 动力层目标场：</p>
+<pre class="text"><code>输入 ps/teta
+  -&gt; 构造 guide 输入压力层 plnc1/plnc2
+  -&gt; 计算模型层压力 pls，以及 U/V staggered 压力 plunc/plvnc
+  -&gt; 对 T/Q/u/v 调 pres2lev
+  -&gt; 把自然风转成 covariant 风，把温度转为位温
+  -&gt; 可选把相对湿度转为比湿</code></pre>
+<p>串行版全局处理 <code>(iip1,jjp1)</code> 或 <code>(iip1,jjm)</code>；并行版只处理当前本地 <code>jjb_u:jje_u</code> 和 <code>jjb_v:jje_v</code>，并在需要跨纬向边界的压力平均前用 <code>Register_SwapFieldHallo/SendRequest/WaitRequest</code> 补 halo。</p>
+<h2 id="压力坐标构造">压力坐标构造</h2>
+<p>串行 <code>guide_mod</code> 用 <code>guide_modele</code> 二选一：</p>
+<table>
+<thead>
+<tr>
+<th>分支</th>
+<th>guide 输入压力 <code>plnc</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>guide_modele=.TRUE.</code></td>
+<td><code>apnc(l)+bpnc(l)*psnat(i,j)</code></td>
+</tr>
+<tr>
+<td><code>guide_modele=.FALSE.</code></td>
+<td><code>apnc(l)</code></td>
+</tr>
+</tbody>
+</table>
+<p>并行 <code>guide_p_mod</code> 用 <code>guide_plevs</code> 三选一：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;"><code>guide_plevs</code></th>
+<th>含义</th>
+<th>guide 输入压力</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>纯气压层</td>
+<td><code>apnc(l)</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">1</td>
+<td>混合层</td>
+<td><code>apnc(l)+bpnc(l)*psnat(i,j)</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>逐格点气压</td>
+<td><code>pnat(i,j,l)</code></td>
+</tr>
+</tbody>
+</table>
+<p>模型层压力先由当前 <code>ps/teta</code> 推导。串行版调用 <code>pression</code> 和 <code>exner_hyb/exner_milieu</code>，由 Exner 函数反推出层中心压力 <code>pls=preff*(pk/cpp)**(1/kappa)</code>；并行版 <code>guide_plevs=1</code> 直接使用 <code>(ap(l)+ap(l+1))/2 + ps*(bp(l)+bp(l+1))/2</code>，其他分支调用 <code>pression_p</code> 与 <code>exner_hyb_p/exner_milieu_p</code>。</p>
+<p>U/V staggered 压力来自质量平均：</p>
+<ul>
+<li>标量网格压力 <code>pls</code> 乘面积得 <code>pext</code>。</li>
+<li>串行版直接 <code>massbar(pext,pbarx,pbary)</code>。</li>
+<li>并行版先对 <code>pext</code> 做 swap/halo，再 <code>massbar_p(pext,pbarx,pbary)</code>。</li>
+<li><code>plunc=pbarx/aireu</code>，<code>plvnc=pbary/airev</code>。</li>
+</ul>
+<h2 id="pres2lev-插值">pres2lev 插值</h2>
+<p><code>pres2lev(varo,varn,lmo,lmn,po,pn,ni,nj,ok_invertp)</code> 是 COMMON <code>misc/pres2lev_mod.F90</code> 中的线性垂直插值：</p>
+<ol type="1">
+<li>若 <code>ok_invertp</code> 为真，先把旧层压力和变量顺序倒置。</li>
+<li>对每个新层压力 <code>pn(k,ln)</code> 找到旧层压力区间。</li>
+<li>若新层在旧层范围之外，取最顶或最低旧层值。</li>
+<li>否则按压力线性系数插值。</li>
+</ol>
+<p><code>guide_interp</code> 对各变量使用不同目标压力：</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>输入变量</th>
+<th>目标压力</th>
+<th>输出</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>U</td>
+<td><code>unat1/2</code></td>
+<td><code>plunc</code></td>
+<td><code>ugui1/2 = interpolated * cu</code></td>
+</tr>
+<tr>
+<td>V</td>
+<td><code>vnat1/2</code></td>
+<td><code>plvnc</code></td>
+<td><code>vgui1/2 = interpolated * cv</code></td>
+</tr>
+<tr>
+<td>T</td>
+<td><code>tnat1/2</code></td>
+<td><code>plsnc</code></td>
+<td><code>tgui1/2 = T*cpp/pk</code>，若 <code>guide_teta</code> 则直接用输入</td>
+</tr>
+<tr>
+<td>Q</td>
+<td><code>qnat1/2</code></td>
+<td><code>plsnc</code></td>
+<td><code>qgui1/2</code>，若 <code>guide_hr</code> 再乘饱和比湿和 0.01</td>
+</tr>
+</tbody>
+</table>
+<p>U 和标量场在经向周期端复制第一个经度；U 的南北极行强制为 0。T/Q 标量场的极点值复制自相邻有效行。V 使用 <code>jjm</code> 纬向网格，不含标量网格的双极点行。</p>
+<h2 id="湿度限制">湿度限制</h2>
+<p>若 <code>guide_hr=.TRUE.</code>，guide 输入 Q 被解释为相对湿度百分比。<code>guide_interp</code> 调：</p>
+<pre class="text"><code>q_sat(np, temp, pres, qsat)
+qgui = qgui * qsat * 0.01</code></pre>
+<p>其中 <code>temp=teta*pk/cpp</code>，<code>pres=plsnc</code>。<code>q_sat.F</code> 使用水/冰两套常数，以 <code>temp &lt;= 273.16</code> 切换，先计算中间 <code>zqsat</code>，把它限制到 0.5，再用 <code>zqsat/(1-retv*zqsat)</code> 得到 kg/kg 的饱和比湿。</p>
+<p>待确认：<code>q_sat.F</code> 注释写压力单位为 mb，但公式常数 <code>611.14</code> 和 guide 传入的 <code>plsnc</code> 都按 Pa 路径使用。当前页面按调用源码记录，不推断历史注释意图。</p>
+<h2 id="tau2alpha">tau2alpha</h2>
+<p><code>tau2alpha(typ,pim,pjm,factt,taumin,taumax,alpha)</code> 把天数单位的松弛时间转换成每步 nudging 系数：</p>
+<pre class="text"><code>alphamin = factt / taumax
+alphamax = factt / taumin</code></pre>
+<p>有两类分支：</p>
+<table>
+<thead>
+<tr>
+<th>分支</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>guide_reg</code> 或 <code>guide_add</code></td>
+<td>先设为 <code>alphamax</code>；若 <code>guide_reg</code>，再用纬度/经度窗口的四个 <code>tanh</code> 因子平滑出区域权重。</td>
+</tr>
+<tr>
+<td>默认</td>
+<td>按 zoom 网格大小在 <code>alphamin</code> 和 <code>alphamax</code> 之间插值；regular grid 或弱 zoom 时取 <code>alphamin</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>默认分支先估算标量格点尺度 <code>dxdys</code>，再按 <code>typ</code> 得到 U 或 V staggered 尺度 <code>dxdyu/dxdyv</code>。首次调用用 zoom 中心 <code>coordij(clon,clat,ilon,ilat)</code> 得到 <code>dxdy_min</code>，扫描得到 <code>dxdy_max</code>，再计算 <code>gamma</code>。若不是 <code>guide_add</code>，最终把线性系数转为指数松弛：</p>
+<pre class="text"><code>alpha = 1. - exp(-alpha)</code></pre>
+<p><code>guide_add</code> 保留 <code>factt/tau</code> 形式，因为后续叠加的是外部 forcing-like 场；普通 nudging 使用指数形式更接近“向目标场松弛”的权重。</p>
+<h2 id="串并行差异">串并行差异</h2>
+<table>
+<thead>
+<tr>
+<th>环节</th>
+<th>串行 <code>guide_mod</code></th>
+<th>并行 <code>guide_p_mod</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入压力坐标</td>
+<td><code>guide_modele</code> 布尔</td>
+<td><code>guide_plevs=0/1/2</code></td>
+</tr>
+<tr>
+<td>工作范围</td>
+<td>全局数组</td>
+<td><code>jjb_u:jje_u</code>、<code>jjb_v:jje_v</code> 本地段</td>
+</tr>
+<tr>
+<td>模型压力</td>
+<td><code>pression</code> + <code>exner_*</code></td>
+<td><code>guide_plevs=1</code> 直接混合层压力；其他分支 <code>pression_p</code> + <code>exner_*_p</code></td>
+</tr>
+<tr>
+<td>U/V staggered 压力</td>
+<td>直接 <code>massbar</code></td>
+<td><code>pext</code> halo 后 <code>massbar_p</code></td>
+</tr>
+<tr>
+<td>逐格点输入压力</td>
+<td>无</td>
+<td><code>guide_plevs=2</code> 使用 <code>pnat1/2</code>，V 网格前还需 halo</td>
+</tr>
+<tr>
+<td>湿度转换</td>
+<td>全局 <code>q_sat(iip1*jjp1*llm,...)</code></td>
+<td>本地 <code>q_sat(iip1*jjn_u*llm,...)</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="correctbid">correctbid</h2>
+<p><code>correctbid(iim,nl,x)</code> 在串行和并行 guide 模块尾部都存在：如果 <code>abs(x(i,l))&gt;1.e10</code>，用左右相邻点均值替换并打印 correction。源码搜索未找到活动调用，因此它是保留的局部修补 helper，不应写成 guide 主路径的一部分。</p>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>先确认 <code>guide_2D/guide_plevs/guide_modele/guide_hr/guide_teta</code>，这些开关决定输入场解释。</li>
+<li>对插值错误，先检查 <code>invert_p</code> 和 guide 输入压力层顺序，再查 <code>pres2lev</code> 的范围外取边界值逻辑。</li>
+<li>对并行 U/V 差异，检查 <code>pext/psnat/pnat</code> halo 是否覆盖了本地 V 网格需要的相邻纬向行。</li>
+<li>对 nudging 太强或太弱，先算 <code>factt=dtvr*iperiod/daysec</code>，再看 <code>tau_min/max</code> 和 <code>guide_reg/guide_add</code> 分支。</li>
+<li>对湿度场，区分 guide 输入是相对湿度百分比还是比湿；<code>guide_hr</code> 会把百分比乘以 <code>q_sat*0.01</code>。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="guide-config-contract.html">guide 配置与初始化契约</a></li>
+<li><a href="guide-input-fields.html">guide 输入场读取</a></li>
+<li><a href="guide-tendency-application.html">guide forcing 叠加到动力状态</a></li>
+<li><a href="guide-serial-parallel-delta.html">guide 串并行差异</a></li>
+<li><a href="../modules/misc/atmospheric-coordinate-helpers.html">饱和、压力层、坐标和日期 helper</a></li>
+<li><a href="common-pressure-mass-operators.html">common-pressure-mass-operators</a></li>
+<li><a href="exner-cpdet-helpers.html">exner-cpdet-helpers</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,111 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>strings_mod - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/misc/strings_mod.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="strings_modf90">strings_mod.f90</h1>
+<p>页面状态：6.3 返工完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\strings_mod.f90</code>。 Mars 运行参与度：接口兼容/条件经过；tracer parser 和配置解析可复用。</p>
+<h2 id="文件定位">文件定位</h2>
+<p>6.3 新增通用字符串工具箱，支撑文本数据库解析、类型转换、列表检查、表格显示、表达式约简和注释剥离。</p>
+<h2 id="api-分组">API 分组</h2>
+<table>
+<thead>
+<tr>
+<th>分组</th>
+<th>符号</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>大小写</td>
+<td><code>strLower</code>, <code>strUpper</code></td>
+</tr>
+<tr>
+<td>切片</td>
+<td><code>strHead</code>, <code>strTail</code></td>
+</tr>
+<tr>
+<td>栈/解析</td>
+<td><code>strStack</code>, <code>strStackm</code>, <code>strCount</code>, <code>strParse</code></td>
+</tr>
+<tr>
+<td>清理替换</td>
+<td><code>strReduce</code>, <code>strClean</code>, <code>strReplace</code>, <code>removeComment</code></td>
+</tr>
+<tr>
+<td>搜索</td>
+<td><code>strIdx</code>, <code>strFind</code>, <code>find</code>, <code>duplicate</code>, <code>cat</code></td>
+</tr>
+<tr>
+<td>类型转换</td>
+<td><code>is_numeric</code>, <code>num2str</code>, <code>str2bool</code>, <code>str2int</code>, <code>str2real</code>, <code>str2dble</code></td>
+</tr>
+<tr>
+<td>表达式/检查</td>
+<td><code>reduceExpr</code>, <code>addQuotes</code>, <code>checkList</code></td>
+</tr>
+<tr>
+<td>输出</td>
+<td><code>msg</code>, <code>dispTable</code>, <code>dispOutliers</code>, <code>dispNamelist</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="关键行为">关键行为</h2>
+<ul>
+<li><code>removeComment</code> 第 2026 行定义；<code>readTracFiles_mod</code> 第 431 行调用。</li>
+<li><code>strClean</code> 处理 tab、null 字符和 Fortran <code>!</code> 注释。</li>
+<li><code>str2bool</code> 支持 false/no/f/n 和 true/yes/t/y 等文本。</li>
+<li><code>reduceExpr</code> 约简基础算术表达式，不应视为完整表达式语言。</li>
+</ul>
+<h2 id="与-tracer-parser-的关系">与 tracer parser 的关系</h2>
+<p><code>readTracFiles_mod</code> 第 4 行导入 <code>msg</code>、<code>strIdx</code>、<code>dispTable</code>、<code>strHead</code>、<code>strReduce</code>、<code>strFind</code>、<code>strStack</code>、<code>removeComment</code>、<code>num2str</code>、<code>str2real</code>、<code>str2bool</code>、<code>reduceExpr</code>、<code>checkList</code> 等符号。解析错误要同时检查注释剥离、token 拆分、类型转换和列表合法性。</p>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="readTracFiles_mod.html">readTracFiles_mod</a></li>
+<li><a href="ioipsl-getin-system.html">ioipsl-getin-system</a></li>
+<li><a href="../../routines/infotrac-traceur-def.html">infotrac-traceur-def</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,288 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>calfis-p-grid-mapping - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/calfis-p-grid-mapping.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="calfis_p-动力格点到物理列映射">calfis_p 动力格点到物理列映射</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dynphy_lonlat\calfis_p.F: L1-1520（并行物理调用接口）
+dynphy_lonlat\mod_interface_dyn_phys.F90: L1-65（index_i/index_j 初始化）
+dynphy_lonlat\gr_dyn_fi_p.F: L1-44（动力→物理标量场 scatter）
+dynphy_lonlat\gr_fi_dyn_p.F: L1-56（物理→动力标量场 gather）</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。Mars 并行动力启用物理时（<code>apphys</code> 为真），<code>calfis_p</code> 每次 physics timestep 执行一次完整的 scatter → call_physiq → gather 流程。</p>
+<h2 id="例程定位">例程定位</h2>
+<p>本页聚焦 <code>calfis_p</code> 中动力网格 <code>(iip1,jjp1)</code> 与物理列 <code>(klon)</code> 之间的数据映射机制。映射由 <code>mod_interface_dyn_phys</code> 的 <code>index_i/index_j</code> 数组驱动，贯穿场 scatter、wind 转换、极点投影和 tendency 回写四个阶段。整体接口结构详见 <a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p 模块页</a>。</p>
+<h2 id="物理列索引映射">物理列索引映射</h2>
+<h3 id="index_iindex_j-初始化">index_i/index_j 初始化</h3>
+<p><code>Init_interface_dyn_phys</code> 在 physics 初始化阶段分配 <code>index_i(klon_mpi)</code> 和 <code>index_j(klon_mpi)</code>，按纬圈顺序将每个物理列映射回动力 <code>(i,j)</code> 索引：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>k <span class="kw">=</span> <span class="dv">1</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (is_north_pole_dyn) <span class="kw">then</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>   index_i(k) <span class="kw">=</span> <span class="dv">1</span>;  index_j(k) <span class="kw">=</span> <span class="dv">1</span>;  k <span class="kw">=</span> <span class="dv">2</span>   <span class="co">! 北极单列</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">else</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>   <span class="kw">DO</span> i <span class="kw">=</span> ii_begin, iim                        <span class="co">! 首行部分经度</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>      index_i(k) <span class="kw">=</span> i;  index_j(k) <span class="kw">=</span> jj_begin;  k <span class="kw">=</span> k<span class="kw">+</span><span class="dv">1</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>   <span class="kw">ENDDO</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> j <span class="kw">=</span> jj_begin<span class="kw">+</span><span class="dv">1</span>, jj_<span class="kw">end-</span><span class="dv">1</span>                    <span class="co">! 中间纬圈：完整经度</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>   <span class="kw">DO</span> i <span class="kw">=</span> <span class="dv">1</span>, iim</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>      index_i(k) <span class="kw">=</span> i;  index_j(k) <span class="kw">=</span> j;  k <span class="kw">=</span> k<span class="kw">+</span><span class="dv">1</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>   <span class="kw">ENDDO</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (is_south_pole_dyn) <span class="kw">then</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>   index_i(k) <span class="kw">=</span> <span class="dv">1</span>;  index_j(k) <span class="kw">=</span> jj_<span class="kw">end</span>        <span class="co">! 南极单列</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="kw">else</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>   <span class="kw">DO</span> i <span class="kw">=</span> <span class="dv">1</span>, ii_<span class="kw">end</span>                            <span class="co">! 末行部分经度</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>      index_i(k) <span class="kw">=</span> i;  index_j(k) <span class="kw">=</span> jj_<span class="kw">end</span>;  k <span class="kw">=</span> k<span class="kw">+</span><span class="dv">1</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>   <span class="kw">ENDDO</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<p>关键特征：</p>
+<ul>
+<li>极点只映射到 <code>i=1</code> 的单点，因为极点所有经度共享同一个物理状态。</li>
+<li>首行和末行可能只映射部分经度（<code>ii_begin:iim</code> 或 <code>1:ii_end</code>），因为物理侧 MPI 分布可能将一行经度切割到多个 rank。</li>
+<li>中间纬圈总是映射完整 <code>iim</code> 个经度。</li>
+<li><code>klon_mpi=1</code> 的特例（1D "parallel" setup）：如果当前 rank 只拥有北极且 <code>klon_mpi==1</code>，则只映射一个极点列。</li>
+</ul>
+<h3 id="klon_mpi-vs-klon_omp">klon_mpi vs klon_omp</h3>
+<p><code>calfis_p</code> 使用两级列数：</p>
+<ol type="1">
+<li><code>klon = klon_mpi</code>：整个 MPI rank 的物理列数，用于 scatter/gather 阶段。</li>
+<li><code>klon = klon_omp</code>：单个 OpenMP 线程负责的列数，用于 <code>call_physiq</code> 调用。</li>
+</ol>
+<p>两者通过 <code>offset = klon_omp_begin - 1</code> 连接：线程 <code>t</code> 负责 <code>klon_mpi</code> 数组中 <code>[offset+1, offset+klon_omp]</code> 范围的列。</p>
+<h2 id="场-scatter动力网格--物理列">场 scatter：动力网格 → 物理列</h2>
+<h3 id="标量场-scatter">标量场 scatter</h3>
+<p>每个标量场通过 <code>index_i/index_j</code> 从动力二维数组提取到物理一维列数组：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">! 手动展开（压力、温度、tracer 等）</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">do</span> ig0 <span class="kw">=</span> <span class="dv">1</span>, klon</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>   i <span class="kw">=</span> index_i(ig0)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>   j <span class="kw">=</span> index_j(ig0)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>   zpsrf(ig0) <span class="kw">=</span> pps(i,j)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="kw">enddo</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co">! 批量调用（geopotential、flxw）</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co">CALL gr_dyn_fi_p(nfield, iip1, jjp1, klon, pdyn, pfi)</span></span></code></pre></div>
+<p><code>gr_dyn_fi_p</code> 内部实现完全相同的逻辑：</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> l <span class="kw">=</span> <span class="dv">1</span>, nfield</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>   <span class="kw">DO</span> ig <span class="kw">=</span> <span class="dv">1</span>, klon</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>      i <span class="kw">=</span> index_i(ig)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>      j <span class="kw">=</span> index_j(ig)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>      pfi(ig,l) <span class="kw">=</span> pdyn(i,j,l)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>   <span class="kw">ENDDO</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span></code></pre></div>
+<p>被 scatter 的场及其转换细节：</p>
+<table>
+<thead>
+<tr>
+<th>动力场</th>
+<th>物理列</th>
+<th>转换</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pps</code></td>
+<td><code>zpsrf</code></td>
+<td>直接索引</td>
+</tr>
+<tr>
+<td><code>pp</code></td>
+<td><code>zplev</code></td>
+<td>直接索引（每层循环）</td>
+</tr>
+<tr>
+<td><code>ppk</code></td>
+<td><code>zpk</code></td>
+<td>直接索引</td>
+</tr>
+<tr>
+<td><code>pteta</code></td>
+<td><code>zteta</code> → <code>ztfi</code></td>
+<td>直接索引后 <code>tpot2t_p</code> 转温度</td>
+</tr>
+<tr>
+<td><code>pq</code></td>
+<td><code>zqfi</code></td>
+<td>每 tracer 直接索引</td>
+</tr>
+<tr>
+<td><code>pphi</code></td>
+<td><code>zphi</code></td>
+<td><code>gr_dyn_fi_p</code> 后减 <code>zphis</code></td>
+</tr>
+<tr>
+<td><code>pphis</code></td>
+<td><code>zphis</code></td>
+<td><code>gr_dyn_fi_p</code></td>
+</tr>
+<tr>
+<td><code>flxw</code></td>
+<td><code>flxwfi</code></td>
+<td><code>gr_dyn_fi_p</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="zplay-的派生计算">zplay 的派生计算</h3>
+<p><code>zplay</code> 不是直接 scatter，而是从 <code>zpk</code> 派生：</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>pksurcp <span class="kw">=</span> ppk(i,j,l) <span class="kw">/</span> cpp</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>zplay(ig0,l) <span class="kw">=</span> preff <span class="kw">*</span> pksurcp <span class="kw">**</span> unskap    <span class="co">! unskap = 1/kappa</span></span></code></pre></div>
+<p>这是 Exner 函数的逆运算，把 <code>ppk</code>（Exner 值）转换为中层压力。</p>
+<h3 id="wind-scatter">wind scatter</h3>
+<p>wind 转换比标量复杂，因为动力网格使用协变分量 <code>(pucov, pvcov)</code>，而物理侧使用自然分量 <code>(zufi, zvfi, zrfi)</code>：</p>
+<p><strong>zufi（自然纬向风）</strong>：</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (i <span class="op">==</span> <span class="dv">1</span>) <span class="kw">then</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>   zufi(ig0,l) <span class="kw">=</span> <span class="fl">0.5</span> <span class="kw">*</span> (pucov(iim,j,l)<span class="kw">/</span>cu(iim,j) <span class="kw">+</span> pucov(<span class="dv">1</span>,j,l)<span class="kw">/</span>cu(<span class="dv">1</span>,j))</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="kw">else</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>   zufi(ig0,l) <span class="kw">=</span> <span class="fl">0.5</span> <span class="kw">*</span> (pucov(i<span class="kw">-</span><span class="dv">1</span>,j,l)<span class="kw">/</span>cu(i<span class="kw">-</span><span class="dv">1</span>,j) <span class="kw">+</span> pucov(i,j,l)<span class="kw">/</span>cu(i,j))</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<p>取相邻两个 U 点的协变分量除以 <code>cu</code>（度量因子）得到自然分量，再平均到标量点。<code>i==1</code> 时使用 <code>iim</code> 的 E-W 周期包裹。</p>
+<p><strong>zvfi（自然经向风）</strong>：</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>zvfi(ig0,l) <span class="kw">=</span> <span class="fl">0.5</span> <span class="kw">*</span> (pvcov(i,j<span class="kw">-</span><span class="dv">1</span>,l)<span class="kw">/</span>cv(i,j<span class="kw">-</span><span class="dv">1</span>) <span class="kw">+</span> pvcov(i,j,l)<span class="kw">/</span>cv(i,j))</span></code></pre></div>
+<p>取相邻两个 V 点的协变分量除以 <code>cv</code> 后平均。</p>
+<p><strong>zrfi（相对涡度）</strong>：先在动力网格上计算 <code>zrot</code>（协变风分的离散旋度），再用 4 点平均到标量点。极点处 <code>j==1</code> 或 <code>j==jjp1</code> 时置零。</p>
+<h3 id="极点-wind-投影">极点 wind 投影</h3>
+<p>极点处的自然风分量通过对所有经度做 <code>cos/sin</code> 积分获得：</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">! 北极</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>z1(i) <span class="kw">=</span> (rlonu(i)<span class="kw">-</span>rlonu(i<span class="kw">-</span><span class="dv">1</span>)) <span class="kw">*</span> pvcov(i,<span class="dv">1</span>,l) <span class="kw">/</span> cv(i,<span class="dv">1</span>)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>zcos(i) <span class="kw">=</span> <span class="bu">COS</span>(rlonv(i)) <span class="kw">*</span> z1(i)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>zsin(i) <span class="kw">=</span> <span class="bu">SIN</span>(rlonv(i)) <span class="kw">*</span> z1(i)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>zufi(<span class="dv">1</span>,l) <span class="kw">=</span> SSUM(iim, zcos, <span class="dv">1</span>) <span class="kw">/</span> pi    <span class="co">! U = &lt;v*cos(lon)&gt;/pi</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>zvfi(<span class="dv">1</span>,l) <span class="kw">=</span> SSUM(iim, zsin, <span class="dv">1</span>) <span class="kw">/</span> pi    <span class="co">! V = &lt;v*sin(lon)&gt;/pi</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>zrfi(<span class="dv">1</span>,l) <span class="kw">=</span> <span class="fl">0.</span></span></code></pre></div>
+<p>这与 <code>vly</code> 中极点 dyq 的 sin/cos 投影是相同的数学操作：将极点矢量投影到最低两个 Fourier 模态。南极使用 <code>jjm</code> 行和 <code>klon</code> 列。</p>
+<h3 id="mpi-wind-边界交换">MPI wind 边界交换</h3>
+<p>physics 调用后，<code>calfis_p</code> 执行一次手写 MPI 交换：</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co">! rank &gt; 0 发送前 iim 列给 rank-1</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>MPI_ISSEND(du_send, iim<span class="kw">*</span>llm, ..., MPI_Rank<span class="kw">-</span><span class="dv">1</span>, tag<span class="kw">=</span><span class="dv">401</span>, ...)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co">! rank &lt; size-1 从 rank+1 接收</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>MPI_IRECV(du_recv, iim<span class="kw">*</span>llm, ..., MPI_Rank<span class="kw">+</span><span class="dv">1</span>, tag<span class="kw">=</span><span class="dv">401</span>, ...)</span></code></pre></div>
+<p>交换的是物理 tendency <code>zdufi/zdvfi</code> 的首 <code>iim</code> 列。目的是构造扩展数组 <code>zdufi2/zdvfi2</code>：</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>zdufi2(<span class="dv">1</span>:klon, l) <span class="kw">=</span> zdufi(<span class="dv">1</span>:klon, l)</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>zdufi2(klon<span class="kw">+</span><span class="dv">1</span>:klon<span class="kw">+</span>iim, l) <span class="kw">=</span> du_recv(<span class="dv">1</span>:iim, l)</span></code></pre></div>
+<p>扩展后的数组支持 V wind tendency 回写时需要跨纬带平均：<code>pdvfi</code> 使用 <code>zdvfi2(ig0)</code> 和 <code>zdvfi2(ig0+iim)</code> 做平均，后者属于下一纬带。如果下一纬带在另一个 rank 上，没有这次交换就无法获取。</p>
+<h2 id="场-gather物理列--动力网格">场 gather：物理列 → 动力网格</h2>
+<h3 id="标量场-gather">标量场 gather</h3>
+<p><code>gr_fi_dyn_p</code> 实现物理列到动力网格的反向映射：</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">do</span> ig <span class="kw">=</span> <span class="dv">1</span>, klon</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>   i <span class="kw">=</span> index_i(ig)</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>   j <span class="kw">=</span> index_j(ig)</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>   pdyn(i,j,ifield) <span class="kw">=</span> pfi(ig,ifield)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>   <span class="kw">if</span> (i <span class="op">==</span> <span class="dv">1</span>) pdyn(im,j,ifield) <span class="kw">=</span> pdyn(i,j,ifield)    <span class="co">! E-W 周期端点</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="kw">enddo</span></span></code></pre></div>
+<p>当 <code>i==1</code> 时，同时将值写入 <code>im</code> 位置（E-W 周期端点），确保周期一致性。</p>
+<p>极点处理：</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (pole_nord) <span class="kw">then</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>   <span class="kw">do</span> i <span class="kw">=</span> <span class="dv">1</span>, im</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>      pdyn(i,<span class="dv">1</span>,ifield) <span class="kw">=</span> pdyn(<span class="dv">1</span>,<span class="dv">1</span>,ifield)    <span class="co">! 极点所有经度同值</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>   <span class="kw">enddo</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<h3 id="tendency-回写">tendency 回写</h3>
+<p>tendency 回写不都使用 <code>gr_fi_dyn_p</code>。各场使用不同的回写策略：</p>
+<p><strong>pdpsfi（surface pressure tendency）</strong>：使用 <code>gr_fi_dyn_p</code>。</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co">CALL gr_fi_dyn_p(1, klon, iip1, jjp1, zdpsrf, pdpsfi)</span></span></code></pre></div>
+<p><strong>pdhfi（potential temperature tendency）</strong>：手动回写，不使用 <code>zdtfi</code> 而是 <code>(zteta-pteta)/dtphys</code>：</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>pdhfi(i,j,l) <span class="kw">=</span> (zteta(ig0,l) <span class="kw">-</span> pteta(i,j,l)) <span class="kw">/</span> dtphys</span></code></pre></div>
+<p>这避免了中间转换的精度损失。<code>t2tpot_p</code> 先将物理温度转回位温 <code>zteta</code>，再与原始 <code>pteta</code> 差商。极点整行用极点单列值扩展。<code>i==1</code> 时补 <code>iip1</code> 周期端点。</p>
+<p><strong>pdqfi（tracer tendency）</strong>：先整层清零，再按 <code>iq</code> 手动回写：</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>pdqfi(:,:,l,:) <span class="kw">=</span> <span class="fl">0.</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> iq <span class="kw">=</span> <span class="dv">1</span>, nqtot</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>   <span class="kw">DO</span> ig0 <span class="kw">=</span> kstart, kend</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>      i <span class="kw">=</span> index_i(ig0);  j <span class="kw">=</span> index_j(ig0)</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>      pdqfi(i,j,l,iq) <span class="kw">=</span> zdqfi(ig0,l,iq)</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>      <span class="kw">if</span> (i<span class="op">==</span><span class="dv">1</span>) pdqfi(iip1,j,l,iq) <span class="kw">=</span> zdqfi(ig0,l,iq)</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>   <span class="kw">ENDDO</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>   <span class="co">! 极点扩展</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span></code></pre></div>
+<p>清零确保 <code>niadv</code> 未映射的 tracer 位为零。<code>i==1</code> 补周期端点。</p>
+<p><strong>pdufi（zonal wind tendency）</strong>：使用扩展数组 <code>zdufi2</code> 的相邻平均：</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (i <span class="op">/=</span> iim) <span class="kw">then</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>   pdufi(i,j,l) <span class="kw">=</span> <span class="fl">0.5</span> <span class="kw">*</span> (zdufi2(ig0,l) <span class="kw">+</span> zdufi2(ig0<span class="kw">+</span><span class="dv">1</span>,l)) <span class="kw">*</span> cu(i,j)</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (i <span class="op">==</span> <span class="dv">1</span>) <span class="kw">then</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>   pdufi(iim,j,l) <span class="kw">=</span> <span class="fl">0.5</span> <span class="kw">*</span> (zdufi2(ig0,l) <span class="kw">+</span> zdufi2(ig0<span class="kw">+</span>iim<span class="kw">-</span><span class="dv">1</span>,l)) <span class="kw">*</span> cu(iim<span class="co">,j)</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>   pdufi(iip1,j,l) <span class="kw">=</span> <span class="fl">0.5</span> <span class="kw">*</span> (zdufi2(ig0,l) <span class="kw">+</span> zdufi2(ig0<span class="kw">+</span><span class="dv">1</span>,l)) <span class="kw">*</span> cu(i,j)</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="kw">endif</span></span></code></pre></div>
+<p>物理 tendency 平均到 U 点后乘 <code>cu</code> 恢复协变分量。<code>i==1</code> 时用 E-W 周期包裹。极点行置零。</p>
+<p><strong>pdvfi（meridional wind tendency）</strong>：使用跨纬带平均：</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>pdvfi(i,j,l) <span class="kw">=</span> <span class="fl">0.5</span> <span class="kw">*</span> (zdvfi2(ig0,l) <span class="kw">+</span> zdvfi2(ig0<span class="kw">+</span>iim,l)) <span class="kw">*</span> cv(i,j)</span></code></pre></div>
+<p><code>ig0+iim</code> 跳到下一纬带，这就是前面 MPI 交换的目的。极点附近用投影方式回写：</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co">! 北极</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>pdvfi(i,<span class="dv">1</span>,l) <span class="kw">=</span> zdufi(<span class="dv">1</span>,l)<span class="kw">*</span><span class="bu">COS</span>(rlonv(i)) <span class="kw">+</span> zdvfi(<span class="dv">1</span>,l)<span class="kw">*</span><span class="bu">SIN</span>(rlonv(i))</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>pdvfi(i,<span class="dv">1</span>,l) <span class="kw">=</span> <span class="fl">0.5</span> <span class="kw">*</span> (pdvfi(i,<span class="dv">1</span>,l) <span class="kw">+</span> zdvfi(i<span class="kw">+</span><span class="dv">1</span>,l)) <span class="kw">*</span> cv(i,<span class="dv">1</span>)</span></code></pre></div>
+<p>先将极点自然风 tendency 投影到各经度方向，再与邻近纬带平均后乘 <code>cv</code>。</p>
+<h3 id="边界清零">边界清零</h3>
+<p>回写前，本 rank 起始纬圈 <code>jj_begin</code> 的 tendency 全部清零。若不是南极 rank，<code>jj_end</code> 也清零：</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>pdhfi(:,jj_begin,l) <span class="kw">=</span> <span class="dv">0</span>;  pdqfi(:,jj_begin,l,:) <span class="kw">=</span> <span class="dv">0</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>pdufi(:,jj_begin,l) <span class="kw">=</span> <span class="dv">0</span>;  pdvfi(:,jj_begin,l) <span class="kw">=</span> <span class="dv">0</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>pdpsfi(:,jj_begin) <span class="kw">=</span> <span class="dv">0</span></span></code></pre></div>
+<p>这防止旧值残留。<code>leapfrog_p</code> 后续通过 <code>jj_Nb_Physic_bis</code> halo 合并处理边界一致性。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>index_i/index_j</code> 映射是 scatter/gather 的唯一路径。如果 <code>Init_interface_dyn_phys</code> 未被调用或 <code>klon_mpi</code> 与物理侧不一致，所有场转换都会越界或错位。</li>
+<li>极点列在 <code>index_i/index_j</code> 中只出现一次（<code>i=1</code>），但 gather 时需要将极点值扩展到所有经度。遗漏这一步会导致极点除第一列外的格点保持零或旧值。</li>
+<li><code>i==1</code> 时同时写 <code>iip1</code>（周期端点）是 E-W 周期一致性的关键。<code>pdufi</code> 的 <code>i==1</code> 路径额外写 <code>iim</code> 位置。</li>
+<li><code>pdhfi</code> 使用 <code>(zteta-pteta)/dtphys</code> 而非 <code>cpp*zdtfi/ppk</code>，这在 cpdet 变比热路径下避免了 Exner 除法的不精确。</li>
+<li>wind tendency 的 MPI 交换只涉及 <code>zdufi/zdvfi</code>（物理 tendency），不涉及 <code>zufi/zvfi</code>（物理状态）。这意味着物理状态的跨 rank 一致性依赖 physics 前的 halo 而非 physics 后的交换。</li>
+<li><code>zdufi2/zdvfi2</code> 维度为 <code>klon+iim</code>，最后一 rank 没有 <code>du_recv</code> 数据。<code>MPI_rank==MPI_Size-1</code> 时 <code>zdufi2(klon+1:)</code> 保持未初始化状态，但对应的 <code>pdvfi</code> 在 <code>is_south_pole_dyn</code> 条件下已被特殊处理。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p 模块页</a></li>
+<li><a href="calfis-p-physiq-contract.html">calfis_p 与 call_physiq 接口契约</a></li>
+<li><a href="calfis-p-parallel-transfer.html">calfis_p 并行 transfer 架构</a></li>
+<li><a href="../modules/dynphy_lonlat/mod_interface_dyn_phys.html">mod_interface_dyn_phys</a></li>
+<li><a href="dyn-phys-grid-transforms.html">dyn-phys-grid-transforms</a></li>
+<li><a href="leapfrog-p-physics-coupling.html">leapfrog-p-physics-coupling</a></li>
+<li><a href="../modules/dyn3dpar/leapfrog_p.html">leapfrog_p</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>ii_begin/ii_end</code> 在物理侧 MPI data 中的精确定义，以及与动力侧 <code>jj_begin/jj_end</code> 的对应关系。</li>
+<li><code>klon_mpi=1</code> 特例（1D parallel setup）在 Mars 配置中是否可能出现。</li>
+<li><code>pdvfi</code> 回写时最后一 rank 的 <code>zdufi2(klon+1:)</code> 未初始化问题是否在实际运行中触发。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

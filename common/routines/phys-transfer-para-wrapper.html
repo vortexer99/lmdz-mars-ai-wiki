@@ -1,0 +1,371 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>phys-transfer-para-wrapper - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/phys-transfer-para-wrapper.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mod_phys_lmdz_transfert_para-上层-wrapper-组合"><code>mod_phys_lmdz_transfert_para</code> 上层 wrapper 组合</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\mod_phys_lmdz_transfert_para.F90</code></pre>
+<h2 id="本页范围">本页范围</h2>
+<p>本页覆盖 <code>mod_phys_lmdz_transfert_para.F90</code>（1349 行）如何将底层 MPI 和 OMP transfer 模块组合成统一的 <code>bcast</code>/<code>scatter</code>/<code>gather</code>/<code>scatter2D</code>/<code>gather2D</code>/<code>reduce_sum</code> 泛型接口。<a href="../modules/phy_common/mpi-data-transfer.html">mpi-data-transfer</a> 和 <a href="../modules/phy_common/omp-data-transfer.html">omp-data-transfer</a> 分别覆盖底层实现；本页聚焦组合层的接口清单、MPI/OMP 执行顺序、临时数组策略和 Mars 物理并行条件。</p>
+<h2 id="模块定位">模块定位</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">MODULE</span> mod_phys_lmdz_transfert_para</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">USE</span> mod_phys_lmdz_mpi_transfert</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">USE</span> mod_phys_lmdz_omp_transfert</span></code></pre></div>
+<p>本模块不包含任何 MPI 或 OMP 原语，只做两件事：</p>
+<ol type="1">
+<li>分配栈上 <code>Var_tmp</code> 临时数组（第一维 <code>klon_mpi</code>）。</li>
+<li>按正确顺序调用底层 <code>*_mpi</code> 和 <code>*_omp</code> 子程序。</li>
+</ol>
+<p>所有 MPI/OMP 细节由底层模块处理。</p>
+<h2 id="6-个泛型接口总览">6 个泛型接口总览</h2>
+<table>
+<thead>
+<tr>
+<th>泛型</th>
+<th>操作方向</th>
+<th>specific procedures</th>
+<th>支持类型</th>
+<th>最大维度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bcast</code></td>
+<td>global → all</td>
+<td>22</td>
+<td>c, i/i1-i6, r/r1-r6, l/l1-l6</td>
+<td>6D</td>
+</tr>
+<tr>
+<td><code>scatter</code></td>
+<td>global → local</td>
+<td>12</td>
+<td>i/i1-i3, r/r1-r3, l/l1-l3</td>
+<td>4D</td>
+</tr>
+<tr>
+<td><code>gather</code></td>
+<td>local → global</td>
+<td>12</td>
+<td>i/i1-i3, r/r1-r3, l/l1-l3</td>
+<td>4D</td>
+</tr>
+<tr>
+<td><code>scatter2D</code></td>
+<td>global 2D → local</td>
+<td>12</td>
+<td>i/i1-i3, r/r1-r3, l/l1-l3</td>
+<td>5D→4D</td>
+</tr>
+<tr>
+<td><code>gather2D</code></td>
+<td>local → global 2D</td>
+<td>12</td>
+<td>i/i1-i3, r/r1-r3, l/l1-l3</td>
+<td>4D→5D</td>
+</tr>
+<tr>
+<td><code>reduce_sum</code></td>
+<td>local → sum</td>
+<td>10</td>
+<td>i/i1-i4, r/r1-r4</td>
+<td>4D</td>
+</tr>
+</tbody>
+</table>
+<p>总计 <strong>80 个 specific procedures</strong>。计数为 <code>bcast</code> 22 个、<code>scatter/gather/scatter2D/gather2D</code> 各 12 个、<code>reduce_sum</code> 10 个。</p>
+<h3 id="维度命名约定">维度命名约定</h3>
+<p>命名后缀含义：<code>_i</code> = scalar integer，<code>_i1</code> = 2D integer（1D + 额外维），<code>_i2</code> = 3D，<code>_i3</code> = 4D。<code>_r</code> 和 <code>_l</code> 类推。<code>_c</code> 仅用于 character scalar。</p>
+<h3 id="bcast-特殊地位">bcast 特殊地位</h3>
+<ul>
+<li><strong>唯一支持 character</strong> 的泛型（仅 <code>bcast_c</code>，因此 <code>bcast</code> 不是 23 个过程）。</li>
+<li><strong>唯一支持到 6D</strong> 的泛型（<code>bcast_i6</code>/<code>bcast_r6</code>/<code>bcast_l6</code>），这是 6.3 新增的高维广播。</li>
+<li><strong>无临时数组</strong>：bcast 直接作用于 <code>Var</code>，MPI 和 OMP 操作同一变量。</li>
+</ul>
+<h2 id="执行顺序模式">执行顺序模式</h2>
+<h3 id="bcastmpi-先行">bcast：MPI 先行</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP MASTER</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> bcast_mpi(Var)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co">CALL bcast_omp(Var)</span></span></code></pre></div>
+<p>先由 master 线程执行 MPI rank 间广播，然后所有线程执行 OMP 线程间广播。</p>
+<h3 id="scattermpi-先行--临时数组">scatter：MPI 先行 + 临时数组</h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="dt">TYPE</span>, <span class="dt">DIMENSION(klon_mpi, ...)</span> <span class="dt">::</span> Var_tmp</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP MASTER</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> scatter_mpi(VarIn, Var_tmp)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co">CALL scatter_omp(Var_tmp, VarOut)</span></span></code></pre></div>
+<p>master 线程执行 MPI rank 间 scatter（全局 → rank 局部），存入 <code>Var_tmp</code>。然后所有线程执行 OMP scatter（rank 局部 → 线程局部）。<code>Var_tmp</code> 第一维为 <code>klon_mpi</code>（当前 rank 的格点数）。</p>
+<h3 id="gatheromp-先行--临时数组">gather：OMP 先行 + 临时数组</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="dt">TYPE</span>, <span class="dt">DIMENSION(klon_mpi, ...)</span> <span class="dt">::</span> Var_tmp</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co">CALL gather_omp(VarIn, Var_tmp)</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP MASTER</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> gather_mpi(Var_tmp, VarOut)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span></code></pre></div>
+<p>与 scatter <strong>相反</strong>：先所有线程执行 OMP gather（线程局部 → rank 局部），存入 <code>Var_tmp</code>。然后 master 线程执行 MPI gather（rank 局部 → 全局）。</p>
+<h3 id="scatter2dmpi-2d-scatter--omp-1d-scatter">scatter2D：MPI 2D scatter + OMP 1D scatter</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="dt">TYPE</span>, <span class="dt">DIMENSION(klon_mpi, ...)</span> <span class="dt">::</span> Var_tmp</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP MASTER</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> scatter2D_mpi(VarIn, Var_tmp)   <span class="co">! 2D 全局 → 1D rank 局部</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co">CALL scatter_omp(Var_tmp, VarOut)       ! 1D rank 局部 → 线程局部</span></span></code></pre></div>
+<p><code>scatter2D_mpi</code> 处理二维空间分解的 scatter（全局 lon-lat → rank 的 band），<code>scatter_omp</code> 处理线程内的列分配。</p>
+<h3 id="gather2domp-gather--mpi-2d-gather">gather2D：OMP gather + MPI 2D gather</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="dt">TYPE</span>, <span class="dt">DIMENSION(klon_mpi, ...)</span> <span class="dt">::</span> Var_tmp</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="co">CALL gather_omp(VarIn, Var_tmp)         ! 线程局部 → rank 局部</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP MASTER</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> gather2D_mpi(Var_tmp, VarOut)    <span class="co">! 1D rank 局部 → 2D 全局</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span></code></pre></div>
+<p>scatter2D 的逆操作。</p>
+<h3 id="reduce_sumomp-reduce--mpi-reduce">reduce_sum：OMP reduce + MPI reduce</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="dt">TYPE</span> <span class="dt">::</span> Var_tmp                          <span class="co">! 标量或数组（无 klon_mpi 维）</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co">CALL reduce_sum_omp(VarIn, Var_tmp)     ! OMP 线程间求和</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP MASTER</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> reduce_sum_mpi(Var_tmp, VarOut)  <span class="co">! MPI rank 间求和</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span></code></pre></div>
+<p>先 OMP 线程间 reduce，再 MPI rank 间 reduce。<code>Var_tmp</code> 的维度与 <code>VarIn</code> 相同（非 <code>klon_mpi</code>），因为 reduce 的结果不改变空间维度。</p>
+<h2 id="临时数组策略">临时数组策略</h2>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>Var_tmp 第一维</th>
+<th>额外维度</th>
+<th>来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>bcast</td>
+<td>无（直接操作 Var）</td>
+<td>-</td>
+<td>-</td>
+</tr>
+<tr>
+<td>scatter</td>
+<td><code>klon_mpi</code></td>
+<td><code>SIZE(VarOut, 2:...)</code></td>
+<td>输出侧</td>
+</tr>
+<tr>
+<td>gather</td>
+<td><code>klon_mpi</code></td>
+<td><code>SIZE(VarIn, 2:...)</code></td>
+<td>输入侧</td>
+</tr>
+<tr>
+<td>scatter2D</td>
+<td><code>klon_mpi</code></td>
+<td><code>SIZE(VarOut, 2:...)</code></td>
+<td>输出侧</td>
+</tr>
+<tr>
+<td>gather2D</td>
+<td><code>klon_mpi</code></td>
+<td><code>SIZE(VarIn, 2:...)</code></td>
+<td>输入侧</td>
+</tr>
+<tr>
+<td>reduce_sum</td>
+<td><code>SIZE(VarIn, ...)</code></td>
+<td>同 VarIn</td>
+<td>输入侧</td>
+</tr>
+</tbody>
+</table>
+<p>关键观察：</p>
+<ul>
+<li>所有 <code>Var_tmp</code> 都是<strong>栈上自动数组</strong>（非 <code>ALLOCATABLE</code>，非 <code>SAVE</code>），每次调用自动分配和释放。</li>
+<li>scatter/gather/scatter2D/gather2D 的 <code>Var_tmp</code> 第一维始终是 <code>klon_mpi</code>（来自 <code>mod_phys_lmdz_mpi_data</code>）。</li>
+<li>scatter 的额外维度取自 <code>VarOut</code>（因为 MPI scatter 后的中间结果与线程局部输出维度一致）。</li>
+<li>gather 的额外维度取自 <code>VarIn</code>（因为 OMP gather 后的中间结果与线程局部输入维度一致）。</li>
+<li>reduce_sum 的 <code>Var_tmp</code> 没有 <code>klon_mpi</code> 维度，因为 reduce 不改变空间结构。</li>
+</ul>
+<h2 id="类型覆盖差异">类型覆盖差异</h2>
+<table>
+<thead>
+<tr>
+<th>泛型</th>
+<th>CHARACTER</th>
+<th>INTEGER</th>
+<th>REAL</th>
+<th>LOGICAL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>bcast</td>
+<td>scalar</td>
+<td>scalar-6D</td>
+<td>scalar-6D</td>
+<td>scalar-6D</td>
+</tr>
+<tr>
+<td>scatter</td>
+<td>-</td>
+<td>scalar-4D</td>
+<td>scalar-4D</td>
+<td>scalar-4D</td>
+</tr>
+<tr>
+<td>gather</td>
+<td>-</td>
+<td>scalar-4D</td>
+<td>scalar-4D</td>
+<td>scalar-4D</td>
+</tr>
+<tr>
+<td>scatter2D</td>
+<td>-</td>
+<td>scalar-4D</td>
+<td>scalar-4D</td>
+<td>scalar-4D</td>
+</tr>
+<tr>
+<td>gather2D</td>
+<td>-</td>
+<td>scalar-4D</td>
+<td>scalar-4D</td>
+<td>scalar-4D</td>
+</tr>
+<tr>
+<td>reduce_sum</td>
+<td>-</td>
+<td>scalar-4D</td>
+<td>scalar-4D</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>character</strong> 仅 bcast 支持（<code>bcast_c</code>），其他 5 个泛型无 character 变体。</li>
+<li><strong>reduce_sum</strong> 无 LOGICAL 变体（逻辑值求和无物理意义）。</li>
+<li><strong>scatter/gather/scatter2D/gather2D</strong> 最高到 4D（<code>_i3</code> 对应输入 4D、输出 4D）。</li>
+<li><strong>bcast</strong> 最高到 6D（6.3 新增，支持高维 tracer 数组广播）。</li>
+</ul>
+<h2 id="klon_mpi-依赖"><code>klon_mpi</code> 依赖</h2>
+<p>所有使用临时数组的 specific procedure 都在内部 <code>USE mod_phys_lmdz_mpi_data, ONLY : klon_mpi</code>。<code>klon_mpi</code> 是当前 MPI rank 的格点数，由 <code>mod_phys_lmdz_mpi_data</code> 在物理侧初始化时设定。</p>
+<p>这意味着：</p>
+<ul>
+<li>调用任何 scatter/gather/scatter2D/gather2D 前，<code>mod_phys_lmdz_mpi_data</code> 必须已初始化。</li>
+<li><code>Var_tmp</code> 的大小在编译时确定（Fortran 自动数组），但 <code>klon_mpi</code> 的值在运行时确定。</li>
+<li>栈空间需求可能较大：对 4D 数组，<code>Var_tmp</code> 大小为 <code>klon_mpi × d2 × d3 × d4 × sizeof(type)</code>。</li>
+</ul>
+<h2 id="mars-物理并行条件经过">Mars 物理并行条件经过</h2>
+<p>Mars 物理并行通过以下路径消费本模块：</p>
+<ol type="1">
+<li><strong><code>getin_p</code></strong>（<code>ioipsl_getin_p_mod.F90</code>）：使用 <code>bcast</code> 泛型广播配置参数。</li>
+<li><strong>COMMON 物理公共层</strong>：<code>mod_phys_lmdz_para.F90</code> 自检调用 <code>scatter2D/bcast/reduce_sum</code>；<code>xios_writefield.F90</code> 和 <code>misc/wxios.F90</code> 使用 <code>bcast/gather</code> 建立输出网格信息。</li>
+<li><strong>Mars physics 模块</strong>：<code>phymars/conf_phys.F</code>、<code>iostart.F90</code>、<code>surfini_mod.F90</code>、aeronomy 数据读取等直接使用 <code>bcast/gather/scatter</code> 同步配置、全局场和局部物理列。</li>
+<li><strong>边界</strong>：<code>calfis_p</code> 的动力-物理列搬运是手写 MPI/OMP 路径，不直接调用本模块的 <code>scatter/gather</code> 泛型。</li>
+</ol>
+<h3 id="编译守卫">编译守卫</h3>
+<p>本模块本身无 <code>#ifdef</code> 编译守卫。它无条件 <code>USE</code> MPI 和 OMP 底层模块。但底层模块内部可能有 <code>CPP_MPI</code>/<code>CPP_PARA</code> 守卫，决定 MPI 调用是真实还是 stub。</p>
+<h2 id="顺序对称性总结">顺序对称性总结</h2>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>第一步</th>
+<th>第二步</th>
+<th>临时数组方向</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>bcast</td>
+<td>MPI (<code>!$OMP MASTER</code>)</td>
+<td>OMP (all threads)</td>
+<td>无</td>
+</tr>
+<tr>
+<td>scatter</td>
+<td>MPI (<code>!$OMP MASTER</code>)</td>
+<td>OMP (all threads)</td>
+<td>全局 → rank → thread</td>
+</tr>
+<tr>
+<td>gather</td>
+<td>OMP (all threads)</td>
+<td>MPI (<code>!$OMP MASTER</code>)</td>
+<td>thread → rank → 全局</td>
+</tr>
+<tr>
+<td>scatter2D</td>
+<td>MPI 2D (<code>!$OMP MASTER</code>)</td>
+<td>OMP 1D (all threads)</td>
+<td>2D 全局 → rank → thread</td>
+</tr>
+<tr>
+<td>gather2D</td>
+<td>OMP 1D (all threads)</td>
+<td>MPI 2D (<code>!$OMP MASTER</code>)</td>
+<td>thread → rank → 2D 全局</td>
+</tr>
+<tr>
+<td>reduce_sum</td>
+<td>OMP (all threads)</td>
+<td>MPI (<code>!$OMP MASTER</code>)</td>
+<td>thread sum → rank sum → 全局 sum</td>
+</tr>
+</tbody>
+</table>
+<p>scatter/bcast 方向：MPI 先行（global → rank），OMP 后行（rank → thread）。 gather/reduce 方向：OMP 先行（thread → rank），MPI 后行（rank → global）。</p>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/phy_common/mpi-data-transfer.html">mpi-data-transfer</a></li>
+<li><a href="../modules/phy_common/omp-data-transfer.html">omp-data-transfer</a></li>
+<li><a href="../modules/phy_common/parallel-transfer-6d.html">parallel-transfer-6d</a></li>
+<li><a href="../modules/phy_common/mod_phys_lmdz_para.html">mod_phys_lmdz_para</a></li>
+<li><a href="../modules/phy_common/physics_distribution_mod.html">physics_distribution_mod</a></li>
+<li><a href="calfis-p-parallel-transfer.html">calfis-p-parallel-transfer</a></li>
+<li><a href="../modules/phy_common/ioipsl_getin_p_mod.html">ioipsl_getin_p_mod</a></li>
+<li><a href="../themes/serial-parallel-dynamics.html">serial-parallel-dynamics</a></li>
+<li><a href="phys-transfer-mpi-core.html">phys-transfer-mpi-core</a></li>
+<li><a href="phys-transfer-omp-core.html">phys-transfer-omp-core</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

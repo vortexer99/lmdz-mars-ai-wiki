@@ -1,0 +1,318 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vertical-coordinate-mars-contract - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/vertical-coordinate-mars-contract.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-垂直坐标与动力-物理共享状态契约">Mars 垂直坐标与动力-物理共享状态契约</h1>
+<p>源码：</p>
+<ul>
+<li><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\disvert_noterre.F</code></li>
+<li><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\disvert.F90</code></li>
+<li><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\comvert_mod.F90</code></li>
+<li><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\vertical_layers_mod.F90</code></li>
+<li>边界上下文：<code>LMDZ.MARS\libf\dynphy_lonlat\phymars\iniphysiq_mod.F90</code>、<code>ini_archive.F</code>、<code>lect_start_archive.F</code>、<code>readhead_NC.F</code>、<code>newstart.F</code>、<code>start2archive.F</code>，以及 <code>LMDZ.MARS\libf\phymars\physiq_mod.F</code>、<code>dyn1d\init_testphys1d_mod.F90</code>。</li>
+</ul>
+<p>状态：TASK-0184 完成。本文只覆盖 COMMON 6.3 垂直坐标状态如何生成、复制到物理侧、被 Mars utility/physics 消费；Mars 文件只作为消费者和接口边界。</p>
+<h2 id="结论">结论</h2>
+<p>Mars/Generic 默认垂直坐标链是：</p>
+<pre class="text"><code>iniconst
+  -&gt; disvert_type default = 2 when planet_type != &quot;earth&quot;
+  -&gt; disvert_noterre
+      -&gt; read esasig.def or z2sig.def
+      -&gt; write comvert_mod: ap/bp/aps/bps/presnivs/pseudoalt
+  -&gt; inigeom
+  -&gt; iniphysiq
+      -&gt; inigeomphy
+          -&gt; init_vertical_layers(...)
+          -&gt; copy comvert_mod state into phy_common/vertical_layers_mod
+  -&gt; Mars physiq/outputs/1D/archive consumers</code></pre>
+<p><code>comvert_mod</code> 是动力侧固定维度数组状态；<code>vertical_layers_mod</code> 是物理侧 <code>ALLOCATABLE, SAVE, THREADPRIVATE</code> 状态。两者不是自动共享内存，必须通过 <code>inigeomphy -&gt; init_vertical_layers</code> 或 1D 初始化显式复制。</p>
+<h2 id="状态表">状态表</h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>所在模块</th>
+<th>维度</th>
+<th>单位/含义</th>
+<th>主要消费者</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ap(llm+1)</code></td>
+<td><code>comvert_mod</code>, <code>vertical_layers_mod</code></td>
+<td>interface</td>
+<td>Pa，hybrid pressure contribution</td>
+<td><code>pression</code>, Mars physics, archive/output</td>
+</tr>
+<tr>
+<td><code>bp(llm+1)</code></td>
+<td>同上</td>
+<td>interface</td>
+<td>sigma contribution</td>
+<td><code>pression</code>, vertical velocity, Mars physics</td>
+</tr>
+<tr>
+<td><code>aps(llm)</code></td>
+<td>同上</td>
+<td>mid-layer</td>
+<td>Pa，mid-layer pressure contribution</td>
+<td>Mars vertical interpolation, physics <code>zplay</code></td>
+</tr>
+<tr>
+<td><code>bps(llm)</code></td>
+<td>同上</td>
+<td>mid-layer</td>
+<td>sigma contribution</td>
+<td>Mars vertical interpolation, physics <code>zplay</code></td>
+</tr>
+<tr>
+<td><code>presnivs(llm)</code></td>
+<td>同上</td>
+<td>mid-layer</td>
+<td>reference mid-layer pressure, Pa</td>
+<td>history/XIOS vertical axes, physics diagnostics, dissipation profiles</td>
+</tr>
+<tr>
+<td><code>pseudoalt(llm)</code></td>
+<td>同上</td>
+<td>mid-layer</td>
+<td>km, <code>-scaleheight*log(presnivs/preff)</code></td>
+<td>Mars/XIOS/stats/diagfi altitude axis</td>
+</tr>
+<tr>
+<td><code>pa</code></td>
+<td><code>comvert_mod</code></td>
+<td>scalar</td>
+<td>Pa，hybrid 坐标转 pressure-dominated 的参考压力</td>
+<td><code>disvert</code>, <code>disvert_noterre</code>, restart constants</td>
+</tr>
+<tr>
+<td><code>preff</code></td>
+<td><code>comvert_mod</code> and copied to <code>vertical_layers_mod</code></td>
+<td>scalar</td>
+<td>Pa，reference surface pressure</td>
+<td>pressure axes and pseudo altitude</td>
+</tr>
+<tr>
+<td><code>scaleheight</code></td>
+<td><code>comvert_mod</code> and copied to <code>vertical_layers_mod</code></td>
+<td>scalar</td>
+<td>km</td>
+<td><code>pseudoalt</code>, dissipation/profile diagnostics</td>
+</tr>
+<tr>
+<td><code>disvert_type</code></td>
+<td><code>comvert_mod</code></td>
+<td>scalar</td>
+<td>1 Earth automatic, 2 planets <code>z2sig/ esasig</code></td>
+<td><code>iniconst</code> branch</td>
+</tr>
+<tr>
+<td><code>pressure_exner</code></td>
+<td><code>comvert_mod</code></td>
+<td>scalar</td>
+<td>layer pressure computation option</td>
+<td>Exner/pressure helper consumers</td>
+</tr>
+</tbody>
+</table>
+<h2 id="disvert_noterre-生成逻辑"><code>disvert_noterre</code> 生成逻辑</h2>
+<p><code>disvert_noterre</code> 是 Mars/Generic 默认路径。入口先设置：</p>
+<ul>
+<li><code>hybrid=.true.</code>，然后 <code>getin('hybrid', hybrid)</code>；<code>hybrid=.false.</code> 时生成纯 sigma 坐标。</li>
+<li>先尝试打开 <code>esasig.def</code>；失败后打开 <code>z2sig.def</code>；两者都不存在时打印错误并 <code>stop</code>。</li>
+</ul>
+<h3 id="esasigdef-分支"><code>esasig.def</code> 分支</h3>
+<p><code>esasig.def</code> 分支读取：</p>
+<ol type="1">
+<li><code>scaleheight</code></li>
+<li><code>dz0</code></li>
+<li><code>dz1</code></li>
+<li><code>nhaut</code></li>
+</ol>
+<p>然后把 <code>dz0/dz1</code> 除以 <code>scaleheight</code>，用指数和双曲正切构造 interface <code>sig(1:llm+1)</code>。该分支还构造 <code>s(l)</code> 并归一化，源码注释强调它来自能量守恒相关旧方案。</p>
+<h3 id="z2sigdef-分支"><code>z2sig.def</code> 分支</h3>
+<p><code>z2sig.def</code> 分支读取：</p>
+<ol type="1">
+<li>第一行 <code>scaleheight</code></li>
+<li>接下来 <code>llm</code> 行 <code>zsig(l)</code></li>
+</ol>
+<p>若行数少于 <code>llm</code>，调用 <code>abort_gcm(modname,"z2sig.def too short?",1)</code>。若多于 <code>llm</code>，只写 WARNING，不 abort。</p>
+<p>interface sigma 的构造是：</p>
+<pre class="text"><code>sig(1) = 1
+sig(l) = 0.5 * ( exp(-zsig(l)/scaleheight)
+               + exp(-zsig(l-1)/scaleheight) ), l=2..llm
+sig(llm+1) = 0</code></pre>
+<p>这意味着 <code>z2sig.def</code> 给的是层中心或目标高度序列，<code>disvert_noterre</code> 用相邻高度的指数压力平均构造 interface sigma。</p>
+<h3 id="hybrid-与-sigma-分支">hybrid 与 sigma 分支</h3>
+<p><code>nivsigs(l)=l</code>，<code>nivsig(l)=l</code> 只是垂直层索引。</p>
+<p>若 <code>hybrid=.true.</code>：</p>
+<pre class="text"><code>sig_hybrid(sig(l), pa, preff, newsig)
+bp(l) = exp(1 - 1/newsig**2)
+ap(l) = pa * (newsig - bp(l))
+bp(llm+1) = 0
+ap(llm+1) = 0</code></pre>
+<p><code>sig_hybrid</code> 求解的目标方程是：</p>
+<pre class="text"><code>(1 - pa/preff) * exp(1 - 1/newsig**2)
+  + (pa/preff) * newsig = sig</code></pre>
+<p>当 <code>sig*preff/pa &lt; 0.25</code> 时，源码直接用 <code>newsig=sig*preff/pa</code>；其他情况使用二分迭代，收敛标准按 pseudo-altitude 误差约束。</p>
+<p>若 <code>hybrid=.false.</code>：</p>
+<pre class="text"><code>ap(l) = 0
+bp(l) = sig(l)
+ap(llm+1) = 0
+bp(llm+1) = 0</code></pre>
+<h3 id="mid-layer-与参考压力">mid-layer 与参考压力</h3>
+<p>大多数层：</p>
+<pre class="text"><code>aps(l) = 0.5 * (ap(l) + ap(l+1))
+bps(l) = 0.5 * (bp(l) + bp(l+1))</code></pre>
+<p>顶层特殊处理：</p>
+<ul>
+<li>hybrid：<code>aps(llm)=aps(llm-1)**2/aps(llm-2)</code>，<code>bps(llm)=0.5*(bp(llm)+bp(llm+1))</code></li>
+<li>sigma：<code>bps(llm)=bps(llm-1)**2/bps(llm-2)</code>，<code>aps(llm)=0</code></li>
+</ul>
+<p>然后：</p>
+<pre class="text"><code>presnivs(l) = aps(l) + bps(l) * preff
+pseudoalt(l) = -scaleheight * log(presnivs(l)/preff)</code></pre>
+<p>源码注释提醒：顶层 mid-layer 选择是人为约定，并要求与 <code>exner_milieu.F</code> 使用相同假设。</p>
+<h2 id="disvertf90-对照"><code>disvert.F90</code> 对照</h2>
+<p><code>disvert.F90</code> 是 Earth/通用自动生成路径，<code>iniconst</code> 在 <code>planet_type=="earth"</code> 时默认选择它。它支持 <code>vert_sampling</code>：</p>
+<ul>
+<li><code>param</code>：读 <code>sigma.def</code></li>
+<li><code>sigma</code></li>
+<li><code>tropo</code></li>
+<li><code>strato</code></li>
+<li><code>strato_correct</code></li>
+<li><code>strato_custom0</code></li>
+<li><code>strato_custom</code></li>
+<li><code>read</code>：读 <code>hybrid.txt</code></li>
+</ul>
+<p>它同样写入 <code>comvert_mod: ap/bp/nivsigs/nivsig/preff/pa/presnivs/dpres/scaleheight</code>，但 Mars/Generic 默认不走这条路径，除非 <code>run.def</code> 显式覆盖 <code>disvert_type=1</code>。</p>
+<h2 id="动力侧压力使用">动力侧压力使用</h2>
+<p>动力核通过 <code>pression(ngrid, ap, bp, ps, p)</code> 计算 interface pressure：</p>
+<pre class="text"><code>p(:,l) = ap(l) + bp(l) * ps(:)</code></pre>
+<p>典型消费者包括：</p>
+<ul>
+<li><code>caldyn/caldyn_p</code>：动力 tendency 前计算 pressure。</li>
+<li><code>leapfrog/leapfrog_p</code> 与 MARS <code>leapfrog_nogcm</code>：时间推进和 physics coupling 前刷新 pressure。</li>
+<li><code>integrd</code>：积分写回前计算 pressure。</li>
+<li><code>vitvert/vitvert_p</code>：用 <code>bp(l+1)</code> 修正垂直质量通量。</li>
+<li><code>inidissip</code>、<code>top_bound</code>、<code>sponge</code>：使用 <code>presnivs/scaleheight/pseudoalt</code> 构造垂直剖面或诊断。</li>
+</ul>
+<h2 id="复制到物理侧">复制到物理侧</h2>
+<p>Mars <code>iniphysiq_mod.F90</code> 先调用 COMMON <code>inigeomphy</code>。<code>inigeomphy_mod.F90</code> 第 22-24 行 <code>USE comvert_mod</code> 读取 <code>preff, ap, bp, aps, bps, presnivs, scaleheight, pseudoalt</code>，第 243-245 行调用：</p>
+<pre class="text"><code>CALL init_vertical_layers(nlayer, preff, scaleheight,
+                          ap, bp, aps, bps, presnivs, pseudoalt)</code></pre>
+<p><code>vertical_layers_mod</code> 为物理侧分配数组并复制这些值。由于该模块变量是 <code>THREADPRIVATE</code>，OpenMP 运行中每个线程有自己的物理侧垂直层状态。</p>
+<p>Mars <code>physiq_mod.F</code> 直接 <code>USE vertical_layers_mod, ONLY: ap,bp,aps,bps,presnivs,pseudoalt</code>：</p>
+<ul>
+<li>初始化 XIOS 时把 <code>presnivs/pseudoalt</code> 传给 <code>initialize_xios_output</code>。</li>
+<li>表面压力变化后用 <code>zplay=aps+bps*ps</code>、<code>zplev=ap+bp*ps</code> 更新压力层。</li>
+<li>XIOS 输出 <code>ap/bp/aps/bps</code>。</li>
+</ul>
+<p>Mars <code>callphysiq_mod.F90</code> 仍从动力-物理接口接收 <code>zplev/zplay/presnivs</code>，但 physics 内部的垂直坐标常量来自 <code>vertical_layers_mod</code>。</p>
+<h2 id="mars-utility-和-archive-契约">Mars utility 和 archive 契约</h2>
+<h3 id="ini_archivef"><code>ini_archive.F</code></h3>
+<p><code>ini_archive.F</code> 从 <code>comvert_mod</code> 读取 <code>ap,bp,aps,bps,pa,preff,presnivs,pseudoalt</code>，写入 archive 变量：</p>
+<ul>
+<li><code>ap(llm+1)</code></li>
+<li><code>bp(llm+1)</code></li>
+<li><code>aps(llm)</code></li>
+<li><code>bps(llm)</code></li>
+<li><code>presnivs(llm)</code></li>
+<li><code>pseudoalt(llm)</code>，带 <code>units="km"</code>、<code>positive="up"</code></li>
+</ul>
+<h3 id="readhead_ncf"><code>readhead_NC.F</code></h3>
+<p><code>readhead_NC.F</code> 用于读取 header/control。它 <code>USE comvert_mod, ONLY: aps,bps,preff</code>，并要求 NetCDF 中存在 <code>aps</code> 和 <code>bps</code>；缺失或读取失败都会 <code>CALL abort</code>。</p>
+<h3 id="lect_start_archivef"><code>lect_start_archive.F</code></h3>
+<p><code>lect_start_archive.F</code> 读取旧 archive 做插值：</p>
+<ul>
+<li><code>aps</code> 缺失时把 <code>apsold=0</code>。</li>
+<li><code>bps</code> 缺失时尝试读旧变量 <code>sig_s</code>；若也不存在则 abort。</li>
+<li>垂直插值调用 <code>interp_vert(old, new, apsold, bpsold, aps, bps, psold, ...)</code>。</li>
+<li><code>q2</code> 等 interface 量使用 <code>ap/bp</code> 作为新网格 interface 坐标。</li>
+</ul>
+<p>这说明 archive 兼容层对旧文件有 fallback，但当前 header 读取链对 <code>aps/bps</code> 更严格。</p>
+<h3 id="newstartf-和-start2archivef"><code>newstart.F</code> 和 <code>start2archive.F</code></h3>
+<p><code>newstart.F</code> 在初始化 physics 前调用 <code>iniphysiq</code>，因此会经 <code>inigeomphy</code> 初始化 <code>vertical_layers_mod</code>；后续在写新 start/startfi 前调用 <code>pression(ip1jmp1, ap, bp, ps, p3d)</code>。</p>
+<p><code>start2archive.F</code> 先调用 <code>iniconst/inigeom/inifilr</code>，再调用 <code>iniphysiq</code>，随后用 <code>pression(ap,bp,ps,p3d)</code> 和 <code>exner_hyb</code> 准备 archive 转换。</p>
+<h2 id="1dtestphys1d-契约">1D/testphys1d 契约</h2>
+<p>Mars 1D 初始化 <code>init_testphys1d_mod.F90</code> 直接使用 COMMON 转发的 <code>comvert_mod</code>：</p>
+<ol type="1">
+<li>设置或读取 <code>psurf</code>、<code>pa</code>、<code>preff</code>。</li>
+<li>设置 <code>hybrid=.true.</code>，再由 <code>getin("hybrid",hybrid)</code> 覆盖。</li>
+<li>调用 <code>disvert_noterre</code>。</li>
+<li>调用 <code>init_vertical_layers(nlayer,preff,scaleheight,ap,bp,aps,bps,presnivs,pseudoalt)</code>。</li>
+<li>计算 <code>plev=ap+psurf*bp</code>、<code>play=aps+psurf*bps</code>。</li>
+</ol>
+<p>这条链不经过 3D <code>iniphysiq</code>，所以 1D 必须自己完成 <code>comvert_mod -&gt; vertical_layers_mod</code> 的复制。</p>
+<h2 id="复现检查清单">复现检查清单</h2>
+<ol type="1">
+<li>确认 <code>planet_type</code> 和 <code>disvert_type</code>：Mars/Generic 默认 <code>disvert_type=2</code>。</li>
+<li>确认运行目录有 <code>esasig.def</code> 或 <code>z2sig.def</code>；若两者都有，<code>esasig.def</code> 优先。</li>
+<li>核对 <code>pa/preff</code> 来源：restart <code>controle</code>、<code>conf_planete</code>、或 1D 初始化默认/输入。</li>
+<li>核对 <code>hybrid</code>：默认 <code>.true.</code>，可由 <code>getin("hybrid")</code> 覆盖为纯 sigma。</li>
+<li>检查 <code>ap/bp/aps/bps</code> 是否写入 <code>comvert_mod</code> 后再调用 <code>inigeomphy</code> 或 1D <code>init_vertical_layers</code>。</li>
+<li>若处理 archive，检查 <code>aps/bps</code> 是否存在；旧 archive 只有 <code>sig_s</code> 时只能走 <code>lect_start_archive</code> fallback，不适合所有读取器。</li>
+<li>若排查输出坐标，确认 <code>presnivs</code> 是 Pa，history 常把它除以 100 写成 mb，而 <code>pseudoalt</code> 是 km。</li>
+</ol>
+<h2 id="风险和待确认">风险和待确认</h2>
+<ul>
+<li><code>disvert_noterre</code> 的 <code>z2sig.def</code> 多余行只警告不 abort；少行才 abort。批量算例检查时应主动比对 <code>llm</code> 和文件行数。</li>
+<li><code>readhead_NC.F</code> 只读取 <code>aps/bps</code>，不读取完整 <code>ap/bp/pseudoalt</code>；调用链如果需要完整 interface 坐标，必须确认它们已经由当前运行的 <code>disvert_noterre</code> 或其他入口生成。</li>
+<li>旧 archive 的 <code>sig_s</code> fallback 只在 <code>lect_start_archive</code> 中存在；不能推断所有 Mars NetCDF 读取器都能处理旧格式。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="iniconst-planetary-constants.html">iniconst / conf_planete 行星常数初始化链</a></li>
+<li><a href="vertical-discretization.html">垂直离散构造</a></li>
+<li><a href="mars-utility-common-state-consumers.html">Mars utility 对 COMMON 状态的消费链</a></li>
+<li><a href="mars-utility-constants-vertical.html">Mars utility 常量和垂直坐标消费链</a></li>
+<li><a href="common-gcm-mars-run-entry.html">Mars 3D gcm 主入口链</a></li>
+<li><a href="../modules/dyn3d_common/dynetat0.html">dynetat0.F90 文件页</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

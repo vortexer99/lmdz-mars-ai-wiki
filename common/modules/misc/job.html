@@ -1,0 +1,119 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>job - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/misc/job.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="jobf90">job.F90</h1>
+<p>页面状态：6.3 返工完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\job.F90</code>。 Mars 运行参与度：接口兼容；由 <code>--auto-exit</code> 调用，但帮助文本限定 PEM。</p>
+<h2 id="模块状态">模块状态</h2>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>timelimit</code></td>
+<td><code>86400.</code></td>
+<td>job time limit，秒。</td>
+</tr>
+<tr>
+<td><code>antetime</code></td>
+<td><code>3600.</code></td>
+<td>提前退出余量，秒。</td>
+</tr>
+<tr>
+<td><code>timewall</code></td>
+<td><code>.false.</code></td>
+<td>是否启用 walltime 自终止。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="例程">例程</h2>
+<table>
+<thead>
+<tr>
+<th>例程</th>
+<th>源码事实</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>get_job_id()</code></td>
+<td>第 62 行读 <code>SLURM_JOBID</code>，第 69 行读 <code>PBS_JOBID</code>，第 76 行失败 <code>error stop</code>。</td>
+<td>获取调度系统 job id。</td>
+</tr>
+<tr>
+<td><code>get_job_timelimit(jobid)</code></td>
+<td>第 126 行 <code>squeue</code>，第 129 行 <code>qstat</code> fallback，第 153-161 行解析时间，第 164 行置 <code>timewall=.true.</code>。</td>
+<td>查询并解析 walltime。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="时间格式">时间格式</h2>
+<p>支持：</p>
+<ul>
+<li><code>D-HH:MM:SS</code></li>
+<li><code>HH:MM:SS</code></li>
+<li><code>MM:SS</code></li>
+</ul>
+<p>查询过程使用临时文件 <code>tmp_timelimit.txt</code>，读完后删除。</p>
+<h2 id="风险">风险</h2>
+<ul>
+<li>依赖外部 <code>squeue</code> 或 <code>qstat/grep/awk</code>。</li>
+<li>固定临时文件名不适合多个进程在同一目录同时查询。</li>
+<li>当前 Mars GCM 正文只记录接口，不把 <code>--auto-exit</code> 当作必经运行逻辑。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="program-options.html">program-options</a></li>
+<li><a href="../../themes/runtime-options-build-provenance.html">runtime-options-build-provenance</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

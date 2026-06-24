@@ -1,0 +1,121 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>filtreg-system - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/filtrez/filtreg-system.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="滤波主流程和并行滤波调用组页">滤波主流程和并行滤波调用组页</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\filtreg.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\filtreg_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\filtreg_p.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。动力滤波开启时，串行路径使用 <code>filtreg</code>，并行路径使用 <code>filtreg_p</code>；是否启用 FFT 由 <code>use_filtre_fft</code> 和配置读取决定。</p>
+<h2 id="文件清单">文件清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>主要符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>filtreg.F</code></td>
+<td>322</td>
+<td><a href="filtreg-operators.html">filtreg operators</a>, <code>filtreg</code></td>
+<td>串行场滤波主例程。</td>
+</tr>
+<tr>
+<td><code>filtreg_mod.F90</code></td>
+<td>559</td>
+<td><a href="filtreg_mod.html">filtreg_mod</a>, <code>inifilr</code></td>
+<td>初始化滤波矩阵、特征函数和 FFT 滤波系数。</td>
+</tr>
+<tr>
+<td><code>dyn3dpar/filtreg_p.F</code></td>
+<td>437</td>
+<td><code>filtreg_p</code></td>
+<td>并行子域上的滤波主例程，带 OMP chunk 和 timer。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="初始化">初始化</h2>
+<p><code>filtreg_mod</code> 保存 <code>matriceun/matriceus/matricevn/matricevs/matrinvn/matrinvs</code> 等滤波矩阵。初始化时：</p>
+<ol type="1">
+<li>调用 <code>inifgn</code> 计算离散 Laplacian 的特征函数和特征值。</li>
+<li>按 <code>jfiltnu/jfiltsu/jfiltnv/jfiltsv</code> 检查南北半球滤波纬带。</li>
+<li>使用 <code>MXM</code> 或 <code>SGEMM</code> 构造 U/V 和 inverse 滤波矩阵。</li>
+<li>若 <code>use_filtre_fft</code>，调用 <code>Init_filtre_fft</code> 和 local 版本初始化 FFT 系数。</li>
+</ol>
+<h2 id="串行-filtreg">串行 <code>filtreg</code></h2>
+<p><code>filtreg(champ,nlat,nbniv,ifiltre,iaire,...)</code> 根据 <code>ifiltre</code> 和 <code>iaire</code> 选择 U/V 或 inverse 矩阵，对每个需滤波纬带做矩阵乘法。<code>ifiltre</code> 不是 2 或 -2 时打印错误；源码注释提示某些模式应使用旧滤波路径。</p>
+<h2 id="并行-filtreg_p">并行 <code>filtreg_p</code></h2>
+<p>并行版本额外接收 <code>ibeg/iend/nlat</code> 子域信息：</p>
+<ul>
+<li>若未启用 FFT，按本地纬向范围对 <code>champ_fft</code> 临时数组执行 <code>DGEMM</code> 矩阵滤波。</li>
+<li>若启用 FFT，先复制本地场到 <code>champ_fft</code>，再按 <code>iaire</code> 调 <code>Filtre_inv_fft</code>、<code>Filtre_u_fft</code> 或 <code>Filtre_v_fft</code>。</li>
+<li>结束时将对称/反对称组合写回 <code>champ</code>，并通过 <code>timer_filtre</code> 统计耗时。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>coefils.h</code> 中的 <code>jfiltn*</code>、<code>sddu/sddv</code> 和矩阵数组是滤波纬带与权重的核心状态。</li>
+<li>串行和并行矩阵路径都依赖 BLAS <code>SGEMM/DGEMM</code>；并行路径还依赖 <code>OMP_CHUNK</code> 分块。</li>
+<li>FFT 路径在 <code>filtreg_p</code> 中只在 <code>use_filtre_fft</code> 为真时启用。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Mars 默认配置中 <code>use_filtre_fft</code> 的取值和 <code>conf_gcm</code> 读取路径需由动力配置 hard 页最终确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">filtrez 总览</a></li>
+<li><a href="filtreg_mod.html">filtreg_mod 文件页</a></li>
+<li><a href="filtreg-operators.html">filtreg operators</a></li>
+<li><a href="fft-backends.html">FFT backends</a></li>
+<li><a href="filter-helpers.html">filter helpers</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

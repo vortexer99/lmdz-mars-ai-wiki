@@ -1,0 +1,132 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ioipsl-getin-system - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/misc/ioipsl-getin-system.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="ioipsl-getin-系统组页">IOIPSL getin 系统组页</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\ioipsl_getincom.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\ioipsl_stringop.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\ioipsl_errioipsl.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\ioipsl_getin_p_mod.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>ioipsl_getincom.F90</code> 是无 IOIPSL 或本地 fallback 的 <code>getin</code> 实现，负责读取 <code>.def</code> 风格键值文件、保存 key 表、解析标量和数组。<code>ioipsl_getin_p_mod.F90</code> 位于 <code>phy_common</code>，把 <code>getin</code> 包装成并行安全的 <code>getin_p</code>：root 读取后广播到所有 MPI/OMP 参与者。</p>
+<p>Mars 运行参与度：<code>必经/条件经过</code>。Mars 物理配置大量调用 <code>getin_p</code>；Mars 1D 和部分初始化工具直接调用 <code>getin</code>。<code>datareadnc.F</code> 也直接用 <code>getin("datadir")</code> 定位 <code>surface.nc</code>；该输入链见 <a href="../../routines/mars-utility-netcdf-helper-use.html">Mars utility NetCDF 和 COMMON helper 边界</a>。当编译使用 IOIPSL 时，<code>getin_p</code> 调 IOIPSL 的 <code>getin</code>；否则调本页的 <code>ioipsl_getincom:getin</code>。</p>
+<h2 id="主要接口">主要接口</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>主要符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ioipsl_getincom.F90</code></td>
+<td>1980</td>
+<td><code>getin</code>, <code>getin_dump</code></td>
+<td>标量/1D/2D integer/real/character/logical 配置读取和 dump；父文件页见 <a href="ioipsl_getincom.html">ioipsl_getincom</a>。</td>
+</tr>
+<tr>
+<td><code>ioipsl_stringop.F90</code></td>
+<td>243</td>
+<td>字符串操作 helper</td>
+<td>支撑 key/value 文本清洗、大小写和分隔处理。</td>
+</tr>
+<tr>
+<td><code>ioipsl_errioipsl.F90</code></td>
+<td>219</td>
+<td><code>ipslerr</code> 等错误级别处理</td>
+<td>根据错误级别打印 warning/error/fatal。</td>
+</tr>
+<tr>
+<td><code>phy_common/ioipsl_getin_p_mod.F90</code></td>
+<td>184</td>
+<td><code>getin_p</code> generic</td>
+<td>root 上调用 <code>getin</code>，随后 <code>bcast</code> 标量或数组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="getin-fallback-流程"><code>getin</code> fallback 流程</h2>
+<ol type="1">
+<li>首次调用触发 <code>getin_read</code>，分配文本、key 表和 typed memory。</li>
+<li><code>getin_readdef</code> 逐个打开配置文件，跳过空行和注释，读取 <code>key = value</code>。</li>
+<li><code>getin_decrypt</code> 判断 key 类型，把 integer/real/character/logical 值放入对应存储区。</li>
+<li><code>getin_checkcohe</code> 检查重复 key，源码注释和消息显示保留最后值。</li>
+<li>各 <code>getin*</code> specific procedure 按调用方变量类型和维度回填；找不到 key 时保持调用方默认值。</li>
+<li><code>getin_dump</code> 可输出已读数据库，用于 abort 时或调试时复现配置来源。</li>
+</ol>
+<h2 id="getin_p-并行契约"><code>getin_p</code> 并行契约</h2>
+<ul>
+<li>每个 specific procedure 先执行 <code>!$OMP BARRIER</code>。</li>
+<li>只有 <code>is_mpi_root .AND. is_omp_root</code> 的线程调用 <code>getin</code>。</li>
+<li>标量直接 <code>bcast(VarOut)</code>；character 1D 逐元素广播；integer/real/logical 数组调用对应 <code>bcast</code>。</li>
+<li>因此 Mars 并行物理配置读取必须保证 <code>mod_phys_lmdz_mpi_data</code>、<code>mod_phys_lmdz_omp_data</code> 和 transfer/bcast 已初始化。</li>
+</ul>
+<h2 id="mars-侧典型消费者">Mars 侧典型消费者</h2>
+<ul>
+<li><code>phymars/conf_phys.F</code> 读取 <code>ecritphy</code>、<code>outputs_per_sol</code>、<code>iphysiq</code>、<code>tauvis</code>、<code>callrad</code>、<code>water</code>、<code>co2clouds</code> 等大量物理配置。</li>
+<li><code>dynphy_lonlat/phymars/datareadnc.F</code> 读取 <code>datadir</code>，决定 <code>surface.nc</code> 的输入目录；NetCDF 读取本身仍走 Mars 侧直接 <code>NF_*</code> API。</li>
+<li><code>phymars/aeropacity_mod.F</code>、<code>watercloud_mod.F</code>、<code>initracer.F90</code> 等使用 <code>getin_p</code> 获取局地风暴、微物理和 tracer 参数。</li>
+<li>COMMON <code>dyn3d/conf_gcm.F90</code>、<code>dyn3dpar/conf_gcm.F90</code> 直接使用 <code>ioipsl_getincom</code> 或 IOIPSL <code>getin</code> 读取动力配置。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>ioipsl_getincom.F90</code> 的文件来源、key 表、typed memory、<code>getin_dump</code> 和错误边界已由 <a href="ioipsl_getincom.html">ioipsl_getincom</a> 展开。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">misc 总览</a></li>
+<li><a href="ioipsl_getincom.html">ioipsl_getincom</a></li>
+<li><a href="../phy_common/index.html">phy_common 总览</a></li>
+<li><a href="../phy_common/print-control-abort.html">打印控制和 abort</a></li>
+<li><a href="../../routines/getin-fallback-file-precedence.html">fallback getin 文件来源和 key 表</a></li>
+<li><a href="../../routines/getin-typed-parser.html">typed getin 解析契约</a></li>
+<li><a href="../../routines/mars-utility-netcdf-helper-use.html">Mars utility NetCDF 和 COMMON helper 边界</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

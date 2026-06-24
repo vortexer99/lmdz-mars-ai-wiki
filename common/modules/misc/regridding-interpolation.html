@@ -1,0 +1,125 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>regridding-interpolation - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/misc/regridding-interpolation.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="重网格和插值工具组页">重网格和插值工具组页</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\regr1_lint_m.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\regr3_lint_m.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\regr1_conserv_m.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\interpolation.F90</code></pre>
+<p>Mars 运行参与度：<code>接口兼容/条件经过</code>。本批源码检索未发现 Mars <code>phymars</code> 直接调用这些模块；它们为 COMMON 其他通用插值和后处理路径提供接口。</p>
+<h2 id="模块清单">模块清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>regr1_lint_m.F90</code></td>
+<td>98</td>
+<td><code>regr1_lint</code>, <code>regr11_lint</code>, <code>regr12_lint</code></td>
+<td>一维坐标上的线性插值，支持一列或二维值场。</td>
+</tr>
+<tr>
+<td><code>regr3_lint_m.F90</code></td>
+<td>100</td>
+<td><code>regr3_lint</code>, <code>regr33_lint</code>, <code>regr34_lint</code></td>
+<td>沿第三维重采样 3D/4D 数组。</td>
+</tr>
+<tr>
+<td><code>regr1_conserv_m.F90</code></td>
+<td>358</td>
+<td><code>regr1_conserv</code>, <code>regr11/12/13/14_conserv</code></td>
+<td>按 cell bounds 做分段线性保守平均，可选 slope。</td>
+</tr>
+<tr>
+<td><code>interpolation.F90</code></td>
+<td>138</td>
+<td><code>locate</code>, <code>hunt</code></td>
+<td>Numerical Recipes 风格的二分定位和带初值的 hunt 定位。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="线性插值">线性插值</h2>
+<p><code>regr1_lint</code> 和 <code>regr3_lint</code> 的核心模式相同：</p>
+<ol type="1">
+<li>输入源点 <code>xs</code>、源值 <code>vs</code> 和目标点 <code>xt</code>。</li>
+<li>对每个目标点调用定位逻辑，找到包围区间。</li>
+<li>用线性权重在相邻两个源值之间插值。</li>
+<li>目标点在边界处按源码中的端点规则处理。</li>
+</ol>
+<p><code>regr3_lint</code> 固定沿第三维插值，保留前两维或前三维的其他索引。</p>
+<h2 id="保守重采样">保守重采样</h2>
+<p><code>regr1_conserv</code> 假设 <code>xs</code> 和 <code>xt</code> 描述 cell bounds。每个目标 cell：</p>
+<ol type="1">
+<li>从当前源 cell 起步。</li>
+<li>若目标 cell 完全落在当前源 cell 内，直接用 <code>mean_lin</code>。</li>
+<li>若跨多个源 cell，则逐段累计每个交叠区间的线性均值。</li>
+<li>若提供 <code>slope</code>，<code>mean_lin</code> 使用源 cell 平均值加线性斜率；否则退化为 piecewise constant。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>坐标数组必须单调；<code>locate/hunt</code> 支持升序和降序判断，但调用方需保证输入无重复异常。</li>
+<li>保守重采样按 bounds 面积平均，不是点值插值；目标结果代表 cell mean。</li>
+<li><code>hunt</code> 依赖传入的上一位置 <code>jlo</code>，适合目标点连续扫描时减少二分次数。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 Mars 标准运行是否有间接路径进入这些重网格模块，需在后续 coverage matrix 中由全库 <code>USE regr*</code> 补查。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">misc 总览</a></li>
+<li><a href="../../routines/horizontal-map-functions.html">horizontal-map-functions</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,129 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>filter-helpers - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/filtrez/filter-helpers.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="滤波辅助例程和系数组页">滤波辅助例程和系数组页</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\acc.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\inifgn.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\timer_filtre.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\eigen.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\eigen_sort.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\jacobi.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\coefils.h</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。这些 helper 是动力滤波初始化和诊断计时的支撑，随 <code>filtreg_mod</code> 或 <code>filtreg_p</code> 间接经过。</p>
+<h2 id="文件清单">文件清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inifgn.F</code></td>
+<td>105</td>
+<td>构造滤波所需离散 Laplacian 特征函数/特征值。</td>
+</tr>
+<tr>
+<td><code>acc.F</code></td>
+<td>22</td>
+<td>对向量做累加/归一化式辅助处理。</td>
+</tr>
+<tr>
+<td><code>eigen.F</code></td>
+<td>33</td>
+<td>旧特征处理辅助。</td>
+</tr>
+<tr>
+<td><code>eigen_sort.F</code></td>
+<td>32</td>
+<td>对特征值和特征向量排序。</td>
+</tr>
+<tr>
+<td><code>jacobi.F90</code></td>
+<td>106</td>
+<td>Jacobi 对称矩阵特征求解。</td>
+</tr>
+<tr>
+<td><code>timer_filtre.F90</code></td>
+<td>33</td>
+<td><code>Init_timer/start_timer/stop_timer/Print_filtre_timer</code>。</td>
+</tr>
+<tr>
+<td><code>coefils.h</code></td>
+<td>11</td>
+<td><code>COMMON/coefils/</code> 保存滤波纬带和权重数组。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="初始化链">初始化链</h2>
+<p><code>filtreg_mod</code> 调用 <code>inifgn(eignvl)</code>。<code>inifgn</code>：</p>
+<ol type="1">
+<li>include <code>dimensions.h</code>、<code>paramet.h</code>、<code>comgeom.h</code>、<code>coefils.h</code>。</li>
+<li>构造 U/V 网格相关矩阵。</li>
+<li>调用 <code>jacobi</code> 求特征向量和特征值。</li>
+<li>调用 <code>acc</code> 调整特征向量。</li>
+<li>调用 <code>eigen_sort</code> 使特征值/特征向量顺序稳定。</li>
+</ol>
+<p><code>coefils.h</code> 通过 common block 保存 <code>jfiltnu/jfiltsu/jfiltnv/jfiltsv</code>、<code>sddu/sddv</code> 及对应 inverse 权重，是滤波矩阵构造和主滤波例程共享的状态。</p>
+<p>更细的 <code>filtreg.F</code> 施加流程、<code>ifiltre/iaire/griscal</code> 契约、<code>inifgn -&gt; jacobi/acc/eigen_sort</code> 特征基构造见 <a href="filtreg-operators.html">filtreg-operators</a>。</p>
+<h2 id="计时">计时</h2>
+<p><code>timer_filtre</code> 使用 <code>cpu_time</code> 保存 <code>last_time</code> 和累计耗时。并行 <code>filtreg_p</code> 在进入滤波前 <code>start_timer</code>，结束时 <code>stop_timer</code>。</p>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>eigen.F</code> 中旧特征处理路径目前是否仍被实际调用，当前 <code>inifgn</code> 主路径使用 <code>jacobi</code> 和 <code>eigen_sort</code>。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">filtrez 总览</a></li>
+<li><a href="filtreg-system.html">filtreg system</a></li>
+<li><a href="filtreg-operators.html">filtreg operators</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

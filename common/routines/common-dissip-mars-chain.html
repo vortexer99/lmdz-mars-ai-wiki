@@ -1,0 +1,167 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>common-dissip-mars-chain - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/common-dissip-mars-chain.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-水平耗散链路">Mars 水平耗散链路</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d\dissip.F
+dyn3dpar\dissip_p.F
+dyn3d\leapfrog.F
+dyn3dpar\leapfrog_p.F
+dyn3d_common\inidissip.F90</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。耗散由 <code>apdiss</code> 门控，按 <code>dissip_period</code> 在非 forward 步触发；<code>llm==1</code> 和 <code>NODYN</code> 编译选项会抑制。</p>
+<h2 id="链路定位">链路定位</h2>
+<p>本页覆盖 Mars run 中水平耗散从初始化到施加再到守恒修正的完整数据链路，侧重各阶段之间的数据流、内部算子调用和串并行差异。<code>apdiss</code> 门控的 leapfrog 侧细节由 <a href="leapfrog-dissipation-conservation.html">leapfrog-dissipation-conservation</a> 覆盖；算子族本身的离散格式由 <a href="differential-operators-overview.html">差分算子总览</a> 覆盖；<code>inidissip</code> 的配置和校验细节由 <a href="../modules/dyn3d_common/inidissip.html">inidissip 文件页</a> 覆盖。</p>
+<h2 id="链路阶段">链路阶段</h2>
+<h3 id="阶段-1inidissip-配置输出">阶段 1：inidissip 配置输出</h3>
+<p>初始化阶段由 <code>inidissip.F90</code> 完成，它读取 <code>conf_gcm</code> 的耗散配置键，通过幂迭代估算各算子最大特征值，构造垂直耗散剖面，最终写入两个 COMMON 块：</p>
+<p><code>comdissipn.h</code> 携带每层耗散时间尺度 <code>tetaudiv(llm)</code>、<code>tetaurot(llm)</code>、<code>tetah(llm)</code> 和全局系数 <code>cdivu</code>、<code>crot</code>、<code>cdivh</code>。<code>comdissnew.h</code> 携带算子选择逻辑 <code>lstardis</code>、迭代次数 <code>nitergdiv/nitergrot/niterh</code> 和中间参数 <code>tetagdiv/tetagrot/tetatemp</code>。</p>
+<p><code>inidissip</code> 还计算 <code>dissip_period</code> 并写回 <code>comconst_mod</code>，供 leapfrog 门控使用。</p>
+<h3 id="阶段-2apdiss-门控">阶段 2：apdiss 门控</h3>
+<p>leapfrog 主循环每步重置 <code>apdiss=.FALSE.</code>，再按以下条件设置：</p>
+<ul>
+<li><code>purmats</code> 模式：<code>MOD(itau,dissip_period)==0</code> 且 <code>.NOT.forward</code>。</li>
+<li>leapfrog 模式：<code>MOD(itau+1,dissip_period)==0</code> 且 <code>.NOT.forward</code>。</li>
+<li><code>llm==1</code>（Shallow Water）强制抑制。</li>
+<li><code>#ifdef NODYN</code> 编译选项强制抑制。</li>
+</ul>
+<p>当 <code>apdiss</code> 为真时，leapfrog 进入耗散段。</p>
+<h3 id="阶段-3耗散前准备">阶段 3：耗散前准备</h3>
+<p>进入 <code>IF(apdiss)</code> 块后，在调用 <code>dissip</code> 之前依次执行：</p>
+<ol type="1">
+<li><strong>sponge</strong>：若 <code>callsponge</code> 为真，先调用 <code>sponge(ucov,vcov,teta,ps,dtdiss,mode_sponge)</code> 施加顶层阻尼，修改进入水平耗散的风场和温度状态。</li>
+<li><strong>动能基准</strong>：<code>covcont</code> 把协变风转为逆变风，<code>enercin</code> 计算耗散前动能 <code>ecin0(ij,l)</code>。</li>
+<li><strong>位温转温度</strong>：<code>tpot2t</code> 把 <code>teta</code> 转为 <code>temp</code>，供后续 conservative 修正使用。</li>
+</ol>
+<h3 id="阶段-4dissip-内部三路施加">阶段 4：dissip 内部三路施加</h3>
+<p><code>dissip</code>（串行 149 行）和 <code>dissip_p</code>（并行 215 行）签名相同：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> dissip( vcov,ucov,teta,p, dv,du,dh )</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="dt">REAL</span>,<span class="dt">INTENT(IN)</span>  <span class="dt">::</span> vcov(ip1jm,llm), ucov(ip1jmp1,llm), teta(ip1jmp1,llm<span class="co">), p(ip1jmp1,llmp1)</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="dt">REAL</span>,<span class="dt">INTENT(OUT)</span> <span class="dt">::</span> dv(ip1jm,llm), du(ip1jmp1,llm), dh(ip1jmp1,llm)</span></code></pre></div>
+<p>输入是协变风 <code>ucov/vcov</code>、位温 <code>teta</code> 和层界压力 <code>p</code>；输出是三个增量数组（不是 tendency 率，是增量）。内部按三路执行：</p>
+<p><strong>第一路 grad(div)</strong>：从 <code>comdissipn</code> 取 <code>tetaudiv(l)</code>，乘以 <code>dtdiss</code> 得到 <code>te1dt(l)</code>。按 <code>lstardis</code> 调用 <code>gradiv2</code>/<code>gradiv</code>（或 <code>_p</code> 并行变体），对协变风场做 <code>nitergdiv</code> 次迭代，输出 <code>gdx/gdy</code>。在极点 <code>ij=1..iip1</code> 处把 <code>gdx</code> 置零，再把 <code>-te1dt*gdx</code> 加到 <code>du</code>、<code>-te1dt*gdy</code> 加到 <code>dv</code>。</p>
+<p><strong>第二路 n×grad(rot)</strong>：从 <code>comdissipn</code> 取 <code>tetaurot(l)</code>，乘以 <code>dtdiss</code> 得到 <code>te2dt(l)</code>。按 <code>lstardis</code> 调用 <code>nxgraro2</code>/<code>nxgrarot</code>（或 <code>_p</code>），对协变风场做 <code>nitergrot</code> 次迭代，输出 <code>grx/gry</code>。在极点 <code>ij=1..iip1</code> 处把 <code>grx</code> 置零，再把 <code>-te2dt*grx</code> 加到 <code>du</code>、<code>-te2dt*gry</code> 加到 <code>dv</code>。</p>
+<p><strong>第三路 div(grad)</strong>：从 <code>comdissipn</code> 取 <code>tetah(l)</code>，乘以 <code>dtdiss</code> 得到 <code>te3dt(l)</code>。当 <code>lstardis</code> 为真时，先计算 <code>deltapres(ij,l)=AMAX1(0.,p(ij,l)-p(ij,l+1))</code>（层压差，保证非负），然后调用 <code>divgrad2(llm,teta,deltapres,niterh,gdx)</code>；否则调用 <code>divgrad(llm,teta,niterh,gdx)</code>。把 <code>-te3dt*gdx</code> 加到 <code>dh</code>。</p>
+<p>注意 <code>lstardis</code> 控制 star 变体选择：star 算子（<code>gradiv2</code>、<code>nxgraro2</code>、<code>divgrad2</code>）是改进版，<code>divgrad2</code> 额外接受 <code>deltapres</code> 做权重。标准版（<code>gradiv</code>、<code>nxgrarot</code>、<code>divgrad</code>）不接受压力权重。</p>
+<h3 id="阶段-5风场更新和-conservative-修正">阶段 5：风场更新和 conservative 修正</h3>
+<p><code>dissip</code> 返回后，leapfrog 执行：</p>
+<ol type="1">
+<li><strong>风场更新</strong>：<code>ucov=ucov+dudis</code>、<code>vcov=vcov+dvdis</code>。</li>
+<li><strong>tendency 转换</strong>：<code>dudis=dudis/dtdiss</code>、<code>dvdis=dvdis/dtdiss</code>，从增量转为 <code>(m/s)/s</code> 率，供后续诊断和输出。</li>
+<li><strong>conservative 修正</strong>：若 <code>dissip_conservative</code> 为真（串行是 <code>SAVE</code> 逻辑量默认 <code>.true.</code>，并行是 <code>PARAMETER .TRUE.</code>），重新计算更新后的动能 <code>ecin</code>，把动能损失 <code>(ecin0-ecin)</code> 以热力形式回注：<code>temp=temp+(ecin0-ecin)/cpdet(temp)</code>，再通过 <code>t2tpot</code> 转回位温修正 <code>ztetaec</code>，叠加到 <code>dtetadis</code>。</li>
+<li><strong>温度更新</strong>：<code>teta=teta+dtetadis</code>，再 <code>dtetadis=dtetadis/dtdiss</code> 转成 <code>K/s</code> 率。</li>
+<li><strong>极点温度平均</strong>：用面积加权把极点 <code>iip1</code> 个格点的 <code>teta</code> 统一为极区均值。</li>
+</ol>
+<h3 id="阶段-6leapfrog_nogcm-排除">阶段 6：leapfrog_nogcm 排除</h3>
+<p>MARS <code>phymars/leapfrog_nogcm.F</code> 不设置 <code>apdiss</code>、不调用 <code>sponge</code>/<code>dissip</code>/<code>covcont</code>/<code>enercin</code>。所有耗散相关代码已被注释删除（ED18 标注）。它保留 <code>dudis/dvdis/dtetadis</code> 数组和 <code>comdissnew.h</code> include 仅为接口兼容；COMMON 6.3 已删除 <code>dyn3d/leapfrog_nogcm.F</code>。</p>
+<h2 id="串并行差异">串并行差异</h2>
+<h3 id="并行-halo-和-band-切换">并行 halo 和 band 切换</h3>
+<p><code>leapfrog_p</code> 在进入耗散段前执行 halo 请求注册和发送（<code>Register_Hallo</code>/<code>SendRequest</code>/<code>WaitRequest</code>），确保 <code>ucov/vcov/teta/p</code> 的子域边界带满足 stencil 宽度。随后通过 <code>SetDistrib(jj_Nb_dissip)</code> 切换到耗散专用的 band 分布，并启动 <code>timer_dissip</code> 计时。</p>
+<h3 id="openmp-差异">OpenMP 差异</h3>
+<p>串行 <code>dissip.F</code> 中所有循环是普通 <code>DO</code>，输出数组 <code>du/dv/dh</code> 整体置零。并行 <code>dissip_p.F</code> 中循环带 <code>c$OMP DO SCHEDULE(STATIC,OMP_CHUNK)</code>，输出数组按 <code>ij_begin:ij_end</code> 子域置零。极点零化条件也不同：串行无条件清除南北两极 <code>ij=1..iip1</code> 和 <code>ij=ip1jm+1..ip1jmp1</code>；并行按 <code>pole_nord</code>/<code>pole_sud</code> 逻辑量条件清除。</p>
+<h3 id="conservative-修正的并行-halo">conservative 修正的并行 halo</h3>
+<p>并行版在 conservative 修正前需要额外一次 halo 交换：更新后的 <code>ucov/vcov</code> 必须同步边界才能重新计算 <code>ecin</code>。串行版不需要这次通信。</p>
+<h3 id="dissip_conservative-声明差异">dissip_conservative 声明差异</h3>
+<p>串行版中 <code>dissip_conservative</code> 是 <code>SAVE</code> 逻辑量，初始化为 <code>.true.</code>，理论上可在运行时修改。并行版中是 <code>PARAMETER</code>，编译期固定为 <code>.TRUE.</code>。</p>
+<h2 id="输入输出数据流">输入输出数据流</h2>
+<pre><code>inidissip → comdissipn{tetaudiv,tetaurot,tetah,cdivu,crot,cdivh}
+          → comdissnew{lstardis,nitergdiv,nitergrot,niterh,...}
+          → comconst_mod{dissip_period}
+
+leapfrog apdiss gate ← dissip_period, itau, forward, llm
+
+sponge(ucov,vcov,teta,ps) → 修改 ucov,vcov,teta
+covcont(ucov,vcov) → ucont,vcont
+enercin(vcov,ucov,vcont,ucont) → ecin0
+
+dissip(vcov,ucov,teta,p) ← comdissipn, comdissnew, comconst_mod{dtdiss}
+      ├─ gradiv/gradiv2(ucov,vcov,nitergdiv) → gdx,gdy → du,dv
+      ├─ nxgrarot/nxgraro2(ucov,vcov,nitergrot) → grx,gry → du,dv
+      └─ divgrad/divgrad2(teta,deltapres,niterh) → gdx → dh
+
+ucov += dudis; vcov += dvdis
+dudis /= dtdiss; dvdis /= dtdiss  → (m/s)/s
+
+if dissip_conservative:
+  covcont + enercin → ecin
+  temp += (ecin0-ecin)/cpdet(temp)
+  t2tpot → ztetaec
+  dtetadis += ztetaec - teta
+
+teta += dtetadis
+dtetadis /= dtdiss  → K/s
+极点 teta 面积加权平均</code></pre>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现耗散链路必须先完成 <code>inidissip</code>，否则 <code>comdissipn</code> 和 <code>comdissnew</code> 中的系数和开关未初始化。</li>
+<li><code>dissip_period</code> 决定施加频率：Mars 常用值来自 <code>inidissip</code> 自动计算，而非用户直接指定。</li>
+<li><code>lstardis</code> 为真时走 star 算子路径，<code>divgrad2</code> 需要 <code>deltapres</code> 做压力权重；为假时走标准路径，<code>divgrad</code> 不需要。</li>
+<li>增量和 tendency 的区分：<code>dissip</code> 输出增量（乘过 <code>dtdiss</code>），leapfrog 加到风场后才除以 <code>dtdiss</code> 得到率。复现诊断输出时必须使用转换后的率。</li>
+<li>conservative 修正是动能→热能的单方向注入，不会改变风场，只改变 <code>temp/teta</code>。</li>
+<li>并行的 halo 交换是正确性关键：遗漏 stencil 边界同步会导致算子边界计算错误，且误差随迭代次数放大。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>lstardis</code> 在 Mars 当前 COMMON/MARS 配置下的实际值需从 <code>conf_gcm</code>/<code>run.def</code> 追踪确认。</li>
+<li><code>sponge</code> 的 <code>callsponge</code> 和 <code>mode_sponge</code> 在 Mars 运行中的默认值需在 sponge 页面补齐。</li>
+<li><code>dissip_p</code> 内部 <code>pole_sud</code> 条件下 <code>ije=ij_end-iip1</code> 的范围缩减对 <code>dv</code> 零化与施加的影响，需与串行 <code>ij+ip1jm</code> 处的零化做几何对齐确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3d_common/inidissip.html">inidissip</a></li>
+<li><a href="dissip-serial-parallel.html">dissip 串并行对照</a></li>
+<li><a href="leapfrog-dissipation-conservation.html">leapfrog 耗散、sponge 和守恒修正</a></li>
+<li><a href="differential-operators-overview.html">差分算子总览</a></li>
+<li><a href="common-dissipation-stencil-families.html">水平微分/耗散 stencil family 深度页</a></li>
+<li><a href="dynamics-initializers.html">动力初始化辅助例程</a></li>
+<li><a href="common-wind-massflux-operators.html">风场转换与质量通量算子组</a></li>
+<li><a href="common-energy-vorticity-operators.html">动能、Bernoulli、位势涡度与位势高度算子</a></li>
+<li><a href="exner-cpdet-helpers.html">Exner 函数与 cp(T) 变比热路径</a></li>
+<li><a href="../modules/dyn3d/conf_gcm.html">conf_gcm</a></li>
+<li><a href="../modules/dyn3dpar/leapfrog_p.html">leapfrog_p</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,207 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mars-utility-netcdf-helper-use - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/mars-utility-netcdf-helper-use.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-utility-netcdf-和-common-helper-边界">Mars utility NetCDF 和 COMMON helper 边界</h1>
+<p>源码范围：</p>
+<ul>
+<li><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\datareadnc.F</code></li>
+<li><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\newstart.F</code></li>
+<li><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\start2archive.F</code></li>
+<li><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\ini_archive.F</code></li>
+<li><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\write_archive.F</code></li>
+<li><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\readhead_NC.F</code></li>
+<li><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\lect_start_archive.F</code></li>
+<li>COMMON helper：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\netcdf95.F90</code>、<code>handle_err_m.F90</code>、<code>new_unit_m.F90</code>、<code>ioipsl_getincom.F90</code></li>
+</ul>
+<p>状态：TASK-0195 完成。本文只说明 Mars utility 的 NetCDF 读写方式、COMMON helper 的真实边界和复现排错顺序；start/restart/archive 文件职责见 <a href="mars-start-restart-archive-boundary.html">Mars start/restart/archive 边界</a>，COMMON 状态恢复见 <a href="mars-utility-common-state-consumers.html">Mars utility COMMON 状态消费链</a>。</p>
+<h2 id="结论">结论</h2>
+<p>Mars <code>newstart/start2archive/archive</code> 工具链没有直接使用 COMMON <code>netcdf95</code> 聚合模块，也没有直接调用 <code>handle_err_m</code> 或 <code>new_unit_m</code>。这些 Mars utility 主要通过：</p>
+<pre class="text"><code>include &quot;netcdf.inc&quot;
+  -&gt; NF_OPEN / NF_CREATE
+  -&gt; NF_INQ_* / NF_GET_* / NF_PUT_*
+  -&gt; 手写 ierr 检查
+  -&gt; write/print + stop 或 call abort</code></pre>
+<p>COMMON <code>netcdf95</code> wrapper 的 <code>nf95_* -&gt; handle_err -&gt; abort_physic</code> 语义只适用于实际调用 <code>nf95_*</code> 的 COMMON 代码，例如 <code>dynredem/dynredem_p</code> 写 restart、<code>guide_mod/guide_p_mod</code> 写 guide 系数。不要把这套错误处理自动套到 Mars archive utility 的 <code>NF_*</code> 调用上。</p>
+<p>直接 COMMON helper 交集主要是 <code>getin</code>：<code>datareadnc.F</code> 通过 <code>getin("datadir",datadir)</code> 定位 <code>surface.nc</code>，1D/testphys1d 路径通过 <code>getin</code> 读取列模式配置。NetCDF archive 读写本身仍是 Mars 侧 F77 NetCDF API 和 Mars 侧 helper 组合。</p>
+<h2 id="参与者对照">参与者对照</h2>
+<table>
+<thead>
+<tr>
+<th>文件或模块</th>
+<th>NetCDF/helper 使用</th>
+<th>错误处理</th>
+<th>复现关注点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datareadnc.F</code></td>
+<td><code>include "netcdf.inc"</code>；<code>NF_OPEN</code> 读 <code>surface.nc</code>；<code>NF_INQ_VARID</code> 和 <code>NF_GET_VAR_DOUBLE/REAL</code> 读经纬度与 surface 变量；<code>getin("datadir")</code> 覆盖数据目录。</td>
+<td>缺变量或读取失败时 <code>write(*,*)</code> 后 <code>stop</code>。</td>
+<td><code>datadir</code>、<code>surface.nc</code> 路径、变量名、单/双精度 build。</td>
+</tr>
+<tr>
+<td><code>newstart.F</code></td>
+<td><code>NF_OPEN</code> 打开 <code>start_archive.nc</code> 或 <code>start.nc/startfi.nc</code>；读取 <code>controle</code> 后进入 <code>lect_start_archive</code> 或 <code>dynetat0/phyetat0</code>。</td>
+<td>多处手写 <code>ierr</code> 检查、<code>stop</code> 或 <code>call abort</code>。</td>
+<td>输入选择、<code>controle</code> 是否存在、archive 分支与 start/startfi 分支的关闭和后续写出。</td>
+</tr>
+<tr>
+<td><code>start2archive.F</code></td>
+<td><code>NF_OPEN</code> 读 <code>startfi.nc</code> 控制表；<code>NF_OPEN(...,NF_WRITE)</code> 或 <code>NF_CREATE</code> 写 <code>start_archive.nc</code>；写 <code>Time</code> 后调用 <code>ini_archive/write_archive</code>。</td>
+<td><code>CALL abort</code>、<code>NF_STRERROR(ierr)</code> + <code>stop</code>。</td>
+<td><code>startfi.nc</code> 可读、archive 是否可写、<code>Time</code> unlimited 维和追加位置。</td>
+</tr>
+<tr>
+<td><code>ini_archive.F</code></td>
+<td>定义 archive 维度、变量和属性，写 <code>controle</code>、经纬度、垂直坐标和固定字段。</td>
+<td>每段写操作局部检查；不经过 <code>handle_err_m</code>。</td>
+<td>header 变量完整性、<code>controle</code> 前 50/后 50 段和垂直坐标变量。</td>
+</tr>
+<tr>
+<td><code>write_archive.F</code></td>
+<td>先 <code>NF_INQ_VARID</code>，缺变量时查维度并调用 Mars <code>def_var</code>，再 <code>NF_PUT_VARA_DOUBLE/REAL</code> 按 <code>Time</code> 写。</td>
+<td>打印 <code>NF_STRERROR(ierr)</code> 后 <code>call abort</code>。</td>
+<td>懒定义变量、维度匹配、<code>def_var</code> 是 Mars helper 而非 COMMON wrapper。</td>
+</tr>
+<tr>
+<td><code>readhead_NC.F</code></td>
+<td><code>NF_OPEN</code> 读 archive header、<code>controle</code>、经纬度、<code>aps/bps</code> 等。</td>
+<td>严格缺字段时 <code>PRINT*</code> + <code>CALL abort</code> 或 <code>STOP</code>。</td>
+<td>文件维度必须匹配当前编译维度；header 缺项通常不是 fallback。</td>
+</tr>
+<tr>
+<td><code>lect_start_archive.F</code></td>
+<td>大量 <code>NF_INQ_DIMID/DIMLEN/VARID</code> 和 <code>NF_GET_VAR*</code> 读取 archive 变量，再插值/缩放。</td>
+<td>缺字段按变量语义分为 fallback、默认或 abort。</td>
+<td>旧 archive 兼容逻辑集中在此处，不能外推到所有 header 读取器。</td>
+</tr>
+<tr>
+<td>COMMON <code>netcdf95</code></td>
+<td><code>nf95_open/create/def/get/put/att/close</code> wrapper，供 COMMON 调用者使用。</td>
+<td>未传 <code>ncerr</code> 时调用 <code>handle_err</code>，可关闭 <code>ncid</code> 后 <code>abort_physic</code>。</td>
+<td>只对 <code>nf95_*</code> 调用生效；Mars utility <code>NF_*</code> 不进入此链。</td>
+</tr>
+<tr>
+<td>COMMON <code>new_unit_m</code></td>
+<td><code>new_unit</code> 从 <code>unit=0</code> 开始 <code>INQUIRE</code>，找存在且未打开的 Fortran unit。</td>
+<td>无 NetCDF 错误处理。</td>
+<td>当前 6.3 源码没有 10..99 上限；不要沿用旧描述。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="datareadncf-的输入链"><code>datareadnc.F</code> 的输入链</h2>
+<p><code>datareadnc.F</code> 是 Mars surface 数据读取入口。它从 <code>datafile_mod</code> 取默认 <code>datadir="/u/lmdz/WWW/planets/mars/datadir"</code>，随后调用 <code>getin("datadir",datadir)</code> 允许 <code>.def</code> 文件覆盖路径，再打开 <code>surface.nc</code>。</p>
+<p>读取顺序可按以下方式复现：</p>
+<ol type="1">
+<li>确认运行目录或配置文件能让 <code>getin</code> 看到 <code>datadir</code>；没有配置时使用源码默认路径。</li>
+<li>确认 <code>surface.nc</code> 存在，并包含 <code>latitude</code>、<code>longitude</code> 和所需 surface 变量。</li>
+<li>代码按 <code>NC_DOUBLE</code> 编译分支选择 <code>NF_GET_VAR_DOUBLE</code> 或 <code>NF_GET_VAR_REAL</code>。</li>
+<li>读取后的 360x180 数据补周期列，再经 <a href="../modules/dyn3d/interp_horiz.html">dyn3d/interp_horiz</a> 映射到当前动力网格。</li>
+</ol>
+<p>这里唯一直接 COMMON 配置 helper 是 <code>ioipsl_getincom:getin</code>。NetCDF 读取本身不走 <code>netcdf95</code>，所以缺变量时表现为局部 <code>write</code> 和 <code>stop</code>，不是 <code>abort_physic("NetCDF95 handle_err",...)</code>。</p>
+<h2 id="newstartf-的两条-netcdf-入口"><code>newstart.F</code> 的两条 NetCDF 入口</h2>
+<p><code>newstart.F</code> 先由用户选择输入类型：</p>
+<ul>
+<li><code>start_archive.nc</code>：<code>NF_OPEN(...,NF_NOWRITE,nid)</code>，读取 archive 的 <code>controle</code>，再由 <code>tabfi</code> 读物理控制段，后续调用 <code>lect_start_archive</code> 插值到当前网格。</li>
+<li><code>start.nc</code> + <code>startfi.nc</code>：分别 <code>NF_OPEN(...,nid_dyn)</code> 和 <code>NF_OPEN(...,nid_fi)</code> 读两个 <code>controle</code>，然后调 <code>dynetat0/phyetat0</code> 恢复动力和物理状态。</li>
+</ul>
+<p>复现时要把 <code>NF_OPEN</code> 层的“文件是否可打开”和后续恢复层分开排查。<code>newstart</code> 读到 <code>controle</code> 之后，还会重建 <code>comconst_mod/comvert_mod/geometry_mod</code> 等 COMMON 状态；因此 NetCDF 文件存在并不等于状态已经可写 restart。</p>
+<h2 id="start2archivefini_archivef-和-write_archivef"><code>start2archive.F</code>、<code>ini_archive.F</code> 和 <code>write_archive.F</code></h2>
+<p><code>start2archive.F</code> 是写 archive 的顶层：</p>
+<pre class="text"><code>startfi.nc controle
+  -&gt; dynetat0/phyetat0 恢复 start/startfi
+  -&gt; gr_fi_dyn 把物理字段转回动力 scalar 网格
+  -&gt; NF_OPEN start_archive.nc for write
+  -&gt; 若不存在则 NF_CREATE + ini_archive
+  -&gt; 写 Time
+  -&gt; write_archive 按字段追加</code></pre>
+<p><code>ini_archive.F</code> 定义固定 header、坐标和垂直坐标变量。<code>write_archive.F</code> 负责按时间记录追加字段；如果字段不存在，它会调用 Mars 侧 <code>def_var</code> 定义变量。这是 Mars archive helper，不是 COMMON <code>nf95_def_var</code>。</p>
+<p>复现写出失败时，优先检查：</p>
+<ol type="1">
+<li><code>startfi.nc</code> 的 <code>controle</code> 能否读取。</li>
+<li>当前目录对 <code>start_archive.nc</code> 是否有写权限，已有文件是否可 <code>NF_WRITE</code> 打开。</li>
+<li><code>Time</code> 维和变量是否已由 <code>ini_archive</code> 定义。</li>
+<li><code>write_archive</code> 要写的变量维度是否和 <code>def_var</code> 分支匹配。</li>
+</ol>
+<h2 id="readhead_ncf-和-lect_start_archivef"><code>readhead_NC.F</code> 和 <code>lect_start_archive.F</code></h2>
+<p><code>readhead_NC.F</code> 是相对严格的 header 读取器：读取 <code>controle</code> 后检查 <code>im/jm/lllm</code> 是否匹配当前编译维度，再读取经纬度、面积、地形和 <code>aps/bps</code> 等固定字段。缺关键字段时通常直接 <code>CALL abort</code> 或 <code>STOP</code>。</p>
+<p><code>lect_start_archive.F</code> 更像兼容层。它读取旧 archive 的维度、垂直坐标和变量，判断是否需要水平/垂直插值，并对部分缺失变量提供 fallback 或默认行为。这个兼容性属于 archive 重建路径，不能推广为所有 <code>NF_GET_*</code> 调用都可以容错。</p>
+<h2 id="common-netcdf95-的边界">COMMON <code>netcdf95</code> 的边界</h2>
+<p>COMMON <code>netcdf95.F90</code> 聚合 <code>simple</code>、<code>nf95_def_var_m</code>、<code>nf95_get_var_m</code>、<code>nf95_put_var_m</code>、attribute wrapper 和 <code>handle_err_m</code>。调用方若不传可选 <code>ncerr</code>，wrapper 会在底层 <code>nf90_*</code> 返回错误时进入：</p>
+<pre class="text"><code>handle_err(message,ncerr,ncid,varid)
+  -&gt; print message and nf90_strerror
+  -&gt; optional nf90_close(ncid)
+  -&gt; abort_physic(&quot;NetCDF95 handle_err&quot;,&quot;&quot;,1)</code></pre>
+<p>这条链在 COMMON <code>dynredem/dynredem_p</code>、<code>guide_mod/guide_p_mod</code> 等 <code>nf95_*</code> 调用点成立。Mars utility 的 <code>include "netcdf.inc"</code> + <code>NF_*</code> 调用点不会自动进入这条链；其错误消息和终止方式取决于每个 Mars 文件自己的 <code>ierr</code> 分支。</p>
+<h2 id="复现检查清单">复现检查清单</h2>
+<p>排查 Mars utility NetCDF 问题时，按实际路径分流：</p>
+<ol type="1">
+<li><code>datareadnc</code> surface 输入：检查 <code>datadir</code>、<code>surface.nc</code>、<code>latitude/longitude</code> 和 surface 变量名。</li>
+<li><code>newstart</code> archive 输入：检查 <code>start_archive.nc</code>、<code>controle</code>、<code>tabfi</code> 物理控制段、<code>lect_start_archive</code> 缺字段日志。</li>
+<li><code>newstart</code> start/startfi 输入：检查 <code>start.nc</code> 与 <code>startfi.nc</code> 都存在且各自 <code>controle</code> 可读；再看 <code>dynetat0/phyetat0</code> 选择的 <code>Time</code>。</li>
+<li><code>start2archive</code> 写出：检查 <code>startfi.nc</code> 控制表、<code>start_archive.nc</code> 写权限、<code>Time</code> 维和 <code>write_archive</code> 变量定义。</li>
+<li>COMMON wrapper 报错：只有看到 <code>nf95_*</code> 或 <code>NetCDF95 handle_err</code> 上下文时，才按 <code>netcdf95</code> wrapper 链排查。</li>
+</ol>
+<h2 id="风险和待确认">风险和待确认</h2>
+<ul>
+<li>本页为静态源码核对，未运行真实 <code>start_archive.nc/start.nc/startfi.nc/surface.nc</code> 样例。</li>
+<li><code>newstart.F</code> 对 <code>nid_dyn/nid_fi</code> 的关闭路径未作为本页主结论；如排查文件句柄泄漏，需要单独跟踪所有分支。</li>
+<li><code>lect_start_archive.F</code> 对缺失变量的容错粒度很细，本页只给边界说明；具体变量缺失行为需按变量名回到源码分支确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="mars-utility-common-state-consumers.html">Mars utility COMMON 状态消费链</a></li>
+<li><a href="mars-utility-constants-vertical.html">Mars utility 常量和垂直坐标消费链</a></li>
+<li><a href="mars-start-restart-archive-boundary.html">Mars start/restart/archive 边界</a></li>
+<li><a href="../modules/dyn3d/interp_horiz.html">dyn3d 水平面积交叠插值</a></li>
+<li><a href="../modules/misc/netcdf95-wrappers.html">NetCDF95 wrapper 组页</a></li>
+<li><a href="../modules/misc/ioipsl-getin-system.html">IOIPSL getin 系统</a></li>
+<li><a href="dynredem-restart.html">dynredem restart 写出串并行对照</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

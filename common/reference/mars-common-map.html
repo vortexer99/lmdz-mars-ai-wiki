@@ -1,0 +1,414 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mars-common-map - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="file-index.html">文件索引</a>
+        <a href="source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>reference/mars-common-map.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-common-文件功能映射表">MARS-COMMON 文件/功能映射表</h1>
+<p>页面状态：初版，基于文件名、路径转发文件和 <code>USE</code>/<code>CALL</code> 搜索建立。<br />
+源码范围：<code>LMDZ.MARS</code> 与 <code>LMDZ.COMMON-6.3\LMDZ.COMMON</code>。 用途：从 MARS 侧反查 COMMON 的公共动力、接口和支撑文件。</p>
+<h2 id="关系类型">关系类型</h2>
+<table>
+<thead>
+<tr>
+<th>关系</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>direct-path-forward</code></td>
+<td>MARS 文件内容只有一行相对路径，直接指向 COMMON 文件；这是最高置信关系。</td>
+</tr>
+<tr>
+<td><code>planet-specific-variant</code></td>
+<td>MARS 与 COMMON 中 Venus/Titan 等目录存在同名文件，表示同类流程的行星专用实现，不等价。</td>
+</tr>
+<tr>
+<td><code>common-provider</code></td>
+<td>MARS 文件通过 <code>USE</code> 或 <code>CALL</code> 使用 COMMON 模块/例程。</td>
+</tr>
+<tr>
+<td><code>same-name-candidate</code></td>
+<td>仅由同名发现，需后续文件页核验。</td>
+</tr>
+<tr>
+<td><code>no-direct-match</code></td>
+<td>当前未发现直接 COMMON 对应文件。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="直接路径转发">直接路径转发</h2>
+<p>这些 MARS <code>dyn1d</code> 文件内容为 <code>../../../../LMDZ.COMMON/...</code> 形式，等价于把 COMMON 文件暴露给 MARS 1D 物理测试链。接口契约见 <a href="../routines/mars-dyn1d-common-forwarding.html">Mars dyn1d COMMON 直接转发契约</a>。</p>
+<table>
+<thead>
+<tr>
+<th>MARS 路径</th>
+<th>COMMON 路径</th>
+<th>关系</th>
+<th>功能角色</th>
+<th>对应 COMMON 任务</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d\abort_gcm.F</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d\abort_gcm.F</code></td>
+<td><code>direct-path-forward</code></td>
+<td>动力侧 abort 例程</td>
+<td>TASK-0077 后续候选</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d\comconst_mod.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\comconst_mod.F90</code></td>
+<td><code>direct-path-forward</code></td>
+<td>动力常量和行星参数状态</td>
+<td>TASK-0076/TASK-0077 相关</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d\comgeom.h</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\comgeom.h</code></td>
+<td><code>direct-path-forward</code></td>
+<td>动力网格几何 include</td>
+<td>TASK-0003 后续候选</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d\comvert_mod.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\comvert_mod.F90</code></td>
+<td><code>direct-path-forward</code></td>
+<td>垂直坐标状态</td>
+<td>TASK-0056 相关</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d\control_mod.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\control_mod.F90</code></td>
+<td><code>direct-path-forward</code></td>
+<td>GCM 控制变量</td>
+<td>TASK-0037/TASK-0052 相关</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d\disvert_noterre.F</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\disvert_noterre.F</code></td>
+<td><code>direct-path-forward</code></td>
+<td>非地球垂直离散</td>
+<td>TASK-0056</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d\ener_mod.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\ener_mod.F90</code></td>
+<td><code>direct-path-forward</code></td>
+<td>动力能量状态</td>
+<td>TASK-0076</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d\infotrac.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\infotrac.F90</code></td>
+<td><code>direct-path-forward</code></td>
+<td>tracer 元数据和配置</td>
+<td>TASK-0051</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d\logic_mod.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d\logic_mod.F90</code></td>
+<td><code>direct-path-forward</code></td>
+<td>动力逻辑开关</td>
+<td>TASK-0004 后续候选</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d\mod_const_mpi.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3dpar\mod_const_mpi.F90</code></td>
+<td><code>direct-path-forward</code></td>
+<td>MPI 常量/通信器占位</td>
+<td>TASK-0072</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d\mod_interface_dyn_phys.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\mod_interface_dyn_phys.F90</code></td>
+<td><code>direct-path-forward</code></td>
+<td>动力-物理接口状态</td>
+<td>TASK-0080</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d\parallel_lmdz.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3dpar\parallel_lmdz.F90</code></td>
+<td><code>direct-path-forward</code></td>
+<td>并行抽象初始化</td>
+<td>TASK-0069</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d\paramet.h</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\paramet.h</code></td>
+<td><code>direct-path-forward</code></td>
+<td>动力维度 include</td>
+<td>TASK-0003 后续候选</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d\serre_mod.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\serre_mod.F90</code></td>
+<td><code>direct-path-forward</code></td>
+<td>数值状态/工作数组模块</td>
+<td>TASK-0077 相关</td>
+</tr>
+</tbody>
+</table>
+<h2 id="动力-物理接口同名变体">动力-物理接口同名变体</h2>
+<p>这些文件在 MARS 的 <code>dynphy_lonlat\phymars</code> 与 COMMON 的 <code>dynphy_lonlat\phyvenus</code>、<code>dynphy_lonlat\phytitan.old</code> 中同名。当前只能说明它们承担同类行星专用流程；不能默认实现相同。</p>
+<table>
+<thead>
+<tr>
+<th>MARS 路径</th>
+<th>COMMON 路径</th>
+<th>关系</th>
+<th>功能角色</th>
+<th>对应 COMMON 任务</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\callphysiq_mod.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\phyvenus\callphysiq_mod.F90</code></td>
+<td><code>planet-specific-variant</code></td>
+<td>物理调用适配层</td>
+<td>非 Mars 路径，仅保留边界说明</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\callphysiq_mod.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\phytitan.old\callphysiq_mod.F90</code></td>
+<td><code>planet-specific-variant</code></td>
+<td>物理调用适配层</td>
+<td>非 Mars 路径，仅保留边界说明</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\iniphysiq_mod.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\phyvenus\iniphysiq_mod.F90</code></td>
+<td><code>planet-specific-variant</code></td>
+<td>物理初始化适配层</td>
+<td>非 Mars 路径，仅保留边界说明</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\iniphysiq_mod.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\phytitan.old\iniphysiq_mod.F90</code></td>
+<td><code>planet-specific-variant</code></td>
+<td>物理初始化适配层</td>
+<td>非 Mars 路径，仅保留边界说明</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\newstart.F</code></td>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\phyvenus\newstart.F</code></td>
+<td><code>planet-specific-variant</code></td>
+<td>start 文件生成/修改</td>
+<td>非 Mars 路径，TASK-0084 blocked</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\newstart.F</code></td>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\phytitan.old\newstart.F</code></td>
+<td><code>planet-specific-variant</code></td>
+<td>start 文件生成/修改</td>
+<td>非 Mars 路径，TASK-0085 blocked</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\start2archive.F</code></td>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\phyvenus\start2archive.F</code></td>
+<td><code>planet-specific-variant</code></td>
+<td>start 到 archive 转换</td>
+<td>非 Mars 路径，TASK-0086 blocked</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\start2archive.F</code></td>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\phytitan.old\start2archive.F</code></td>
+<td><code>planet-specific-variant</code></td>
+<td>start 到 archive 转换</td>
+<td>非 Mars 路径，TASK-0087 blocked</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\ini_archive.F</code></td>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\phyvenus\ini_archive.F</code></td>
+<td><code>planet-specific-variant</code></td>
+<td>archive 文件初始化</td>
+<td>非 Mars 路径，TASK-0086 blocked</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\ini_archive.F</code></td>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\phytitan.old\ini_archive.F</code></td>
+<td><code>planet-specific-variant</code></td>
+<td>archive 文件初始化</td>
+<td>非 Mars 路径，TASK-0087 blocked</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\write_archive.F</code></td>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\phyvenus\write_archive.F</code></td>
+<td><code>planet-specific-variant</code></td>
+<td>archive 变量写出</td>
+<td>非 Mars 路径，TASK-0086 blocked</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\write_archive.F</code></td>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\phytitan.old\write_archive.F</code></td>
+<td><code>planet-specific-variant</code></td>
+<td>archive 变量写出</td>
+<td>非 Mars 路径，TASK-0087 blocked</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\scal_wind.F</code></td>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\phyvenus\scal_wind.F</code></td>
+<td><code>planet-specific-variant</code></td>
+<td>风场尺度/格点处理</td>
+<td>非 Mars 路径，仅保留边界说明</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\wind_scal.F</code></td>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\phyvenus\wind_scal.F</code></td>
+<td><code>planet-specific-variant</code></td>
+<td>风场尺度/格点处理</td>
+<td>非 Mars 路径，仅保留边界说明</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mars-使用-common-模块的高频位置">MARS 使用 COMMON 模块的高频位置</h2>
+<table>
+<thead>
+<tr>
+<th>MARS 使用位置</th>
+<th>COMMON 提供者</th>
+<th>关系</th>
+<th>证据类型</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\nogcm.F90</code></td>
+<td><code>infotrac</code>, <code>control_mod</code>, <code>mod_const_mpi</code>, <code>comconst_mod</code>, <code>logic_mod</code></td>
+<td><code>common-provider</code></td>
+<td><code>USE</code></td>
+<td><code>nogcm</code> 是 MARS lon-lat 入口，直接依赖 COMMON 动力状态模块。</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\leapfrog_nogcm.F</code></td>
+<td><code>infotrac</code>, <code>write_field</code>, <code>control_mod</code>, <code>comvert_mod</code>, <code>comconst_mod</code>, <code>logic_mod</code></td>
+<td><code>common-provider</code></td>
+<td><code>USE</code></td>
+<td>MARS 的 nogcm leapfrog 变体复用 COMMON 状态和输出接口。</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\start2archive.F</code></td>
+<td><code>mod_const_mpi</code>, <code>comvert_mod</code>, <code>comconst_mod</code></td>
+<td><code>common-provider</code></td>
+<td><code>USE</code></td>
+<td>start/archive 转换依赖 COMMON 通信器、垂直坐标和常量。</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\newstart.F</code></td>
+<td><code>mod_const_mpi</code>, <code>comvert_mod</code>, <code>comconst_mod</code></td>
+<td><code>common-provider</code></td>
+<td><code>USE</code></td>
+<td>newstart 依赖 COMMON 通信器、垂直坐标和常量。</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\ini_archive.F</code></td>
+<td><code>comvert_mod</code>, <code>comconst_mod</code>, <code>logic_mod</code></td>
+<td><code>common-provider</code></td>
+<td><code>USE</code></td>
+<td>archive 初始化依赖 COMMON 垂直坐标、常量和逻辑开关。</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\iniphysiq_mod.F90</code></td>
+<td><code>inigeomphy_mod</code></td>
+<td><code>common-provider</code></td>
+<td><code>USE</code> + <code>CALL inigeomphy</code></td>
+<td>物理几何初始化来自 COMMON <code>dynphy_lonlat</code>。</td>
+</tr>
+<tr>
+<td><code>LMDZ.MARS\libf\phymars\dyn1d\testphys1d.F90</code></td>
+<td><code>parallel_lmdz</code>, <code>mod_const_mpi</code>, <code>comvert_mod</code></td>
+<td><code>common-provider</code></td>
+<td><code>USE</code></td>
+<td>1D 物理测试链复用 COMMON 并行抽象和动力坐标模块。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="未发现直接映射的-common-主体">未发现直接映射的 COMMON 主体</h2>
+<p>以下 COMMON 区域目前在 MARS 侧没有同名直接文件映射，更多是通过构建链或运行配置被整体纳入：</p>
+<table>
+<thead>
+<tr>
+<th>COMMON 区域</th>
+<th>当前映射状态</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\adv*</code>, <code>ppm3d.F</code>, <code>prather.F</code></td>
+<td><code>no-direct-match</code></td>
+<td>MARS 源码树中未发现同名路径转发；应从 GCM 构建和调用链继续核验。</td>
+</tr>
+<tr>
+<td><code>LMDZ.COMMON\libf\dyn3dpar\leapfrog_p.F</code>, <code>gcm.F</code>, <code>vlsplt_p.F</code></td>
+<td><code>no-direct-match</code></td>
+<td>MARS 源码树中没有直接同名转发；并行 GCM 可能由 build 系统组合 COMMON 与 MARS 物理。</td>
+</tr>
+<tr>
+<td><code>LMDZ.COMMON\libf\phy_common</code></td>
+<td><code>no-direct-match</code>/<code>common-provider</code> 待细化</td>
+<td>MARS 中可见 <code>write_field</code> 等使用点，但物理侧并行传输模块需结合构建清单核验。</td>
+</tr>
+<tr>
+<td><code>LMDZ.COMMON\libf\misc</code></td>
+<td><code>no-direct-match</code>/公共库</td>
+<td>NetCDF/ioipsl/插值工具多为公共库性质，后续应由 <code>common-consumer-map.md</code> 逐项补证据。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mars-only-范围说明">Mars-only 范围说明</h2>
+<p><code>planet-specific-variant</code> 表中的 Venus/Titan 文件只用于帮助读者理解“同名但不同星球实现”的边界，不作为待写任务。Mars 运行实际应优先写 MARS <code>phymars</code> 使用到的 COMMON 共享接口、路径转发文件和 <code>USE</code>/<code>CALL</code> 提供者。</p>
+<h2 id="维护规则">维护规则</h2>
+<ul>
+<li>文件页完成后，把“对应 COMMON 任务”列中的任务号补成实际 wiki 页面链接。</li>
+<li>发现新的路径转发文件时，优先加入“直接路径转发”表。</li>
+<li>仅同名但未读源码的关系必须保持 <code>same-name-candidate</code> 或 <code>planet-specific-variant</code>，不能写成等价实现。</li>
+<li><code>非 Mars 路径</code> 不扩批、不领取；只在本映射表中保留边界说明。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

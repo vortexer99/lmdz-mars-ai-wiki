@@ -1,0 +1,170 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>prather - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d_common/prather.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="pratherf">prather.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\prather.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>prather.F</code> 定义三维 Prather moments 输送入口 <code>prather</code>。它维护 tracer 的 0 到 9 阶 moments 表示，按 x-y-z-y-x 顺序调用 <code>advxp/advyp/advzp</code>，用于比普通 Van Leer 更高阶的 tracer 输送分支。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars tracer advection 配置选择 Prather scheme 时经过；否则由 Van Leer、PPM 或其他输送路径替代。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prather</code></td>
+<td>subroutine</td>
+<td>4</td>
+<td>使用 moments 表示进行三维 split advection。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入输出">输入输出</h2>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>方向</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q(...,0:9)</code></td>
+<td>inout</td>
+<td>tracer moments；0 阶是平均量，其余阶描述单元内分布。</td>
+</tr>
+<tr>
+<td><code>w</code>, <code>pbaru</code>, <code>pbarv</code></td>
+<td>in</td>
+<td>垂直、x、y 方向质量通量。</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td>in</td>
+<td>网格空气质量。</td>
+</tr>
+<tr>
+<td><code>nt</code>, <code>dt</code></td>
+<td>in</td>
+<td>子步数和时间步。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖和调用">依赖和调用</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comconst_mod: pi</code></td>
+<td>构造经向几何相关缓存。</td>
+</tr>
+<tr>
+<td><code>advxp</code></td>
+<td>x 方向 Prather moments advection。</td>
+</tr>
+<tr>
+<td><code>advyp</code></td>
+<td>y 方向 Prather moments advection。</td>
+</tr>
+<tr>
+<td><code>advzp</code></td>
+<td>z 方向 Prather moments advection。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>首次调用时构造经纬几何缓存和极区/面积相关权重。</li>
+<li>从 <code>q(...,0:9)</code> 拆出 moments 工作数组 <code>s0/sx/sy/sz/...</code>。</li>
+<li>调用 <code>advxp(limit,0.5*dt,...)</code> 做半步 x 输送。</li>
+<li>调用 <code>advyp(limit,0.5*dt*nt,...)</code> 做半步 y 输送。</li>
+<li>调用 <code>advzp(limit,dt*nt,...)</code> 做整步 z 输送。</li>
+<li>再执行 y 半步和 x 半步，形成对称 split。</li>
+<li>将更新后的 moments 写回 <code>q</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>initialize geometry cache on first call
+load 10 Prather moments from q
+advxp half step
+advyp half step
+advzp full step
+advyp half step
+advxp half step
+store moments back to q</code></pre>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>q</code> 最后一维 <code>0:9</code> 是本文件的核心接口；只保留 0 阶会退化并破坏 Prather scheme。</li>
+<li>x/y 使用半步、z 使用整步，是和其他 split transport 相同的对称结构。</li>
+<li><code>nt</code> 同时放大 y/z 的有效时间步，复现时要保留调用方传入的子步含义。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>limit</code> 的具体取值和 limiter 意义需结合 <code>advxp/advyp/advzp</code> 文件页确认。</li>
+<li>Mars 默认 tracer 是否启用 Prather 需由 <code>infotrac</code> 和运行配置确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn3d_common 总览</a></li>
+<li><a href="../../routines/advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
+<li><a href="../../routines/advxyz-parallel-common.html">并行/分块 advection 共用内核组</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,252 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>infotrac-mars-consumers - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/infotrac-mars-consumers.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="infotrac-的-mars-与-common-消费方">infotrac 的 MARS 与 COMMON 消费方</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\infotrac.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dynphy_lonlat
+LMDZ.MARS\libf\dynphy_lonlat\phymars
+LMDZ.MARS\libf\phymars\dyn1d</code></pre>
+<p>Mars 运行参与度：<code>必经</code>。Mars 全 GCM、工具程序和 1D/testphys 初始化都把 <code>infotrac</code> 当作 tracer 维度、名称和 family 关系的公共 contract。</p>
+<h2 id="common-入口消费者">COMMON 入口消费者</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>消费内容</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/dyn3d/gcm.html">dyn3d/gcm</a></td>
+<td><code>USE infotrac</code>，调用 <code>infotrac_init</code>，随后分配 <code>q(ip1jmp1,llm,nqtot)</code></td>
+<td>完整 GCM 的 tracer 维度由 <code>nqtot</code> 决定</td>
+</tr>
+<tr>
+<td>COMMON <code>dyn3d/nogcm.F90</code></td>
+<td>6.3 已删除</td>
+<td>旧版 COMMON nogcm 消费关系后续集中说明</td>
+</tr>
+<tr>
+<td><code>dyn3dpar/gcm.F</code></td>
+<td>调用 <code>infotrac_init</code>，分配并行版 <code>q</code></td>
+<td>并行入口与串行入口共享 tracer 元数据</td>
+</tr>
+<tr>
+<td><code>dyn3d/conf_gcm.F90</code>、<code>dyn3dpar/conf_gcm.F90</code></td>
+<td><code>USE infotrac, ONLY: type_trac</code></td>
+<td>配置阶段设置/读取 tracer 类型</td>
+</tr>
+</tbody>
+</table>
+<h2 id="动力和输送消费者">动力和输送消费者</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>消费内容</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="advtrac-serial-parallel.html">advtrac 串并行对照</a></td>
+<td><code>nqtot/iadv/nqperes/ok_iso_verif</code></td>
+<td>按 scheme 调度 Van Leer、PPM、Prather 等路径</td>
+</tr>
+<tr>
+<td><code>dyn3dpar/advtrac_p.F90</code></td>
+<td><code>nqtot/iadv/ok_iso_verif</code></td>
+<td>并行 tracer 输送调度和 isotope 检查</td>
+</tr>
+<tr>
+<td><code>caladvtrac.F</code></td>
+<td><code>nqtot</code></td>
+<td>tracer tendency 数组循环边界</td>
+</tr>
+<tr>
+<td><code>addfi.F</code>、<code>addfi_p.F</code></td>
+<td><code>nqtot</code></td>
+<td>物理 tendency 写回 tracer 维度</td>
+</tr>
+<tr>
+<td>COMMON <code>leapfrog.F</code>、MARS <code>phymars/leapfrog_nogcm.F</code>、<code>leapfrog_p.F</code></td>
+<td><code>nqtot</code>，部分路径用 <code>ok_iso_verif/tname</code></td>
+<td>主时间推进中的 <code>q/dq/dqfi</code> 分配和循环</td>
+</tr>
+<tr>
+<td><a href="../modules/dyn3dpar/vlspltgen_p.html">vlspltgen_p</a></td>
+<td><code>nqtot/nqperes/nqdesc/nqfils/iqfils/ok_iso_verif</code></td>
+<td>family tracer 与 isotope 检查进入并行 Van Leer 内核</td>
+</tr>
+</tbody>
+</table>
+<h2 id="物理接口和输出消费者">物理接口和输出消费者</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>消费内容</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dynphy_lonlat/calfis.F</code>、<code>calfis_p.F</code></td>
+<td><code>nqtot/niadv/tname</code></td>
+<td>动力 tracer 映射到物理列，调用 <code>call_physiq(...,nqtot,tname,...)</code></td>
+</tr>
+<tr>
+<td><code>inithist.F</code>、<code>initdynav.F90</code></td>
+<td><code>nqtot/ttext</code></td>
+<td>创建 history/dynav tracer 变量</td>
+</tr>
+<tr>
+<td><code>writehist.F</code>、<code>writedynav.F</code></td>
+<td><code>nqtot/ttext</code></td>
+<td>按 tracer 长名写出历史场</td>
+</tr>
+<tr>
+<td><code>dynredem.F90</code>、<code>dynredem_p.F90</code></td>
+<td><code>nqtot/tname/ttext/type_trac</code></td>
+<td>restart 变量创建和读取匹配</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mars-消费方">MARS 消费方</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>消费内容</th>
+<th>Mars 影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phymars/nogcm.F90</code></td>
+<td><code>USE infotrac</code>，调用 <code>infotrac_init</code>，分配 <code>q(...,nqtot)</code></td>
+<td>Mars 主运行入口直接继承 COMMON tracer contract</td>
+</tr>
+<tr>
+<td><code>phymars/newstart.F</code></td>
+<td><code>infotrac_init/nqtot/tname</code></td>
+<td>分配 <code>q</code> 和 <code>coefvmr</code>，读取 archive 后可能把 archive 名称复制回 <code>tname</code></td>
+</tr>
+<tr>
+<td><code>phymars/start2archive.F</code></td>
+<td><code>infotrac_init/nqtot/tname</code></td>
+<td>分配 tracer 和 surface tracer，按 <code>tname</code> 写 archive 变量</td>
+</tr>
+<tr>
+<td><code>phymars/lect_start_archive.F</code></td>
+<td><code>tname</code>、传入 <code>nqtot</code></td>
+<td>读取 <code>tname(iq)</code> 和 <code>tname(iq)//"_surf"</code> 对应的 archive 字段</td>
+</tr>
+<tr>
+<td><code>phymars/iniphysiq_mod.F90</code></td>
+<td><code>nqtot</code></td>
+<td>物理状态和 <code>conf_phys</code> 初始化使用 tracer 数</td>
+</tr>
+<tr>
+<td><code>phymars/callphysiq_mod.F90</code></td>
+<td>形参 <code>nqtot/tname</code></td>
+<td>物理包接收动力 tracer 名称和维度</td>
+</tr>
+<tr>
+<td><code>phymars/leapfrog_nogcm.F</code></td>
+<td><code>nqtot/ok_iso_verif/tname</code></td>
+<td>Mars nogcm 主循环含 <code>tname=="co2"</code> 的 CO2 特殊处理</td>
+</tr>
+<tr>
+<td><code>phymars/dyn1d/init_testphys1d_mod.F90</code></td>
+<td><code>nqtot/tname/nqperes/nqfils</code></td>
+<td>1D/testphys 自行设置 <code>nqtot</code>、分配 <code>tname</code> 并复用父子 tracer 检查</td>
+</tr>
+<tr>
+<td><code>phymars/dyn1d/read_profile_mod.F90</code></td>
+<td><code>tname</code></td>
+<td>按 tracer 名读取 profile</td>
+</tr>
+</tbody>
+</table>
+<h2 id="关键契约">关键契约</h2>
+<ol type="1">
+<li><code>infotrac_init</code> 必须早于任何 <code>q(...,nqtot)</code> 分配。</li>
+<li><code>nqtot</code> 是动力维度，Mars archive/physics 不能只看 <code>nbtr</code> 或 <code>nqtrue</code>。</li>
+<li><code>tname</code> 是 restart/archive/physics 的变量名桥梁；<code>newstart</code> 允许交互或 archive 匹配后改写 <code>tname</code>。</li>
+<li><code>ttext</code> 主要服务 history/dynav 输出。</li>
+<li><code>iadv</code> 由 <code>advtrac</code> 消费，决定 tracer 是否走 Van Leer、饱和水汽或其他历史分支。</li>
+<li><code>niadv</code> 由动力-物理接口消费，避免 moments 附加 tracer 被当作普通物理 tracer。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现 Mars restart/archive 读写时，必须同时保存 <code>traceur.def</code>、<code>tname</code> 序列和 <code>nqtot</code>；变量名错位会导致 tracer 读不到或被写到错误 species。</li>
+<li>复现 Mars <code>co2</code> 特殊路径时，<code>tname(iq)</code> 必须精确等于 <code>co2</code>。</li>
+<li>1D/testphys 路径不是调用完整 <code>infotrac_init</code>，而是局部设置 <code>nqtot/tname</code> 并复用 family 状态；它是兼容消费者，不是完整初始化消费者。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>start2archive</code> 中 CO2 surface/archive 特殊处理与 <code>leapfrog_nogcm</code> CO2 分支的完整耦合应由 Mars restart/archive 主题页继续串联。</li>
+<li><code>newstart</code> 改写 <code>tname</code> 后对 <code>ttext</code> 的影响未在本任务中发现同步逻辑，需后续验证实际输出名是否仍一致。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="infotrac-state-contract.html">infotrac 状态契约</a></li>
+<li><a href="infotrac-traceur-def.html">traceur.def 读取逻辑</a></li>
+<li><a href="infotrac-advection-schemes.html">infotrac advection scheme</a></li>
+<li><a href="infotrac-family-isotopes.html">父子 tracer 与 isotope</a></li>
+<li><a href="../modules/dyn3d/gcm.html">dyn3d/gcm</a></li>
+<li>COMMON 6.3 已删除 <code>dyn3d/nogcm.F90</code>。</li>
+<li><a href="advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
+<li><a href="calfis-p-physiq-contract.html">calfis_p 与 call_physiq 接口契约</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

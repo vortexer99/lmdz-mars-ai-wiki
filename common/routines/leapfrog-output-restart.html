@@ -1,0 +1,128 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>leapfrog-output-restart - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/leapfrog-output-restart.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="leapfrog-输出诊断和-restart">leapfrog 输出、诊断和 restart</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\leapfrog.F
+LMDZ.MARS\libf\dynphy_lonlat\phymars\leapfrog_nogcm.F</code></pre>
+<p>Mars 运行参与度：<code>必经</code>。COMMON 6.3 完整 GCM 使用 <code>leapfrog.F</code> 写 history/dynav 诊断和 <code>restart.nc</code>；MARS <code>phymars/leapfrog_nogcm.F</code> 只作为 Mars 侧边界对照，最终步写 restart，不支持 <code>ecritstart</code> 中途 restart。</p>
+<h2 id="平均纬向诊断">平均/纬向诊断</h2>
+<p>在非 <code>purmats</code> 路径，每当 <code>MOD(itau,iperiod)==0</code> 或 <code>itau==itaufin</code>：</p>
+<ol type="1">
+<li>设 <code>iav=1</code> 表示最终步，否则为 0。</li>
+<li>重算 <code>phi</code>，完整 GCM 使用 CP(T) 适配后的 <code>tsurpk</code>，nogcm 平均输出处直接用 <code>teta</code>。</li>
+<li>若 <code>ok_dynzon</code> 且启用 IOIPSL，调用 <code>bilan_dyn(dtvr*iperiod,dtvr*day_step*periodav,...)</code>。</li>
+<li>若 <code>ok_dyn_ave</code> 且启用 IOIPSL，调用 <code>writedynav(itau,vcov,ucov,teta,pk,phi,q,masse,ps,phis)</code>。</li>
+</ol>
+<p><code>purmats</code> backward 分支中也有同样的平均/纬向输出逻辑。</p>
+<h2 id="instant-history-和-grads">instant history 和 Grads</h2>
+<p>当 <code>MOD(itau,iecri)==0</code>：</p>
+<ul>
+<li>只有常规 leapfrog 步或 backward Matsuno 步会写 instant history，即 <code>leapf .OR. (.NOT.leapf .AND. .NOT.forward)</code>。</li>
+<li>写出前重算 <code>phi</code>，并从 <code>ucov/vcov</code> 得到 <code>unat/vnat</code>。</li>
+<li>若 <code>ok_dyn_ins</code> 且启用 IOIPSL，调用 <code>writehist(itau,vcov,ucov,teta,phi,q,masse,ps,phis)</code>。</li>
+<li>若 <code>output_grads_dyn</code>，include <code>write_grads_dyn.h</code>。</li>
+</ul>
+<h2 id="restart-判断">restart 判断</h2>
+<p>完整 <code>leapfrog.F</code> 支持最终步和中途 restart：</p>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>itau==itaufin</code></td>
+<td><code>lrestart=.true.</code></td>
+</tr>
+<tr>
+<td><code>ecritstart&gt;0</code> 且 <code>MOD(itau,ecritstart)==0</code></td>
+<td><code>lrestart=.true.</code></td>
+</tr>
+<tr>
+<td><code>ecritstart==0</code></td>
+<td>避免 modulo 除零，不触发中途 restart</td>
+</tr>
+</tbody>
+</table>
+<p>写 restart 时：</p>
+<ul>
+<li>Mars 且 <code>ecritstart&gt;0</code>：时间为 <code>REAL(itau)/REAL(day_step)+time_0-floor(time_0)</code>。</li>
+<li>Mars 且只在最终写：时间为 <code>REAL(itau)/REAL(day_step)-(day_end-day_ini)+time_0-floor(time_0)</code>。</li>
+<li>非 Mars：时间为 <code>JH_cur</code>。</li>
+</ul>
+<p>MARS nogcm 变体只在 <code>itau==itaufin</code> 时写：</p>
+<ul>
+<li>Mars：<code>REAL(itau)/REAL(day_step)</code>。</li>
+<li>非 Mars：<code>JH_cur</code>。</li>
+</ul>
+<h2 id="输出前状态">输出前状态</h2>
+<p>输出前通常会重新计算 <code>phi</code>，但不总是刷新 <code>p/masse/pk</code>。因此调用顺序依赖前面物理/耗散段已经保证 <code>ps/masse/pk</code> 一致。<code>writehist</code> 和 <code>writedynav</code> 接收 <code>q</code>，其第三维为 <code>nqtot</code>。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>iecri</code> 控制 instant history，<code>iperiod</code> 控制平均/纬向诊断，两者不是同一个门。</li>
+<li>完整 GCM 的 Mars restart 时间包含 <code>time_0</code> 和 <code>day_end-day_ini</code> 修正；nogcm 没有这段修正。</li>
+<li><code>writehist</code> 在 forward Matsuno 步不会写，避免写半步状态。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>CLOSE(99)</code> 与 <code>dynredem1</code> 内部文件句柄的关系需由 restart 文件页确认。</li>
+<li><code>iav</code> 在当前片段中只被设置，实际消费需由 <code>bilan_dyn</code> 或 history 任务进一步确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="initdynav-serial-parallel.html">initdynav 串并行对照</a></li>
+<li><a href="fluxstokenc-serial-parallel.html">fluxstokenc 串并行对照</a></li>
+<li><a href="dynredem-restart.html">dynredem restart 写出</a></li>
+<li><a href="inithist-serial-parallel.html">history 输出初始化</a></li>
+<li><a href="history-output-serial-parallel.html">history/dynav 输出</a></li>
+<li><a href="initfluxsto-serial-parallel.html">initfluxsto 串并行对照</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

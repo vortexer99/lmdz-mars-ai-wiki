@@ -1,0 +1,426 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>getin-typed-parser - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/getin-typed-parser.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="typed-getin-解析契约scalar1d2d-integerreallogicalcharacter">typed <code>getin*</code> 解析契约：scalar/1D/2D integer/real/logical/character</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\ioipsl_getincom.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\ioipsl_getin_p_mod.F90</code></pre>
+<h2 id="本页范围">本页范围</h2>
+<p>本页覆盖 <code>ioipsl_getincom.F90</code> 中 12 个 typed <code>getin*</code> specific procedure 和 <code>ioipsl_getin_p_mod.F90</code> 中 11 个 <code>getin_p_*</code> 并行 wrapper 的完整解析契约。<a href="getin-fallback-file-precedence.html">getin-fallback-file-precedence</a> 覆盖文件来源和 key 表机制；本页聚焦每个 typed procedure 的签名、tmp 缓冲、2D 线性化、类型特异性和并行 wrapper 差异。</p>
+<h2 id="12-个-typed-specific-procedure-总览">12 个 typed specific procedure 总览</h2>
+<table>
+<thead>
+<tr>
+<th>Procedure</th>
+<th>类型</th>
+<th>维度</th>
+<th>行号</th>
+<th>tmp 缓冲策略</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getinis</code></td>
+<td>INTEGER</td>
+<td>scalar</td>
+<td>122-151</td>
+<td><code>DIMENSION(1)</code> 栈数组</td>
+</tr>
+<tr>
+<td><code>getini1d</code></td>
+<td>INTEGER</td>
+<td>1D</td>
+<td>153-191</td>
+<td><code>ALLOCATABLE, SAVE</code> + <code>tmp_ret_size</code> 追踪</td>
+</tr>
+<tr>
+<td><code>getini2d</code></td>
+<td>INTEGER</td>
+<td>2D</td>
+<td>193-248</td>
+<td><code>ALLOCATABLE, SAVE</code> + 列优先线性化</td>
+</tr>
+<tr>
+<td><code>getinrs</code></td>
+<td>REAL</td>
+<td>scalar</td>
+<td>252-281</td>
+<td><code>DIMENSION(1)</code> 栈数组</td>
+</tr>
+<tr>
+<td><code>getinr1d</code></td>
+<td>REAL</td>
+<td>1D</td>
+<td>283-321</td>
+<td><code>ALLOCATABLE, SAVE</code> + <code>tmp_ret_size</code> 追踪</td>
+</tr>
+<tr>
+<td><code>getinr2d</code></td>
+<td>REAL</td>
+<td>2D</td>
+<td>323-378</td>
+<td><code>ALLOCATABLE, SAVE</code> + 列优先线性化</td>
+</tr>
+<tr>
+<td><code>getincs</code></td>
+<td>CHARACTER</td>
+<td>scalar</td>
+<td>382-411</td>
+<td><code>CHARACTER(LEN=100), DIMENSION(1)</code> 栈数组</td>
+</tr>
+<tr>
+<td><code>getinc1d</code></td>
+<td>CHARACTER</td>
+<td>1D</td>
+<td>413-451</td>
+<td><code>CHARACTER(LEN=100), ALLOCATABLE, SAVE</code></td>
+</tr>
+<tr>
+<td><code>getinc2d</code></td>
+<td>CHARACTER</td>
+<td>2D</td>
+<td>453-508</td>
+<td><code>CHARACTER(LEN=100), ALLOCATABLE, SAVE</code> + 列优先</td>
+</tr>
+<tr>
+<td><code>getinls</code></td>
+<td>LOGICAL</td>
+<td>scalar</td>
+<td>512-541</td>
+<td><code>DIMENSION(1)</code> 栈数组</td>
+</tr>
+<tr>
+<td><code>getinl1d</code></td>
+<td>LOGICAL</td>
+<td>1D</td>
+<td>543-581</td>
+<td><code>ALLOCATABLE, SAVE</code> + <code>tmp_ret_size</code> 追踪</td>
+</tr>
+<tr>
+<td><code>getinl2d</code></td>
+<td>LOGICAL</td>
+<td>2D</td>
+<td>583-638</td>
+<td><code>ALLOCATABLE, SAVE</code> + 列优先线性化</td>
+</tr>
+</tbody>
+</table>
+<p>所有 12 个 procedure 通过 <code>INTERFACE getin</code> 泛型绑定，调用方只需 <code>CALL getin(target, ret_val)</code> 即可由编译器自动分派。</p>
+<h2 id="通用调用模式">通用调用模式</h2>
+<p>所有 typed procedure 遵循相同的 6 步模式：</p>
+<pre class="text"><code>① get_findkey(i_tab=1, target, pos)     ! key_tab 线性查找
+② tmp_ret_val ← ret_val                  ! 保存调用方默认值到 tmp
+③ IF (pos &lt; 0) THEN                       ! key_tab 未命中
+④   get_fil(target, status, fileorig, &lt;typed&gt;_val=tmp_ret_val)
+⑤   get_wdb(target, status, fileorig, size, &lt;typed&gt;_val=tmp_ret_val)
+⑥ ELSE                                    ! key_tab 命中
+⑦   get_rdb(pos, size, target, &lt;typed&gt;_val=tmp_ret_val)
+⑧ ENDIF
+⑨ ret_val ← tmp_ret_val                  ! 回写到调用方</code></pre>
+<p>关键契约点：</p>
+<ul>
+<li><code>ret_val</code> 是 <code>INTENT(INOUT)</code>（实际为默认 INOUT 语义）：调用方传入默认值，若 key 不存在于文件，默认值保留。</li>
+<li><code>tmp_ret_val</code> 始终作为中间缓冲：避免 <code>get_fil</code>/<code>get_rdb</code> 直接修改 <code>ret_val</code> 时出现维度不匹配。</li>
+<li>标量 procedure 使用固定 <code>DIMENSION(1)</code> 栈数组；1D/2D 使用 <code>ALLOCATABLE, SAVE</code> 避免重复分配。</li>
+</ul>
+<h2 id="scalar-契约">Scalar 契约</h2>
+<p>标量 procedure（<code>getinis</code>/<code>getinrs</code>/<code>getincs</code>/<code>getinls</code>）使用固定的 <code>DIMENSION(1)</code> tmp 数组：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="dt">INTEGER</span>, <span class="dt">DIMENSION(1)</span> <span class="dt">::</span> tmp_ret_val    <span class="co">! 或 REAL/CHARACTER(LEN=100)/LOGICAL</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>tmp_ret_val(<span class="dv">1</span>) <span class="kw">=</span> ret_val</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co">CALL get_fil(target, status, fileorig, i_val=tmp_ret_val)</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>ret_val <span class="kw">=</span> tmp_ret_val(<span class="dv">1</span>)</span></code></pre></div>
+<p>无需动态分配，<code>size_of_in</code> 恒为 1。</p>
+<h2 id="1d-契约">1D 契约</h2>
+<p>1D procedure（<code>getini1d</code>/<code>getinr1d</code>/<code>getinc1d</code>/<code>getinl1d</code>）使用 <code>ALLOCATABLE, SAVE</code> tmp 数组配合 <code>tmp_ret_size</code> 追踪：</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="dt">INTEGER</span>, <span class="dt">DIMENSION(:)</span>, <span class="dt">ALLOCATABLE</span>, <span class="dt">SAVE</span> <span class="dt">::</span> tmp_ret_val</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="dt">INTEGER</span>, <span class="dt">SAVE</span> <span class="dt">::</span> tmp_ret_size <span class="kw">=</span> <span class="dv">0</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co">!-</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>size_of_in <span class="kw">=</span> <span class="fu">SIZE</span>(ret_val)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (<span class="op">.NOT.</span><span class="fu">ALLOCATED</span>(tmp_ret_val)) <span class="kw">THEN</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ALLOCATE</span>(tmp_ret_val(size_of_in))</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="kw">ELSE IF</span> (size_of_in <span class="op">&gt;</span> tmp_ret_size) <span class="kw">THEN</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  <span class="kw">DEALLOCATE</span>(tmp_ret_val)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ALLOCATE</span>(tmp_ret_val(size_of_in))</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  tmp_ret_size <span class="kw">=</span> size_of_in</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>tmp_ret_val(<span class="dv">1</span>:size_of_in) <span class="kw">=</span> ret_val(<span class="dv">1</span>:size_of_in)</span></code></pre></div>
+<p>契约要点：</p>
+<ul>
+<li><code>SAVE</code> 属性使 tmp 数组在调用间存活，避免每调用一次都重新分配。</li>
+<li>只在 <code>size_of_in &gt; tmp_ret_size</code> 时扩容（不缩容），保留历史最大尺寸。</li>
+<li>数组复制使用 <code>tmp_ret_val(1:size_of_in) = ret_val(1:size_of_in)</code>，按元素复制而非整体赋值。</li>
+</ul>
+<h2 id="2d-契约与列优先线性化">2D 契约与列优先线性化</h2>
+<p>2D procedure（<code>getini2d</code>/<code>getinr2d</code>/<code>getinc2d</code>/<code>getinl2d</code>）需要额外的维度处理：</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="dt">INTEGER</span> <span class="dt">::</span> size_1, size_2, jl, jj, ji</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>size_of_in <span class="kw">=</span> <span class="fu">SIZE</span>(ret_val)         <span class="co">! 总元素数 = size_1 * size_2</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>size_1 <span class="kw">=</span> <span class="fu">SIZE</span>(ret_val, <span class="dv">1</span>)          <span class="co">! 第一维</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>size_2 <span class="kw">=</span> <span class="fu">SIZE</span>(ret_val, <span class="dv">2</span>)          <span class="co">! 第二维</span></span></code></pre></div>
+<p>2D → 1D 线性化采用 <strong>Fortran 列优先顺序</strong>：</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">! 2D → 1D（写入前）</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>jl <span class="kw">=</span> <span class="dv">0</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> jj <span class="kw">=</span> <span class="dv">1</span>, size_2</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">DO</span> ji <span class="kw">=</span> <span class="dv">1</span>, size_1</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    jl <span class="kw">=</span> jl <span class="kw">+</span> <span class="dv">1</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    tmp_ret_val(jl) <span class="kw">=</span> ret_val(ji, jj)</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ENDDO</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co">! 1D → 2D（读回后）</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>jl <span class="kw">=</span> <span class="dv">0</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> jj <span class="kw">=</span> <span class="dv">1</span>, size_2</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>  <span class="kw">DO</span> ji <span class="kw">=</span> <span class="dv">1</span>, size_1</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    jl <span class="kw">=</span> jl <span class="kw">+</span> <span class="dv">1</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    ret_val(ji, jj) <span class="kw">=</span> tmp_ret_val(jl)</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ENDDO</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span></code></pre></div>
+<p>这意味着 2D key 在 <code>.def</code> 文件中的向量元素按列优先排列：<code>key__00001</code> 对应 <code>(1,1)</code>，<code>key__00002</code> 对应 <code>(2,1)</code>（假设 <code>size_1 &gt;= 2</code>），以此类推。</p>
+<h2 id="类型特异性">类型特异性</h2>
+<h3 id="get_qtyp-类型检测"><code>get_qtyp</code> 类型检测</h3>
+<p>所有底层子程序（<code>get_fil</code>、<code>get_wdb</code>、<code>get_rdb</code>）通过 <code>get_qtyp</code> 检测实际传入的 OPTIONAL 参数类型：</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>k_typ <span class="kw">=</span> <span class="dv">0</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (<span class="fu">COUNT</span>(<span class="kw">[</span><span class="fu">PRESENT</span>(i_v), <span class="fu">PRESENT</span>(r_v), <span class="fu">PRESENT</span>(c_v), <span class="fu">PRESENT</span>(l_v)<span class="kw">]</span>) <span class="op">/=</span> <span class="dv">1</span><span class="co">) THEN</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> ipslerr(<span class="dv">3</span>, <span class="st">&#39;get_qtyp&#39;</span>, <span class="st">&#39;Invalid number of optional arguments&#39;</span>, <span class="st">&#39;(/= 1)&#39;</span>, <span class="st">&#39; &#39;</span>)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span>     (<span class="fu">PRESENT</span>(i_v)) <span class="kw">THEN</span>; k_typ <span class="kw">=</span> k_i; c_vtyp <span class="kw">=</span> <span class="st">&#39;INTEGER&#39;</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="kw">ELSEIF</span> (<span class="fu">PRESENT</span>(r_v)) <span class="kw">THEN</span>; k_typ <span class="kw">=</span> k_r; c_vtyp <span class="kw">=</span> <span class="st">&#39;REAL&#39;</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="kw">ELSEIF</span> (<span class="fu">PRESENT</span>(c_v)) <span class="kw">THEN</span>; k_typ <span class="kw">=</span> k_c; c_vtyp <span class="kw">=</span> <span class="st">&#39;CHARACTER&#39;</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="kw">ELSEIF</span> (<span class="fu">PRESENT</span>(l_v)) <span class="kw">THEN</span>; k_typ <span class="kw">=</span> k_l; c_vtyp <span class="kw">=</span> <span class="st">&#39;LOGICAL&#39;</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span></code></pre></div>
+<p>必须且只能有一个 typed OPTIONAL 参数被传入。<code>get_qtyp</code> 同时返回类型码和名称字符串（用于错误消息）。</p>
+<h3 id="integer-特异性">INTEGER 特异性</h3>
+<ul>
+<li>文件解析使用格式化 READ：<code>READ(str, FMT='(I&lt;len&gt;)')</code></li>
+<li>支持压缩字段（<code>MINVAL == MAXVAL</code> 且 <code>size &gt; 20</code>）</li>
+<li><code>get_rdb</code> 类型检查：<code>key_tab(pos)%keytype /= k_i</code> 时 fatal</li>
+</ul>
+<h3 id="real-特异性">REAL 特异性</h3>
+<ul>
+<li>文件解析使用自由格式 READ：<code>READ(str, FMT=*)</code></li>
+<li>支持压缩字段（同 INTEGER）</li>
+<li><code>get_rdb</code> 类型检查：<code>key_tab(pos)%keytype /= k_r</code> 时 fatal</li>
+</ul>
+<h3 id="character-特异性">CHARACTER 特异性</h3>
+<ul>
+<li>文件解析直接截取：<code>c_val(it) = str_READ(1:len_str)</code>，不做格式转换</li>
+<li><strong>不支持压缩</strong>（<code>get_wdb</code> 中 <code>l_cmp = .FALSE.</code> for CHARACTER）</li>
+<li>内部存储固定 <code>CHARACTER(LEN=100)</code>，调用方接口为 <code>CHARACTER(LEN=*)</code></li>
+<li>这意味着超过 100 字符的字符串会被截断</li>
+<li><code>get_rdb</code> 类型检查：<code>key_tab(pos)%keytype /= k_c</code> 时 fatal</li>
+<li><strong>无 <code>getinc2d</code> 在并行 wrapper 中</strong>：<code>getin_p</code> 只有 <code>getincs_p</code>（scalar）和 <code>getinc1d_p</code>（1D），没有 2D character wrapper</li>
+</ul>
+<h3 id="logical-特异性">LOGICAL 特异性</h3>
+<ul>
+<li>文件解析通过关键字匹配：搜索 <code>"tru"</code> 或 <code>"y"</code> → <code>.TRUE.</code>；<code>"fal"</code> 或 <code>"n"</code> → <code>.FALSE.</code></li>
+<li>大小写不敏感（先转 <code>strlowercase</code>）</li>
+<li>不匹配时 <code>io_err = 100</code> → fatal</li>
+<li><strong>不支持压缩</strong>（<code>get_wdb</code> 中 <code>l_cmp = .FALSE.</code> for LOGICAL）</li>
+<li><code>get_rdb</code> 类型检查：<code>key_tab(pos)%keytype /= k_l</code> 时 fatal</li>
+</ul>
+<h2 id="压缩字段类型限制">压缩字段类型限制</h2>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>支持压缩</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>INTEGER</td>
+<td>是</td>
+<td><code>MINVAL/MAXVAL</code> 可比较</td>
+</tr>
+<tr>
+<td>REAL</td>
+<td>是</td>
+<td><code>MINVAL/MAXVAL</code> 可比较</td>
+</tr>
+<tr>
+<td>CHARACTER</td>
+<td>否</td>
+<td>字符串无自然序比较</td>
+</tr>
+<tr>
+<td>LOGICAL</td>
+<td>否</td>
+<td>布尔值无自然数值比较</td>
+</tr>
+</tbody>
+</table>
+<p>压缩条件：所有元素相同（<code>MINVAL == MAXVAL</code>）<strong>且</strong> 元素数 &gt; <code>compress_lim=20</code>。满足时 <code>keycompress = size_of_in</code>、<code>keymemlen = 1</code>。</p>
+<h2 id="getin_p-并行-wrapper-对照"><code>getin_p</code> 并行 wrapper 对照</h2>
+<p><code>ioipsl_getin_p_mod.F90</code> 提供 11 个并行 wrapper（无 character 2D）：</p>
+<table>
+<thead>
+<tr>
+<th>Wrapper</th>
+<th>对应 getin</th>
+<th>bcast 方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getinrs_p</code></td>
+<td><code>getinrs</code></td>
+<td><code>bcast(VarOut)</code> 标量</td>
+</tr>
+<tr>
+<td><code>getinr1d_p</code></td>
+<td><code>getinr1d</code></td>
+<td><code>bcast(VarOut)</code> 整体</td>
+</tr>
+<tr>
+<td><code>getinr2d_p</code></td>
+<td><code>getinr2d</code></td>
+<td><code>bcast(VarOut)</code> 整体</td>
+</tr>
+<tr>
+<td><code>getinis_p</code></td>
+<td><code>getinis</code></td>
+<td><code>bcast(VarOut)</code> 标量</td>
+</tr>
+<tr>
+<td><code>getini1d_p</code></td>
+<td><code>getini1d</code></td>
+<td><code>bcast(VarOut)</code> 整体</td>
+</tr>
+<tr>
+<td><code>getini2d_p</code></td>
+<td><code>getini2d</code></td>
+<td><code>bcast(VarOut)</code> 整体</td>
+</tr>
+<tr>
+<td><code>getincs_p</code></td>
+<td><code>getincs</code></td>
+<td><code>bcast(VarOut)</code> 标量</td>
+</tr>
+<tr>
+<td><code>getinc1d_p</code></td>
+<td><code>getinc1d</code></td>
+<td>逐元素 <code>bcast(VarOut(i))</code></td>
+</tr>
+<tr>
+<td><code>getinls_p</code></td>
+<td><code>getinls</code></td>
+<td><code>bcast(VarOut)</code> 标量</td>
+</tr>
+<tr>
+<td><code>getinl1d_p</code></td>
+<td><code>getinl1d</code></td>
+<td><code>bcast(VarOut)</code> 整体</td>
+</tr>
+<tr>
+<td><code>getinl2d_p</code></td>
+<td><code>getinl2d</code></td>
+<td><code>bcast(VarOut)</code> 整体</td>
+</tr>
+</tbody>
+</table>
+<p>每个 wrapper 的模式：</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (is_master) <span class="kw">THEN</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> getin(VarIn, VarOut)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="co">CALL bcast(VarOut)</span></span></code></pre></div>
+<h3 id="character-1d-逐元素-bcast">character 1D 逐元素 bcast</h3>
+<p><code>getinc1d_p</code> 是唯一不直接整体 bcast 的 wrapper：</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> i <span class="kw">=</span> <span class="dv">1</span>, <span class="fu">size</span>(VarOut)</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> bcast(VarOut(i))</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span></code></pre></div>
+<p>原因：Fortran <code>CHARACTER(LEN=*)</code> 数组的内存布局可能不连续（每个元素有独立的长度描述符），不能安全地作为单一 buffer 广播。</p>
+<h3 id="缺失的-getinc2d_p">缺失的 <code>getinc2d_p</code></h3>
+<p>基础 <code>getin</code> 接口有 <code>getinc2d</code>（character 2D），但 <code>getin_p</code> 没有对应的 <code>getinc2d_p</code>。如果并行上下文需要读取 2D character 配置，需要手动实现 master-read + 逐元素 bcast。</p>
+<h2 id="默认值保留语义">默认值保留语义</h2>
+<p>所有 typed procedure 在进入文件解析前，先将 <code>ret_val</code> 复制到 <code>tmp_ret_val</code>。这意味着：</p>
+<ol type="1">
+<li>若 key 在文件中不存在（<code>get_fil</code> 返回 <code>status=2</code>），<code>tmp_ret_val</code> 保持调用方原始默认值。</li>
+<li>对于向量 key，部分找到的元素被文件值覆盖，未找到的保留默认值（<code>status=3</code>）。</li>
+<li><code>"def"</code> 或 <code>"default"</code> 作为 value 时，该元素被视为未找到，保留默认值。</li>
+</ol>
+<p>调用方模式：</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="dt">INTEGER</span> <span class="dt">::</span> niter <span class="kw">=</span> <span class="dv">100</span>          <span class="co">! 默认值 100</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co">CALL getin(&#39;niter&#39;, niter)      ! 若 run.def 中有 niter=200，则 niter=200</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>                                <span class="co">! 若 run.def 中无 niter，则 niter=100（保留默认）</span></span></code></pre></div>
+<h2 id="类型不匹配错误">类型不匹配错误</h2>
+<p><code>get_rdb</code> 在从 key 表读取时校验类型：</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (key_tab(pos)<span class="op">%</span>keytype <span class="op">/=</span> k_typ) <span class="kw">THEN</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> ipslerr(<span class="dv">3</span>, <span class="st">&#39;get_rdb&#39;</span>, <span class="kw">&amp;</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;Wrong data type for keyword &#39;</span><span class="kw">//</span><span class="fu">TRIM</span>(<span class="dt">target</span>), <span class="kw">&amp;</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;(NOT &#39;</span><span class="kw">//</span><span class="fu">TRIM</span>(c_vtyp)<span class="kw">//</span><span class="st">&#39;)&#39;</span>, <span class="st">&#39; &#39;</span>)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span></code></pre></div>
+<p>如果同一 key 名第一次被 INTEGER getin 写入 key_tab（<code>keytype=k_i</code>），后续用 REAL getin 读取同一 key 会触发 fatal error。这要求调用方对同一 key 始终使用相同类型。</p>
+<h2 id="数组长度不匹配错误">数组长度不匹配错误</h2>
+<p><code>get_rdb</code> 同时校验数组长度：</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co">! 非压缩字段</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (key_tab(pos)<span class="op">%</span>keymemlen <span class="op">/=</span> size_of_in) <span class="kw">THEN</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> ipslerr(<span class="dv">3</span>, <span class="st">&#39;get_rdb&#39;</span>, <span class="st">&#39;Wrong array length&#39;</span>, <span class="st">&#39;for keyword &#39;</span><span class="kw">//</span><span class="fu">TRIM</span>(<span class="co">target), &#39; &#39;)</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="co">! 压缩字段</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (key_tab(pos)<span class="op">%</span>keycompress <span class="op">/=</span> size_of_in <span class="op">.OR.</span> key_tab(pos)<span class="op">%</span>keymemlen <span class="op">/=</span> <span class="dv">1</span>) <span class="kw">THEN</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> ipslerr(<span class="dv">3</span>, <span class="st">&#39;get_rdb&#39;</span>, <span class="st">&#39;Wrong compression length&#39;</span>, <span class="st">&#39;for keyword &#39;</span><span class="kw">/</span><span class="co">/TRIM(target), &#39; &#39;)</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span></code></pre></div>
+<p>调用方数组大小必须与首次写入时的大小一致。</p>
+<h2 id="mars-侧典型消费">Mars 侧典型消费</h2>
+<ul>
+<li><code>phymars/conf_phys.F</code>：大量 <code>getin_p</code> 调用读取物理配置（<code>ecritphy</code>、<code>outputs_per_sol</code>、<code>iphysiq</code>、<code>tauvis</code>、<code>callrad</code>、<code>water</code>、<code>co2clouds</code> 等），以 scalar 和 1D 为主。</li>
+<li><code>phymars/aeropacity_mod.F</code>、<code>watercloud_mod.F</code>、<code>initracer.F90</code>：<code>getin_p</code> 读取微物理和 tracer 参数。</li>
+<li><code>dyn3d/conf_gcm.F90</code>、<code>dyn3dpar/conf_gcm.F90</code>：直接使用 <code>getin</code>（非 <code>_p</code>），以 scalar 和 1D integer/real/logical 为主。</li>
+<li>2D getin 使用较少，主要用于网格相关的初始化参数。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="getin-fallback-file-precedence.html">getin-fallback-file-precedence</a></li>
+<li><a href="../modules/misc/ioipsl-getin-system.html">ioipsl-getin-system</a></li>
+<li><a href="../modules/phy_common/ioipsl_getin_p_mod.html">ioipsl_getin_p_mod</a></li>
+<li><a href="history-xios-getin-boundary.html">history-xios-getin-boundary</a></li>
+<li><a href="common-gcm-mars-run-entry.html">common-gcm-mars-run-entry</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

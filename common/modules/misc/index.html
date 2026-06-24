@@ -1,0 +1,145 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>index - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/misc/index.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="misc-总览">misc 总览</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc</code></pre>
+<h2 id="职责">职责</h2>
+<p><code>libf/misc</code> 收纳 COMMON 中跨动力、物理和工具程序复用的辅助代码：NetCDF95 wrapper、IOIPSL/getin 兼容实现、重网格和插值、PCHIP/spline、runtime option、tracer parser、字符串工具、job walltime helper、通用数值 helper、气象/坐标/日期工具、排序和断言基础。Mars archive utility 的 NetCDF 文件读写主要是 Mars 侧直接 <code>NF_*</code> API，不等价于 COMMON <code>netcdf95</code> wrapper 调用。</p>
+<p>Mars 运行参与度：<code>必经</code> 到 <code>条件经过</code> 混合。Mars 物理通过 <code>phy_common/ioipsl_getin_p_mod.F90</code> 调用 <code>getin_p</code>，在无 IOIPSL 时落到本目录 <code>ioipsl_getincom.F90</code>；Mars/COMMON 动力和工具链也会经由 <code>new_unit_m</code>、<code>netcdf95</code>、<code>q_sat</code>、<code>pres2lev</code>、<code>formcoord</code> 等 helper。</p>
+<h2 id="目录内容">目录内容</h2>
+<table>
+<thead>
+<tr>
+<th>分组</th>
+<th>代表文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NetCDF95 wrapper</td>
+<td><a href="netcdf95-wrappers.html">netcdf95-wrappers.md</a>, <a href="../../routines/mars-utility-netcdf-helper-use.html">Mars utility NetCDF 边界</a></td>
+<td>封装 <code>nf90_*</code> open/define/read/write/attribute 操作，统一可选 <code>ncerr</code> 和 <code>handle_err</code>；Mars utility 页记录这些 wrapper 与 Mars 侧 <code>NF_*</code> archive 读写的边界。</td>
+</tr>
+<tr>
+<td>IOIPSL/getin</td>
+<td><a href="ioipsl-getin-system.html">ioipsl-getin-system.md</a>, <a href="ioipsl_getincom.html">ioipsl_getincom.md</a>, <a href="ioipsl-local-support.html">ioipsl-local-support.md</a></td>
+<td>提供 <code>getin</code> fallback、字符串解析、错误级别和并行 <code>getin_p</code> 调度说明；<code>ioipsl_getincom.F90</code> 父文件页展开文件来源、key 表和 typed parser。</td>
+</tr>
+<tr>
+<td>Runtime option</td>
+<td><a href="program-options.html">program-options.md</a>, <a href="job.html">job.md</a></td>
+<td>6.3 命令行 option parser、<code>--version</code>、<code>--auto-exit</code> 和调度系统 walltime 查询。</td>
+</tr>
+<tr>
+<td>Tracer/string parser</td>
+<td><a href="readTracFiles_mod.html">readTracFiles_mod.md</a>, <a href="strings_mod.html">strings_mod.md</a></td>
+<td>6.3 tracer/isotope 文件解析、phase/metadata 数据库和通用字符串工具。</td>
+</tr>
+<tr>
+<td>重网格/插值</td>
+<td><a href="regridding-interpolation.html">regridding-interpolation.md</a></td>
+<td>1D/3D 线性重采样、保守重采样和 binary hunt/locate helper。</td>
+</tr>
+<tr>
+<td>PCHIP/spline</td>
+<td><a href="pchip-spline.html">pchip-spline.md</a></td>
+<td>SLATEC PCHIP 单调 cubic Hermite 插值、导数构造和 F90 包装。</td>
+</tr>
+<tr>
+<td>数值 helper</td>
+<td><a href="numerical-helpers.html">numerical-helpers.md</a></td>
+<td>Van Leer slope limiter、三次多项式系数、NetCDF simple wrapper 和 arithmetic progression。</td>
+</tr>
+<tr>
+<td>大气坐标 helper</td>
+<td><a href="atmospheric-coordinate-helpers.html">atmospheric-coordinate-helpers.md</a></td>
+<td>饱和比湿、压力层插值、GrADS 坐标格式和 Julian date。</td>
+</tr>
+<tr>
+<td>基础工具</td>
+<td><a href="utility-foundation.html">utility-foundation.md</a></td>
+<td>quicksort/insertion sort、assert/assert_eq、Numerical Recipes kind 常量。</td>
+</tr>
+<tr>
+<td>输出 helper</td>
+<td><a href="write-field-debug.html">write-field-debug.md</a>, <a href="wxios.html">wxios</a></td>
+<td>旧式 debug 写场、物理列 gather dump 和 XIOS context/domain/field helper；XIOS 临时 dump 另见 <code>phy_common</code> 组页。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="关键调用关系">关键调用关系</h2>
+<ul>
+<li><code>dyn3d/conf_gcm.F90</code>、<code>dyn3dpar/conf_gcm.F90</code>、Mars <code>phymars/conf_phys.F</code> 和多个物理模块通过 <code>getin</code> 或 <code>getin_p</code> 读取运行参数。</li>
+<li><code>dyn3d/guide_mod.F90</code>、<code>dyn3dpar/guide_p_mod.F90</code> 使用 <code>pres2lev</code>、<code>q_sat</code> 和 <code>netcdf95</code> 处理 nudging/guide 输入、湿度限制和 nudging 系数输出；Mars <code>newstart/start2archive/datareadnc</code> 的 archive/surface NetCDF 读写则主要直接使用 <code>netcdf.inc</code>/<code>NF_*</code>。</li>
+<li><code>dyn3d/wrgrads.F</code> 和 <code>dyn3dpar/wrgrads.F</code> 用 <code>formcoord</code> 写 GrADS ctl 坐标。</li>
+<li><code>write_field.F90</code> 提供旧式 debug dump；<code>phy_common/write_field_phy.F90</code> 可把物理列 gather 到全局 lon-lat 后复用该 dump 底座。</li>
+<li><code>dyn3d_common/disvert.F90</code> 使用 <code>new_unit</code> 打开垂直层输出辅助文件。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>6.3 <code>getin_p</code> 由 <code>phy_common/ioipsl_getin_p_mod.F90</code> 使用 <code>is_master</code> 调用 <code>getin</code>，然后广播结果；复现并行配置读取必须保留 master-read/bcast 顺序。</li>
+<li>NetCDF95 wrapper 的模式是：调用 <code>nf90_*</code>，若调用方提供 <code>ncerr</code> 则返回错误码，否则调用 <code>handle_err</code> 终止。</li>
+<li>重网格和 slope helper 假设坐标数组有序；保守重采样还假设源/目标 cell bounds 可逐段推进。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>wxios.F90</code> 在 <code>CPP_XIOS</code> 下支撑 COMMON/Mars XIOS context、domain、axis、file/field 定义，详见 <a href="wxios.html">wxios</a>；<code>write_field.F90</code> 的 debug dump 路径已由 <a href="write-field-debug.html">write-field-debug</a> 覆盖。</li>
+<li>本目录中旧 SLATEC 错误处理 <code>xermsg/xerprn/...</code> 是否仍被 Mars 运行链实际调用，当前未在本批任务中展开。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../libf-overview.html">libf 总览</a></li>
+<li><a href="../phy_common/index.html">phy_common 总览</a></li>
+<li><a href="wxios.html">wxios</a></li>
+<li><a href="../dyn3dpar/parallel_lmdz.html">parallel_lmdz</a></li>
+<li><a href="../../routines/vertical-discretization.html">vertical-discretization</a></li>
+<li><a href="../../routines/mars-utility-netcdf-helper-use.html">Mars utility NetCDF 和 COMMON helper 边界</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

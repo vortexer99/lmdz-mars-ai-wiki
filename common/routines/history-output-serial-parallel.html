@@ -1,0 +1,111 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>history-output-serial-parallel - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/history-output-serial-parallel.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="historydynav-输出串并行对照">history/dynav 输出串并行对照</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\writehist.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\writehist_p.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\writedynav.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\writedynav_p.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>这组例程在 history 或 dynav 已由 <code>inithist/initdynav</code> 定义后，按当前动力时间写出瞬时或平均动力场。串行版使用全局数组和 <code>com_io_dyn_mod</code> 中的文件 id；并行版使用局部 <code>ij_begin/ij_end</code> 切片和传入的 history id。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：动力 history 或 dynav 输出开启时经过；具体频率由 `leapfrog` 输出调度控制。</code></pre>
+<h2 id="写出内容">写出内容</h2>
+<table>
+<thead>
+<tr>
+<th>例程</th>
+<th>主要变量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>writehist</code></td>
+<td><code>u/v/teta/phi/masse/ps</code>，tracer 写出当前注释掉。</td>
+</tr>
+<tr>
+<td><code>writehist_p</code></td>
+<td><code>ucov/vcov/teta/phi/tracer/masse/ps/phis</code>。</td>
+</tr>
+<tr>
+<td><code>writedynav</code></td>
+<td><code>u/v/theta/temp/phi/masse/ps</code> 平均或派生场。</td>
+</tr>
+<tr>
+<td><code>writedynav_p</code></td>
+<td><code>u/v/theta/temp/phi/tracer/masse/ps/phis</code> 局部切片。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共同流程">共同流程</h2>
+<ol type="1">
+<li>计算 <code>itau_w = itau_dyn + time</code>。</li>
+<li>需要时把 covariant wind 转为 natural wind，或由 <code>teta/ppk/cpp</code> 计算温度。</li>
+<li>调用 <code>histwrite</code> 写变量。</li>
+<li><code>ok_sync</code> 为真时调用 <code>histsync</code>。</li>
+</ol>
+<h2 id="串并行差异">串并行差异</h2>
+<ul>
+<li>串行版写全局维度，使用 <code>histid/histvid/histuid/histaveid</code> 等模块状态。</li>
+<li>并行版依赖 <code>parallel_lmdz</code> 和 <code>misc_mod</code>，只写 <code>ijb:ije</code> 局部段。</li>
+<li>并行版 tracer 写出活跃，变量名来自 <code>infotrac:ttext</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>串行 <code>writehist</code> 中 tracer 和 <code>phis</code> 写出被注释；字段注册和门控边界见 <a href="history-field-registration.html">history/dynav 字段注册和写出门控</a>。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="inithist-serial-parallel.html">history 初始化</a></li>
+<li><a href="initdynav-serial-parallel.html">initdynav 串并行对照</a></li>
+<li><a href="history-field-registration.html">history/dynav 字段注册和写出门控</a></li>
+<li><a href="leapfrog-output-restart.html">leapfrog 输出/restart 支撑</a></li>
+<li><a href="leapfrog-p-output-restart.html">leapfrog_p 输出/restart 支撑</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

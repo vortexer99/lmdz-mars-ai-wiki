@@ -1,0 +1,137 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>fft-backends - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/filtrez/fft-backends.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="fft-backend-抽象组页">FFT backend 抽象组页</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\mod_filtre_fft.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\mod_filtre_fft_loc.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\mod_fft.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\mod_fft_fftw.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\mod_fft_mathkeisan.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\mod_fft_mkl.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\mod_fft_wrapper.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\mkl_dfti.f90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\mkl_dft_type.f90</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。动力滤波选择 FFT 实现时经过；具体 backend 由编译宏 <code>FFT_FFTW</code>、<code>FFT_MATHKEISAN</code>、MKL 相关构建选择决定。</p>
+<h2 id="文件清单">文件清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_filtre_fft.F90</code></td>
+<td>300</td>
+<td>全局/并行滤波用 FFT 滤波系数初始化和 U/V/inverse FFT 滤波。</td>
+</tr>
+<tr>
+<td><code>mod_filtre_fft_loc.F90</code></td>
+<td>343</td>
+<td>local 子域版本，接口额外带 <code>jjb/jje/jj_begin/jj_end</code>。</td>
+</tr>
+<tr>
+<td><code>mod_fft.F90</code></td>
+<td>17</td>
+<td>根据 CPP 宏选择具体 backend 模块。</td>
+</tr>
+<tr>
+<td><code>mod_fft_fftw.F90</code></td>
+<td>114</td>
+<td>FFTW <code>dfftw_plan_many_dft_r2c/c2r</code> backend。</td>
+</tr>
+<tr>
+<td><code>mod_fft_mathkeisan.F90</code></td>
+<td>67</td>
+<td>mathkeisan <code>DZFFTM/ZDFFTM</code> backend。</td>
+</tr>
+<tr>
+<td><code>mod_fft_mkl.F90</code></td>
+<td>128</td>
+<td>MKL DFTI backend。</td>
+</tr>
+<tr>
+<td><code>mod_fft_wrapper.F90</code></td>
+<td>37</td>
+<td>未指定 backend 时的 stop wrapper。</td>
+</tr>
+<tr>
+<td><code>mkl_dfti.f90</code>, <code>mkl_dft_type.f90</code></td>
+<td>529, 228</td>
+<td>MKL DFTI Fortran interface/type 常量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="抽象层">抽象层</h2>
+<p><code>mod_fft.F90</code> 是编译期选择器：</p>
+<ul>
+<li><code>FFT_MATHKEISAN</code> 时使用 <code>mod_fft_mathkeisan</code>。</li>
+<li><code>FFT_FFTW</code> 时使用 <code>mod_fft_fftw</code>。</li>
+<li>其他 MKL 构建可使用 <code>mod_fft_mkl</code> 和 <code>MKL_DFTI</code> 接口。</li>
+<li>无 backend 时落到 <code>mod_fft_wrapper</code>，其 <code>Init_fft/fft_forward/fft_backward</code> 直接 <code>STOP</code>，提示必须用 CPP key 指定 FFT。</li>
+</ul>
+<h2 id="滤波-fft-流程">滤波 FFT 流程</h2>
+<p><code>mod_filtre_fft</code> 和 <code>mod_filtre_fft_loc</code> 都提供：</p>
+<ol type="1">
+<li><code>Init_filtre_fft</code>：根据 U/V 滤波系数和南北滤波纬带构造 spectral multiplier，并调用 <code>Init_fft</code>。</li>
+<li><code>Filtre_u_fft</code>、<code>Filtre_v_fft</code>、<code>Filtre_inv_fft</code>：打包待滤波数组，调用 <code>FFT_forward</code>，按 mode multiplier 修改谱空间结果，再 <code>FFT_backward</code>。</li>
+<li>local 版本显式接收纬向本地范围，适配并行 decomposition。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 Mars 编译环境默认启用哪个 FFT backend，需要结合 arch/build 任务确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">filtrez 总览</a></li>
+<li><a href="filtreg-system.html">filtreg system</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

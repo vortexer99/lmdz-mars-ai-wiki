@@ -1,0 +1,275 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>common-tracer-advection-schemes - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/common-tracer-advection-schemes.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="common-tracer-advection-schemes">COMMON tracer advection schemes</h1>
+<p>页面状态：TASK-0166 完成。</p>
+<p>源码范围：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\prather.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\ppm3d.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\pentes_ini.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\interpre.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\interpost.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过 + 历史兼容</code>。这些是串行 <code>advtrac.F90</code> 中保留的高阶或历史 tracer 输送方案支撑文件：<code>iadv=20</code> 调 <code>pentes_ini</code>，<code>iadv=30</code> 调 <code>prather</code>，<code>iadv=11/16/17/18</code> 走 <code>interpre -&gt; ppm3d -&gt; interpost</code>。当前 6.3 <code>infotrac_init</code> 标准白名单只允许 <code>iadv=0/10/14</code>，因此 Mars 标准配置通常不会到达这些分支；它们主要用于解释保留源码、历史配置或本地补丁风险。</p>
+<h2 id="方案选择表">方案选择表</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;"><code>iadv</code></th>
+<th>方案</th>
+<th>串行 <code>advtrac</code> 调用链</th>
+<th>当前 Mars 6.3 标准状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;"><code>10</code></td>
+<td>Van Leer split</td>
+<td><code>vlsplt</code></td>
+<td>标准主路径，不属于本页高阶集合。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>14</code></td>
+<td>饱和水汽 Van Leer</td>
+<td><code>vlspltqs</code></td>
+<td>只允许第 1 tracer，不属于本页高阶集合。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>20</code></td>
+<td>slope / moments 初始化</td>
+<td><code>pentes_ini</code></td>
+<td>源码保留，标准白名单阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>30</code></td>
+<td>Prather moments</td>
+<td><code>adaptdt -&gt; prather</code></td>
+<td>源码保留，标准白名单阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>11</code></td>
+<td>VL/PPM 兼容映射</td>
+<td><code>adaptdt -&gt; interpre -&gt; ppm3d(2/2/2) -&gt; interpost</code></td>
+<td>源码保留，标准白名单阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>16</code></td>
+<td>monotonic PPM</td>
+<td><code>adaptdt -&gt; interpre -&gt; ppm3d(3/3/3) -&gt; interpost</code></td>
+<td>源码保留，标准白名单阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>17</code></td>
+<td>semi-monotonic PPM</td>
+<td><code>adaptdt -&gt; interpre -&gt; ppm3d(4/4/4) -&gt; interpost</code></td>
+<td>源码保留，标准白名单阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>18</code></td>
+<td>positive-definite PPM</td>
+<td><code>adaptdt -&gt; interpre -&gt; ppm3d(5/5/5) -&gt; interpost</code></td>
+<td>源码保留，标准白名单阻断。</td>
+</tr>
+</tbody>
+</table>
+<p>并行 <code>advtrac_p.F90</code> 当前先调用 <code>vlspltgen_p(q,iadv,...)</code>，再 <code>GOTO 1234</code> 跳过 PPM、Prather、pentes 和 advn 等 scheme-specific 保留分支。因此本页只描述串行可读路径；并行标准路径应从 <code>vlspltgen_p</code> 和 <code>vlsplt_p</code> 阅读。</p>
+<h2 id="文件职责">文件职责</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th style="text-align: right;">行数</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pentes_ini.F</code></td>
+<td style="text-align: right;">479</td>
+<td>构造 <code>SM/S0/sx/sy/sz</code> moments 工作表示，调 <code>limx/limy/limz</code> 和 <code>advx/advy/advz</code> 做 x-y-z-y-x 预输送。</td>
+</tr>
+<tr>
+<td><code>prather.F</code></td>
+<td style="text-align: right;">362</td>
+<td>使用 <code>q(...,0:9)</code> 的 10 个 Prather moments，按 <code>advxp/advyp/advzp</code> 做 x-y-z-y-x split。</td>
+</tr>
+<tr>
+<td><code>ppm3d.F</code></td>
+<td style="text-align: right;">2078</td>
+<td>NASA/GSFC Lin &amp; Rood PPM 三维输送核心；需要 LMDZ 格式转换层包裹。</td>
+</tr>
+<tr>
+<td><code>interpre.F</code></td>
+<td style="text-align: right;">129</td>
+<td>LMDZ -&gt; PPM3d 格式转换：地面压强、风速、垂直通量、<code>ap/bp</code> 和层序翻转。</td>
+</tr>
+<tr>
+<td><code>interpost.F</code></td>
+<td style="text-align: right;">43</td>
+<td>PPM3d -&gt; LMDZ 格式回转：垂直层序翻回和经向周期闭合。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="pentes_ini-slope--moments-预输送">pentes_ini: slope / moments 预输送</h2>
+<p><code>pentes_ini</code> 是 <code>iadv=20</code> 分支的入口。它不是独立完整长期输送格式，而是把 tracer 转成 moments 工作数组，并用 limiter + directional advection 做一次对称预输送：</p>
+<pre class="text"><code>prepare SM/S0/sx/sy/sz from q and masse
+limx -&gt; advx(0.5*dtvr)
+limy -&gt; advy(0.5*dtvr)
+limz -&gt; advz(dtvr)
+limy -&gt; advy(0.5*dtvr)
+limx -&gt; advx(0.5*dtvr)
+write back state/slopes</code></pre>
+<p>它调用的外部 <code>advx/advy/advz</code> moments 算子详见 <a href="common-vanleer-advection-operators.html">COMMON tracer advection operator family</a>。这些例程与 <code>advn.F</code> 内部的 <code>advnx/advny/advnz</code> 不同。</p>
+<h2 id="prather-10-moments-输送">Prather: 10 moments 输送</h2>
+<p><code>prather.F</code> 在 <code>iadv=30</code> 分支中被 <code>advtrac</code> 调用。调用前先通过 <code>adaptdt</code> 计算子步数 <code>n</code> 和 <code>dtbon</code>，随后：</p>
+<pre class="text"><code>prather(q(1,1,iq), wg, massem, pbarug, pbarvg, n, dtbon)</code></pre>
+<p>Prather 的核心接口把 tracer 表示成 10 个 moments：</p>
+<ul>
+<li><code>q(...,0)</code> 是平均 tracer。</li>
+<li><code>q(...,1:9)</code> 是单元内分布 moments。</li>
+<li>x/y 用半步，z 用整步，再 y/x 半步收尾。</li>
+<li>底层方向例程是 <code>advxp/advyp/advzp</code>，不是 <code>pentes_ini</code> 的 <code>advx/advy/advz</code>。</li>
+</ul>
+<p>若只保留 <code>q(...,0)</code>，就无法复现 Prather scheme；moments 维度是方案定义的一部分。</p>
+<h2 id="ppm-lmdz-wrapper--nasa-core">PPM: LMDZ wrapper + NASA core</h2>
+<p>PPM 分支是本集合里接口层最厚的一条路径。串行 <code>advtrac</code> 的实际结构是：</p>
+<pre class="text"><code>adaptdt(iadv,dtbon,n,pbarug,massem)
+vertical CFL warning check
+interpre(q,qppm,wg,fluxwppm,massem,apppm,bpppm,massebx,masseby,pbarug,pbarvg,unatppm,vnatppm,psppm)
+for indice = 1..n:
+  ppm3d(1,qppm,psppm,psppm,unatppm,vnatppm,fluxwppm,dtbon,
+        IORD,JORD,KORD,1,iim,jjp1,2,llm,apppm,bpppm,0.01,6400000,fill,dum,220.)
+interpost(q,qppm)</code></pre>
+<h3 id="interpre">interpre</h3>
+<p><code>interpre</code> 负责把 LMDZ 动力状态变成 PPM3d 需要的变量：</p>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>公式或处理</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>psppm</code></td>
+<td><code>sum_l(masse) / aire * g * 0.01</code></td>
+<td>地面压强，单位从 Pa 转 mb。</td>
+</tr>
+<tr>
+<td><code>unatppm</code></td>
+<td><code>pbaru / massebx * cu</code> 后垂直翻转</td>
+<td>从 U 质量通量还原纬向风。</td>
+</tr>
+<tr>
+<td><code>vnatppm</code></td>
+<td><code>-pbarv / masseby * cv</code> 后垂直翻转</td>
+<td>经向风取反以适配 PPM 纬度方向。</td>
+</tr>
+<tr>
+<td><code>fluxwppm</code></td>
+<td><code>w * g * 0.01 / aire</code> 后垂直翻转</td>
+<td>垂直质量通量格式转换。</td>
+</tr>
+<tr>
+<td><code>qppm</code></td>
+<td><code>q(:,:,llm-l+1)</code></td>
+<td>PPM3d 的第 1 层是大气顶。</td>
+</tr>
+<tr>
+<td><code>apppm/bpppm</code></td>
+<td><code>ap/bp(llm+2-l)</code></td>
+<td>混合坐标系数翻转。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="interpost">interpost</h3>
+<p><code>interpost</code> 很短，但对数值等价是硬要求：</p>
+<pre class="text"><code>q(i,j,l) = qppm(i,j,llm-l+1)
+q(iip1,j,l) = q(1,j,l)</code></pre>
+<p>也就是先把 PPM3d 层序翻回 LMDZ，再补上经向周期边界。若单独调用 <code>ppm3d</code> 而不做 <code>interpost</code>，输出不等价于 LMDZ <code>advtrac</code> 分支。</p>
+<h2 id="可达性和白名单">可达性和白名单</h2>
+<p>当前 <code>infotrac_init</code> 对最终 <code>iadv(:)</code> 做强检查：</p>
+<ul>
+<li>只允许 <code>iadv=10</code>、<code>14</code> 或 <code>0</code>。</li>
+<li><code>iadv=14</code> 只允许第 1 个 tracer。</li>
+<li>父子 tracer 还要求子 tracer 使用 <code>10</code>，父 tracer 使用 <code>10</code> 或 <code>14</code>。</li>
+</ul>
+<p>因此 <code>20/30/11/16/17/18</code> 在标准 6.3 初始化阶段就会 <code>abort_gcm</code>。这些源码在 wiki 中仍需记录，因为：</p>
+<ul>
+<li>旧版运行或本地补丁可能放宽白名单。</li>
+<li>文件仍参与编译/维护成本和误读风险。</li>
+<li><code>advtrac.F90</code> 内的分支文本需要有出处解释。</li>
+</ul>
+<h2 id="复现检查点">复现检查点</h2>
+<ol type="1">
+<li>先确认 <code>infotrac_init</code> 是否允许目标 <code>iadv</code>；不要只看 <code>advtrac</code> 是否有下游分支。</li>
+<li>PPM 路径必须完整复现 <code>adaptdt -&gt; interpre -&gt; ppm3d -&gt; interpost</code>，不能只调用 <code>ppm3d</code>。</li>
+<li><code>interpre</code> 的经向风取反和垂直层序翻转是 PPM 结果等价的关键。</li>
+<li>Prather 必须保留 <code>0:9</code> moments；<code>q(...,0)</code> 只是平均量。</li>
+<li><code>pentes_ini</code> 使用 <code>SM/S0/sx/sy/sz</code> moments 工作数组，并在每个方向输送前调用 limiter。</li>
+<li>并行 <code>advtrac_p</code> 的旧 scheme-specific 分支在 <code>GOTO 1234</code> 后不可达。</li>
+<li><code>adaptdt</code> 只按水平 <code>pbaru</code> 切子步；PPM 垂直 CFL 只打印 warning。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3d/advtrac.html">dyn3d/advtrac</a></li>
+<li><a href="../themes/transport-advection.html">Transport And Advection</a></li>
+<li><a href="common-vanleer-advection-operators.html">COMMON tracer advection operator family</a></li>
+<li><a href="../modules/dyn3d_common/ppm3d.html">ppm3d</a></li>
+<li><a href="ppm3d-entry-contract.html">ppm3d 入口契约</a></li>
+<li><a href="../modules/dyn3d_common/prather.html">prather</a></li>
+<li><a href="../modules/dyn3d_common/pentes_ini.html">pentes_ini</a></li>
+<li><a href="infotrac-advection-schemes.html">infotrac advection schemes</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>是否存在目标 Mars 生产分支放宽了 <code>infotrac_init</code> 白名单并重新启用 <code>20/30/11/16/17/18</code>。</li>
+<li><code>iadv=11</code> 在 Mars 历史配置中是否实际使用过，需要历史版本或运行配置证据。</li>
+<li>PPM <code>fill=.true.</code> 负值填充对 Mars tracer 质量守恒的影响需要运行样例验证。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

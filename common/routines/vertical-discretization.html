@@ -1,0 +1,100 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vertical-discretization - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/vertical-discretization.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="垂直离散构造">垂直离散构造</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d_common\disvert.F90
+dyn3d_common\disvert_noterre.F</code></pre>
+<p>Mars 运行参与度：<code>必经/条件经过</code>。动力初始化必须构造垂直坐标；Mars 非地球路径常依赖 <code>disvert_noterre.F</code> 或相同接口。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>disvert</code> 和 <code>disvert_noterre</code> 构造 <code>ap/bp/presnivs</code> 等垂直坐标数组。前者是较新的 Fortran 90 实现，读取多种 <code>getin</code> 参数；后者是非地球/传统路径，调用 <code>sig_hybrid</code> 构造 hybrid sigma 坐标。</p>
+<h2 id="对照表">对照表</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>关键点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>disvert.F90</code></td>
+<td>457</td>
+<td><code>getin</code> 读取 <code>vert_sampling</code>, <code>dsigmin</code>, <code>vert_scale</code>, <code>vert_dzmin</code> 等；含 <code>ridders</code>, <code>racinesig</code>, <code>distrib</code>。</td>
+</tr>
+<tr>
+<td><code>disvert_noterre.F</code></td>
+<td>331</td>
+<td>非地球变体，使用 IOIPSL/getincom，调用 <code>sig_hybrid</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>读取垂直层数和坐标控制参数。</li>
+<li>根据采样方式构造层界面和层中点。</li>
+<li>计算 hybrid 坐标系数 <code>ap/bp</code> 与参考压力层。</li>
+<li>写入 <code>comvert_mod</code> 供 pressure、Exner、history 垂直轴使用。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>垂直坐标是后续 pressure、mass、temperature 转换的共同输入，不能只记录层数。</li>
+<li><code>vert_sampling</code> 等配置会改变层厚分布；Mars 复现实验必须保存 run.def 中相关键。</li>
+<li><code>disvert_noterre</code> 的非地球路径和 Mars 动力-物理共享状态契约见 <a href="vertical-coordinate-mars-contract.html">vertical-coordinate-mars-contract</a>。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3d_common/index.html">dyn3d_common 总览</a></li>
+<li><a href="mass-pressure-energy-overview.html">质量压力能量总览</a></li>
+</ul>
+<h2 id="已确认">已确认</h2>
+<ul>
+<li>COMMON 6.3 <code>iniconst</code> 在 <code>planet_type!="earth"</code> 时默认 <code>disvert_type=2</code>，即 Mars/Generic 默认调用 <code>disvert_noterre</code>；仍可由 <code>run.def</code> 的 <code>disvert_type</code> 覆盖。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,352 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>history-xios-getin-boundary - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/history-xios-getin-boundary.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="historyxiosgetin-输出配置边界">history/XIOS/getin 输出配置边界</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\gcm.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\gcm.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\conf_gcm.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\com_io_dyn_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\inithist.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\writehist.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\initdynav.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\writedynav.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\inithist_p.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\writehist_p.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\initdynav_p.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\writedynav_p.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\ioipsl_getin_p_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\ioipsl_getincom.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\wxios.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\xios_writefield.F90
+LMDZ.MARS\libf\phymars\conf_phys.F
+LMDZ.MARS\libf\phymars\xios_output_mod.F90
+LMDZ.MARS\libf\phymars\write_output_mod.F90</code></pre>
+<p>Mars 运行参与度：<code>必经/条件经过</code>。<code>getin/getin_p</code> 对 Mars 动力和物理配置是必经；动力 <code>history/dynav</code> 仅在 <code>ok_dyn_ins/ok_dyn_ave/ok_dynzon</code> 与 <code>CPP_IOIPSL</code> 条件满足时经过；XIOS 仅在 <code>CPP_XIOS</code> 和相关 Mars physics 输出路径启用时经过。</p>
+<h2 id="总边界">总边界</h2>
+<p>实用版需要把四类 I/O 分清：</p>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>配置入口</th>
+<th>输出实现</th>
+<th>主要文件</th>
+<th>责任边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>动力配置</td>
+<td><code>conf_gcm</code> 直接 <code>getin</code></td>
+<td>不输出，只写控制状态</td>
+<td><code>conf_gcm.F90</code>, <code>control_mod</code>, <code>logic_mod</code></td>
+<td>读取 <code>iecri/periodav/ok_dyn_*</code> 等动力输出门控。</td>
+</tr>
+<tr>
+<td>动力 history/dynav</td>
+<td><code>ok_dyn_ins/ok_dyn_ave/ok_dynzon</code></td>
+<td>IOIPSL <code>histbeg/histdef/histwrite/histsync</code></td>
+<td><code>inithist/writehist/initdynav/writedynav</code></td>
+<td>写 COMMON 动力诊断文件，不负责 Mars <code>diagfi.nc</code>。</td>
+</tr>
+<tr>
+<td>物理配置</td>
+<td><code>conf_phys</code> 和 physics modules 调 <code>getin_p</code></td>
+<td>不输出，只写 Mars physics 状态</td>
+<td>COMMON <code>ioipsl_getin_p_mod</code>, MARS <code>conf_phys.F</code></td>
+<td>root 读取并广播物理参数，如 <code>outputs_per_sol/output_diagfi/callstats</code>。</td>
+</tr>
+<tr>
+<td>物理/XIOS/diagfi 输出</td>
+<td>Mars physics 输出模块</td>
+<td>Mars <code>writediagfi/stats/xios_output_mod</code>，以及 COMMON XIOS/write_field helper</td>
+<td>MARS <code>write_output_mod/xios_output_mod</code>, COMMON <code>wxios/xios_writefield/write_field</code></td>
+<td>Mars physics 诊断由 MARS 控制；COMMON 只提供并行安全 getin、XIOS helper 和旧写场桥。</td>
+</tr>
+</tbody>
+</table>
+<p>因此不要把 <code>dyn_hist.nc</code>、<code>diagfi.nc</code>、<code>stats.nc</code> 和 XIOS XML 输出混成一条链。它们共享配置读取和并行环境，但文件职责不同。</p>
+<h2 id="配置读取链">配置读取链</h2>
+<h3 id="动力侧">动力侧</h3>
+<p><code>gcm.F90</code> 在顶部按编译选项选择配置读取来源：</p>
+<pre class="text"><code>#ifdef CPP_IOIPSL
+  USE IOIPSL
+#else
+  USE ioipsl_getincom
+#endif</code></pre>
+<p><code>conf_gcm.F90</code> 直接调用 <code>getin</code>。与输出相关的关键项包括：</p>
+<table>
+<thead>
+<tr>
+<th>key</th>
+<th>默认</th>
+<th>消费方</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iecri</code></td>
+<td><code>1</code></td>
+<td><code>gcm</code>, <code>leapfrog</code></td>
+<td>instant history 的输出步长，按天转成 <code>t_ops=((iecri/day_step)*daysec)</code>。</td>
+</tr>
+<tr>
+<td><code>periodav</code></td>
+<td><code>1.</code></td>
+<td><code>gcm</code>, <code>leapfrog</code></td>
+<td>平均 history 的写出周期，<code>t_wrt=periodav*daysec</code>。</td>
+</tr>
+<tr>
+<td><code>output_grads_dyn</code></td>
+<td><code>.false.</code></td>
+<td><code>leapfrog</code></td>
+<td>额外 Grads 动力输出。</td>
+</tr>
+<tr>
+<td><code>ok_dynzon</code></td>
+<td><code>.false.</code></td>
+<td><code>leapfrog</code>, <code>bilan_dyn</code></td>
+<td>纬向/守恒诊断输出。</td>
+</tr>
+<tr>
+<td><code>ok_dyn_ins</code></td>
+<td><code>.false.</code></td>
+<td><code>gcm</code>, <code>writehist</code></td>
+<td>instant <code>dyn_hist*.nc</code> 初始化和写出门。</td>
+</tr>
+<tr>
+<td><code>ok_dyn_ave</code></td>
+<td><code>.false.</code></td>
+<td><code>gcm</code>, <code>writedynav</code></td>
+<td>averaged <code>dyn_hist*_ave.nc</code> 初始化和写出门。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="物理侧">物理侧</h3>
+<p>COMMON 的 <code>ioipsl_getin_p_mod.F90</code> 是物理侧并行配置读取 wrapper：</p>
+<pre class="text"><code>#ifdef CPP_IOIPSL
+USE ioipsl, ONLY: getin
+#else
+USE ioipsl_getincom, ONLY: getin
+#endif</code></pre>
+<p>每个 typed <code>getin_p</code> procedure 都先 OMP barrier，然后只有 <code>is_mpi_root .AND. is_omp_root</code> 调 <code>getin</code>，最后 <code>bcast</code> 给其它 ranks/threads。Mars <code>conf_phys.F</code> 通过它读取：</p>
+<table>
+<thead>
+<tr>
+<th>key</th>
+<th>Mars 作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>outputs_per_sol</code></td>
+<td>Mars physics 输出频率；必须整除 <code>steps_per_sol</code>。</td>
+</tr>
+<tr>
+<td><code>slow_diagfi</code></td>
+<td>1D/debug 场景下控制 <code>diagfi.nc</code> 打开/关闭策略。</td>
+</tr>
+<tr>
+<td><code>iphysiq</code></td>
+<td>physics 调用频率，与动力侧共享含义。</td>
+</tr>
+<tr>
+<td><code>ecritstart</code></td>
+<td>Mars physics restart 写出频率。</td>
+</tr>
+<tr>
+<td><code>datadir</code>, <code>startphy_file</code></td>
+<td>外部数据目录和 <code>startfi.nc</code> 初始化。</td>
+</tr>
+<tr>
+<td><code>callstats</code></td>
+<td>是否写 <code>stats.nc</code>。</td>
+</tr>
+<tr>
+<td><code>output_diagfi</code></td>
+<td>是否写 Mars <code>diagfi.nc</code>。</td>
+</tr>
+<tr>
+<td><code>diagsoil</code></td>
+<td>是否写 Mars <code>diagsoil.nc</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>Mars physics 模块还广泛用 <code>getin_p</code> 读取辐射、尘埃、水循环、云微物理等配置；这些属于 MARS physics 内容，不在 COMMON 实用版里逐项展开。</p>
+<h2 id="动力-historydynav-链">动力 history/dynav 链</h2>
+<p>动力输出只在 <code>CPP_IOIPSL</code> 编译分支内初始化和写出。</p>
+<h3 id="初始化">初始化</h3>
+<p><code>gcm.F90</code> 串行路径：</p>
+<pre class="text"><code>if (ok_dyn_ins) then
+  t_ops = ((1.0*iecri)/day_step) * daysec
+  t_wrt = daysec
+  CALL inithist(day_ref, annee_ref, time_step, t_ops, t_wrt)
+endif
+
+if (ok_dyn_ave) then
+  t_ops = iperiod * time_step
+  t_wrt = periodav * daysec
+  CALL initdynav(day_ref, annee_ref, time_step, t_ops, t_wrt)
+endif</code></pre>
+<p>并行 <code>gcm.F</code> 只在 <code>mpi_rank==0</code> 上调用串行 <code>inithist/initdynav</code> 初始化；并行专用 <code>inithist_p/initdynav_p</code> 在当前路径中保留为支撑实现和其它调用模式。</p>
+<p><code>com_io_dyn_mod.F90</code> 持有文件名和 id：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>文件名</th>
+<th>id 设置方</th>
+<th>写出方</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>instant scalar</td>
+<td><code>dyn_hist.nc</code></td>
+<td><code>inithist</code></td>
+<td><code>writehist</code></td>
+</tr>
+<tr>
+<td>instant U grid</td>
+<td><code>dyn_histu.nc</code></td>
+<td><code>inithist</code></td>
+<td><code>writehist</code></td>
+</tr>
+<tr>
+<td>instant V grid</td>
+<td><code>dyn_histv.nc</code></td>
+<td><code>inithist</code></td>
+<td><code>writehist</code></td>
+</tr>
+<tr>
+<td>averaged scalar</td>
+<td><code>dyn_hist_ave.nc</code></td>
+<td><code>initdynav</code></td>
+<td><code>writedynav</code></td>
+</tr>
+<tr>
+<td>averaged U grid</td>
+<td><code>dyn_histu_ave.nc</code></td>
+<td><code>initdynav</code></td>
+<td><code>writedynav</code></td>
+</tr>
+<tr>
+<td>averaged V grid</td>
+<td><code>dyn_histv_ave.nc</code></td>
+<td><code>initdynav</code></td>
+<td><code>writedynav</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="时间步写出">时间步写出</h3>
+<p><code>leapfrog.F</code> 里有三组门：</p>
+<pre class="text"><code>MOD(itau, iperiod)==0 or itau==itaufin:
+  ok_dynzon -&gt; bilan_dyn(...)
+  ok_dyn_ave -&gt; writedynav(...)
+
+MOD(itau, iecri)==0:
+  ok_dyn_ins -&gt; writehist(...)</code></pre>
+<p><code>writehist/writedynav</code> 内部用 <code>itau_w = itau_dyn + time</code> 作为 <code>histwrite</code> 时间。串行版写全局数组；并行版写局部切片，tracer 写出比串行版更完整。</p>
+<h2 id="xios-和-common-helper-边界">XIOS 和 COMMON helper 边界</h2>
+<p>COMMON <code>gcm.F90</code> 在 <code>CPP_XIOS</code> 下调用：</p>
+<pre class="text"><code>CALL wxios_init(&quot;LMDZ&quot;)</code></pre>
+<p><code>wxios_init</code> 做的是 XIOS 初始化和 context 名保存；真正的 context/domain/axis/field 细节由后续 XIOS helper 或 Mars physics 输出模块决定。</p>
+<p>COMMON <code>wxios.F90</code> 和 <code>xios_writefield.F90</code> 提供：</p>
+<ul>
+<li><code>wxios_init</code>, <code>wxios_context_init</code>, <code>wxios_closedef</code>, <code>wxios_domain_param</code> 等 context/domain helper。</li>
+<li><code>xios_writefield2d/3d</code> 的临时 field/file 发送封装。</li>
+<li><code>write_field_phy</code> 把物理列 gather 到全局，再桥接到旧 <code>misc:WriteField</code>。</li>
+</ul>
+<p>Mars physics 标准输出主控在 MARS：</p>
+<ul>
+<li><code>xios_output_mod.F90</code> 建立 Mars physics XIOS axes/domain/calendar，并提供 <code>histwrite*_xios</code> 和 <code>xios_is_active_field</code>。</li>
+<li><code>write_output_mod.F90</code> 先看 <code>output_diagfi</code> 决定是否调用 <code>writediagfi</code>，在 <code>CPP_XIOS</code> 下还可把字段送到 <code>send_xios_field</code>。</li>
+</ul>
+<p>所以 COMMON 实用版只需要说明 COMMON helper 如何接入；Mars physics 的完整 field 列表、XML、<code>diagfi.nc</code> 字段含义属于 MARS wiki 或后续 Mars physics 输出页。</p>
+<h2 id="复现顺序">复现顺序</h2>
+<p>对 Mars 3D run，按以下顺序判断输出是否会出现：</p>
+<ol type="1">
+<li>编译期确认 <code>CPP_IOIPSL</code>：没有它，COMMON 动力 <code>hist*</code> history 初始化和写出分支不会编译进入。</li>
+<li>编译期确认 <code>CPP_XIOS</code>：没有它，COMMON <code>wxios</code> 和 Mars physics XIOS 输出不会编译进入。</li>
+<li>运行期在 <code>run.def</code> 里检查 <code>iecri</code>, <code>periodav</code>, <code>ok_dyn_ins</code>, <code>ok_dyn_ave</code>, <code>ok_dynzon</code>。</li>
+<li>运行期在 <code>callphys.def</code> 或共享 def 文件里检查 <code>outputs_per_sol</code>, <code>output_diagfi</code>, <code>callstats</code>, <code>diagsoil</code>。</li>
+<li>若动力 history 缺失，先看 <code>ok_dyn_*</code> 和 <code>CPP_IOIPSL</code>，再看 <code>inithist/initdynav</code> 是否被调用。</li>
+<li>若 Mars <code>diagfi.nc</code> 缺失，先看 <code>output_diagfi</code> 和 MARS <code>write_output_mod/writediagfi</code>，不要先查 COMMON <code>writehist</code>。</li>
+<li>若 XIOS 文件缺失，先看 <code>CPP_XIOS</code>、XIOS XML/context、<code>xios_output_mod</code> 初始化和 field 是否 active。</li>
+<li>若并行配置读取异常，查 <code>getin_p</code> 的 root-read/bcast 前提：物理 MPI/OMP 数据和 transfer/bcast 是否初始化。</li>
+</ol>
+<h2 id="常见误判">常见误判</h2>
+<ul>
+<li><code>iecri</code> 控制的是动力 instant history，不是 Mars physics <code>diagfi.nc</code> 的唯一频率。Mars physics 使用 <code>outputs_per_sol</code>。</li>
+<li><code>ok_dyn_ins=.true.</code> 只打开 COMMON 动力输出，不会自动打开 Mars <code>diagfi.nc</code>。</li>
+<li><code>output_diagfi=.false.</code> 不影响 COMMON <code>dyn_hist*.nc</code>。</li>
+<li><code>wxios_init("LMDZ")</code> 不是字段注册；字段、axis、domain 仍由 <code>wxios_*</code> helper 或 Mars <code>xios_output_mod</code> 定义。</li>
+<li><code>getin</code> 找不到 key 时保持调用方默认值；因此输出没打开可能是默认值，而不是读取失败。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Mars physics <code>diagfi.nc/stats.nc/xios</code> 的完整字段清单不属于 COMMON 源码，需要由 MARS physics 输出页补齐。</li>
+<li>当前 split workspace 没有实际运行 <code>CPP_IOIPSL/CPP_XIOS</code> 构建；本页根据源码分支和调用关系说明边界。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="inithist-serial-parallel.html">history 输出初始化</a></li>
+<li><a href="history-field-registration.html">history/dynav 字段注册和写出门控</a></li>
+<li><a href="history-output-serial-parallel.html">history/dynav 输出</a></li>
+<li><a href="leapfrog-output-restart.html">leapfrog 输出/restart</a></li>
+<li><a href="common-state-control-contract.html">COMMON 状态/控制契约</a></li>
+<li><a href="../modules/misc/ioipsl-getin-system.html">IOIPSL getin 系统</a></li>
+<li><a href="getin-fallback-file-precedence.html">fallback getin 文件来源和 key 表</a></li>
+<li><a href="getin-typed-parser.html">typed getin 解析契约</a></li>
+<li><a href="../modules/phy_common/write-field-xios.html">XIOS/write_field 输出封装</a></li>
+<li><a href="xios-domain-field-setup.html">XIOS domain/axis/field setup</a></li>
+<li><a href="common-gcm-mars-run-entry.html">Mars 3D GCM 主入口链</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

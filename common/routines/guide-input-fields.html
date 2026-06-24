@@ -1,0 +1,243 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>guide-input-fields - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/guide-input-fields.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="guide-输入场读取">guide 输入场读取</h1>
+<p><code>guide_read</code> 和 <code>guide_read2D</code> 负责从 NetCDF 文件读取 nudging 输入场。两者共享相同的文件打开和初始化逻辑，区别在于空间维度：<code>guide_read</code> 读取完整三维场 <code>(iip1, jjp1, nlevnc)</code>，<code>guide_read2D</code> 读取经度-气压二维切片 <code>(jjp1, nlevnc)</code> 后沿 <code>iip1</code> 广播。串行版 <code>guide_mod</code> 和并行版 <code>guide_p_mod</code> 在读取逻辑上几乎相同，但并行版额外支持 <code>guide_plevs=2</code> 逐格点气压场读取。</p>
+<h2 id="调用链">调用链</h2>
+<p><code>guide_main</code> 在每个读取步调用 <code>guide_read(step_rea)</code> 或 <code>guide_read2D(step_rea)</code>，由 <code>guide_2D</code> 开关选择。<code>guide_init</code> 首次执行时通过 <code>guide_read(1)</code> 或 <code>guide_read2D(1)</code> 加载第一个时间片，随后将 <code>Xnat2</code> 复制到 <code>Xnat1</code> 作为初始对。<code>guide_main</code> 中每次读取前先执行 <code>Xnat1 = Xnat2</code>（仅局部 <code>jjb:jje</code> 对并行版），然后读入新的 <code>Xnat2</code>。</p>
+<h2 id="文件结构与-netcdf-变量映射">文件结构与 NetCDF 变量映射</h2>
+<table>
+<thead>
+<tr>
+<th>物理量</th>
+<th>文件名</th>
+<th>NetCDF 变量</th>
+<th>水平维度</th>
+<th>垂直维度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>u</td>
+<td><code>u.nc</code></td>
+<td><code>UWND</code></td>
+<td><code>(iip1, jjp1)</code></td>
+<td><code>nlevnc</code></td>
+</tr>
+<tr>
+<td>v</td>
+<td><code>v.nc</code></td>
+<td><code>VWND</code></td>
+<td><code>(iip1, jjm)</code></td>
+<td><code>nlevnc</code></td>
+</tr>
+<tr>
+<td>T</td>
+<td><code>T.nc</code></td>
+<td><code>AIR</code></td>
+<td><code>(iip1, jjp1)</code></td>
+<td><code>nlevnc</code></td>
+</tr>
+<tr>
+<td>Q/hur</td>
+<td><code>hur.nc</code></td>
+<td><code>RH</code></td>
+<td><code>(iip1, jjp1)</code></td>
+<td><code>nlevnc</code></td>
+</tr>
+<tr>
+<td>Ps</td>
+<td><code>ps.nc</code></td>
+<td><code>SP</code></td>
+<td><code>(iip1, jjp1)</code></td>
+<td>1（第 3 维 = time）</td>
+</tr>
+<tr>
+<td>AP/BP</td>
+<td><code>apbp.nc</code></td>
+<td><code>AP</code>, <code>BP</code></td>
+<td>1D <code>(nlevnc)</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>P</td>
+<td><code>P.nc</code></td>
+<td><code>PRES</code></td>
+<td><code>(iip1, jjp1)</code></td>
+<td><code>nlevnc</code></td>
+</tr>
+</tbody>
+</table>
+<p>Ps 的 <code>start/count</code> 特殊处理：<code>start(3)=timestep, start(4)=0, count(2)=jjp1, count(3)=1, count(4)=0</code>，即从第 3 维读取单个时间步。其余三维场使用 <code>start(4)=timestep, count(4)=1</code>。</p>
+<h2 id="首次调用初始化">首次调用初始化</h2>
+<p>两个 read 子例程都用 <code>first</code> SAVE flag 控制首次调用。首次调用完成所有文件打开、变量 ID 查询和垂直坐标系数读取。文件打开顺序有依赖：需要先确定 <code>ncidpl</code>（用于读取 LEVEL/PRESSURE 或 AP/BP 的文件 ID），按 <code>guide_plevs</code> 值或变量优先级依次尝试 <code>apbp.nc</code> → <code>P.nc</code> → <code>u.nc</code> → <code>v.nc</code> → <code>T.nc</code> → <code>hur.nc</code>，取第一个成功打开的作为 <code>ncidpl</code>。</p>
+<h3 id="垂直坐标系数">垂直坐标系数</h3>
+<p><code>guide_plevs=0</code>（纯气压层）：从 NetCDF 的 <code>LEVEL</code> 或 <code>PRESSURE</code> 维变量读取 <code>apnc</code>，乘以 100 转 Pa，<code>bpnc</code> 全部置零。<code>guide_plevs=1</code>（混合层）：从 <code>apbp.nc</code> 读取 <code>AP</code> 和 <code>BP</code> 变量到 <code>apnc</code> 和 <code>bpnc</code>。<code>guide_plevs=2</code>（逐格点气压）：不在此处读取系数，气压由 <code>P.nc</code> 中 <code>pnat</code> 三维场直接提供。</p>
+<h2 id="nc_double-精度守卫">NC_DOUBLE 精度守卫</h2>
+<p>所有 <code>NF_GET_VARA_*</code> 调用用 <code>#ifdef NC_DOUBLE</code> 条件编译选择 <code>NF_GET_VARA_DOUBLE</code> 或 <code>NF_GET_VARA_REAL</code>。这是 LMDZ 全局精度抽象：编译时 <code>CPP_REAL8</code> 宏定义 <code>NC_DOUBLE</code>，使所有 I/O 使用双精度。guide 模块不检查返回值 <code>status</code>，依赖 NetCDF 运行时错误处理。</p>
+<h2 id="guide_read-3d-模式">guide_read 3D 模式</h2>
+<p>串行版对每个启用的变量读取完整 <code>(iip1, jjp1, nlevnc)</code> 或 <code>(iip1, jjm, nlevnc)</code>（v）数组。读取后若 <code>invert_y=.TRUE.</code> 则调用 <code>invert_lat</code> 翻转南北方向。<code>invert_lat</code> 是 <code>dyn3d_common/invert_lat.F90</code> 中的独立子例程，用临时数组 <code>f_aux</code> 将 <code>field(:,j,:)</code> 映射到 <code>field(:,ysize+1-j,:)</code>。</p>
+<p>并行版读取逻辑与串行版完全相同——并行版在 I/O 阶段不做域分解，每个进程读取完整场（所有进程都执行 <code>NF_GET_VARA_*</code>）。域分解发生在后续 <code>guide_interp</code> 和 <code>guide_main</code> 中通过 <code>jjb_u:jje_u</code> / <code>jjb_v:jje_v</code> 切片访问。</p>
+<h3 id="并行版额外guide_plevs2">并行版额外：guide_plevs=2</h3>
+<p>并行版 <code>guide_read</code> 在 <code>guide_plevs=2</code> 时额外读取 <code>P.nc</code> 中 <code>PRES</code> 变量到 <code>pnat2(iip1,jjp1,nlevnc)</code>。串行版无此路径。</p>
+<h2 id="guide_read2d-2d-模式">guide_read2D 2D 模式</h2>
+<p>当 <code>guide_2D=.TRUE.</code> 时使用。读取经度-气压二维切片 <code>(jjp1, nlevnc)</code> 或 <code>(jjm, nlevnc)</code>（v），然后通过 <code>DO i=1,iip1; Xnat2(i,:,:)=zu(:,:)</code> 广播到所有经度。Ps 读取为 1D <code>(jjp1)</code> 后广播到 <code>(iip1, jjp1)</code>。</p>
+<p>并行版在 <code>guide_plevs=2</code> 时也支持 2D 模式读取 <code>P.nc</code> 的 <code>PRES</code> 变量为 <code>(jjp1, nlevnc)</code> 后广播到三维 <code>pnat2</code>。</p>
+<h2 id="时间步管理">时间步管理</h2>
+<p><code>guide_main</code> 中 <code>iguide_read</code> 控制读取时机：</p>
+<ul>
+<li><code>iguide_read &gt; 0</code>：每天读 <code>iguide_read</code> 次，<code>tau = iguide_read * itau / day_step</code></li>
+<li><code>iguide_read &lt; 0</code>：每 <code>|iguide_read|</code> 天读一次，<code>tau = itau / day_step / |iguide_read|</code></li>
+<li><code>iguide_read = 0</code>：只在 <code>guide_init</code> 读一次，时间插值冻结在 <code>tau=1</code></li>
+</ul>
+<p><code>tau</code> 的整数部分判断是否到达新时间片（<code>reste = tau - AINT(tau)</code>，若 <code>reste==0</code> 则读取），小数部分作为两帧间的线性插值权重。<code>itau_test</code> 防止同一 <code>itau</code> 重复读取（double-pass 检测，若检测到则 <code>stop</code>）。</p>
+<h2 id="错误处理">错误处理</h2>
+<p>文件打开和变量查询失败时调用 <code>abort_gcm(modname, abort_message, 1)</code> 终止。错误信息用法语（如 <code>'Guide: probleme -&gt; pas de fichier u.nc'</code>）。不检查 <code>NF_GET_VARA_*</code> 的返回 <code>status</code>，依赖 NetCDF 运行时错误。</p>
+<h2 id="串并行差异">串并行差异</h2>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>串行 <code>guide_read/2D</code></th>
+<th>并行 <code>guide_read/2D</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>I/O 分布</td>
+<td>单进程读取全部</td>
+<td>所有进程读取全部（无域分解 I/O）</td>
+</tr>
+<tr>
+<td><code>guide_plevs=2</code></td>
+<td>不支持</td>
+<td>支持 <code>P.nc</code> 逐格点气压</td>
+</tr>
+<tr>
+<td>文件打开条件</td>
+<td><code>guide_modele</code> 布尔</td>
+<td><code>guide_plevs</code> 整数 0/1/2</td>
+</tr>
+<tr>
+<td><code>ncidpl</code> 探测</td>
+<td>按变量优先级</td>
+<td>增加 <code>P.nc</code> 路径</td>
+</tr>
+<tr>
+<td><code>psnat</code> 条件</td>
+<td><code>guide_P .OR. guide_modele</code></td>
+<td><code>guide_P .OR. guide_plevs==1</code></td>
+</tr>
+<tr>
+<td><code>pnat</code> 场</td>
+<td>不存在</td>
+<td>仅 <code>guide_plevs=2</code></td>
+</tr>
+<tr>
+<td><code>invert_lat</code></td>
+<td>全局</td>
+<td>全局（同串行，I/O 不分解）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="netcdf95-在-guide-中的角色">NetCDF95 在 guide 中的角色</h2>
+<p><code>netcdf95</code> 模块（<code>libf/misc/netcdf95.F90</code>）仅在 <code>guide_out</code> 中使用 <code>nf95_def_var</code> 和 <code>nf95_put_var</code> 写 alpha_T/alpha_Q 诊断变量。<code>guide_read</code> / <code>guide_read2D</code> 不使用 <code>netcdf95</code>，直接调用 NetCDF-3 C 接口 <code>NF_GET_VARA_DOUBLE/REAL</code>。<code>handle_err_m</code>（<code>libf/misc/handle_err_m.F90</code>）是 <code>netcdf95</code> 内部错误处理模块，将 NetCDF 错误码转为 <code>nf90_strerror</code> 消息后调用 <code>abort_physic</code>，guide 读取路径不经过它。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<p>Mars 运行对本页是接口兼容和条件边界。6.3 <code>guide_read/guide_read2D</code> 的活动调用来自 <code>guide_main</code>，而 <code>guide_main</code> 在串行/并行 <code>leapfrog*</code> 中受 <code>CPP_IOIPSL</code> + <code>planet_type=="earth"</code> 条件包围。Mars/generic 初始化中的 <code>relaxetat0("relax.nc")</code> 是独立路径，不经过 <code>guide_read</code>。guide 读取纯用 NetCDF 接口，不依赖 IOIPSL 历史/重启框架，但调用点本身在 6.3 中受 IOIPSL 宏保护。</p>
+<h2 id="依赖表">依赖表</h2>
+<table>
+<thead>
+<tr>
+<th>模块/文件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>netcdf</code> (Fortran)</td>
+<td><code>nf90_nowrite</code>, <code>nf90_open</code>, <code>nf90_inq_varid</code>, <code>nf90_close</code></td>
+</tr>
+<tr>
+<td><code>netcdf.inc</code> (C 接口)</td>
+<td><code>NF_GET_VARA_DOUBLE/REAL</code>, <code>NF_INQ_DIMID/LEN</code>, <code>NF_NOERR</code></td>
+</tr>
+<tr>
+<td><code>netcdf95</code></td>
+<td>仅 <code>guide_out</code> 使用 <code>nf95_def_var</code>, <code>nf95_put_var</code></td>
+</tr>
+<tr>
+<td><code>invert_lat.F90</code></td>
+<td>南北方向翻转</td>
+</tr>
+<tr>
+<td><code>getparam</code></td>
+<td><code>ini_getparam</code>/<code>getpar</code>/<code>fin_getparam</code> 参数读取</td>
+</tr>
+<tr>
+<td><code>dimensions.h</code> / <code>paramet.h</code></td>
+<td><code>iip1</code>, <code>jjp1</code>, <code>jjm</code>, <code>ip1jmp1</code>, <code>ip1jm</code>, <code>llm</code></td>
+</tr>
+<tr>
+<td><code>control_mod</code></td>
+<td><code>day_step</code>（频率编码）</td>
+</tr>
+<tr>
+<td><code>parallel_lmdz</code>（仅并行版）</td>
+<td><code>ij_begin/end</code>, <code>jj_begin/end</code>（后处理切片用，I/O 不用）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="guide-config-contract.html">guide 配置与初始化契约</a></li>
+<li><a href="guide-interpolation-pressure.html">guide 压力层插值和 nudging 系数</a></li>
+<li><a href="guide-serial-parallel-delta.html">guide 串并行差异</a></li>
+<li><a href="dynamics-control-logic-gates.html">dynamics-control-logic-gates</a></li>
+<li><a href="common-state-control-contract.html">common-state-control-contract</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

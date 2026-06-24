@@ -1,0 +1,220 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vlspltgen_p - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3dpar/vlspltgen_p.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="vlspltgen_pf">vlspltgen_p.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\vlspltgen_p.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>vlspltgen_p.F</code> 是并行动力中的通用 tracer Van Leer split 输送调度器。它遍历 tracer，按 <code>iadv</code> 和 tracer 父子关系选择普通 <code>vlx_p/vly_p/vlz_p</code>、饱和 <code>vlxqs_p/vlyqs_p</code> 或其他兼容分支，并在 x/z 两段后通过 <code>mod_hallo</code> 交换 <code>zq</code>、<code>zm</code>。相比 <code>vlspltqs_p.F</code>，本文件覆盖多 tracer、多 advection scheme 和 isotope 检查。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 并行动力 tracer advection 的通用入口之一；是否经过取决于并行 leapfrog/advtrac_p 选择的 split transport 路径和 tracer `iadv`。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vlspltgen_p</code></td>
+<td>subroutine</td>
+<td>4</td>
+<td>并行多 tracer split advection 调度。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖">依赖</h2>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>关键符号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>parallel_lmdz</code></td>
+<td>domain 边界</td>
+<td>本地网格分段。</td>
+</tr>
+<tr>
+<td><code>mod_hallo</code></td>
+<td>halo 请求 API</td>
+<td>交换 tracer 和质量工作数组。</td>
+</tr>
+<tr>
+<td><code>Write_Field_p</code></td>
+<td>调试输出</td>
+<td>并行场输出，主要用于诊断。</td>
+</tr>
+<tr>
+<td><code>VAMPIR</code></td>
+<td><code>VTb/VTe</code></td>
+<td>计时。</td>
+</tr>
+<tr>
+<td><code>infotrac</code></td>
+<td><code>nqtot</code>, <code>nqperes</code>, <code>nqdesc</code>, <code>nqfils</code>, <code>iqfils</code>, isotope 检查</td>
+<td>tracer 父子层级和一致性检查。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>cpp</code></td>
+<td>热力学相关兼容常量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="工作数组和保存状态">工作数组和保存状态</h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>维度</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zm</code></td>
+<td><code>ip1jmp1,llm,nqtot</code></td>
+<td>每个 tracer 对应的质量工作数组。</td>
+</tr>
+<tr>
+<td><code>mw</code></td>
+<td><code>ip1jmp1,llm+1,nqtot</code></td>
+<td>垂直质量通量工作数组。</td>
+</tr>
+<tr>
+<td><code>zq</code></td>
+<td><code>ip1jmp1,llm,nqtot</code></td>
+<td>tracer 工作副本。</td>
+</tr>
+<tr>
+<td><code>firstcall</code></td>
+<td><code>SAVE</code>, <code>THREADPRIVATE</code></td>
+<td>控制首次分配，OpenMP 线程私有。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用关系">调用关系</h2>
+<table>
+<thead>
+<tr>
+<th>被调用例程</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vlx_p</code>, <code>vly_p</code>, <code>vlz_p</code></td>
+<td>普通 Van Leer split 三方向输送。</td>
+</tr>
+<tr>
+<td><code>vlxqs_p</code>, <code>vlyqs_p</code></td>
+<td>饱和 tracer 的 x/y 方向输送。</td>
+</tr>
+<tr>
+<td><code>Register_Hallo</code>, <code>SendRequest</code>, <code>WaitRequest</code></td>
+<td>x/z pass 后交换 halo。</td>
+</tr>
+<tr>
+<td><code>check_isotopes</code></td>
+<td>在多个阶段检查 isotope tracer 一致性。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>首次调用时分配 <code>zm/mw/zq</code>，尺寸覆盖本地水平网格、垂直层和全部 tracer。</li>
+<li>设置两个 halo 请求 tag，准备分方向 split。</li>
+<li>对每个 tracer 根据 <code>iadv</code> 和父子关系复制 <code>q</code>、<code>masse</code>、flux 到工作数组。</li>
+<li>第一组 x pass：普通 tracer 调 <code>vlx_p</code>，饱和 tracer 调 <code>vlxqs_p</code>；随后注册 halo。</li>
+<li>发送 request 100，计算剩余区域并等待 halo。</li>
+<li>进入 y pass，按普通/饱和分支调 <code>vly_p</code> 或 <code>vlyqs_p</code>。</li>
+<li>z pass 调 <code>vlz_p</code>，注册并发送 request 101。</li>
+<li>等待 z halo 后执行第二 y pass 和第二 x pass。</li>
+<li>把 <code>zq</code> 写回 <code>q</code>，必要处执行 isotope 检查。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>if firstcall:
+    allocate zm, mw, zq for nqtot
+for iq in tracers:
+    copy q and mass/fluxes to work arrays
+    choose ordinary or saturated x kernel
+exchange x halo
+for iq in tracers:
+    run y kernel
+    run z kernel and exchange z halo
+for iq in tracers:
+    run second y and x kernels
+    copy zq back to q
+check isotope consistency at guarded points</code></pre>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>nqperes/nqfils/iqfils</code> 决定父 tracer 与子 tracer 的同步方式；复现时不能只按 <code>iq=1:nqtot</code> 独立处理。</li>
+<li><code>firstcall</code> 是 <code>THREADPRIVATE</code>，多线程下每个线程都可能执行自己的首次分配。</li>
+<li>本文件把饱和分支嵌入通用 tracer 调度；独立 <code>vlspltqs_p.F</code> 更像特化入口。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>各 <code>iadv</code> 数值到具体 scheme 的完整映射需要结合 <code>advtrac_p.F90</code>、<code>infotrac.F90</code> 和 traceur 配置。</li>
+<li><code>Write_Field_p</code> 调试输出是否在 Mars 默认编译启用需由并行构建页确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="vlspltqs_p.html">vlspltqs_p</a></li>
+<li>待写：<code>modules/dyn3dpar/vlsplt_p.md</code>（TASK-0027）</li>
+<li><a href="../../routines/advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
+<li><a href="../../routines/vlsplt-p-halo-split.html">vlsplt_p 并行 halo 与 split 内核</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

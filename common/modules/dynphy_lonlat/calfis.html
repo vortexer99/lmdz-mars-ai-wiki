@@ -1,0 +1,167 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>calfis - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dynphy_lonlat/calfis.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="calfisf">calfis.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dynphy_lonlat\calfis.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>calfis.F</code> 定义串行动力调用物理的接口例程 <code>calfis</code>。它把动力网格上的压力、温度、风、tracer、位势和垂直质量通量整理到物理列数组，调用 <code>call_physiq</code> 获得物理 tendency，再把 tendency 映射回动力网格。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：COMMON 串行动力启用物理时经过；Mars 标准物理入口多在 phymars 侧，但本文件保留 COMMON lon-lat 串行动力-物理接口逻辑。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>calfis</code></td>
+<td>subroutine</td>
+<td>6</td>
+<td>串行动力-物理调用接口。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="主要依赖">主要依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>infotrac:nqtot,niadv,tname</code></td>
+<td>tracer 数量、物理 tracer 名称和 advection index 映射。</td>
+</tr>
+<tr>
+<td><code>control_mod:planet_type,nsplit_phys</code></td>
+<td>行星类型和物理步分裂次数。</td>
+</tr>
+<tr>
+<td><code>callphysiq_mod:call_physiq</code></td>
+<td>行星物理统一调用入口。</td>
+</tr>
+<tr>
+<td><code>cpdet_mod:tpot2t,t2tpot</code></td>
+<td>位温和温度互转，支持 Cp(T) 适配。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>daysec/dtvr/dtphys/kappa/cpp/g/rad/pi</code> 等常量。</td>
+</tr>
+<tr>
+<td><code>gr_dyn_fi</code>、<code>gr_fi_dyn</code></td>
+<td>动力格点与物理列互转。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入输出">输入输出</h2>
+<table>
+<thead>
+<tr>
+<th>参数组</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>动力状态</td>
+<td><code>pps/pp/ppk/pteta/pq/pphi/pphis</code> 等，从动力网格转为物理列。</td>
+</tr>
+<tr>
+<td>风场</td>
+<td><code>pucov/pvcov</code> 转为物理侧 <code>zufi/zvfi</code>，极点用经纬方向分解。</td>
+</tr>
+<tr>
+<td>物理 tendency 输出</td>
+<td><code>pdufi/pdvfi/pdhfi/pdqfi/pdpsfi</code>，单位按注释为每秒 tendency。</td>
+</tr>
+<tr>
+<td>时间标志</td>
+<td><code>debut</code> 保存首次调用，<code>lafin</code> 表示最后一次 physics 调用。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>首次调用检查 <code>ngridmx</code>，分配 zonal mean 工作数组和纬度索引 <code>klat</code>。</li>
+<li>将动力表面压力、压力层、Exner/位温和 tracer 从 <code>iip1/jjp1</code> 网格压缩为 <code>ngridmx</code> 物理列。</li>
+<li>调用 <code>tpot2t</code> 得到物理温度 <code>ztfi</code>。</li>
+<li>调用 <code>gr_dyn_fi</code> 转换位势和地表位势；计算物理列中的风、相对涡度和垂直质量通量 <code>flxwfi</code>。</li>
+<li>在 <code>CPP_PHYS</code> 下按 <code>nsplit_phys</code> 循环调用 <code>call_physiq</code>，每个 split 使用 <code>dtphys/nsplit_phys</code> 和分裂后的 <code>jH_cur_split</code>。</li>
+<li>每个 split 后用物理 tendency 更新 <code>zufi/zvfi/ztfi/zqfi</code>，并累计 <code>zdufic/zdvfic/zdtfic/zdqfic</code>。</li>
+<li>split 结束后把累计 tendency 除以 <code>nsplit_phys</code>。</li>
+<li>调用 <code>gr_fi_dyn</code> 或显式循环把压力、热力、tracer、u/v tendency 写回动力网格；tracer 写回使用 <code>iiq=niadv(iq)</code>。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>ngridmx=2+(jjm-1)*iim - 1/jjm</code>，普通 3D 情况对应两个极点加中间纬圈。</li>
+<li>物理列顺序是北极单点、中间纬圈展开、南极单点。</li>
+<li><code>call_physiq</code> 的入口温度是 <code>ztfi</code>，写回热力 tendency 前再用 <code>t2tpot</code> 回到位温。</li>
+<li><code>pdufi</code> 在极点置零；<code>pdvfi</code> 近极点由物理侧矢量分量和 <code>rlonv</code> 投影得到。</li>
+<li><code>flag_moyzon</code> 与 <code>nsplit_phys.ne.1</code> 同时启用时只打印 warning。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Mars 当前生产路径是否直接调用 COMMON <code>calfis</code>，需从 phymars 构建和入口进一步确认。</li>
+<li><code>moyzon_ch/moyzon_mu</code> 的实际诊断输出需要 <code>moyzon_mod</code> 任务补充。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dynphy_lonlat 总览</a></li>
+<li><a href="mod_interface_dyn_phys.html">动力-物理接口索引</a></li>
+<li><a href="../../routines/dyn-phys-grid-transforms.html">动力/物理格点互转</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

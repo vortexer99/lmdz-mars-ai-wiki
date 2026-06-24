@@ -1,0 +1,336 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>write-field-debug - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/misc/write-field-debug.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="write_field-调试写场接口">write_field 调试写场接口</h1>
+<p>页面状态：TASK-0171 完成。 源码基线：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code>。 Mars 运行参与度：条件经过。<code>write_field</code> 是旧式调试 dump 工具，不是 Mars 标准 history/diagfi 主输出；但 Mars/COMMON 动力、guide、并行动力和物理侧调试路径可通过它把中间场写到独立 <code>.nc</code> 或 <code>.field</code> 文件。</p>
+<h2 id="源码范围">源码范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\write_field.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\write_field_phy.F90</code></pre>
+<p>关联边界：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\write_field_p.F90</code></pre>
+<p><code>dyn3dpar/write_field_p.F90</code> 不在本任务目标内，但它是并行动力场写入 <code>misc/write_field</code> 的直接 wrapper，本页在并行边界中记录其行为。</p>
+<h2 id="模块和符号">模块和符号</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th style="text-align: right;">行数</th>
+<th>模块</th>
+<th>主要符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>misc/write_field.F90</code></td>
+<td style="text-align: right;">326</td>
+<td><code>write_field</code></td>
+<td>generic <code>WriteField</code>, <code>GetFieldIndex</code>, <code>WriteField_gen</code>, <code>CreateNewField</code>, <code>write_field1D/2D/3D</code>, <code>int2str</code></td>
+<td>旧式字段 dump 底座，支持 NetCDF <code>.nc</code> 和格式化文本 <code>.field</code> 两套路径。</td>
+</tr>
+<tr>
+<td><code>phy_common/write_field_phy.F90</code></td>
+<td style="text-align: right;">37</td>
+<td><code>write_field_phy</code></td>
+<td><code>WriteField_phy</code></td>
+<td>将物理列局地数组 gather 到全局物理网格，再转成 <code>(nbp_lon, nbp_lat, ll)</code> 并调用 <code>WriteField</code>。</td>
+</tr>
+<tr>
+<td><code>dyn3dpar/write_field_p.F90</code></td>
+<td style="text-align: right;">73</td>
+<td><code>write_field_p</code></td>
+<td>generic <code>WriteField_p</code>, <code>write_field1D_p/2D_p/3D_p</code></td>
+<td>并行动力 wrapper：<code>Gather_Field</code> 后只在 <code>MPI_Rank==0</code> 调 <code>WriteField</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="write_field-模块状态"><code>write_field</code> 模块状态</h2>
+<p><code>write_field.F90</code> 维护一个最多 100 个字段的本地表：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MaxWriteField</code></td>
+<td>integer parameter = 100</td>
+<td>最多登记字段数。</td>
+</tr>
+<tr>
+<td><code>FieldId(MaxWriteField)</code></td>
+<td>integer, save</td>
+<td>每个字段对应的 NetCDF file id。</td>
+</tr>
+<tr>
+<td><code>FieldVarId(MaxWriteField)</code></td>
+<td>integer, save</td>
+<td>每个字段对应的 NetCDF var id。</td>
+</tr>
+<tr>
+<td><code>FieldIndex(MaxWriteField)</code></td>
+<td>integer, save</td>
+<td>当前字段已写出的 iter 下标。</td>
+</tr>
+<tr>
+<td><code>FieldName(MaxWriteField)</code></td>
+<td>character(len=255)</td>
+<td>字段名表。</td>
+</tr>
+<tr>
+<td><code>NbField</code></td>
+<td>integer, save = 0</td>
+<td>已登记字段数。</td>
+</tr>
+</tbody>
+</table>
+<p>源码没有显式检查 <code>NbField &gt; MaxWriteField</code>，也没有检查 NetCDF <code>status</code> 返回值；调试复现时若文件没生成或字段过多，不能期待它像正式 I/O wrapper 那样报错。</p>
+<h2 id="generic-writefield-的-netcdf-路径">generic <code>WriteField</code> 的 NetCDF 路径</h2>
+<p><code>WriteField</code> 是一个 generic interface，按输入数组 rank 分派到：</p>
+<table>
+<thead>
+<tr>
+<th>分派例程</th>
+<th>输入</th>
+<th>维度传给 <code>WriteField_gen</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WriteField3d(name, Field(:,:,:))</code></td>
+<td>3D real</td>
+<td><code>(dimx, dimy, dimz)</code></td>
+</tr>
+<tr>
+<td><code>WriteField2d(name, Field(:,:))</code></td>
+<td>2D real</td>
+<td><code>(dimx, dimy, 1)</code></td>
+</tr>
+<tr>
+<td><code>WriteField1d(name, Field(:))</code></td>
+<td>1D real</td>
+<td><code>(dimx, 1, 1)</code></td>
+</tr>
+</tbody>
+</table>
+<p>共同流程：</p>
+<pre class="text"><code>WriteField(...)
+  -&gt; shape(Field)
+  -&gt; WriteField_gen(name, Field, dimx, dimy, dimz)
+       -&gt; GetFieldIndex(name)
+       -&gt; if new name: CreateNewField(name, dimx, dimy, dimz)
+       -&gt; else: FieldIndex(index) += 1
+       -&gt; NF_PUT_VARA_DOUBLE(file_id, var_id, start=(1,1,1,iter), count=(dimx,dimy,dimz,1), Field)
+       -&gt; NF_SYNC(file_id)</code></pre>
+<p>首次写某个 <code>name</code> 时，<code>CreateNewField</code> 会创建 <code>name.nc</code>，定义 4 个维度：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>长度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>X</code></td>
+<td><code>dimx</code></td>
+</tr>
+<tr>
+<td><code>Y</code></td>
+<td><code>dimy</code></td>
+</tr>
+<tr>
+<td><code>Z</code></td>
+<td><code>dimz</code></td>
+</tr>
+<tr>
+<td><code>iter</code></td>
+<td><code>NF_UNLIMITED</code></td>
+</tr>
+</tbody>
+</table>
+<p>变量名使用字段名本身，类型为 <code>NF_DOUBLE</code>，维度顺序为 <code>(X,Y,Z,iter)</code>。后续同名写入不会重新定义文件，而是把 <code>iter</code> 下标加 1 后追加一帧。</p>
+<h2 id="格式化-field-路径">格式化 <code>.field</code> 路径</h2>
+<p>同一模块还定义了带下划线的 <code>write_field1D</code>, <code>write_field2D</code>, <code>write_field3D</code>。这组例程不是 generic <code>WriteField</code> 的分派目标，而是单独公开的格式化文本 dump：</p>
+<table>
+<thead>
+<tr>
+<th>例程</th>
+<th>输出文件</th>
+<th>格式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>write_field1D(name, Field(:))</code></td>
+<td><code>name.field</code></td>
+<td>每项写 <code>i ---&gt; value</code>，每 4 列换行。</td>
+</tr>
+<tr>
+<td><code>write_field2D(name, Field(:,:))</code></td>
+<td><code>name.field</code></td>
+<td>每项写 <code>(j,i) ---&gt; value</code>，纬向循环外加分隔线。</td>
+</tr>
+<tr>
+<td><code>write_field3D(name, Field(:,:,:))</code></td>
+<td><code>name.field</code></td>
+<td>每项写 <code>(k,j,i) ---&gt; value</code>，逐层/逐行分隔。</td>
+</tr>
+</tbody>
+</table>
+<p>这组文本输出每次 <code>status='replace'</code> 打开文件，会覆盖旧文件；NetCDF generic <code>WriteField</code> 则按字段名维持 <code>iter</code> 无限维追加。</p>
+<h2 id="writefield_phy-物理列桥接"><code>WriteField_phy</code> 物理列桥接</h2>
+<p><code>phy_common/write_field_phy.F90</code> 定义：</p>
+<pre class="text"><code>SUBROUTINE WriteField_phy(name, Field, ll)
+  Field(klon_omp, ll)</code></pre>
+<p>流程：</p>
+<ol type="1">
+<li><code>Gather(Field, New_Field)</code> 把本地 OMP/MPI 物理列收集到 <code>New_Field(klon_glo,ll)</code>。</li>
+<li>进入 <code>!$OMP MASTER</code> 区。</li>
+<li>若 <code>is_mpi_root</code>，调用 <code>Grid1Dto2D_glo(New_Field, Field_2D)</code>，把全局 1D 物理列转成 <code>Field_2d(nbp_lon,nbp_lat,ll)</code>。</li>
+<li>root 调用 <code>WriteField(name, Field_2d)</code>，走 <code>misc/write_field.F90</code> 的 NetCDF dump 路径。</li>
+</ol>
+<p>它依赖：</p>
+<table>
+<thead>
+<tr>
+<th>use 模块</th>
+<th>符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td><code>klon_omp</code>, <code>is_mpi_root</code>, <code>Gather</code></td>
+<td>物理侧并行列数、root 判定和 gather。</td>
+</tr>
+<tr>
+<td><code>mod_grid_phy_lmdz</code></td>
+<td><code>nbp_lon</code>, <code>nbp_lat</code>, <code>klon_glo</code>, <code>Grid1Dto2D_glo</code></td>
+<td>全局物理网格尺寸和 1D 到 2D 映射。</td>
+</tr>
+<tr>
+<td><code>write_field</code></td>
+<td><code>WriteField</code></td>
+<td>写出最终 NetCDF dump。</td>
+</tr>
+</tbody>
+</table>
+<p><code>WriteField_phy</code> 不做 XIOS context、field 或正式诊断注册；它只是把物理列调试场转成全局 lon-lat 后交给旧式 dump 底座。</p>
+<h2 id="并行动力-wrapper-边界">并行动力 wrapper 边界</h2>
+<p><code>dyn3dpar/write_field_p.F90</code> 定义 generic <code>WriteField_p</code>。1D/2D/3D 版本都遵循：</p>
+<pre class="text"><code>copy local Field into New_Field
+Gather_Field(New_Field, horizontal_size, vertical_size, 0)
+if MPI_Rank == 0:
+    WriteField(name, New_Field)</code></pre>
+<p>这解释了并行动力中 <code>WriteField_p</code> 的行为：它先把分布式动力数组 gather 到 root，再复用串行 <code>WriteField</code>。因此并行 debug dump 的输出文件也只由 rank 0 写，文件名仍是 <code>name.nc</code>。</p>
+<h2 id="调用关系和-mars-边界">调用关系和 Mars 边界</h2>
+<p>源码搜索显示几类使用方式：</p>
+<ul>
+<li><code>dyn3d/guide_mod.F90</code> 和 <code>dyn3dpar/guide_p_mod.F90</code> 有活动 <code>CALL writefield(...)</code> / <code>CALL writefield_p(...)</code>，用于 guide/nudging 调试输出。</li>
+<li><code>dyn3d/leapfrog.F</code>、MARS <code>phymars/leapfrog_nogcm.F</code>、多个并行动力算子中有许多注释掉的 <code>WriteField</code>/<code>WriteField_p</code> 调试调用。</li>
+<li><code>dyn3dpar/caldyn_p.F</code> 中存在活动 <code>WriteField_p</code> 调用，会输出多个动力中间量；是否在生产构建中保留这些调用，需要结合编译配置和运行实践确认。</li>
+<li><code>phy_common/write_field_phy.F90</code> 提供物理列桥接，但 Mars 标准 physics 诊断通常仍应优先看 <code>diagfi/stats</code>、history 或 XIOS 页面。</li>
+</ul>
+<p>所以本页是“调试写场”页，不应替代正式输出链：<a href="../../routines/history-xios-getin-boundary.html">history-xios-getin-boundary</a>、<a href="../../themes/restart-io.html">restart-io</a> 和 <a href="../phy_common/write-field-xios.html">XIOS/write_field 输出封装组页</a>。</p>
+<h2 id="复现检查表">复现检查表</h2>
+<table>
+<thead>
+<tr>
+<th>目标</th>
+<th>检查</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>想得到 <code>name.nc</code></td>
+<td>调用 generic <code>WriteField(name, array)</code> 或 <code>WriteField_p/WriteField_phy</code>；首次调用会创建 <code>name.nc</code>，后续同名追加 <code>iter</code>。</td>
+</tr>
+<tr>
+<td>想得到可读文本</td>
+<td>调用带下划线的 <code>write_field1D/2D/3D</code>；输出 <code>name.field</code>，每次覆盖。</td>
+</tr>
+<tr>
+<td>并行动力 dump 缺文件</td>
+<td>确认是否在 <code>MPI_Rank==0</code>，以及 <code>Gather_Field</code> 前并行分布是否匹配当前数组。</td>
+</tr>
+<tr>
+<td>物理列 dump 形状异常</td>
+<td>确认 <code>klon_omp</code>, <code>klon_glo</code>, <code>nbp_lon</code>, <code>nbp_lat</code> 和 <code>Grid1Dto2D_glo</code> 已初始化。</td>
+</tr>
+<tr>
+<td>NetCDF 文件损坏或无变量</td>
+<td>源码不检查 <code>NF_* status</code>，需外部用 NetCDF 工具验证。</td>
+</tr>
+<tr>
+<td>字段超过 100 个</td>
+<td><code>MaxWriteField=100</code>，源码未见越界保护。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>dyn3dpar/caldyn_p.F</code> 中活动 <code>WriteField_p</code> 调用是否属于当前 Mars 生产构建保留路径，需要结合实际编译选项和运行日志确认。</li>
+<li><code>WriteField_gen</code> 使用 <code>NF_PUT_VARA_DOUBLE</code> 写 Fortran <code>real</code> 数组，实际精度和 NetCDF 库接口绑定需运行或编译器接口确认。</li>
+<li><code>.field</code> 文本路径中部分局部 allocatable 变量未使用；本页按无副作用处理。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">misc 总览</a></li>
+<li><a href="../phy_common/write-field-xios.html">XIOS/write_field 输出封装组页</a></li>
+<li><a href="../phy_common/index.html">phy_common 总览</a></li>
+<li><a href="../phy_common/mod_phys_lmdz_para.html">mod_phys_lmdz_para</a></li>
+<li><a href="../phy_common/mod_grid_phy_lmdz.html">mod_grid_phy_lmdz</a></li>
+<li><a href="../../routines/history-xios-getin-boundary.html">history/XIOS/getin 边界</a></li>
+<li><a href="../../themes/restart-io.html">restart-io</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

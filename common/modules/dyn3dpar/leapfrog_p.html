@@ -1,0 +1,136 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>leapfrog_p - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3dpar/leapfrog_p.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="leapfrog_pf">leapfrog_p.F</h1>
+<p>页面状态：6.3 返工完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\leapfrog_p.F</code>。 Mars 运行参与度：条件经过；Mars 并行动力 GCM 主循环经过，串行动力不经过。</p>
+<h2 id="文件定位">文件定位</h2>
+<p><code>leapfrog_p</code> 是并行版时间推进主循环。它复用串行时间调度思想，但额外负责 <code>parallel_lmdz</code> band 切换、halo/swap request、physics band 重分布、gather 后 root 写输出和 restart。</p>
+<h2 id="63-restart-时间">6.3 restart 时间</h2>
+<table>
+<thead>
+<tr>
+<th>位置</th>
+<th style="text-align: right;">行号</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mars 中途 restart 分支</td>
+<td style="text-align: right;">1822-1830</td>
+<td><code>CALL dynredem1_p("restart.nc", REAL(itau)/REAL(day_step)+time_0-floor(time_0), ...)</code> 或减去 <code>day_end-day_ini</code>。</td>
+</tr>
+<tr>
+<td>非 Mars 中途 restart fallback</td>
+<td style="text-align: right;">1833</td>
+<td><code>CALL dynredem1_p("restart.nc",JH_cur,...)</code></td>
+</tr>
+<tr>
+<td>Mars 最终 restart 分支</td>
+<td style="text-align: right;">2047-2053</td>
+<td><code>CALL dynredem1_p("restart.nc", REAL(itau)/REAL(day_step), ...)</code> 或减去 <code>day_end-day_ini</code>。</td>
+</tr>
+<tr>
+<td>非 Mars 最终 restart fallback</td>
+<td style="text-align: right;">2056</td>
+<td><code>CALL dynredem1_p("restart.nc",JH_cur,...)</code></td>
+</tr>
+</tbody>
+</table>
+<p>传入 <a href="../../routines/dynredem-restart.html">dynredem-restart</a> 的 <code>time</code> 最终写入 NetCDF time coordinate 和 <code>tab_cntrl(32)</code>。当前 6.3 页面不再把 <code>start_time</code> 写 restart 作为主线；Mars 分支还会使用 <code>time_0</code> 的小数部分修正中途 restart 时间。</p>
+<h2 id="并行调度">并行调度</h2>
+<pre class="text"><code>SetDistrib(jj_Nb_Caldyn)
+  -&gt; caldyn_p / advtrac_p / integrd_p
+  -&gt; swap/hallo 到 jj_Nb_Physic
+  -&gt; calfis_p
+  -&gt; tendency halo merge
+  -&gt; addfi_p
+  -&gt; swap 回 jj_Nb_Caldyn
+  -&gt; 可选 jj_Nb_dissip
+  -&gt; Gather_Field + root 输出/restart</code></pre>
+<p>并行版关键依赖：</p>
+<ul>
+<li><a href="parallel_lmdz.html">parallel_lmdz</a>：<code>SetDistrib</code>、<code>Gather_Field</code>、<code>finalize_parallel</code>。</li>
+<li><a href="mod_hallo.html">mod_hallo</a>：<code>Register_Hallo</code>、<code>Register_SwapField</code>、<code>SendRequest</code>、<code>WaitRequest</code>。</li>
+<li><a href="../dynphy_lonlat/calfis_p.html">calfis_p</a>：并行动力-物理接口。</li>
+</ul>
+<h2 id="与-63-并行修复的接口核验">与 6.3 并行修复的接口核验</h2>
+<ul>
+<li><code>parallel_lmdz</code> 的 <code>omp_chunk</code> 下调逻辑避免某些 hybrid run 中线程无工作却进入 <code>MPI_Waitall</code>。</li>
+<li>physics 配置读取通过 <code>ioipsl_getin_p_mod:is_master</code> 集中 master 判断。</li>
+<li>physics transfer 层新增 5D/6D broadcast，可支撑更高 rank 的物理数组。</li>
+<li>输出面积由 <code>geometry_mod:cell_area_for_lonlat_outputs</code> 与 physics cell area 分开。</li>
+</ul>
+<h2 id="mars-路径边界">Mars 路径边界</h2>
+<ul>
+<li>Mars 标准并行 GCM 关注 <code>calfis_p -&gt; addfi_p</code>、restart/history、halo/swap。</li>
+<li>Earth/generic/Titan/giant 分支不在本页展开。</li>
+<li>COMMON 6.3 已删除 <code>nogcm</code>，不再做 COMMON nogcm 对照。</li>
+</ul>
+<h2 id="复现检查">复现检查</h2>
+<ol type="1">
+<li>记录当前 <code>jj_Nb_*</code> band 和 <code>SetDistrib</code> 序列。</li>
+<li>对 restart，检查 root 写入前字段是否已完整 gather/swap。</li>
+<li>对 hybrid MPI/OMP 卡死或 request 错误，先查 <code>parallel_lmdz</code> 的 <code>omp_chunk</code>。</li>
+<li>对 physics 配置差异，查 <code>is_master</code> getin 和 <code>bcast</code>。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="parallel_lmdz.html">parallel_lmdz</a></li>
+<li><a href="../../routines/leapfrog-p-state-contract.html">leapfrog-p-state-contract</a></li>
+<li><a href="../../routines/leapfrog-p-time-scheduler.html">leapfrog-p-time-scheduler</a></li>
+<li><a href="../../routines/leapfrog-p-distribution-halo.html">leapfrog-p-distribution-halo</a></li>
+<li><a href="../../routines/leapfrog-p-physics-coupling.html">leapfrog-p-physics-coupling</a></li>
+<li><a href="../../routines/leapfrog-p-output-restart.html">leapfrog-p-output-restart</a></li>
+<li><a href="../../routines/dynredem-restart.html">dynredem-restart</a></li>
+<li><a href="../../themes/restart-io.html">restart-io</a></li>
+<li><a href="../phy_common/parallel-transfer-6d.html">parallel-transfer-6d</a></li>
+<li><a href="../../routines/geometry-output-cell-area.html">geometry-output-cell-area</a></li>
+<li><a href="../phy_common/ioipsl_getin_p_mod.html">ioipsl_getin_p_mod</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

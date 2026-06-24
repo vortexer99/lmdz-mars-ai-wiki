@@ -1,0 +1,110 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>initdynav-serial-parallel - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/initdynav-serial-parallel.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="initdynav-串并行对照">initdynav 串并行对照</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d_common\initdynav.F90
+dyn3dpar\initdynav_p.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。启用动力平均输出 <code>dynav</code> 时经过；当前 COMMON 6.3 串行入口调用串行 <code>initdynav</code>，并行入口在 root 分支也调用串行 <code>initdynav</code>，<code>initdynav_p</code> 属于支撑/保留实现。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>initdynav</code> 初始化动力平均输出文件和变量定义。串行版直接使用 IOIPSL history API，并注册 <code>u/v/temp/theta/phi/masse/ps</code>；tracer 和 <code>phis</code> 注册在串行源码中为注释行。并行版增加 <code>parallel_lmdz</code>、<code>flio_dom_set</code> 等域定义，使并行子域输出可被 IO 层正确解释。</p>
+<h2 id="对照表">对照表</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>串行</th>
+<th>并行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>行数</td>
+<td>190</td>
+<td>200</td>
+</tr>
+<tr>
+<td>主例程</td>
+<td><code>initdynav</code></td>
+<td><code>initdynav_p</code></td>
+</tr>
+<tr>
+<td>输出 API</td>
+<td><code>histbeg/histvert/histdef/histend</code></td>
+<td>同 API 加 domain 设置</td>
+</tr>
+<tr>
+<td>并行依赖</td>
+<td>无</td>
+<td><code>parallel_lmdz</code>, <code>Write_field</code>, <code>misc_mod</code>, <code>flio_dom_set</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>构造经纬度、垂直轴和时间轴。</li>
+<li>调用 <code>histbeg</code> 创建输出文件。</li>
+<li>调用 <code>histvert</code> 定义垂直维。</li>
+<li>多次 <code>histdef</code> 定义平均动力变量。</li>
+<li>调用 <code>histend</code> 完成文件定义。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>initdynav</code> 只定义输出结构，不写具体平均值；写出由后续 <code>writedynav</code> 负责。</li>
+<li>并行版必须先设置 IO domain，否则输出维度和全局网格可能不匹配。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>串行版 tracer 和 <code>phis</code> 注册被注释，而部分 <code>_p</code> 支撑实现保留更多字段；是否为有意裁剪需维护者确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="history-field-registration.html">history/dynav 字段注册和写出门控</a></li>
+<li><a href="history-output-serial-parallel.html">history/dynav 输出串并行对照</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

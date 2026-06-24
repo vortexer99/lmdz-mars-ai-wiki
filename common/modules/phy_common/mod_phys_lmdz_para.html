@@ -1,0 +1,95 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mod_phys_lmdz_para - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/phy_common/mod_phys_lmdz_para.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mod_phys_lmdz_paraf90">mod_phys_lmdz_para.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\mod_phys_lmdz_para.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>mod_phys_lmdz_para.F90</code> 定义物理侧并行抽象模块 <code>mod_phys_lmdz_para</code>。它组合 MPI 数据、OpenMP 数据和通用 transfer 封装，初始化本 rank/线程的物理列数量，并用 <code>Test_transfert</code> 检查 scatter/gather/bcast/reduce 等通信包装。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 或 COMMON 物理侧初始化物理列并行分布时经过；串行构建也通过本抽象保持接口兼容。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<p>| 符号 | 类型 | 行号 | 作用 | | --- | --- | --- | | <code>mod_phys_lmdz_para</code> | module | 4 | 物理侧并行抽象入口。 | | <code>klon_loc</code> | <code>INTEGER,SAVE,THREADPRIVATE</code> | 9 | 当前 OpenMP 线程本地物理列数。 | | <code>is_sequential</code>、<code>is_parallel</code> | <code>LOGICAL,SAVE</code> | 10-11 | 运行并行状态标志。 | | <code>is_master</code> | <code>LOGICAL,SAVE,THREADPRIVATE</code> | 12 | 当前线程是否 master。 | | <code>Init_phys_lmdz_para</code> | subroutine | 19 | 初始化 MPI/OMP 物理列分布。 | | <code>Test_transfert</code> | subroutine | 49 | 测试物理侧 transfer 包装。 |</p>
+<h2 id="初始化流程">初始化流程</h2>
+<ol type="1">
+<li><code>Init_phys_lmdz_para(nbp,nbp_lon,nbp_lat,communicator)</code> 调用 <code>Init_phys_lmdz_mpi_data</code> 建立 MPI 物理分布。</li>
+<li>进入 OpenMP parallel 区，调用 <code>Init_phys_lmdz_omp_data(klon_mpi)</code> 建立线程内分布。</li>
+<li>设置 <code>klon_loc=klon_omp</code>。</li>
+<li>根据 MPI rank 和 OpenMP rank 设置 <code>is_master</code>，并调用 <code>Test_transfert</code>。</li>
+<li>parallel 区外设置 <code>is_sequential</code> 与 <code>is_parallel</code>。</li>
+</ol>
+<h2 id="test_transfert"><code>Test_transfert</code></h2>
+<p>测试例程构造全局 1D/2D 字段，依次验证：</p>
+<ul>
+<li><code>Scatter</code> 后 <code>Gather</code> 回全局 1D 字段。</li>
+<li><code>grid1dTo2d_glo</code>、<code>scatter2D</code>、<code>gather2d</code>、<code>grid2dTo1d_glo</code> 往返。</li>
+<li><code>bcast</code> 与 <code>reduce_sum</code>。</li>
+</ul>
+<p>只有 <code>is_master</code> 分支打印/检查全局结果。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>klon_loc</code> 和 <code>is_master</code> 是 <code>THREADPRIVATE</code>，不同 OpenMP 线程值不同。</li>
+<li>本模块本身不直接写 MPI 调用，真正通信在 <code>mod_phys_lmdz_transfert_para</code> 及 MPI/OMP data/transfer 模块中。</li>
+<li><code>Test_transfert</code> 使用 <code>mod_grid_phy_lmdz:klon_glo,nbp_lev</code>，因此必须在 grid 初始化之后执行。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>Init_phys_lmdz_mpi_data</code> 和 <code>Init_phys_lmdz_omp_data</code> 的边界计算需由后续 MPI/OMP data-transfer 页面展开。</li>
+<li><code>Test_transfert</code> 在生产运行中是否始终启用，需结合编译/运行开关确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="physics_distribution_mod.html">physics_distribution_mod</a></li>
+<li><a href="../../routines/parallel-physics-grid-distribution.html">parallel physics grid distribution</a></li>
+<li><a href="../../routines/calfis-p-parallel-transfer.html">calfis_p 并行 transfer 架构</a></li>
+<li><a href="geometry-grid-layers.html">物理侧几何/经纬网格/垂直层</a></li>
+<li><a href="mpi-data-transfer.html">MPI data/transfer</a></li>
+<li><a href="omp-data-transfer.html">OMP data/transfer</a></li>
+<li><a href="../dynphy_lonlat/inigeomphy_mod.html">inigeomphy_mod</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

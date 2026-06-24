@@ -1,0 +1,132 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>leapfrog - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d/leapfrog.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="leapfrogf">leapfrog.F</h1>
+<p>页面状态：6.3 返工完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\leapfrog.F</code>。 Mars 运行参与度：必经；Mars 串行动力 GCM 主循环经过本文件。</p>
+<h2 id="文件定位">文件定位</h2>
+<p><code>leapfrog</code> 是串行 GCM 的时间推进主循环。它调度 Matsuno/leapfrog 时间层、动力 tendency、tracer 输送、动力-物理耦合、耗散、输出和 restart。COMMON 6.3 已删除 <code>leapfrog_nogcm.F</code>，本页不再做 COMMON nogcm 对照。</p>
+<h2 id="入口状态">入口状态</h2>
+<p>主要 inout 数组包括 <code>ucov/vcov/teta/ps/masse/phis/q</code>。它们由 <code>dyn3d/gcm.F90</code> 完成初始态、tracer、geometry、restart/history 初始化后传入。<code>leapfrog</code> 自身负责时间步内状态推进和周期性写出。</p>
+<h2 id="时间调度">时间调度</h2>
+<pre class="text"><code>label 1: Matsuno forward 起点
+  -&gt; 保存上一层状态
+  -&gt; forward=.true.; leapf=.false.; dt=dtvr
+label 2: 主循环
+  -&gt; 设置 apphys/apdiss/conser
+  -&gt; caldyn / advtrac / integrd
+  -&gt; calfis / addfi
+  -&gt; dissip / sponge / top_bound
+  -&gt; history/dynav/restart
+  -&gt; 根据 iperiod 在 forward/backward/leapfrog 间跳转</code></pre>
+<p>Mars 日期以 <code>jD_ref/jH_ref/day_ini/day_ref/hour_ini/day_step</code> 组合计算，并形成当前物理时间 <code>JH_cur</code>。restart 写出时还要按 <code>planet_type</code> 分支选择传给 <code>dynredem1</code> 的 <code>time</code>。</p>
+<h2 id="63-restart-时间">6.3 restart 时间</h2>
+<p>6.3 的行为重点：</p>
+<table>
+<thead>
+<tr>
+<th>分支</th>
+<th style="text-align: right;">行号</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mars 中途 restart, <code>ecritstart&gt;0</code></td>
+<td style="text-align: right;">910-916</td>
+<td><code>REAL(itau)/REAL(day_step)+time_0-floor(time_0)</code>；最终步且只在最终写时再减 <code>day_end-day_ini</code>。</td>
+</tr>
+<tr>
+<td>非 Mars 中途 restart fallback</td>
+<td style="text-align: right;">921</td>
+<td><code>CALL dynredem1("restart.nc",JH_cur,...)</code></td>
+</tr>
+<tr>
+<td>Mars <code>purmats</code> 最终 restart</td>
+<td style="text-align: right;">1065-1070</td>
+<td><code>REAL(itau)/REAL(day_step)</code>；最终步且只在最终写时再减 <code>day_end-day_ini</code>。</td>
+</tr>
+<tr>
+<td>非 Mars 最终 restart fallback</td>
+<td style="text-align: right;">1074</td>
+<td><code>CALL dynredem1("restart.nc",JH_cur,...)</code></td>
+</tr>
+</tbody>
+</table>
+<p>旧版 <code>start_time</code> 不是当前 6.3 主线。<code>dynredem1</code> 会把该 <code>time</code> 写入 time coordinate，并设置 <code>tab_cntrl(32)=time</code>。</p>
+<h2 id="主流程">主流程</h2>
+<ol type="1">
+<li>计算 pressure/Exner/geopotential。</li>
+<li>调 <code>caldyn</code> 得到 <code>du/dv/dteta/dp/w/pbaru/pbarv</code>。</li>
+<li>在需要 tracer advection 的步调用 <code>advtrac</code>。</li>
+<li><code>integrd</code> 把 tendency 写回动力状态。</li>
+<li><code>apphys</code> 为真时调 <a href="../dynphy_lonlat/calfis.html">calfis</a>，再由 <code>addfi</code> 把 physics tendency 加回。</li>
+<li><code>apdiss</code> 为真时调 <code>dissip</code>、可选 <code>sponge/top_bound</code>。</li>
+<li>按 <code>iecri/ecritstart/itaufin</code> 写 history、dynav 和 restart。</li>
+</ol>
+<h2 id="mars-路径边界">Mars 路径边界</h2>
+<ul>
+<li>Mars 主线经过 <code>calfis/addfi</code>，但具体物理过程在 MARS <code>phymars</code> 侧。</li>
+<li>Earth/generic/Titan/giant 分支只作为条件边界记录，不在本 COMMON 页面展开。</li>
+<li>COMMON 6.3 删除 <code>nogcm</code>，Mars 专用 nogcm 若存在属于 MARS 树，不属于当前 COMMON 6.3 页面。</li>
+</ul>
+<h2 id="复现检查">复现检查</h2>
+<ol type="1">
+<li>先确定 <code>forward/leapf/purmats</code> 当前时间层。</li>
+<li>对 restart，先区分 Mars/非 Mars 和 <code>purmats</code> 分支，再查 <code>dynredem1</code> 的 <code>tab_cntrl(32)</code>。</li>
+<li>对 physics 差异，检查 <code>iphysiq/iflag_phys/apphys</code>。</li>
+<li>对耗散差异，检查 <code>dissip_period/callsponge/iflag_top_bound</code>。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="gcm.html">dyn3d/gcm</a></li>
+<li><a href="../../routines/dynredem-restart.html">dynredem-restart</a></li>
+<li><a href="../../themes/restart-io.html">restart-io</a></li>
+<li><a href="../../themes/dynamics-time-integration.html">dynamics-time-integration</a></li>
+<li><a href="../../routines/leapfrog-output-restart.html">leapfrog-output-restart</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,331 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vlsplt - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d/vlsplt.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="dyn3dvlspltf">dyn3d/vlsplt.F</h1>
+<p>页面状态：TASK-0028 完成。</p>
+<p>源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\vlsplt.F</code></p>
+<p>Mars 运行参与度：条件经过。<code>vlsplt</code> 是串行 <code>dyn3d/advtrac.F90</code> 的 <code>iadv=10</code> Van Leer tracer 输送主内核；6.3 <code>infotrac_init</code> 白名单允许 <code>iadv=10</code>，因此这是 Mars 标准 tracer 输送路径中应优先理解的 COMMON 串行格式。饱和水汽 <code>iadv=14</code> 走 <a href="vlspltqs.html">vlspltqs</a>，并行构建走 <a href="../dyn3dpar/vlspltgen_p.html">vlspltgen_p</a> 和 <a href="../dyn3dpar/vlsplt_p.html">vlsplt_p</a> 父页。</p>
+<h2 id="文件角色">文件角色</h2>
+<p><code>vlsplt.F</code> 是 1138 行 Fortran 77 串行 Van Leer split transport 文件。它包含：</p>
+<ul>
+<li><code>vlsplt</code> 主例程：准备半步/整步质量通量，复制当前 tracer 和质量到工作数组，执行 x-y-z-y-x split，最后写回 <code>q</code>。</li>
+<li><code>vlx</code>：E-W Van Leer 通量更新，含经向周期、CFL&gt;1 semi-Lagrangian 累加和父子 tracer 递归。</li>
+<li><code>vly</code>：N-S Van Leer 通量更新，含极点几何、<code>SSUM</code> 极冠累积和父子 tracer 递归。</li>
+<li><code>vlz</code>：垂直 Van Leer 通量更新，含顶底零通量和父子 tracer 递归。</li>
+<li><code>minmaxq</code>：<code>#ifdef isminismax</code> 下的极值诊断。</li>
+</ul>
+<p>本页是串行父文件页；三方向公式的展开见 <a href="../../routines/vlsplt-serial-split-kernels.html">vlsplt 串行 split 内核</a>，父子 tracer 和饱和路径见 <a href="../../routines/vlsplt-serial-family-tracers.html">vlsplt 串行父子 tracer</a>。</p>
+<h2 id="子例程清单">子例程清单</h2>
+<table>
+<thead>
+<tr>
+<th>子例程</th>
+<th style="text-align: right;">源码行</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vlsplt</code></td>
+<td style="text-align: right;">5</td>
+<td>主入口；缩放质量通量、复制工作数组、调度 <code>vlx/vly/vlz/vly/vlx</code>。</td>
+</tr>
+<tr>
+<td><code>vlx</code></td>
+<td style="text-align: right;">140</td>
+<td>E-W Van Leer 内核；周期边界、CFL&gt;1 累加、父子 tracer 比例输送。</td>
+</tr>
+<tr>
+<td><code>vly</code></td>
+<td style="text-align: right;">520</td>
+<td>N-S Van Leer 内核；极点斜率处理、<code>SSUM</code> 极冠收支、父子 tracer 比例输送。</td>
+</tr>
+<tr>
+<td><code>vlz</code></td>
+<td style="text-align: right;">889</td>
+<td>垂直 Van Leer 内核；顶底斜率归零、顶底零通量、父子 tracer 比例输送。</td>
+</tr>
+<tr>
+<td><code>minmaxq</code></td>
+<td style="text-align: right;">1091</td>
+<td>极值诊断；默认不参与运行，需 <code>isminismax</code> 编译保护。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用入口">调用入口</h2>
+<p>串行 <code>advtrac.F90</code> 在 tracer 循环中按 <code>iadv(iq)</code> 调度：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;"><code>iadv</code></th>
+<th>串行入口</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;"><code>10</code></td>
+<td><code>call vlsplt(q,2.,massem,wg,pbarug,pbarvg,dtvr,iq)</code></td>
+<td>非饱和 Van Leer tracer；<code>pente_max=2.</code>。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>14</code></td>
+<td><code>call vlspltqs(q,2.,massem,wg,pbarug,pbarvg,dtvr,p,pk,teta,iq)</code></td>
+<td>饱和水汽路径，水平使用 <code>vlxqs/vlyqs</code> 裁剪 <code>qsat</code>，垂直共享 <code>vlz</code>。</td>
+</tr>
+</tbody>
+</table>
+<p><code>advtrac</code> 先累积水平质量通量、保存本次 advection 前的 <code>massem</code>，再调用 <code>groupe</code> 生成 <code>pbarug/pbarvg/wg</code>。因此 <code>vlsplt</code> 接收的是已经整理后的质量通量，不直接从动力 tendency 中重算 flux。</p>
+<h2 id="主例程数据流">主例程数据流</h2>
+<p><code>vlsplt(q,pente_max,masse,w,pbaru,pbarv,pdt,iq)</code> 的参数：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>维度</th>
+<th>读写</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q</code></td>
+<td><code>ip1jmp1,llm,nqtot</code></td>
+<td>INOUT</td>
+<td>所有 tracer 混合比；本次只更新 <code>iq</code> 及其后代。</td>
+</tr>
+<tr>
+<td><code>pente_max</code></td>
+<td>scalar</td>
+<td>IN</td>
+<td>Van Leer slope limiter；<code>2.</code> 为标准值，<code>0</code> 退化上游，负值走乘积斜率分支。</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td><code>ip1jmp1,llm</code></td>
+<td>IN</td>
+<td>当前空气质量；复制到 <code>zm(:,:,iq)</code> 后在 split 内更新。</td>
+</tr>
+<tr>
+<td><code>w</code></td>
+<td><code>ip1jmp1,llm</code></td>
+<td>IN</td>
+<td>垂直质量通量。</td>
+</tr>
+<tr>
+<td><code>pbaru</code></td>
+<td><code>ip1jmp1,llm</code></td>
+<td>IN</td>
+<td>E-W 质量通量。</td>
+</tr>
+<tr>
+<td><code>pbarv</code></td>
+<td><code>ip1jm,llm</code></td>
+<td>IN</td>
+<td>N-S 质量通量。</td>
+</tr>
+<tr>
+<td><code>pdt</code></td>
+<td>scalar</td>
+<td>IN</td>
+<td>advection 时间步。</td>
+</tr>
+<tr>
+<td><code>iq</code></td>
+<td>scalar</td>
+<td>IN</td>
+<td>当前父 tracer 或普通 tracer 索引。</td>
+</tr>
+</tbody>
+</table>
+<p>主例程先做通量缩放：</p>
+<pre class="text"><code>zzpbar = 0.5 * pdt
+zzw    = pdt
+mu = pbaru * zzpbar
+mv = pbarv * zzpbar
+mw = w * zzw
+mw(:,llm+1) = 0</code></pre>
+<p>水平通量使用半时间步，垂直通量使用整步。这配合后续对称 split：</p>
+<pre class="text"><code>vlx -&gt; vly -&gt; vlz -&gt; vly -&gt; vlx</code></pre>
+<p><code>q(:,:,iq)</code> 和 <code>masse</code> 通过 <code>SCOPY</code> 复制到 <code>zq(:,:,iq)</code> 与 <code>zm(:,:,iq)</code>。如果 <code>nqdesc(iq)&gt;0</code>，主例程也复制所有后代 tracer 的 <code>q</code> 到 <code>zq</code>，让方向内核可以按父子比例递归更新它们。</p>
+<p>结束时，主例程把 <code>zq(:,:,iq)</code> 写回 <code>q(:,:,iq)</code>，再做 E-W 周期边界复制：</p>
+<pre class="text"><code>q(ij+iim,l,iq) = q(ij,l,iq)</code></pre>
+<p>若有后代 tracer，后代也按同样方式写回和周期复制。</p>
+<h2 id="van-leer-限制和三方向内核">Van Leer 限制和三方向内核</h2>
+<p><code>vlx/vly/vlz</code> 都使用相同的核心结构：</p>
+<ol type="1">
+<li>计算相邻差分。</li>
+<li>当相邻差分同号时取中心斜率，异号时斜率置零。</li>
+<li>用 <code>pente_max * min(abs(left_diff), abs(right_diff))</code> 限制斜率。</li>
+<li>基于上游质量通量计算 tracer 质量通量。</li>
+<li>用守恒形式更新质量和混合比。</li>
+</ol>
+<p>当 <code>pente_max &gt; -1.e-5</code> 时使用标准 Van Leer 限制；当 <code>pente_max &lt; -1.e-5</code> 时使用乘积/调和平均风格斜率。Mars 常规 <code>advtrac</code> 调用传入 <code>2.</code>。</p>
+<h3 id="vlx-e-w">vlx: E-W</h3>
+<p><code>vlx</code> 在经向方向上使用连续索引，周期边界通过 <code>iim</code> 偏移复制。正通量从当前格点取上游值，负通量从 <code>ij+1</code> 取上游值。</p>
+<p>当通量超过上游格点质量时，<code>zdum &lt; 0</code> 标记 CFL&gt;1。此时常规通量置零，随后对该界面逐格点累积：</p>
+<ul>
+<li>完全跨越的格点贡献 <code>q * masse</code>。</li>
+<li>最后未完全跨越的格点使用剩余质量和 Van Leer 斜率修正。</li>
+<li>经向索引用 <code>mod(...)</code> 环绕。</li>
+</ul>
+<p>这段 semi-Lagrangian 累加只在 E-W 方向存在，是 <code>vlx</code> 相对 <code>vly/vlz</code> 的主要特殊性。</p>
+<h3 id="vly-n-s">vly: N-S</h3>
+<p><code>vly</code> 需要处理极点几何。首次调用时缓存：</p>
+<ul>
+<li><code>sinlon/coslon</code> 和带经度权重的 <code>sinlondlon/coslondlon</code>。</li>
+<li>北/南极邻近纬圈面积和 <code>airej2/airejjm</code>。</li>
+</ul>
+<p>源码先计算极点相邻纬圈的面积加权平均 <code>qpns/qpsn</code>，再构造极点斜率并投影到 sin/cos 分量。但随后无条件 <code>GOTO 8888</code>，跳过一段旧的 <code>fn/fs</code> 限制器，最终把极点行 <code>dyq</code> 置零。因此实际运行中，极点 Van Leer 斜率被禁用。</p>
+<p>非极点格点按标准 N-S 通量散度更新。极点行单独用 <code>SSUM</code> 汇总所有经度的 tracer 通量和质量通量，计算新的极点混合比，并把极点各经向格设为同一值。</p>
+<h3 id="vlz-vertical">vlz: vertical</h3>
+<p><code>vlz</code> 在垂直方向计算 <code>dzqw</code> 和 <code>dzq</code>，顶层和底层斜率强制为零。通量界面也强制：</p>
+<pre class="text"><code>wq(:,1) = 0
+wq(:,llm+1) = 0</code></pre>
+<p>随后每层按 <code>masse + w(l+1) - w(l)</code> 更新质量，按 <code>q*masse + wq(l+1) - wq(l)</code> 更新 tracer 质量。</p>
+<h2 id="父子-tracer-递归">父子 tracer 递归</h2>
+<p><code>vlx/vly/vlz</code> 都是 <code>RECURSIVE</code>，用于处理 <code>infotrac</code> 中的父子 tracer。关键状态来自 <code>infotrac</code>：</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nqdesc(iq)</code></td>
+<td><code>iq</code> 的全部后代数，用于批量计算比例和恢复。</td>
+</tr>
+<tr>
+<td><code>nqfils(iq)</code></td>
+<td>直接子代数，用于递归调用。</td>
+</tr>
+<tr>
+<td><code>iqfils(ifils,iq)</code></td>
+<td>第 <code>ifils</code> 个子/后代 tracer 索引。</td>
+</tr>
+<tr>
+<td><code>qperemin</code></td>
+<td>父 tracer 太小时比例置零。</td>
+</tr>
+<tr>
+<td><code>masseqmin</code></td>
+<td>tracer 质量下限，防止除零。</td>
+</tr>
+</tbody>
+</table>
+<p>每个方向内核在更新父 tracer 前先计算：</p>
+<pre class="text"><code>masseq(child) = max(masse(parent) * q(parent), masseqmin)
+Ratio(child) = q(child) / q(parent)  if q(parent) &gt; qperemin
+Ratio(child) = 0                     otherwise</code></pre>
+<p>然后对直接子代递归调用同方向内核，输送 <code>Ratio</code> 场；父 tracer 完成质量和混合比更新后，再用：</p>
+<pre class="text"><code>q(child) = q(parent) * Ratio(child)</code></pre>
+<p>恢复所有后代。这个设计假定输送期间子/父比例守恒；物理过程若改变比例，只会在下一次 advection 前反映到新的初始比例。</p>
+<h2 id="与-vlspltqs-和并行版的边界">与 vlspltqs 和并行版的边界</h2>
+<table>
+<thead>
+<tr>
+<th>范围</th>
+<th>页面</th>
+<th>边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vlsplt.F</code></td>
+<td>本页</td>
+<td>串行非饱和 Van Leer，<code>iadv=10</code>。</td>
+</tr>
+<tr>
+<td><code>vlspltqs.F</code></td>
+<td><a href="vlspltqs.html">vlspltqs</a></td>
+<td>饱和水汽水平裁剪 <code>qsat</code>，垂直共享 <code>vlz</code>。</td>
+</tr>
+<tr>
+<td><code>vlsplt_p.F</code></td>
+<td><a href="../dyn3dpar/vlsplt_p.html">vlsplt_p</a></td>
+<td>并行 split 内核父页，含 halo、OMP、band 范围和 <code>_p</code> 差异。</td>
+</tr>
+<tr>
+<td><code>vlspltgen_p.F</code></td>
+<td><a href="../dyn3dpar/vlspltgen_p.html">vlspltgen_p</a></td>
+<td>并行 tracer split 调度，按 <code>iadv=10/14</code> 调用 <code>_p</code> 内核。</td>
+</tr>
+</tbody>
+</table>
+<p>串并行差异支撑页说明：数值公式大体等价，但并行版增加 band、halo、OpenMP 同步和 <code>mw(:,:,iq)</code> 存储差异；实际 bitwise 是否一致仍需回归测试。</p>
+<h2 id="复现检查点">复现检查点</h2>
+<ol type="1">
+<li><code>advtrac</code> 传入 <code>pente_max=2.</code>，不要把 <code>pente_max</code> 当作运行时可随意忽略的常量。</li>
+<li>水平质量通量在 <code>vlsplt</code> 内乘 <code>0.5*pdt</code>，垂直通量乘 <code>pdt</code>。</li>
+<li><code>masse</code> 实参不直接写回；split 更新的是工作数组 <code>zm(:,:,iq)</code>，用于本次 tracer 更新。</li>
+<li>父子 tracer 递归使用 <code>nqdesc</code> 和 <code>nqfils</code> 的不同语义，不能只按直接子代恢复。</li>
+<li>E-W CFL&gt;1 触发 semi-Lagrangian 累加，性能和数值结果都可能偏离普通 Van Leer 路径。</li>
+<li>N-S 极点实际斜率为零，虽然源码中存在 sin/cos 投影和被跳过的限制器残段。</li>
+<li>垂直顶底通量强制为零；如果单元测试传入非零边界通量，<code>vlz</code> 内部仍会清零 <code>wq</code>。</li>
+<li><code>minmaxq</code> 默认不参与运行，不能把注释掉的诊断调用当作活动逻辑。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../routines/vlsplt-serial-family-tracers.html">vlsplt 串行父子 tracer 和饱和路径</a></li>
+<li><a href="../../routines/vlsplt-serial-split-kernels.html">vlsplt 串行 split 内核</a></li>
+<li><a href="../../routines/vlsplt-serial-parallel-delta.html">vlsplt 串并行差异</a></li>
+<li><a href="vlspltqs.html">vlspltqs</a></li>
+<li><a href="../dyn3dpar/vlspltgen_p.html">vlspltgen_p</a></li>
+<li><a href="../../routines/advtrac-serial-parallel.html">advtrac 串并行调度</a></li>
+<li><a href="../../routines/infotrac-family-isotopes.html">infotrac 父子 tracer 与 isotope</a></li>
+<li><a href="../dyn3d_common/advn.html">advn</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Mars 当前典型配置中是否实际存在 <code>nqdesc&gt;0</code> 的父子 tracer 家族。</li>
+<li><code>pente_max&lt;0</code> 乘积斜率分支是否仍有生产配置使用。</li>
+<li>E-W CFL&gt;1 累加段在高分辨率 Mars 运行中是否被触发。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

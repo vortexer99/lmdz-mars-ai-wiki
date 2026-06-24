@@ -1,0 +1,237 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>abort_physic - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/phy_common/abort_physic.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="abort_physicf90">abort_physic.F90</h1>
+<p>页面状态：TASK-0179 完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\abort_physic.F90</code> Mars 运行参与度：条件经过。COMMON 本体、Mars <code>phymars</code> 和 Mars <code>aeronomars</code> 都把运行时致命错误汇入本例程。</p>
+<h2 id="文件职责">文件职责</h2>
+<p><code>abort_physic(modname,message,ierr)</code> 是物理侧统一终止入口。它负责把调用方名称、错误原因和严重级别写到 <code>print_control_mod:lunout</code>，在 IOIPSL 构建下关闭 history/restart 输出并 dump <code>getin</code> 配置，然后在非零 <code>ierr</code> 时终止当前物理 communicator。</p>
+<p>源码注释写成 "Stops the simulation cleanly"，但实际分支更窄：只有 <code>ierr /= 0</code> 才进入 <code>MPI_ABORT</code> 或 <code>stop 1</code>；<code>ierr == 0</code> 只打印 <code>Everything is cool!</code> 后返回。</p>
+<h2 id="例程清单">例程清单</h2>
+<table>
+<thead>
+<tr>
+<th>例程</th>
+<th>输入</th>
+<th>输出/副作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abort_physic(modname,message,ierr)</code></td>
+<td><code>modname</code> 调用方名称；<code>message</code> 诊断文本；<code>ierr</code> 严重级别，源码注释称 0 为 normal</td>
+<td>写 <code>lunout</code>；IOIPSL 构建下关闭 hist/restart、rank 0 dump <code>getin</code>；非零 <code>ierr</code> 时 MPI abort 或 <code>stop 1</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>本文件没有模块级状态、<code>SAVE</code> 变量、allocatable 数组或显式 <code>THREADPRIVATE</code> 数据。</p>
+<h2 id="依赖">依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>条件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IOIPSL</code></td>
+<td><code>CPP_IOIPSL</code></td>
+<td>提供 <code>histclo</code>、<code>restclo</code> 和 <code>getin_dump</code>。</td>
+</tr>
+<tr>
+<td><code>ioipsl_getincom</code></td>
+<td>非 <code>CPP_IOIPSL</code></td>
+<td>本地 fallback 只保证 <code>getin_dump</code> 符号可见；调用 <code>getin_dump</code> 的代码块仍在 <code>CPP_IOIPSL</code> 内。</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_para</code></td>
+<td>总是 <code>USE</code></td>
+<td>提供 <code>mpi_rank</code> 和 <code>COMM_LMDZ_PHY</code>。</td>
+</tr>
+<tr>
+<td><code>print_control_mod, ONLY: lunout</code></td>
+<td>总是 <code>USE</code></td>
+<td>决定诊断输出 unit。</td>
+</tr>
+<tr>
+<td><code>MPI_ABORT</code></td>
+<td><code>CPP_MPI</code> 且 <code>ierr /= 0</code></td>
+<td>在 <code>COMM_LMDZ_PHY</code> 上用错误码 1 终止并行物理侧。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="控制流程">控制流程</h2>
+<pre class="text"><code>write(lunout,*) &quot;in abort_physic&quot;
+
+if CPP_IOIPSL:
+  !$OMP MASTER
+  call histclo
+  call restclo
+  if mpi_rank == 0:
+    call getin_dump
+  !$OMP END MASTER
+
+write stopping module and reason
+
+if ierr == 0:
+  write &quot;Everything is cool!&quot;
+  return
+else:
+  write &quot;Houston, we have a problem, ierr =&quot;, ierr
+  if CPP_MPI:
+    !$OMP CRITICAL (MPI_ABORT_PHYSIC)
+    call MPI_ABORT(COMM_LMDZ_PHY, 1, ierror_mpi)
+    !$OMP END CRITICAL (MPI_ABORT_PHYSIC)
+  else:
+    stop 1</code></pre>
+<p>两个预处理边界要分清：</p>
+<ul>
+<li><code>histclo/restclo/getin_dump</code> 只在 <code>CPP_IOIPSL</code> 构建中执行；非 IOIPSL fallback 虽然 <code>USE ioipsl_getincom</code>，但不会进入 dump 调用块。</li>
+<li><code>MPI_ABORT</code> 只在 <code>CPP_MPI</code> 构建中执行；否则非零 <code>ierr</code> 走 Fortran <code>stop 1</code>。</li>
+</ul>
+<h2 id="并行和-openmp-语义">并行和 OpenMP 语义</h2>
+<ul>
+<li>IOIPSL 关闭和 <code>getin_dump</code> 被包在 <code>!$OMP MASTER</code> 内，避免所有 OpenMP 线程重复关闭和 dump。</li>
+<li><code>getin_dump</code> 还要求 <code>mpi_rank == 0</code>，因此并行运行中只有物理侧 rank 0 写配置 dump。</li>
+<li>MPI abort 被 <code>!$OMP CRITICAL (MPI_ABORT_PHYSIC)</code> 包住，避免同一进程多个线程同时调用 <code>MPI_ABORT</code>。</li>
+<li><code>!$OMP MASTER</code> 后没有显式 barrier；非 master 线程可以继续执行后续打印/abort 分支。实际终止时机取决于调用点是否本来位于串行区、OpenMP 并行区或只有 master 调用。</li>
+</ul>
+<h2 id="common-调用点">COMMON 调用点</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>条件</th>
+<th>传入参数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phy_common/mod_phys_lmdz_omp_data.F90</code></td>
+<td>OpenMP 初始化中发现 <code>OMP_MASTER</code> 线程号不是 0</td>
+<td><code>abort_physic(modname,'ANORMAL : OMP_MASTER /= 0',1)</code></td>
+</tr>
+<tr>
+<td><code>misc/wxios.F90</code></td>
+<td><code>wxios_set_cal</code> 遇到未知 <code>calendrier</code></td>
+<td><code>abort_physic('Gcm:Xios','wxios_set_cal: Mauvais choix de calendrier',1)</code></td>
+</tr>
+<tr>
+<td><code>misc/handle_err_m.F90</code></td>
+<td>NetCDF95 fatal error；若传入 <code>ncid</code>，先尝试 <code>nf90_close(ncid)</code></td>
+<td><code>abort_physic('NetCDF95 handle_err','',1)</code></td>
+</tr>
+</tbody>
+</table>
+<p>这些 COMMON 调用点都传 <code>ierr=1</code>，即进入终止分支。</p>
+<h2 id="mars-调用模式">Mars 调用模式</h2>
+<p>Mars physics 和 aeronomy 侧把很多运行时一致性检查汇入本例程。代表性类别如下：</p>
+<table>
+<thead>
+<tr>
+<th>Mars 范围</th>
+<th>典型文件/条件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>主 physics 同步</td>
+<td><code>phymars/physiq_mod.F</code></td>
+<td><code>pday</code> 与 <code>day_ini</code> 不一致、<code>callslope=true</code> 但 <code>nslope.ne.1</code>、<code>turb_resolved</code> 和 <code>calldifv</code> 组合不合法。</td>
+</tr>
+<tr>
+<td>aerosol/dust 数据</td>
+<td><code>phymars/aeropacity_mod.F</code>, <code>read_dust_scenario_mod.F90</code>, <code>suaer.F90</code></td>
+<td><code>iaervar</code> 非法、dust opacity 需要但没有 rescaling、dust/aerosol 输入文件或坐标变量异常。</td>
+</tr>
+<tr>
+<td>physics restart/startfi</td>
+<td><code>phymars/iostart.F90</code>, <code>phyetat0_mod.F90</code>, <code>surfini_mod.F90</code></td>
+<td>NetCDF 定义、读写、字段维度、surface/startfi 缺失或变量不可读。</td>
+</tr>
+<tr>
+<td>tracer/微物理</td>
+<td><code>phymars/tracer_mod.F90</code>, <code>callsedim_mod.F</code>, <code>co2cloud_mod.F90</code>, <code>watercloud_mod.F</code></td>
+<td>必需 tracer 缺失、同位素配置非法、云/沉降数组条件异常。</td>
+</tr>
+<tr>
+<td>诊断输出</td>
+<td><code>writediagfi.F</code>, <code>writediagmicrofi.F</code>, <code>writediagsoil.F90</code>, <code>wstats_mod.F90</code>, <code>xios_output_mod.F90</code></td>
+<td>诊断文件创建、变量定义、写入或维度检查失败。</td>
+</tr>
+<tr>
+<td>aeronomy/chemistry</td>
+<td><code>aeronomars/calchim_mod.F90</code>, <code>photochemistry_mod.F90</code>, <code>chemistrydata.F90</code>, <code>chemthermos_readini.F</code></td>
+<td>chemistry tracer 缺失、photolysis table 缺失、LAPACK/数组维度错误、<code>chemthermos_reactionrates.def</code> 缺失。</td>
+</tr>
+</tbody>
+</table>
+<p>源码检索到的活动调用主要传 <code>ierr=1</code>；未发现直接传入字面量 <code>0</code> 的 COMMON/MARS 调用点。</p>
+<h2 id="复现和排障要点">复现和排障要点</h2>
+<ol type="1">
+<li>先确认 <code>lunout</code>。诊断输出不会固定写到 stdout，而是跟随 <code>print_control_mod:lunout</code>，其初始化由 <a href="print-control-abort.html">print-control-abort</a> 说明。</li>
+<li>若要验证 IOIPSL 收尾，必须使用 <code>CPP_IOIPSL</code> 构建；否则不会执行 <code>histclo/restclo/getin_dump</code>。</li>
+<li>若要验证 MPI 终止，必须使用 <code>CPP_MPI</code> 构建，并确认 <code>COMM_LMDZ_PHY</code> 已由 <a href="mod_phys_lmdz_para.html">mod_phys_lmdz_para</a> 初始化。</li>
+<li>在并行日志中只期待 rank 0 的 <code>getin_dump</code>，但不要假设只有一个线程会打印错误文本；这取决于调用点的 OpenMP 上下文。</li>
+<li><code>ierr=0</code> 是正常信息路径，不会终止。用它做“clean stop”测试会得到返回调用方的行为。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>histclo/restclo</code> 的具体关闭顺序和失败处理属于 IOIPSL 外部库行为，本页只记录本文件发出的调用。</li>
+<li>源码检索未发现字面量 <code>ierr=0</code> 调用；若某些间接封装以变量传入 0，需要在对应调用方页继续确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phy_common 总览</a></li>
+<li><a href="print-control-abort.html">物理侧打印控制和 abort 组页</a></li>
+<li><a href="mod_phys_lmdz_para.html">mod_phys_lmdz_para</a></li>
+<li><a href="../misc/ioipsl-getin-system.html">IOIPSL getin 系统</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

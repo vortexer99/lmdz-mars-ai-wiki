@@ -1,0 +1,282 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>transport-advection - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a class="active" href="index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>themes/transport-advection.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="transport-and-advection">Transport And Advection</h1>
+<p>页面状态：TASK-0016 完成。 源码范围：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\advtrac.F90</code>、<code>libf\dyn3dpar\advtrac_p.F90</code>、<code>libf\dyn3d_common\infotrac.F90</code> 和 tracer transport 内核组。</p>
+<p>Mars 运行参与度：必经 + 条件经过。Mars 3D 运行必经 <code>infotrac_init</code> 建立 tracer 元数据，并在动力时间步中通过 <code>advtrac</code> 或 <code>advtrac_p</code> 进入输送调度；具体数值格式由 <code>traceur.def</code> 读出的 <code>iadv(:)</code> 和当前 6.3 白名单共同决定。</p>
+<h2 id="阅读顺序">阅读顺序</h2>
+<p>这条主题页面向排查 tracer 输送路径、复现单个 tracer 结果和判断旧格式是否可达的读者。推荐顺序：</p>
+<ol type="1">
+<li>先读 <a href="../modules/dyn3d_common/infotrac.html">infotrac</a>，确认 <code>traceur.def</code>、<code>nqtrue/nqtot</code>、<code>iadv(:)</code>、父子 tracer 和 isotope 状态。</li>
+<li>再读 <a href="../modules/dyn3d/advtrac.html">dyn3d/advtrac</a>、<a href="../routines/caladvtrac-tracer-loop.html">caladvtrac 到 tracer advection 循环</a> 和 <a href="../routines/advtrac-serial-parallel.html">advtrac 串并行对照</a>，理解串行文件局部状态、<code>iapp_tracvl</code> 累计门控、<code>nqperes/iadv</code> 循环、串行 <code>caladvtrac</code> wrapper 和并行 <code>advtrac_p</code> 直调差异。</li>
+<li>标准 Mars tracer 优先读 <a href="../modules/dyn3d/vlsplt.html">vlsplt</a>、<a href="../modules/dyn3dpar/vlsplt_p.html">vlsplt_p</a> 和 <a href="../modules/dyn3dpar/vlspltgen_p.html">vlspltgen_p</a>。</li>
+<li>饱和水汽路径读 <a href="../modules/dyn3d/vlspltqs.html">vlspltqs</a> 和 <a href="../modules/dyn3dpar/vlspltqs_p.html">vlspltqs_p</a>。</li>
+<li>历史或本地补丁格式先读 <a href="../routines/common-tracer-advection-schemes.html">COMMON tracer advection schemes</a>，再深入 <a href="../modules/dyn3d_common/ppm3d.html">ppm3d</a>、<a href="../modules/dyn3d_common/advn.html">advn</a>、<a href="../modules/dyn3d_common/prather.html">prather</a> 和 <a href="../modules/dyn3d_common/pentes_ini.html">pentes_ini</a>。</li>
+<li>若需要区分 <code>advx/advy/advz</code>、<code>advn.F</code> 内部 <code>advnx/advny/advnz</code> 和 <code>adaptdt</code>，读 <a href="../routines/common-vanleer-advection-operators.html">COMMON tracer advection operator family</a>。</li>
+</ol>
+<h2 id="总入口">总入口</h2>
+<pre class="text"><code>traceur.def
+  -&gt; infotrac_init
+      -&gt; nqtot, tname, ttext, iadv, niadv, family/isotope state
+  -&gt; gcm/gcm_p allocate q(...,nqtot)
+  -&gt; leapfrog/leapfrog_p
+      -&gt; caladvtrac -&gt; advtrac   (串行)
+      -&gt; advtrac_p               (并行)
+          -&gt; transport scheme</code></pre>
+<p><code>advtrac</code> 不是数值格式本身。它是把当前质量、水平质量通量、垂直通量和 tracer 表送入具体格式的调度层。排查结果差异时，不能只看 <code>advtrac</code>，必须同时确认：</p>
+<ul>
+<li>当前 <code>traceur.def</code> 如何合成 <code>iadv(:)</code>。</li>
+<li><code>infotrac_init</code> 是否允许该 <code>iadv</code> 通过。</li>
+<li>串行还是并行构建。</li>
+<li>tracer 是否有父子 family 或 isotope 检查。</li>
+<li>输送前的 <code>massem/pbarug/pbarvg/wg</code> 是否来自同一次 <code>caladvtrac</code> 调度。</li>
+</ul>
+<h2 id="iadv-到格式">iadv 到格式</h2>
+<p><code>infotrac.F90</code> 源码注释保留了完整历史编号，但 6.3 当前可运行边界更窄：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;"><code>iadv</code></th>
+<th>格式</th>
+<th>主要页面</th>
+<th>6.3 Mars 标准可达性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;"><code>0</code></td>
+<td>跳过 advection</td>
+<td><a href="../routines/infotrac-advection-schemes.html">infotrac advection scheme</a></td>
+<td>可通过，表示不输送。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>10</code></td>
+<td>Van Leer split</td>
+<td><a href="../modules/dyn3d/vlsplt.html">vlsplt</a>, <a href="../modules/dyn3dpar/vlsplt_p.html">vlsplt_p</a></td>
+<td>标准可达；普通 tracer 主路径。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>14</code></td>
+<td>Van Leer + specific humidity / saturated path</td>
+<td><a href="../modules/dyn3d/vlspltqs.html">vlspltqs</a>, <a href="../modules/dyn3dpar/vlspltqs_p.html">vlspltqs_p</a></td>
+<td>仅允许第 1 个 tracer；通常用于水汽或饱和路径。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>11</code>, <code>16</code>, <code>17</code>, <code>18</code></td>
+<td>PPM / Lin-Rood transport</td>
+<td><a href="../modules/dyn3d_common/ppm3d.html">ppm3d</a></td>
+<td>串行代码保留，但当前 <code>infotrac_init</code> 白名单通常阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>12</code>, <code>13</code></td>
+<td>Hourdin pseudo amont <code>advn</code></td>
+<td><a href="../modules/dyn3d_common/advn.html">advn</a></td>
+<td>串行代码保留，但当前 <code>infotrac_init</code> 白名单通常阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>20</code></td>
+<td>Slopes / moments 扩展</td>
+<td><a href="../modules/dyn3d_common/pentes_ini.html">pentes_ini</a></td>
+<td>扩展逻辑保留，当前白名单阻断。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>30</code></td>
+<td>Prather moments</td>
+<td><a href="../modules/dyn3d_common/prather.html">prather</a></td>
+<td>扩展逻辑保留，当前白名单阻断。</td>
+</tr>
+</tbody>
+</table>
+<p>当前 <code>infotrac_init</code> 在写入 <code>iadv(:)</code> 后逐 tracer 检查：只允许 <code>10</code>、<code>14</code> 和 <code>0</code>；<code>14</code> 还要求 <code>iq==1</code>。父子 tracer 额外要求子 tracer 使用 <code>10</code>，父 tracer只能使用 <code>10</code> 或 <code>14</code>。</p>
+<h2 id="标准-van-leer-路径">标准 Van Leer 路径</h2>
+<p>Van Leer 是当前 Mars tracer 输送最应优先理解的路径。</p>
+<p>串行：</p>
+<pre class="text"><code>advtrac.F90
+  -&gt; if iadv(iq)==10: vlsplt(q,2.,massem,wg,pbarug,pbarvg,dtvr,iq)
+  -&gt; if iadv(iq)==14: vlspltqs(q,2.,massem,wg,pbarug,pbarvg,dtvr,p,pk,teta,iq)</code></pre>
+<p>并行：</p>
+<pre class="text"><code>advtrac_p.F90
+  -&gt; vlspltgen_p(q,iadv,2.,massem,wg,pbarug,pbarvg,dtvr,p,pk,teta)
+  -&gt; GOTO 1234</code></pre>
+<p>串行 <a href="../modules/dyn3d/vlsplt.html">vlsplt</a> 和并行 <a href="../modules/dyn3dpar/vlsplt_p.html">vlsplt_p</a> 都采用 x-y-z-y-x split，水平通量半步、垂直通量整步。关键差异是并行版要处理 <code>ij_begin/ij_end</code> band、halo 注册、OpenMP 同步和父子 tracer 垂直通量修正。</p>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>串行</th>
+<th>并行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>调度入口</td>
+<td><code>advtrac</code> 对每个 <code>iq</code> 分支</td>
+<td><code>advtrac_p</code> 先调用 <code>vlspltgen_p</code></td>
+</tr>
+<tr>
+<td>普通 Van Leer</td>
+<td><code>vlsplt</code></td>
+<td><code>vlspltgen_p</code> 调用 <code>vlx_p/vly_p/vlz_p</code></td>
+</tr>
+<tr>
+<td>饱和路径</td>
+<td><code>vlspltqs</code></td>
+<td><code>vlspltgen_p</code>/<code>vlspltqs_p</code></td>
+</tr>
+<tr>
+<td>父子 tracer</td>
+<td><code>nqdesc/nqfils/iqfils</code> 递归比例输送</td>
+<td>同一概念，外加 band/halo/OMP 同步</td>
+</tr>
+<tr>
+<td>极点</td>
+<td>串行全域处理</td>
+<td>仅持有 <code>pole_nord/pole_sud</code> 的 rank 处理</td>
+</tr>
+</tbody>
+</table>
+<p>深入页：</p>
+<ul>
+<li><a href="../routines/vlsplt-serial-family-tracers.html">vlsplt 串行父子 tracer 和饱和路径</a></li>
+<li><a href="../routines/vlsplt-serial-split-kernels.html">vlsplt 串行 split 内核</a></li>
+<li><a href="../routines/vlsplt-p-halo-split.html">vlsplt_p halo split</a></li>
+<li><a href="../routines/vlsplt-serial-parallel-delta.html">vlsplt 串并行差异</a></li>
+</ul>
+<h2 id="ppm-路径">PPM 路径</h2>
+<p>PPM 相关代码主要保留为历史兼容和本地补丁风险面。串行 <code>advtrac.F90</code> 在 <code>iadv=11/16/17/18</code> 时有完整 <code>adaptdt -&gt; interpre -&gt; ppm3d -&gt; interpost</code> 调用链：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;"><code>iadv</code></th>
+<th><code>IORD/JORD/KORD</code></th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;"><code>11</code></td>
+<td><code>2/2/2</code></td>
+<td>水平 Van Leer + 垂直 PPM 兼容映射。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>16</code></td>
+<td><code>3/3/3</code></td>
+<td>Monotonic PPM。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>17</code></td>
+<td><code>4/4/4</code></td>
+<td>Semi-monotonic PPM。</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>18</code></td>
+<td><code>5/5/5</code></td>
+<td>Positive-definite PPM。</td>
+</tr>
+</tbody>
+</table>
+<p>但在当前 6.3：</p>
+<ul>
+<li><code>infotrac_init</code> 最终白名单会拒绝 <code>11/16/17/18</code>。</li>
+<li>并行 <code>advtrac_p</code> 在 <code>vlspltgen_p</code> 后执行 <code>GOTO 1234</code>，跳过 PPM 分支。</li>
+<li>因此 <a href="../modules/dyn3d_common/ppm3d.html">ppm3d</a> 对 Mars wiki 的价值是解释保留源码、历史配置或本地修改后的串行路径，而不是标准生产路径。</li>
+</ul>
+<p>PPM 复现必须同时复现 <code>interpre</code> 的垂直翻转、经向风取反、地面气压换算和 <code>interpost</code> 的周期闭合。只直接调用 <code>ppm3d</code> 不等价于 LMDZ 串行分支。</p>
+<h2 id="advn-和-prather-路径">advn 和 Prather 路径</h2>
+<p><a href="../modules/dyn3d_common/advn.html">advn</a> 是 Hourdin pseudo amont 内核，串行 <code>advtrac</code> 在 <code>iadv=12/13</code> 时调用；它和 Van Leer 一样使用 x-y-z-y-x split，但在 <code>advnqx/advnqy/advnqz</code> 中先做 4 阶界面重构，再由 <code>advnx/advny/advnz</code> 做通量更新。<code>mode=1/2</code> 只直接影响 E-W <code>advnx</code>。</p>
+<p><a href="../modules/dyn3d_common/prather.html">prather</a> 使用 <code>q(...,0:9)</code> 的 moments 表示，并调用 <code>advxp/advyp/advzp</code> 做方向输送。<code>iadv=30</code> 会让 <code>nqtot</code> 对每个真实 tracer 扩展 9 个 moments 条目；<code>iadv=20</code> 的 slopes 路径会扩展 3 个条目。</p>
+<p>这两类路径当前同样受 <code>infotrac_init</code> 白名单阻断。读这些页面时应把它们视为：</p>
+<ul>
+<li>旧版或本地补丁可能重新启用的格式。</li>
+<li>理解 <code>advtrac</code> 保留分支和 moments 扩展 contract 的依据。</li>
+<li>排查意外 <code>iadv</code> abort 时的解释材料。</li>
+</ul>
+<h2 id="串并行边界">串并行边界</h2>
+<p>并行 <code>advtrac_p</code> 的当前控制流是本主题最容易误读的点。源码中虽然保留 <code>vlsplt_p</code>、<code>vlspltqs_p</code>、<code>advn</code>、<code>pentes_ini</code>、<code>prather</code> 和 <code>ppm3d</code> 等分支文本，但实际在 <code>vlspltgen_p</code> 之后跳到标签 <code>1234</code>。</p>
+<p>因此并行生产路径应按以下规则读：</p>
+<ol type="1">
+<li>先读 <code>vlspltgen_p</code>，它是并行 tracer split 调度入口。</li>
+<li>再读 <code>vlsplt_p</code> 的 <code>_p</code> 内核和 halo/band 机制。</li>
+<li>不要从 <code>advtrac_p</code> 里 <code>GOTO 1234</code> 之后的旧分支推断当前可达性。</li>
+<li>若本地补丁删除或移动 <code>GOTO 1234</code>，需要重新审计 PPM/advn/Prather 的并行化状态。</li>
+</ol>
+<h2 id="复现检查点">复现检查点</h2>
+<ol type="1">
+<li>保存并核对 <code>traceur.def</code>。<code>iadv</code>、<code>tname</code>、父子关系和 <code>nqtot</code> 都从它推导，不应只记录 tracer 数。</li>
+<li>先用 <code>infotrac_init</code> 的白名单判断格式能否启动，再看 <code>advtrac</code> 中是否有下游分支。</li>
+<li><code>nqtrue</code>、<code>nqtot</code> 和 <code>niadv</code> 不可混用；moments 扩展会让动力数组维度大于真实 tracer 数。</li>
+<li>Van Leer 水平 split 使用半步通量，垂直使用整步通量；PPM 和 advn 也有自己的子步或通量缩放约定。</li>
+<li>父子 tracer 复现必须带上 <code>nqdesc/nqfils/iqfils/qperemin/masseqmin</code>。</li>
+<li>并行结果排查必须同时看 halo 宽度、band 范围、极点 rank 和 OpenMP barrier。</li>
+<li>PPM、advn、Prather 的源码存在不等于当前 Mars 6.3 标准配置可达。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3d_common/infotrac.html">infotrac</a></li>
+<li><a href="../routines/infotrac-advection-schemes.html">infotrac advection schemes</a></li>
+<li><a href="../modules/dyn3d/advtrac.html">dyn3d/advtrac</a></li>
+<li><a href="../routines/caladvtrac-tracer-loop.html">caladvtrac 到 tracer advection 循环</a></li>
+<li><a href="../routines/advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
+<li><a href="../modules/dyn3d/vlsplt.html">vlsplt</a></li>
+<li><a href="../modules/dyn3dpar/vlsplt_p.html">vlsplt_p</a></li>
+<li><a href="../modules/dyn3dpar/vlspltgen_p.html">vlspltgen_p</a></li>
+<li><a href="../routines/vlsplt-serial-parallel-delta.html">vlsplt 串并行差异</a></li>
+<li><a href="../modules/dyn3d_common/ppm3d.html">ppm3d</a></li>
+<li><a href="../modules/dyn3d_common/advn.html">advn</a></li>
+<li><a href="../modules/dyn3d_common/prather.html">prather</a></li>
+<li><a href="../routines/common-vanleer-advection-operators.html">COMMON tracer advection operator family</a></li>
+<li><a href="../routines/common-tracer-advection-schemes.html">COMMON tracer advection schemes</a></li>
+<li><a href="../routines/leapfrog-dynamics-transport.html">leapfrog dynamics transport</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>当前 Mars 生产配置中 <code>traceur.def</code> 的典型 <code>iadv</code> 分布和是否存在父子 tracer family。</li>
+<li>是否有本地分支实际放宽 <code>infotrac_init</code> 白名单并使用 PPM、advn 或 Prather。</li>
+<li>串并行 Van Leer 在目标平台上的 bitwise 或统计回归标准。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

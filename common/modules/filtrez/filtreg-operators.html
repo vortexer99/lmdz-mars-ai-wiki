@@ -1,0 +1,362 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>filtreg-operators - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/filtrez/filtreg-operators.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="filtreg-operators-滤波施加与特征基构造">filtreg operators 滤波施加与特征基构造</h1>
+<h2 id="页面状态">页面状态</h2>
+<p>源码范围：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\filtreg.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\inifgn.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\jacobi.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\eigen_sort.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\acc.F</code></pre>
+<p>源码行数：<code>filtreg.F</code> 322 行，<code>inifgn.F</code> 105 行，<code>jacobi.F90</code> 106 行，<code>eigen_sort.F</code> 32 行，<code>acc.F</code> 22 行。</p>
+<p>Mars 运行参与度：<code>条件经过</code>。这些例程服务于动力经向滤波：<code>inifgn/jacobi/acc/eigen_sort</code> 在 <code>inifilr</code> 初始化阶段间接经过；串行 <code>filtreg</code> 在动力 tendency、耗散、pressure/energy helper 和 tracer 后处理路径中按调用点条件经过。并行实际滤波使用 <code>dyn3dpar/filtreg_p.F</code>，但复用同一套初始化矩阵和 <code>coefils.h</code> 状态。</p>
+<h2 id="文件职责">文件职责</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>主要符号</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>filtreg.F</code></td>
+<td><code>filtreg</code></td>
+<td>对已初始化的纬带执行矩阵滤波或 inverse scalar filter，写回 <code>champ</code>。</td>
+</tr>
+<tr>
+<td><code>inifgn.F</code></td>
+<td><code>inifgn</code></td>
+<td>从 <code>xprimu/xprimv</code> 构造 U/V 差分矩阵，求离散 Laplacian 特征值和特征函数。</td>
+</tr>
+<tr>
+<td><code>jacobi.F90</code></td>
+<td><code>JACOBI</code></td>
+<td>对称矩阵 Jacobi 特征分解，最多 50 sweep。</td>
+</tr>
+<tr>
+<td><code>acc.F</code></td>
+<td><code>acc</code></td>
+<td>对每个特征向量列做 L2 归一化。</td>
+</tr>
+<tr>
+<td><code>eigen_sort.F</code></td>
+<td><code>eigen_sort</code></td>
+<td>按特征值从大到小重排特征值和对应特征向量列。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="数据契约">数据契约</h2>
+<h3 id="filtreg-输入参数"><code>filtreg</code> 输入参数</h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> filtreg(champ, nlat, nbniv, ifiltre, iaire, griscal, iter)</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>方向</th>
+<th>约束</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>champ(iip1,nlat,nbniv)</code></td>
+<td>inout</td>
+<td>第 <code>iip1</code> 经度为周期闭合列</td>
+<td>待滤波场，输出原地覆盖。</td>
+</tr>
+<tr>
+<td><code>nlat</code></td>
+<td>in</td>
+<td>scalar/U 场必须为 <code>jjp1</code>，V/Z 场必须为 <code>jjm</code></td>
+<td>纬向维度。</td>
+</tr>
+<tr>
+<td><code>nbniv</code></td>
+<td>in</td>
+<td>通常为 <code>llm</code> 或 1</td>
+<td>垂直层数或字段层数。</td>
+</tr>
+<tr>
+<td><code>ifiltre</code></td>
+<td>in</td>
+<td>只支持 <code>2</code> 和 <code>-2</code></td>
+<td><code>2</code> 为普通滤波，<code>-2</code> 为 inverse filter。</td>
+</tr>
+<tr>
+<td><code>iaire</code></td>
+<td>in</td>
+<td><code>1</code> intensive，<code>2</code> extensive</td>
+<td>决定使用 <code>sdd*</code> 还是 <code>unsdd*</code> 做前后缩放。</td>
+</tr>
+<tr>
+<td><code>griscal</code></td>
+<td>in</td>
+<td><code>.TRUE.</code> scalar/U；<code>.FALSE.</code> V/Z</td>
+<td>决定纬带、矩阵族和 <code>nlat</code> 校验。</td>
+</tr>
+<tr>
+<td><code>iter</code></td>
+<td>in</td>
+<td>只支持 <code>1</code></td>
+<td><code>iter==2</code> 直接停止并提示使用旧滤波路径。</td>
+</tr>
+</tbody>
+</table>
+<p>源码注释仍保留 <code>ifiltre=±1</code> 的 transform 说明，但当前 6.3 代码遇到 <code>ifiltre==1</code> 或 <code>-1</code> 会 <code>STOP 'Pas de transformee simple dans cette version'</code>。因此当前可复现路径只应使用 <code>2/-2</code>。</p>
+<h3 id="共享状态">共享状态</h3>
+<p><code>filtreg</code> include <code>coefils.h</code>，读取：</p>
+<ul>
+<li><code>jfiltnu/jfiltsu/jfiltnv/jfiltsv</code>：北/南半球滤波纬带边界；</li>
+<li><code>sddu/sddv/unsddu/unsddv</code>：经向尺度缩放及其倒数；</li>
+<li><code>coefil*</code>, <code>modfrst*</code>, <code>eignfn*</code>：主要由初始化与 helper 使用，<code>filtreg</code> 本身直接消费纬带和缩放。</li>
+</ul>
+<p><code>filtreg</code> 同时从 <a href="filtreg_mod.html">filtreg_mod</a> 读取：</p>
+<ul>
+<li>ordinary scalar/U 矩阵：<code>matriceun</code>, <code>matriceus</code></li>
+<li>ordinary V/Z 矩阵：<code>matricevn</code>, <code>matricevs</code></li>
+<li>inverse scalar/U 矩阵：<code>matrinvn</code>, <code>matrinvs</code></li>
+</ul>
+<p><code>filtreg</code> 内部还有 <code>SAVE</code> 状态：</p>
+<ul>
+<li><code>first</code></li>
+<li><code>sdd12(iim,4)</code></li>
+</ul>
+<p>第一次进入时把 <code>sddu/sddv/unsddu/unsddv</code> 拷入 <code>sdd12</code>，之后复用这份缓存。若同一进程改变网格后重复初始化，<code>filtreg_mod</code> 的矩阵尺寸和 <code>filtreg</code> 的 <code>sdd12</code> 缓存都没有自动刷新机制。</p>
+<h2 id="filtreg-施加流程"><code>filtreg</code> 施加流程</h2>
+<h3 id="1-拒绝未支持模式">1. 拒绝未支持模式</h3>
+<p>例程一开始执行三个硬约束：</p>
+<ul>
+<li><code>ifiltre==1</code> 或 <code>ifiltre==-1</code>：停止，当前版本没有 direct/inverse transform。</li>
+<li><code>iter==2</code>：停止，当前版本不做二次迭代滤波。</li>
+<li><code>ifiltre==-2 .AND. .NOT. griscal</code>：停止，inverse filter 只支持 scalar/U 网格。</li>
+</ul>
+<p>随后若 <code>ifiltre</code> 不是 <code>2</code> 或 <code>-2</code>，同样停止。</p>
+<h3 id="2-选择网格纬带和缩放">2. 选择网格、纬带和缩放</h3>
+<p>若 <code>griscal=.TRUE.</code>：</p>
+<ul>
+<li><code>nlat</code> 必须等于 <code>jjp1</code>；</li>
+<li>北半球纬带为 <code>j=2..jfiltnu</code>；</li>
+<li>南半球纬带为 <code>j=jfiltsu..jjm</code>；</li>
+<li><code>iaire=1</code> 时前缩放用 <code>sddv</code>，后缩放用 <code>unsddv</code>；</li>
+<li><code>iaire!=1</code> 时前缩放用 <code>unsddv</code>，后缩放用 <code>sddv</code>。</li>
+</ul>
+<p>若 <code>griscal=.FALSE.</code>：</p>
+<ul>
+<li><code>nlat</code> 必须等于 <code>jjm</code>；</li>
+<li>北半球纬带为 <code>j=1..jfiltnv</code>；</li>
+<li>南半球纬带为 <code>j=jfiltsv..jjm</code>；</li>
+<li><code>iaire=1</code> 时前缩放用 <code>sddu</code>，后缩放用 <code>unsddu</code>；</li>
+<li><code>iaire!=1</code> 时前缩放用 <code>unsddu</code>，后缩放用 <code>sddu</code>。</li>
+</ul>
+<p>这里的 U/scalar 与 V/Z 交叉使用 <code>sddu/sddv</code> 来自离散算子的对偶关系：<code>inifgn</code> 用 <code>xprimu/xprimv</code> 形成两套差分矩阵，<code>inifilr</code> 再用对应特征函数构造滤波矩阵。</p>
+<h3 id="3-分半球滤波">3. 分半球滤波</h3>
+<p><code>hemisph=1</code> 处理北半球滤波带，<code>hemisph=2</code> 处理南半球滤波带。每个半球先对 <code>champ(1:iim,j,l)</code> 乘前缩放。</p>
+<p>矩阵乘法选择如下：</p>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>北半球矩阵</th>
+<th>南半球矩阵</th>
+<th>写入</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ifiltre==-2</code></td>
+<td><code>matrinvn(:,:,j)</code></td>
+<td><code>matrinvs(:,:,j-jfiltsu+1)</code></td>
+<td><code>eignq(:,j-jdfil+1,:)</code></td>
+</tr>
+<tr>
+<td><code>ifiltre==2 .AND. griscal</code></td>
+<td><code>matriceun(:,:,j)</code></td>
+<td><code>matriceus(:,:,j-jfiltsu+1)</code></td>
+<td><code>eignq(:,j-jdfil+1,:)</code></td>
+</tr>
+<tr>
+<td><code>ifiltre==2 .AND. .NOT.griscal</code></td>
+<td><code>matricevn(:,:,j)</code></td>
+<td><code>matricevs(:,:,j-jfiltsv+1)</code></td>
+<td><code>eignq(:,j-jdfil+1,:)</code></td>
+</tr>
+</tbody>
+</table>
+<p>编译有 <code>BLAS</code> 时使用 <code>SGEMM</code>，否则使用 Fortran <code>matmul</code>。</p>
+<h3 id="4-写回和周期闭合">4. 写回和周期闭合</h3>
+<p>普通滤波：</p>
+<pre class="text"><code>champ = (champ + eignq) * post_scale</code></pre>
+<p>inverse filter：</p>
+<pre class="text"><code>champ = (champ - eignq) * post_scale</code></pre>
+<p>每个半球处理完后设置：</p>
+<pre class="text"><code>champ(iip1,j,l) = champ(1,j,l)</code></pre>
+<p>即只对被滤波纬带重建周期闭合列；非滤波纬带原样保留。</p>
+<h2 id="inifgn-特征基构造"><code>inifgn</code> 特征基构造</h2>
+<p><code>inifgn(dv)</code> 是 <a href="filtreg_mod.html">filtreg_mod</a> 中 <code>inifilr</code> 的前置 helper。它写入 <code>coefils.h</code> 中的 <code>sddu/sddv/unsddu/unsddv/eignfnu/eignfnv</code>，并返回 <code>dv(iim)</code> 给 <code>inifilr</code> 用作 scalar/V 相关特征值。</p>
+<p>步骤：</p>
+<ol type="1">
+<li>从 <code>xprimu/xprimv</code> 取 <code>dlonu/dlonv</code>。</li>
+<li>计算：</li>
+</ol>
+<pre class="text"><code>sddu(i)   = sqrt(xprimu(i))
+sddv(i)   = sqrt(xprimv(i))
+unsddu(i) = 1 / sddu(i)
+unsddv(i) = 1 / sddv(i)</code></pre>
+<ol start="3" type="1">
+<li>初始化一阶差分形态的 <code>eignfnv</code>：</li>
+</ol>
+<pre class="text"><code>eignfnv(1,1)   = -1
+eignfnv(iim,1) =  1
+eignfnv(i+1,i+1) = -1
+eignfnv(i,i+1)   =  1
+eignfnv(i,j) = eignfnv(i,j) / (sddu(i) * sddv(j))</code></pre>
+<ol start="4" type="1">
+<li>设置 <code>eignfnu(i,j) = -eignfnv(j,i)</code>。</li>
+<li>形成两个对称算子：</li>
+</ol>
+<pre class="text"><code>vec  = eignfnu * eignfnv
+vec1 = eignfnv * eignfnu</code></pre>
+<p><code>CRAY</code> 分支使用 <code>MXM</code>，普通分支使用三重循环。</p>
+<ol start="6" type="1">
+<li>对 <code>vec</code> 调 <code>jacobi</code>，得到 <code>dv</code> 和 <code>eignfnv</code>；归一化 <code>eignfnv</code>；按 <code>dv</code> 排序。</li>
+<li>对 <code>vec1</code> 调 <code>jacobi</code>，得到 <code>du</code> 和 <code>eignfnu</code>；归一化 <code>eignfnu</code>；按 <code>du</code> 排序。</li>
+</ol>
+<p>旧 IMSL <code>EVCSF</code> 路径已在源码中注释掉，当前主路径是 <code>jacobi + acc + eigen_sort</code>。</p>
+<h2 id="特征求解-helper">特征求解 helper</h2>
+<h3 id="jacobi"><code>JACOBI</code></h3>
+<p><code>JACOBI(A,N,NP,D,V,NROT)</code> 对称矩阵特征分解：</p>
+<ul>
+<li>初始化 <code>V</code> 为单位阵；</li>
+<li><code>D</code> 和 <code>B</code> 取 <code>A</code> 的对角；</li>
+<li>每一 sweep 求上三角非对角绝对值和 <code>SM</code>；</li>
+<li><code>SM==0</code> 时返回；</li>
+<li>前 3 次 sweep 用 <code>TRESH=0.2*SM/N**2</code>，之后阈值为 0；</li>
+<li>对超过阈值的 <code>A(IP,IQ)</code> 做 Jacobi rotation，并同步更新 <code>A</code>、<code>D</code>、<code>V</code>；</li>
+<li>最多 50 次 sweep，若仍不收敛则 <code>STOP 'Jacobi: 50 iterations should never happen'</code>。</li>
+</ul>
+<p>源码注释写着 <code>50? I suspect this should be NP</code>，但实际实现固定 50 次；这里应按源码行为记录，不推断为 bug。</p>
+<h3 id="acc"><code>acc</code></h3>
+<p><code>acc(vec,d,im)</code> 对每一列 <code>j</code>：</p>
+<pre class="text"><code>d(i) = vec(i,j)**2
+sum  = sqrt(SSUM(im,d,1))
+vec(i,j) = vec(i,j) / sum</code></pre>
+<p>它依赖外部 <code>SSUM</code>，作用是把特征向量列归一化，而不是累加诊断。</p>
+<h3 id="eigen_sort"><code>eigen_sort</code></h3>
+<p><code>eigen_sort(d,v,n,np)</code> 对 <code>i=1..n-1</code> 扫描 <code>j=i+1..n</code>，选择最大的 <code>d(j)</code> 与当前位置交换，并同步交换 <code>v(:,i)</code> 和 <code>v(:,k)</code>。因此排序方向是特征值降序。</p>
+<h2 id="典型调用点">典型调用点</h2>
+<table>
+<thead>
+<tr>
+<th>调用点</th>
+<th>参数形态</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dyn3d_common/bernoui.F</code></td>
+<td><code>filtreg(pbern, jjp1, llm, 2, 1, .true., 1)</code></td>
+<td>对 Bernoulli 函数做 scalar/intensive 普通滤波。</td>
+</tr>
+<tr>
+<td><code>dyn3d/dteta1.F</code></td>
+<td><code>filtreg(dteta, jjp1, llm, 2, 2, .true., 1)</code></td>
+<td>对位温通量 tendency 做 scalar/extensive 普通滤波。</td>
+</tr>
+<tr>
+<td><code>dyn3d/caladvtrac.F</code></td>
+<td><code>filtreg(finmasse, jjp1, llm, -2, 2, .TRUE., 1)</code></td>
+<td>对质量场走 scalar inverse filter，用于水 tracer 后处理准备。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common/inidissip.F90</code></td>
+<td><code>zh/zu</code> 用 scalar，<code>zv</code> 用 V/Z</td>
+<td>用随机场估计耗散算子的响应时调用普通滤波。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common/rotatf.F</code></td>
+<td><code>filtreg(rot, jjm, klevel, 2, 2, .FALSE., 1)</code></td>
+<td>对 V/Z 网格旋度结果做普通滤波。</td>
+</tr>
+<tr>
+<td><code>dyn3d_common/divergf.F</code></td>
+<td><code>filtreg(div, jjp1, klevel, 2, 2, .TRUE., 1)</code></td>
+<td>对 scalar divergence 结果做普通滤波。</td>
+</tr>
+</tbody>
+</table>
+<p>源码中还有一些注释掉的 <code>CALL filtreg</code>，例如 <code>leapfrog.F</code>、<code>integrd.F</code>、<code>advtrac.F90</code> 和并行对应文件内的历史路径；这些不应算作当前活动调用链。</p>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>必须先调用 <code>inigeom</code> 之类的几何初始化，使 <code>xprimu/xprimv</code> 和 <code>comgeom.h</code> 中的数组有效。</li>
+<li>必须先调用 <code>inifilr</code>，它内部调用 <code>inifgn</code> 并分配/填充矩阵。</li>
+<li>调 <code>filtreg</code> 时 <code>griscal</code> 和 <code>nlat</code> 必须匹配，否则直接停止。</li>
+<li><code>ifiltre=-2</code> 只能用于 <code>griscal=.TRUE.</code> 的 scalar/U 网格。</li>
+<li>并行 GCM 不调用串行 <code>filtreg.F</code> 施加滤波，而是走 <code>dyn3dpar/filtreg_p.F</code>；但特征基和矩阵初始化仍来自同一套 <code>inifgn/inifilr</code> 逻辑。</li>
+</ol>
+<h2 id="风险和待确认">风险和待确认</h2>
+<ul>
+<li><code>filtreg</code> 缓存 <code>sdd12</code> 只在第一次调用时填充；同一进程内若更换水平网格并重复初始化，缩放缓存不会自动更新。</li>
+<li><code>jacobi</code> 50 sweep 不收敛会直接 <code>STOP</code>。没有错误码向上层传播。</li>
+<li>待确认：<code>eigen.F</code> 旧 helper 仍在 <code>filter-helpers.md</code> 中列出，但本次源码核对的主路径未发现活动调用点。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">filtrez 总览</a></li>
+<li><a href="filtreg_mod.html">filtreg_mod 文件页</a></li>
+<li><a href="filtreg-system.html">filtreg-system</a></li>
+<li><a href="filter-helpers.html">filter-helpers</a></li>
+<li><a href="../../routines/common-dissip-mars-chain.html">common-dissip-mars-chain</a></li>
+<li><a href="../../routines/common-dissipation-stencil-families.html">common-dissipation-stencil-families</a></li>
+<li><a href="../../routines/caladvtrac-tracer-loop.html">caladvtrac-tracer-loop</a></li>
+<li><a href="../dyn3d_common/inidissip.html">dyn3d_common/inidissip</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

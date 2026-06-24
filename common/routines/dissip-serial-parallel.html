@@ -1,0 +1,100 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dissip-serial-parallel - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/dissip-serial-parallel.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="dissip-串并行对照">dissip 串并行对照</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d\dissip.F
+dyn3dpar\dissip_p.F</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。主循环开启水平耗散时调用；具体频率由 <code>conf_gcm</code>/耗散配置决定。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>dissip</code> 负责把水平耗散倾向施加到风、温度或相关动力变量上。初始化参数来自 <code>inidissip.F90</code>，实际施加发生在串行或并行主循环中。</p>
+<h2 id="对照表">对照表</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>角色</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dissip.F</code></td>
+<td>149</td>
+<td>串行耗散施加。</td>
+</tr>
+<tr>
+<td><code>dissip_p.F</code></td>
+<td>215</td>
+<td>并行耗散施加，使用子域范围。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>读取当前动力场和耗散系数/阶数。</li>
+<li>调用 common 差分/拉普拉斯相关算子构造耗散趋势。</li>
+<li>按时间步把趋势加到状态或 tendency。</li>
+<li>并行版确保边界带满足算子 stencil。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>先查 <code>inidissip.F90</code> 的配置和校验，再复现本例程的实际施加。</li>
+<li>高阶耗散依赖 <code>laplacien*</code>、<code>gradiv*</code> 等算子族，边界处理错误会放大差异。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="common-dissip-mars-chain.html">Mars 水平耗散链路</a></li>
+<li><a href="dynamics-initializers.html">动力初始化辅助例程</a></li>
+<li><a href="differential-operators-overview.html">差分算子总览</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>各耗散开关和系数默认值需由 <code>conf_gcm</code> 与 <code>inidissip</code> 联合整理。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

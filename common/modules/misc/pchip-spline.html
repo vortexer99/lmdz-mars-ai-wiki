@@ -1,0 +1,122 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pchip-spline - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/misc/pchip-spline.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="pchipspline-helper-组页">PCHIP/spline helper 组页</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\pchsp.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\pchsp_95_m.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\pchfe.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\pchfe_95_m.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\pchdf.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\chfev.F</code></pre>
+<p>Mars 运行参与度：<code>接口兼容/条件经过</code>。这些是 SLATEC PCHIP 数值 helper；本批检索未确认 Mars 标准主链直接调用，但它们可被 COMMON 插值工具或后处理路径复用。</p>
+<h2 id="文件清单">文件清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pchsp.F</code></td>
+<td>388</td>
+<td>计算 shape-preserving cubic Hermite spline 的导数。</td>
+</tr>
+<tr>
+<td><code>pchsp_95_m.F90</code></td>
+<td>116</td>
+<td>F90 wrapper，提供数组接口和边界条件封装。</td>
+</tr>
+<tr>
+<td><code>pchfe.F</code></td>
+<td>308</td>
+<td>在目标点上评价 PCHIP/Hermite 插值函数。</td>
+</tr>
+<tr>
+<td><code>pchfe_95_m.F90</code></td>
+<td>76</td>
+<td>F90 wrapper，返回目标点值数组。</td>
+</tr>
+<tr>
+<td><code>pchdf.F</code></td>
+<td>106</td>
+<td>计算相邻点的一阶差分/导数辅助。</td>
+</tr>
+<tr>
+<td><code>chfev.F</code></td>
+<td>155</td>
+<td>在单个 Hermite 区间内评价 cubic 函数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="计算流程">计算流程</h2>
+<ol type="1">
+<li><code>pchsp</code> 根据输入节点 <code>x</code>、函数值 <code>f</code> 和边界条件 <code>ibeg/iend</code> 构造节点导数 <code>d</code>。</li>
+<li>内部差分由 <code>pchdf</code> 辅助生成，单调区间会限制导数以避免过冲。</li>
+<li><code>pchfe</code> 对目标点 <code>xe</code> 定位到对应区间，调用 <code>chfev</code> 评价 Hermite cubic。</li>
+<li>F90 wrapper 负责把 Fortran 90 数组传入旧 F77 子程序，并用返回 <code>ierr</code> 表示边界或输入错误。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>x</code> 必须单调，且目标点应落在可评价范围；越界行为由 <code>pchfe</code> 的错误码和警告逻辑控制。</li>
+<li>PCHIP 保形目标是保留单调性，不等同于普通三次样条的全局光滑性。</li>
+<li>wrapper 不隐藏底层错误码；调用方需要检查或传播 <code>ierr</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>哪些 COMMON/Mars 后处理或初始化路径实际使用 PCHIP，需要由后续 source coverage 任务补充消费者索引。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">misc 总览</a></li>
+<li><a href="regridding-interpolation.html">重网格和插值工具</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

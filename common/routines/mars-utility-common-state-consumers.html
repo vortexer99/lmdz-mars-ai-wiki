@@ -1,0 +1,266 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mars-utility-common-state-consumers - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/mars-utility-common-state-consumers.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-utility-common-状态消费链">Mars utility COMMON 状态消费链</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\newstart.F
+LMDZ.MARS\libf\dynphy_lonlat\phymars\start2archive.F
+LMDZ.MARS\libf\dynphy_lonlat\phymars\lect_start_archive.F
+LMDZ.MARS\libf\dynphy_lonlat\phymars\ini_archive.F
+LMDZ.MARS\libf\dynphy_lonlat\phymars\readhead_NC.F
+LMDZ.MARS\libf\dynphy_lonlat\phymars\datareadnc.F
+LMDZ.MARS\libf\phymars\dyn1d\testphys1d.F90
+LMDZ.MARS\libf\phymars\dyn1d\init_testphys1d_mod.F90</code></pre>
+<p>Mars 运行参与度：<code>必经</code> 到 <code>接口兼容</code>。这些文件不是 COMMON 源文件本身，但它们是 Mars 运行和工具链消费 COMMON 状态模块的主要证据：<code>newstart/start2archive</code> 负责 start、startfi、start_archive 互转，<code>lect_start_archive/readhead_NC/ini_archive/datareadnc</code> 负责 archive/header/surface 数据读写，<code>testphys1d/init_testphys1d</code> 通过 dyn1d 路径转发使用 COMMON 常量、垂直坐标、网格接口和并行占位模块。</p>
+<p>NetCDF helper 边界：这些 Mars utility 的 archive/surface NetCDF 读写主要直接走 <code>netcdf.inc</code>/<code>NF_*</code>，不是 COMMON <code>netcdf95/handle_err</code> wrapper 调用链；详见 <a href="mars-utility-netcdf-helper-use.html">Mars utility NetCDF 和 COMMON helper 边界</a>。</p>
+<h2 id="参与文件">参与文件</h2>
+<table>
+<thead>
+<tr>
+<th>Mars 文件</th>
+<th>COMMON 消费类型</th>
+<th>角色</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>newstart.F</code></td>
+<td><code>control_mod</code>, <code>comconst_mod</code>, <code>comvert_mod</code>, <code>temps_mod</code>, <code>geometry_mod</code>, <code>mod_const_mpi</code>, <code>ioipsl_getincom</code></td>
+<td>从 <code>start_archive.nc</code> 或 <code>start/startfi</code> 创建、修改、重写 Mars 初始状态。</td>
+</tr>
+<tr>
+<td><code>start2archive.F</code></td>
+<td><code>control_mod</code>, <code>comconst_mod</code>, <code>comvert_mod</code>, <code>temps_mod</code>, <code>mod_const_mpi</code></td>
+<td>把 <code>start.nc</code> 和 <code>startfi.nc</code> 追加或写入统一 <code>start_archive.nc</code>。</td>
+</tr>
+<tr>
+<td><code>lect_start_archive.F</code></td>
+<td><code>comconst_mod</code>, <code>comvert_mod</code>, <code>geometry_mod</code>, COMMON 插值/格点转换接口</td>
+<td>读取旧网格 archive，水平/垂直插值到当前 GCM 网格。</td>
+</tr>
+<tr>
+<td><code>ini_archive.F</code></td>
+<td><code>comconst_mod</code>, <code>comvert_mod</code>, <code>logic_mod</code>, <code>serre_mod</code>, <code>ener_mod</code></td>
+<td>创建 archive 文件头、<code>controle</code> 表、网格、垂直坐标和固定维度变量。</td>
+</tr>
+<tr>
+<td><code>readhead_NC.F</code></td>
+<td><code>comconst_mod</code>, <code>comvert_mod</code>, <code>temps_mod</code>, <code>ener_mod</code></td>
+<td>从 NetCDF header/control 表恢复动力维度、常量、时间和垂直坐标。</td>
+</tr>
+<tr>
+<td><code>datareadnc.F</code></td>
+<td><code>ioipsl_getincom</code>, <code>comconst_mod</code>, COMMON 插值接口</td>
+<td>读取 <code>surface.nc</code>，把地形、反照率、热惯量等插值到 GCM 网格。</td>
+</tr>
+<tr>
+<td><code>testphys1d.F90</code></td>
+<td>dyn1d 直接路径转发的 COMMON 模块、<code>mod_const_mpi</code>, <code>parallel_lmdz</code></td>
+<td>1D Mars physics 驱动程序，按 COMMON 接口准备 <code>physiq</code> 输入。</td>
+</tr>
+<tr>
+<td><code>init_testphys1d_mod.F90</code></td>
+<td><code>comvert_mod</code>, <code>logic_mod</code>, <code>geometry_mod</code>, <code>regular_lonlat_mod</code>, <code>vertical_layers_mod</code>, <code>mod_interface_dyn_phys</code></td>
+<td>1D 初始化：重建行星常量、垂直层、物理网格、tracer 和 surface 状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="common-状态提供者">COMMON 状态提供者</h2>
+<table>
+<thead>
+<tr>
+<th>COMMON 提供者</th>
+<th>被消费状态</th>
+<th>Mars 消费点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>control_mod</code></td>
+<td><code>day_step</code>, <code>iphysiq</code>, <code>anneeref</code>, <code>planet_type</code></td>
+<td><code>newstart.F</code> 设置 <code>day_step=180</code> 后调 <code>defrun_new</code>，<code>start2archive.F</code> 设置 <code>planet_type='mars'</code> 后再 <code>defrun_new</code>。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>lllm</code>, <code>daysec</code>, <code>dtphys</code>, <code>dtvr</code>, <code>rad</code>, <code>omeg</code>, <code>g</code>, <code>r</code>, <code>cpp</code>, <code>kappa</code>, <code>pi</code>, <code>im</code>, <code>jm</code></td>
+<td>archive/header 读写、<code>iniconst/inigeom/iniphysiq</code> 前后常量传递、<code>readhead_NC</code> 尺寸一致性检查。</td>
+</tr>
+<tr>
+<td><code>comvert_mod</code></td>
+<td><code>ap</code>, <code>bp</code>, <code>aps</code>, <code>bps</code>, <code>pa</code>, <code>preff</code>, <code>presnivs</code>, <code>pseudoalt</code>, <code>scaleheight</code></td>
+<td><code>ini_archive</code> 写垂直坐标，<code>lect_start_archive</code> 读旧/新垂直坐标，<code>testphys1d</code> 构造 1D <code>plev/play</code>。</td>
+</tr>
+<tr>
+<td><code>temps_mod</code></td>
+<td><code>day_ini</code>, <code>hour_ini</code></td>
+<td><code>newstart/start2archive/readhead_NC</code> 从 control/header 恢复初始 sol 和 sol 内时间，再写 restart/archive 时间。</td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td><code>hybrid</code>, <code>fxyhypb</code>, <code>ysinus</code></td>
+<td><code>init_testphys1d</code> 选择 hybrid 垂直坐标；<code>ini_archive</code> 写 zoom/网格控制信息，细节见 <a href="inigeom-zoom-map-contract.html">inigeom zoom/map 几何契约</a>。</td>
+</tr>
+<tr>
+<td><code>geometry_mod</code></td>
+<td><code>longitude</code>, <code>latitude</code>, <code>cell_area</code>, <code>init_geometry*</code></td>
+<td><code>newstart</code> 写 <code>restartfi.nc</code>，<code>lect_start_archive</code> 重建 <code>watercaptag</code>，1D 初始化物理几何。</td>
+</tr>
+<tr>
+<td><code>mod_const_mpi</code> / <code>parallel_lmdz</code></td>
+<td><code>COMM_LMDZ</code>, MPI/OMP 初始化占位</td>
+<td>utilities 以串行假并行状态调用 physics 或 XIOS 相关初始化。</td>
+</tr>
+<tr>
+<td><code>ioipsl_getincom</code></td>
+<td><code>getin</code></td>
+<td><code>datareadnc</code> 读取 <code>datadir</code>，1D 初始化读取 <code>day0/time/day_step/ndt/psurf/hybrid</code> 等参数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="newstartf-流程"><code>newstart.F</code> 流程</h2>
+<p><code>newstart.F</code> 的入口说明是创建或修改 Mars GCM 初始状态文件，源码第 11-12 行标注输出为 NetCDF <code>start</code> 和 <code>startfi</code>。它在第 17-57 行同时 <code>USE</code> COMMON 配置读取、tracer、控制、几何、MPI 常量、垂直坐标、动力常量和时间状态。</p>
+<p>主要顺序：</p>
+<ol type="1">
+<li>第 231-237 行手动把物理并行状态设为串行根进程，保证后面先于 <code>iniphysiq</code> 调用的 <code>tabfi</code> 可运行。</li>
+<li>第 240-243 行调用 <code>infotrac_init</code> 并按 <code>nqtot</code> 分配动力 tracer 数组。</li>
+<li>第 265-305 行选择输入：<code>start_archive.nc</code> 或 <code>start.nc</code> + <code>startfi.nc</code>。</li>
+<li>第 311-350 行读取 <code>controle</code> 表；第 355-360 行把 <code>kappa</code> 和能量守恒量写回 COMMON 状态。</li>
+<li>第 370-380 行通过 Mars <code>tabfi</code> 读取物理控制参数，再把 <code>rad/omeg/g/daysec</code> 写入 <code>comconst_mod</code>。</li>
+<li>第 394-407 行设置 <code>day_step</code>、调用 <code>defrun_new</code>、计算 <code>dtvr=daysec/day_step</code>、调用 <code>iniconst</code> 和 <code>inigeom</code>，再以 <code>dtphys</code>、网格、常量调用 <code>iniphysiq</code>。</li>
+<li>当从 archive 创建 start 时，第 424-440 行用 <code>datareadnc</code> 和 <code>gr_dyn_fi</code> 把 surface 数据转到物理网格，第 453-456 行调用 <code>lect_start_archive</code>。</li>
+<li>当从 start/startfi 读取时，第 470-475 行调用 <code>dynetat0</code> 和 <code>phyetat0</code> 恢复动力/物理状态。</li>
+<li>第 1998-2013 行设置 <code>day_ini/hour_ini</code>，调用 <code>geopot/caldyn0</code> 后写 <code>restart.nc</code>；第 2017 行以后调用 <code>physdem0/physdem1</code> 写 <code>restartfi.nc</code>。</li>
+</ol>
+<p>复现要点：<code>newstart</code> 不是单纯文件转换器。它会重建 COMMON 的动力常量、时间步、几何和垂直状态，再把 Mars surface/archive 变量投影到当前网格。若 <code>controle</code> 表与当前 <code>dimensions.h/paramet.h</code> 不一致，后续插值和 restart 写出会继承这个不一致风险。</p>
+<h2 id="start2archivef-流程"><code>start2archive.F</code> 流程</h2>
+<p><code>start2archive.F</code> 第 10-15 行说明它把 <code>start</code> 和 <code>startfi</code> 合并到 <code>start_archive</code>。源码第 21-39 行消费 <code>infotrac</code>, <code>control_mod</code>, <code>comvert_mod</code>, <code>comconst_mod</code>, <code>temps_mod</code>, <code>mod_const_mpi</code> 和 Mars 物理状态模块。</p>
+<p>主要顺序：</p>
+<ol type="1">
+<li>第 157-160 行先调 <code>defrun_new(99,.TRUE.)</code>，随后显式设置 <code>planet_type='mars'</code>。</li>
+<li>第 165-172 行初始化 tracer 并从 <code>start.nc</code> 调 <code>dynetat0</code> 恢复动力场。</li>
+<li>第 178-185 行再次 <code>defrun_new(99,.FALSE.)</code>，调用 <code>iniconst</code>, <code>inigeom</code>, <code>inifilr</code>，再把 <code>daysec/day_ini/dtphys</code> 等传给 <code>iniphysiq</code>。</li>
+<li>第 312-361 行把物理网格字段通过 <code>gr_fi_dyn</code> 转回动力 scalar 网格，包括 <code>tsurf/tsoil/inertiesoil/emis/albedo/qsurf/q2/tauscaling/totcloudfrac</code> 和 SSO 字段。</li>
+<li>第 419-425 行如果 <code>start_archive.nc</code> 不存在，则创建文件并调用 <code>ini_archive</code> 写 header、control 表和坐标。</li>
+<li>第 432-468 行写 <code>Time</code> 并开始写 archive 变量。</li>
+</ol>
+<p>复现要点：<code>start2archive</code> 的 COMMON 状态来自两层恢复：<code>dynetat0</code> 读动力 start，<code>phyetat0/tabfi</code> 读物理 startfi，然后 <code>ini_archive/write_archive</code> 把二者合成 archive。这里 <code>temps_mod%day_ini/hour_ini</code> 决定追加的 <code>Time=day_ini+hour_ini</code>。</p>
+<h2 id="lect_start_archivef-流程"><code>lect_start_archive.F</code> 流程</h2>
+<p><code>lect_start_archive</code> 是 <code>newstart</code> 从 archive 建 start 的核心读入例程。第 26-37 行消费 <code>infotrac%tname</code>、<code>comvert_mod</code> 的 <code>ap/bp/aps/bps/preff</code>、<code>comconst_mod</code> 的 <code>kappa/g/pi</code>、<code>geometry_mod%longitude/latitude</code>，并调用插值和 surface 初始化辅助。</p>
+<p>关键逻辑：</p>
+<ol type="1">
+<li>先读取旧 archive 的维度、坐标、垂直层和变量，判断是否需要水平或垂直插值。</li>
+<li>第 1248-1258 行先插值地形、CO2 ice、surface temperature，并用 <code>gr_dyn_fi</code> 转到物理网格。</li>
+<li>第 1268-1281 行同样处理 <code>emis/tauscaling/totcloudfrac</code>。</li>
+<li>第 1283-1320 行处理 <code>watercap/peren_co2ice/watercaptag/albedo</code>；如果 <code>watercaptag</code> 缺失或网格改变，则用 <code>geometry_mod</code> 的经纬度调用 <code>locate_watercaptag</code> 重建。</li>
+<li>第 1329-1369 行插值 surface pressure 后，用 <code>aire/g</code> 计算并缩放大气总质量和 CO2 ice 总量，保持旧 archive 总量。</li>
+<li>第 1382-1428 行根据土壤层定义对 thermal inertia 做垂直插值或用 reference surface inertia 外推。</li>
+</ol>
+<p>复现要点：<code>lect_start_archive</code> 对 COMMON 的依赖集中在坐标和守恒量。<code>g</code> 进入质量守恒换算，<code>ap/bp/aps/bps/preff</code> 决定 3D 变量垂直重映射，<code>rlonu/rlatv</code> 与 <code>geometry_mod</code> 决定水平插值和物理网格布尔 mask。</p>
+<h2 id="ini_archivef-和-readhead_ncf"><code>ini_archive.F</code> 和 <code>readhead_NC.F</code></h2>
+<p><code>ini_archive.F</code> 创建 <code>start_archive.nc</code> 文件头。第 37-43 行消费土壤层、垂直坐标、动力常量、逻辑网格开关、zoom 参数和能量状态。第 94-118 行把 COMMON 状态写入 100 长度 <code>tab_cntrl</code>：</p>
+<ul>
+<li><code>tab_cntrl(1:3)=iim,jjm,llm</code></li>
+<li><code>tab_cntrl(4)=idayref</code></li>
+<li><code>tab_cntrl(5:11)=rad,omeg,g,cpp/kappa/daysec/dtvr</code></li>
+<li><code>tab_cntrl(12:16)=etot0,ptot0,ztot0,stot0,ang0</code></li>
+<li><code>tab_cntrl(17:18)=pa,preff</code></li>
+</ul>
+<p>第 266-327 行定义并写出 <code>ap/bp/aps/bps</code>，使 archive 可被后续 <code>lect_start_archive</code> 和 <code>readhead_NC</code> 恢复。</p>
+<p><code>readhead_NC.F</code> 是相反方向的 header/control 读取器。第 5-9 行使用 <code>comvert_mod</code>, <code>comconst_mod</code>, <code>temps_mod</code>, <code>ener_mod</code>；第 57-100 行从 <code>controle</code> 写回 <code>im/jm/lllm/day_ini/rad/omeg/g/cpp/kappa/daysec/dtvr/energy</code>，并设置 <code>r=kappa*cpp</code>。第 101-110 行检查文件维度与当前编译维度一致；第 112-220 行读取经纬度和 <code>aps/bps</code> 等垂直层。</p>
+<p>复现要点：archive 的 control 表是 Mars utility 和 COMMON 动力状态的桥。<code>ini_archive</code> 写出的字段顺序必须和 <code>readhead_NC/newstart</code> 读取顺序一致。</p>
+<h2 id="datareadncf-surface-数据链"><code>datareadnc.F</code> surface 数据链</h2>
+<p><code>datareadnc.F</code> 第 45-50 行使用 <code>ioipsl_getincom:getin</code>、<code>comconst_mod:g/pi</code>、<code>datafile_mod:datadir</code> 和水平映射 helper。第 120-137 行默认 <code>datadir="/u/lmdz/WWW/planets/mars/datadir"</code>，然后允许 <code>callphys.def</code> 通过 <code>getin("datadir",datadir)</code> 覆盖，最后打开 <code>surface.nc</code>。</p>
+<p>第 261-275 行把 360x180 数据补周期列后调用 <code>interp_horiz(..., rlonud, rlatvd, rlonu, rlatv)</code> 插值到当前动力网格；第 281-283 行恢复周期端点。<code>newstart</code> 再用 <code>gr_dyn_fi</code> 把这些动力网格字段转为物理网格字段。<code>interp_horiz/iniinterp_horiz</code> 的面积交叠算法见 <a href="../modules/dyn3d/interp_horiz.html">dyn3d/interp_horiz</a>。</p>
+<p>复现要点：<code>surface.nc</code> 不是 COMMON 文件，但它依赖 COMMON/Mars 共享的 <code>getin</code>、<code>rlonu/rlatv</code> 和水平插值接口。<code>rlonu/rlatv/rlonv/rlatu</code> 来自 <code>inigeom</code> 当前 run 的 zoom/map 几何，详见 <a href="inigeom-zoom-map-contract.html">inigeom zoom/map 几何契约</a>。没有正确 <code>datadir</code> 时，<code>newstart</code> 的 surface 分支会直接 abort。</p>
+<h2 id="testphys1d-和-init_testphys1d-1d-路径"><code>testphys1d</code> 和 <code>init_testphys1d</code> 1D 路径</h2>
+<p><code>testphys1d.F90</code> 第 31-37 行说明它是 Mars GCM 物理包的 1D column driver，需要 <code>testphys1d.def</code>、<code>callphys.def</code>、<code>run.def</code> 和垂直层文件。第 13-24 行使用 COMMON 转发模块 <code>comvert_mod</code>、<code>mod_const_mpi</code>、<code>parallel_lmdz</code>，并调用 <code>init_testphys1d</code>。</p>
+<p><code>init_testphys1d_mod.F90</code> 的 COMMON 消费与 3D utility 不同：</p>
+<ol type="1">
+<li>第 131-170 行直接给 Mars 常量赋值：<code>rad/daysec/omeg/g/mugaz/rcp/r/cpp/year_day</code> 等，而不是从 <code>controle</code> 恢复。</li>
+<li>第 177-220 行读取 <code>traceur.def</code>，设置 <code>nqtot=nq</code>，分配 <code>tname/nqfils/nqperes</code>。</li>
+<li>第 255-259 行初始化 physics distribution，XIOS 编译时使用 <code>COMM_LMDZ</code>。</li>
+<li>第 263-310 行通过 <code>getin</code> 读取 <code>day0/time/day_step/ndt</code>，并计算 <code>dttestphys=daysec/steps_per_sol</code>。</li>
+<li>第 314-339 行设置 <code>psurf/pa/preff/hybrid</code>，调用 <code>disvert_noterre</code> 和 <code>init_vertical_layers</code>，再由 <code>ap/bp/aps/bps</code> 构造 <code>plev/play</code>。</li>
+<li>第 423-433 行初始化 dyn-phys 接口、regular lon-lat 网格、geometry、dimphy、physics state、fillgeom、<code>conf_phys</code> 和 tracer。</li>
+<li>第 435-440 行强制 <code>iphysiq=1</code>，因为 1D 每一步都调用 physics。</li>
+<li>第 505-512 行按 <code>nslope</code> 重新分配 surface、soil、radiation 和 paleoclimate slope 相关数组。</li>
+<li>第 762-768 行为 <code>inichim_newstart</code> 临时构造类似动力 scalar 网格的 <code>qdyn/psdyn</code>。</li>
+</ol>
+<p>复现要点：1D 路径属于 <code>接口兼容</code>。它通过 <code>LMDZ.MARS\libf\phymars\dyn1d</code> 的直接路径转发拿到 COMMON 模块名和接口，但不会走完整 3D <code>gcm -&gt; leapfrog</code> 主链。写 wiki 时不能把 1D <code>iphysiq=1</code> 或手写 Mars 常量误读成 3D GCM 的 COMMON 初始化顺序。</p>
+<h2 id="与-common-页面关系">与 COMMON 页面关系</h2>
+<pre class="text"><code>Mars utility
+  -&gt; COMMON 状态/控制契约
+  -&gt; 垂直离散和 vertical_layers
+  -&gt; 动力/物理格点互转
+  -&gt; geometry/grid layer 状态
+  -&gt; restart/archive/I/O 边界</code></pre>
+<p>已有页面链接：</p>
+<ul>
+<li><a href="common-state-control-contract.html">COMMON 状态/控制契约</a></li>
+<li><a href="vertical-discretization.html">垂直离散构造</a></li>
+<li><a href="vertical-coordinate-mars-contract.html">Mars 垂直坐标与动力-物理共享状态契约</a></li>
+<li><a href="mars-utility-constants-vertical.html">Mars utility 常量和垂直坐标消费链</a></li>
+<li><a href="inigeom-zoom-map-contract.html">inigeom zoom/map 几何契约</a></li>
+<li><a href="mars-utility-netcdf-helper-use.html">Mars utility NetCDF 和 COMMON helper 边界</a></li>
+<li><a href="dyn-phys-grid-transforms.html">动力/物理格点互转</a></li>
+<li><a href="../modules/dyn3d/interp_horiz.html">dyn3d 水平面积交叠插值</a></li>
+<li><a href="dynredem-restart.html">dynredem restart</a></li>
+<li><a href="../modules/phy_common/geometry-grid-layers.html">物理侧几何、regular lon-lat、垂直层和网格互转</a></li>
+<li><a href="../modules/misc/ioipsl-getin-system.html">IOIPSL getin 系统</a></li>
+<li><a href="../reference/mars-common-map.html">MARS-COMMON 文件/功能映射表</a></li>
+<li><a href="../reference/common-consumer-map.html">COMMON 使用方映射表</a></li>
+</ul>
+<h2 id="边界和风险">边界和风险</h2>
+<ul>
+<li><code>newstart/start2archive/lect_start_archive/ini_archive/readhead_NC/datareadnc</code> 是 Mars 源码，不应作为 COMMON 源文件页处理；本页只记录它们消费 COMMON 的接口事实。</li>
+<li><code>phyvenus/phytitan.old</code> 中同名 <code>newstart/archive</code> 文件属于非 Mars 路径，本页不覆盖。</li>
+<li><code>readhead_NC</code> 中 <code>preff=610.</code> 覆盖了 control 表读取注释中的 <code>tab_cntrl(18)</code>，这是 Mars 适配行为；复现时不要假设所有 header 字段都原样恢复。</li>
+<li><code>lect_start_archive</code> 对旧 archive 做水平/垂直插值时，质量守恒依赖 <code>aire/g</code> 和旧文件完整性；缺失变量会走 Mars 侧 fallback 或 abort，需结合具体文件确认。</li>
+<li>1D <code>testphys1d</code> 手动常量和 <code>phys_state_var_init</code> 的顺序模拟 3D <code>iniphysiq</code>，但不是 3D GCM 的真实控制流。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

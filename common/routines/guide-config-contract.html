@@ -1,0 +1,207 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>guide-config-contract - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/guide-config-contract.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="guide-配置与初始化契约">guide 配置与初始化契约</h1>
+<p><code>guide_init</code> 是 nudging（松弛逼近）子系统的唯一入口，负责读取全部配置参数、打开 NetCDF 文件确定垂直层数、分配所有工作数组并加载第一个时间片。串行版 <code>guide_mod</code>（<code>dyn3d/guide_mod.F90</code>）和并行版 <code>guide_p_mod</code>（<code>dyn3dpar/guide_p_mod.F90</code>）共享几乎相同的参数集合，但并行版额外支持 <code>guide_plevs</code> 三级压力坐标系选择，并在数组分配和索引上适配域分解。</p>
+<h2 id="调用链">调用链</h2>
+<p><code>ok_guide</code> 是 <code>logic_mod</code> 中的全局逻辑开关，由 <code>conf_gcm</code> 通过 <code>getin('ok_guide',ok_guide)</code> 从 <code>run.def</code> 读取，默认 <code>.FALSE.</code>。在 6.3 源码中，<code>leapfrog</code> / <code>leapfrog_p</code> 对 <code>guide_main(itau,ucov,vcov,teta,q,masse,ps)</code> 的活动调用位于 <code>#ifdef CPP_IOIPSL</code> 且 <code>planet_type=="earth"</code> 的分支内；<code>guide_main</code> 内部首次执行时通过 <code>first</code> flag 调用 <code>guide_init</code>。Mars/generic 行星在 <code>gcm.F90</code> / <code>gcm.F</code> 初始化阶段额外使用 <code>relaxetat0("relax.nc")</code> 做独立松弛，与 guide 模块无耦合。</p>
+<h2 id="guide_init-参数读取">guide_init 参数读取</h2>
+<p><code>guide_init</code> 调用 <code>ini_getparam("nudging_parameters_out.txt")</code> 打开参数文件（仅串行版显式传文件名；并行版依赖 getparam 默认行为），然后通过 <code>getpar</code> 读取以下参数组：</p>
+<h3 id="变量开关">变量开关</h3>
+<p><code>guide_u</code>（默认 <code>.TRUE.</code>）、<code>guide_v</code>（<code>.TRUE.</code>）、<code>guide_T</code>（<code>.TRUE.</code>）、<code>guide_P</code>（<code>.TRUE.</code>）、<code>guide_Q</code>（<code>.TRUE.</code>）分别控制 u/v/T/Ps/Q 是否参与 nudging。<code>guide_hr</code>（<code>.TRUE.</code>）表示输入文件为相对湿度（%），需乘以饱和比湿转换；<code>guide_teta</code>（<code>.FALSE.</code>）表示输入为位温而非温度，跳过 Exner 函数除法。</p>
+<h3 id="时间常数">时间常数</h3>
+<p>每个变量有一对 <code>tau_min_X</code> / <code>tau_max_X</code>（单位：天），默认 0.02 / 10.0。<code>tau2alpha</code> 将这对松弛时间转为逐网格点系数 <code>alpha</code>，具体映射取决于 <code>guide_reg</code> / <code>guide_add</code> 模式和 zoom 网格面积比。<code>factt = dtvr * iperiod / daysec</code> 将动力步长转换为天分数，作为 <code>tau2alpha</code> 的缩放因子。</p>
+<h3 id="区域与边界层控制">区域与边界层控制</h3>
+<p><code>guide_reg</code>（<code>.FALSE.</code>）启用区域 nudging，由 <code>lat_min_g</code> / <code>lat_max_g</code>（-90/90）、<code>lon_min_g</code> / <code>lon_max_g</code>（-180/180）定义矩形域，<code>tau_lat</code> / <code>tau_lon</code>（均 5.0）控制 tanh 软化边界的宽度。<code>guide_BL</code>（<code>.TRUE.</code>）允许边界层内 nudging；关闭时 <code>alpha_pcor(l)</code> 用 <code>tanh((0.85 - presnivs/preff)/0.05)</code> 在约 85% 参考气压处衰减高层系数。</p>
+<h3 id="频率与-io">频率与 I/O</h3>
+<p><code>iguide_read</code>（4）控制读取频率：正值 = 每天读 N 次，负值 = 每 N 天读一次，零 = 只读一次（<code>iguide_read=0</code> 时时间插值冻结在 <code>tau=1</code>）。<code>iguide_int</code>（4）控制垂直插值频率，编码规则同 <code>iguide_sav</code>。<code>guide_sav</code>（<code>.FALSE.</code>）启用 <code>guide_ins.nc</code> 输出，<code>iguide_sav</code>（4）为写出频率。</p>
+<h3 id="垂直坐标与文件结构">垂直坐标与文件结构</h3>
+<p><code>guide_modele</code>（<code>.FALSE.</code>，仅串行版直接声明；并行版通过 <code>guide_plevs</code> 间接映射）指示使用混合坐标 <code>ap + bp*ps</code> 读取 <code>apbp.nc</code>。并行版新增 <code>guide_plevs</code>（0）：0 = 纯气压层（LEVEL/PRESSURE 维，读 apnc 后乘 100 转 Pa，bpnc=0）；1 = 混合层（等同串行 <code>guide_modele=.TRUE.</code>，读 AP/BP）；2 = 逐格点气压（读 <code>P.nc</code> 中 PRES 变量，<code>pnat1/pnat2</code> 三维场）。<code>guide_invertp</code>（<code>.TRUE.</code>）和 <code>guide_inverty</code>（<code>.TRUE.</code>）控制垂直和南北反转。<code>guide_2D</code>（<code>.FALSE.</code>）切换到经度-气压 2D 文件读取模式（<code>guide_read2D</code> 只读 1 列然后沿 iip1 广播）。<code>ini_anal</code>（<code>.FALSE.</code>）使初始状态直接等于分析场。</p>
+<h2 id="nlevnc-确定与文件探测">nlevnc 确定与文件探测</h2>
+<p><code>guide_init</code> 在参数读取后打开第一个可用 NetCDF 文件以查询 LEVEL 或 PRESSURE 维的长度 <code>nlevnc</code>。探测顺序：混合层时 <code>apbp.nc</code> → 否则按 <code>guide_u</code> → <code>guide_v</code> → <code>guide_T</code> → <code>guide_Q</code> 优先级尝试打开对应变量的 <code>.nc</code> 文件。并行版在 <code>guide_plevs=2</code> 时优先尝试 <code>P.nc</code>。</p>
+<h2 id="数组分配与维度">数组分配与维度</h2>
+<p>所有 alpha 系数数组无条件分配：<code>alpha_u(ip1jmp1)</code>、<code>alpha_v(ip1jm)</code>、<code>alpha_T(iip1,jjp1)</code>、<code>alpha_Q(iip1,jjp1)</code>、<code>alpha_P(ip1jmp1)</code>、<code>alpha_pcor(llm)</code>。三维 nudging 场仅在对应 <code>guide_X=.TRUE.</code> 时分配，每个变量分配两对：<code>Xnat1/Xnat2</code>（nlevnc 层原始场，维度 <code>(iip1,jjp1,nlevnc)</code> 或 <code>(iip1,jjm,nlevnc)</code> 对 v）和 <code>Xgui1/Xgui2</code>（模型层插值后场，维度 <code>(ip1jmp1,llm)</code> 或 <code>(ip1jm,llm)</code> 对 v）。并行版在 <code>guide_plevs=2</code> 时额外分配 <code>pnat1/pnat2(iip1,jjp1,nlevnc)</code> 存储逐格点气压层。</p>
+<h2 id="串并行差异">串并行差异</h2>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>串行 <code>guide_mod</code></th>
+<th>并行 <code>guide_p_mod</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>垂直坐标选择</td>
+<td><code>guide_modele</code> 逻辑开关</td>
+<td><code>guide_plevs</code> 整数 0/1/2（兼容 <code>guide_modele</code>）</td>
+</tr>
+<tr>
+<td>3D 气压场</td>
+<td>无</td>
+<td><code>pnat1/pnat2</code> 仅 <code>guide_plevs=2</code></td>
+</tr>
+<tr>
+<td>域分解</td>
+<td>全局 <code>(iip1,jjp1)</code></td>
+<td>局部 <code>(jjb_u:jje_u)</code> / <code>(jjb_v:jje_v)</code></td>
+</tr>
+<tr>
+<td><code>guide_addfield</code></td>
+<td>全局循环</td>
+<td>仅 <code>ijb_u:ije_u</code> 或 <code>ijb_v:ije_v</code></td>
+</tr>
+<tr>
+<td><code>guide_zonave</code></td>
+<td>全局 j 循环</td>
+<td>局部 <code>jjb_v:jje_v</code></td>
+</tr>
+<tr>
+<td><code>guide_interp</code> halo</td>
+<td>无需</td>
+<td><code>Register_SwapFieldHallo</code> + <code>SendRequest/WaitRequest</code> 对 <code>pext</code> 和 <code>psnat</code>/<code>pnat</code></td>
+</tr>
+<tr>
+<td><code>guide_out</code></td>
+<td>直接写</td>
+<td><code>gather_field</code> 后仅 <code>mpi_rank==0</code> 写</td>
+</tr>
+<tr>
+<td>Exner 函数</td>
+<td><code>exner_hyb_m</code> / <code>exner_milieu_m</code></td>
+<td><code>exner_hyb_p_m</code> / <code>exner_milieu_p_m</code></td>
+</tr>
+<tr>
+<td>压力/质量算子</td>
+<td><code>pression</code> / <code>massdair</code> / <code>massbar</code></td>
+<td><code>pression_p</code> / <code>massdair_p</code> / <code>massbar_p</code></td>
+</tr>
+<tr>
+<td>并行边界索引</td>
+<td>无</td>
+<td><code>ijb_u/ije_u/jjb_u/jje_u</code> + <code>pole_sud</code> 缩减 v 边界</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<p>Mars 运行只把本模块作为接口兼容和配置边界。6.3 <code>leapfrog_p</code> 的 <code>guide_main</code> 调用同样在 <code>CPP_IOIPSL</code> + <code>planet_type=="earth"</code> 分支；generic 行星的 <code>ok_guide</code> 路径包含 <code>relaxetat0("relax.nc")</code> 和 inline <code>attenua</code> u-wind nudging，均不等同于本模块的 NetCDF guide 输入链。</p>
+<h2 id="依赖表">依赖表</h2>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getparam</code></td>
+<td><code>ini_getparam</code> / <code>getpar</code> / <code>fin_getparam</code> 参数读取</td>
+</tr>
+<tr>
+<td><code>control_mod</code></td>
+<td><code>day_step</code>, <code>iperiod</code></td>
+</tr>
+<tr>
+<td><code>serre_mod</code></td>
+<td><code>grossismx</code>, <code>grossismy</code>, <code>clon</code>, <code>clat</code>（zoom 参数）</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>dtvr</code>, <code>daysec</code>, <code>pi</code>, <code>cpp</code>, <code>kappa</code></td>
+</tr>
+<tr>
+<td><code>comvert_mod</code></td>
+<td><code>ap</code>, <code>bp</code>, <code>preff</code>, <code>presnivs</code>, <code>pressure_exner</code></td>
+</tr>
+<tr>
+<td><code>pres2lev_mod</code></td>
+<td><code>pres2lev</code> 垂直插值</td>
+</tr>
+<tr>
+<td><code>exner_hyb_m</code> / <code>exner_hyb_p_m</code></td>
+<td>Exner 函数（混合坐标）</td>
+</tr>
+<tr>
+<td><code>exner_milieu_m</code> / <code>exner_milieu_p_m</code></td>
+<td>Exner 函数（层中心）</td>
+</tr>
+<tr>
+<td><code>Write_Field</code> / <code>Write_Field_p</code></td>
+<td>诊断输出</td>
+</tr>
+<tr>
+<td><code>netcdf</code> / <code>netcdf95</code></td>
+<td>NetCDF 文件 I/O</td>
+</tr>
+<tr>
+<td><code>parallel_lmdz</code>（仅并行版）</td>
+<td><code>ij_begin</code>, <code>ij_end</code>, <code>jj_begin</code>, <code>jj_end</code>, <code>pole_sud</code>, <code>mpi_rank</code></td>
+</tr>
+<tr>
+<td><code>mod_hallo</code> / <code>Bands</code>（仅并行版）</td>
+<td><code>Register_SwapFieldHallo</code>, <code>SendRequest</code>, <code>WaitRequest</code></td>
+</tr>
+<tr>
+<td><code>dimensions.h</code> / <code>paramet.h</code> / <code>comgeom.h</code> / <code>comgeom2.h</code> / <code>netcdf.inc</code></td>
+<td>维度和几何常量</td>
+</tr>
+</tbody>
+</table>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="guide-input-fields.html">guide 输入场读取</a></li>
+<li><a href="guide-interpolation-pressure.html">guide 压力层插值和 nudging 系数</a></li>
+<li><a href="guide-tendency-application.html">guide forcing 叠加到动力状态</a></li>
+<li><a href="guide-serial-parallel-delta.html">guide 串并行差异</a></li>
+<li><a href="leapfrog-p-state-contract.html">leapfrog-p-state-contract</a></li>
+<li><a href="leapfrog-p-physics-coupling.html">leapfrog-p-physics-coupling</a></li>
+<li><a href="common-pressure-mass-operators.html">common-pressure-mass-operators</a></li>
+<li><a href="../themes/serial-parallel-dynamics.html">serial-parallel-dynamics</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

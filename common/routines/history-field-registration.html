@@ -1,0 +1,417 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>history-field-registration - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/history-field-registration.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="historydynav-字段注册和写出门控">history/dynav 字段注册和写出门控</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\com_io_dyn_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\inithist.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\writehist.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\initdynav.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\writedynav.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\gcm.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\leapfrog.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\gcm.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\leapfrog_p.F
+LMDZ.MARS\libf\dynphy_lonlat\phymars\nogcm.F90
+LMDZ.MARS\libf\dynphy_lonlat\phymars\leapfrog_nogcm.F</code></pre>
+<p>页面状态：TASK-0187 完成。 Mars 运行参与度：<code>条件经过</code>。只有同时满足运行配置 <code>ok_dyn_ins</code> 或 <code>ok_dyn_ave</code>、编译包含 <code>CPP_IOIPSL</code>、并经过对应 GCM/nogcm 输出门时，COMMON 动力 history/dynav 输出才会初始化和写出。Mars physics 的 <code>diagfi/stats/XIOS</code> 是另一条输出链，不由这些例程写出。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>inithist</code> 和 <code>initdynav</code> 定义 IOIPSL history 文件、垂直轴和变量清单；<code>writehist</code> 和 <code>writedynav</code> 在时间推进中按门控写变量。四个 COMMON 串行例程都被 <code>#ifdef CPP_IOIPSL</code> 包住；未定义该宏时只向 <code>lunout</code> 打 warning，不会创建或写 NetCDF history 文件。</p>
+<p>当前 6.3 COMMON 串行入口 <code>dyn3d/gcm.F90</code> 直接调用 <code>inithist/initdynav</code>。并行入口 <code>dyn3dpar/gcm.F</code> 在 root 分支也调用这两个串行初始化例程，当前源码中的 <code>inithist_p/initdynav_p</code> 调用处是注释保留路径。因此本页以当前可达的 COMMON 串行 history id 和 root 写出链为准；<code>*_p</code> 支撑实现见串并行对照页。</p>
+<h2 id="文件名和-id-持有者">文件名和 id 持有者</h2>
+<p><code>com_io_dyn_mod.F90</code> 保存文件名常量和 IOIPSL file id。初始化例程写入这些 id，写出例程随后复用；这些 id 与 <code>temps_mod:itau_dyn</code> 的生命周期见 <a href="dynamic-output-state-holders.html">动力输出状态持有者</a>。</p>
+<table>
+<thead>
+<tr>
+<th>输出族</th>
+<th>文件名常量</th>
+<th>默认文件</th>
+<th>id</th>
+<th>初始化者</th>
+<th>写出者</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>instant scalar</td>
+<td><code>dynhist_file</code></td>
+<td><code>dyn_hist.nc</code></td>
+<td><code>histid</code></td>
+<td><code>inithist</code></td>
+<td><code>writehist</code></td>
+</tr>
+<tr>
+<td>instant V grid</td>
+<td><code>dynhistv_file</code></td>
+<td><code>dyn_histv.nc</code></td>
+<td><code>histvid</code></td>
+<td><code>inithist</code></td>
+<td><code>writehist</code></td>
+</tr>
+<tr>
+<td>instant U grid</td>
+<td><code>dynhistu_file</code></td>
+<td><code>dyn_histu.nc</code></td>
+<td><code>histuid</code></td>
+<td><code>inithist</code></td>
+<td><code>writehist</code></td>
+</tr>
+<tr>
+<td>averaged scalar</td>
+<td><code>dynhistave_file</code></td>
+<td><code>dyn_hist_ave.nc</code></td>
+<td><code>histaveid</code></td>
+<td><code>initdynav</code></td>
+<td><code>writedynav</code></td>
+</tr>
+<tr>
+<td>averaged V grid</td>
+<td><code>dynhistvave_file</code></td>
+<td><code>dyn_histv_ave.nc</code></td>
+<td><code>histvaveid</code></td>
+<td><code>initdynav</code></td>
+<td><code>writedynav</code></td>
+</tr>
+<tr>
+<td>averaged U grid</td>
+<td><code>dynhistuave_file</code></td>
+<td><code>dyn_histu_ave.nc</code></td>
+<td><code>histuaveid</code></td>
+<td><code>initdynav</code></td>
+<td><code>writedynav</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="配置读取和初始化门控">配置读取和初始化门控</h2>
+<p>串行 <code>conf_gcm.F90</code> 和并行 <code>conf_gcm.F90</code> 都读取同一组输出控制键：</p>
+<table>
+<thead>
+<tr>
+<th>配置键</th>
+<th>默认值</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iecri</code></td>
+<td><code>1</code></td>
+<td>instant history 写出步长门，<code>leapfrog*</code> 用 <code>MOD(itau,iecri)==0</code> 判断是否进入 instant 输出段。</td>
+</tr>
+<tr>
+<td><code>periodav</code></td>
+<td><code>1.</code></td>
+<td>averaged dynav 文件写出周期，初始化时进入 <code>t_wrt=periodav*daysec</code>。</td>
+</tr>
+<tr>
+<td><code>ok_dynzon</code></td>
+<td><code>.FALSE.</code></td>
+<td>动力纬向/守恒诊断门，调用 <code>bilan_dyn</code> 或 <code>bilan_dyn_p</code>，不等同于 dynav 文件。</td>
+</tr>
+<tr>
+<td><code>ok_dyn_ins</code></td>
+<td><code>.FALSE.</code></td>
+<td>instant <code>dyn_hist*.nc</code> 初始化和写出门。</td>
+</tr>
+<tr>
+<td><code>ok_dyn_ave</code></td>
+<td><code>.FALSE.</code></td>
+<td>averaged <code>dyn_hist*_ave.nc</code> 初始化和写出门。</td>
+</tr>
+</tbody>
+</table>
+<p>初始化在 <code>gcm</code> 或 <code>gcm_p</code> 完成动力、物理和 I/O 基础状态后执行：</p>
+<pre class="text"><code>if ok_dyn_ins:
+  t_ops = (iecri / day_step) * daysec
+  t_wrt = daysec
+  inithist(day_ref, annee_ref, time_step, t_ops, t_wrt)
+
+if ok_dyn_ave:
+  t_ops = iperiod * time_step
+  t_wrt = periodav * daysec
+  initdynav(day_ref, annee_ref, time_step, t_ops, t_wrt)
+  dtav = iperiod * dtvr / daysec</code></pre>
+<p>MARS <code>phymars/nogcm.F90</code> 也在 <code>ok_dyn_ins/ok_dyn_ave</code> 下初始化同一组 COMMON history/dynav 例程，然后进入 <code>phymars/leapfrog_nogcm.F</code>。这说明 Mars nogcm 路径可以消费 COMMON 动力 history 机制；它仍然不同于 Mars physics 自己的 <code>diagfi.nc</code>、<code>stats.nc</code> 或 XIOS 输出。</p>
+<h2 id="inithist-字段注册"><code>inithist</code> 字段注册</h2>
+<p><code>inithist.F</code> 创建 U/V/scalar 三个 instant 文件。经纬度来自 <code>comgeom.h</code> 的 <code>rlong/rlat</code>，垂直轴使用 <code>comvert_mod:presnivs/100.</code>，单位标注为 <code>mb</code>。</p>
+<table>
+<thead>
+<tr>
+<th>文件 id</th>
+<th>网格尺寸</th>
+<th><code>histbeg</code> 输入</th>
+<th>注册字段</th>
+<th>单位</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>histuid</code></td>
+<td><code>iip1 * jjp1</code></td>
+<td><code>dyn_histu.nc</code>，U grid</td>
+<td><code>u</code></td>
+<td><code>m/s</code></td>
+<td><code>vcov/ucov</code> 后续经 <code>covnat</code> 转自然风后写入。</td>
+</tr>
+<tr>
+<td><code>histvid</code></td>
+<td><code>iip1 * jjm</code></td>
+<td><code>dyn_histv.nc</code>，V grid</td>
+<td><code>v</code></td>
+<td><code>m/s</code></td>
+<td>V 纬向维度用 <code>jjm</code>。</td>
+</tr>
+<tr>
+<td><code>histid</code></td>
+<td><code>iip1 * jjp1</code></td>
+<td><code>dyn_hist.nc</code>，scalar grid</td>
+<td><code>teta</code>, <code>phi</code>, <code>masse</code>, <code>ps</code></td>
+<td><code>-</code>, <code>-</code>, <code>kg</code>, <code>Pa</code></td>
+<td>scalar 文件承载位温、位势、层质量和地表压。</td>
+</tr>
+</tbody>
+</table>
+<p>源码中 tracer 循环 <code>histdef(histid,ttext(iq),...)</code> 和 <code>phis</code> 的 <code>histdef</code> 都是注释行。因此当前 COMMON 串行 <code>inithist</code> 不注册 tracer 或 <code>phis</code> 字段；若后续看到并行 <code>_p</code> 页列出更多变量，应按调用链确认 <code>_p</code> 是否在当前入口活跃。</p>
+<h2 id="initdynav-字段注册"><code>initdynav</code> 字段注册</h2>
+<p><code>initdynav.F90</code> 创建 averaged dynav 三个文件，垂直轴同样使用 <code>presnivs/100.</code> 和 <code>mb</code>。字段清单与 instant history 接近，但 scalar 文件多出由写出阶段派生的 <code>temp</code>。</p>
+<table>
+<thead>
+<tr>
+<th>文件 id</th>
+<th>默认文件</th>
+<th>注册字段</th>
+<th>单位</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>histuaveid</code></td>
+<td><code>dyn_histu_ave.nc</code></td>
+<td><code>u</code></td>
+<td><code>m/s</code></td>
+<td>平均 U 风。</td>
+</tr>
+<tr>
+<td><code>histvaveid</code></td>
+<td><code>dyn_histv_ave.nc</code></td>
+<td><code>v</code></td>
+<td><code>m/s</code></td>
+<td>平均 V 风。</td>
+</tr>
+<tr>
+<td><code>histaveid</code></td>
+<td><code>dyn_hist_ave.nc</code></td>
+<td><code>temp</code>, <code>theta</code>, <code>phi</code>, <code>masse</code>, <code>ps</code></td>
+<td><code>K</code>, <code>K</code>, <code>-</code>, <code>kg</code>, <code>Pa</code></td>
+<td><code>theta</code> 对应输入 <code>teta</code>；<code>temp</code> 在 <code>writedynav</code> 内由 <code>teta*ppk/cpp</code> 派生。</td>
+</tr>
+</tbody>
+</table>
+<p><code>initdynav</code> 中 tracer 和 <code>phis</code> 的 <code>histdef</code> 同样处于注释状态。当前串行 averaged dynav 不注册 tracer 或 surface geopotential。</p>
+<h2 id="写出门控">写出门控</h2>
+<p><code>leapfrog.F</code> 与 <code>leapfrog_p.F</code> 都有两处输出段，分别覆盖正常 leapfrog 段和接近结束/重启段。核心条件相同：</p>
+<pre class="text"><code>if MOD(itau, iperiod) == 0 or itau == itaufin:
+  if ok_dynzon:
+    bilan_dyn* (...)
+  if ok_dyn_ave:
+    writedynav(itau, vcov, ucov, teta, ppk, phi, q, masse, ps, phis)
+
+if MOD(itau, iecri) == 0:
+  if ok_dyn_ins:
+    writehist(itau, vcov, ucov, teta, phi, q, masse, ps, phis)</code></pre>
+<p>MARS <code>phymars/leapfrog_nogcm.F</code> 保留同类门控：<code>ok_dynzon</code> 控制 <code>bilan_dyn</code>，<code>ok_dyn_ave</code> 控制 <code>writedynav</code>，<code>ok_dyn_ins</code> 控制 <code>writehist</code>。因此排查 Mars 动力 history 是否生成时，要同时检查 <code>nogcm/gcm</code> 初始化门和 <code>leapfrog*</code> 时间步门，不能只看 <code>ok_dyn_*</code> 是否为 true。</p>
+<h2 id="writehist-写出字段"><code>writehist</code> 写出字段</h2>
+<p><code>writehist.F</code> 先计算 <code>itau_w = itau_dyn + time</code>，再调用 <code>covnat(llm,ucov,vcov,unat,vnat)</code> 把协变风转为自然风。随后按 <code>inithist</code> 已注册字段写出，并在末尾同步三个文件 id。</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>file id</th>
+<th>数据来源</th>
+<th>写出尺寸/索引</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>u</code></td>
+<td><code>histuid</code></td>
+<td><code>unat</code></td>
+<td><code>iip1*jjp1*llm</code>, <code>ndexu</code></td>
+<td>U grid instant 风。</td>
+</tr>
+<tr>
+<td><code>v</code></td>
+<td><code>histvid</code></td>
+<td><code>vnat</code></td>
+<td><code>iip1*jjm*llm</code>, <code>ndexv</code></td>
+<td>V grid instant 风。</td>
+</tr>
+<tr>
+<td><code>teta</code></td>
+<td><code>histid</code></td>
+<td><code>teta</code></td>
+<td><code>iip1*jjp1*llm</code>, <code>ndexu</code></td>
+<td>位温。</td>
+</tr>
+<tr>
+<td><code>phi</code></td>
+<td><code>histid</code></td>
+<td><code>phi</code></td>
+<td><code>iip1*jjp1*llm</code>, <code>ndexu</code></td>
+<td>位势。</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td><code>histid</code></td>
+<td><code>masse</code></td>
+<td><code>iip1*jjp1*llm</code>, <code>ndexu</code></td>
+<td>层质量。</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td><code>histid</code></td>
+<td><code>ps</code></td>
+<td><code>iip1*jjp1</code>, <code>ndex2d</code></td>
+<td>地表压。</td>
+</tr>
+</tbody>
+</table>
+<p>tracer 循环和 <code>phis</code> 写出在当前串行源码中仍为注释行，与注册清单一致。写出末尾依次 <code>histsync(histid)</code>, <code>histsync(histvid)</code>, <code>histsync(histuid)</code>。</p>
+<h2 id="writedynav-写出字段"><code>writedynav</code> 写出字段</h2>
+<p><code>writedynav.F90</code> 也先计算 <code>itau_w = itau_dyn + time</code> 并调用 <code>covnat</code>。它还分配局部数组 <code>tm</code>，按 <code>tm = teta * ppk / cpp</code> 计算温度，再写 averaged 字段。</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>file id</th>
+<th>数据来源</th>
+<th>写出尺寸/索引</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>u</code></td>
+<td><code>histuaveid</code></td>
+<td><code>unat</code></td>
+<td><code>iip1*jjp1*llm</code>, <code>ndexu</code></td>
+<td>averaged U 风。</td>
+</tr>
+<tr>
+<td><code>v</code></td>
+<td><code>histvaveid</code></td>
+<td><code>vnat</code></td>
+<td><code>iip1*jjm*llm</code>, <code>ndexv</code></td>
+<td>averaged V 风。</td>
+</tr>
+<tr>
+<td><code>theta</code></td>
+<td><code>histaveid</code></td>
+<td><code>teta</code></td>
+<td><code>iip1*jjp1*llm</code>, <code>ndexu</code></td>
+<td>位温。</td>
+</tr>
+<tr>
+<td><code>temp</code></td>
+<td><code>histaveid</code></td>
+<td><code>teta*ppk/cpp</code></td>
+<td><code>iip1*jjp1*llm</code>, <code>ndexu</code></td>
+<td>温度派生量；依赖 <code>comconst_mod:cpp</code>。</td>
+</tr>
+<tr>
+<td><code>phi</code></td>
+<td><code>histaveid</code></td>
+<td><code>phi</code></td>
+<td><code>iip1*jjp1*llm</code>, <code>ndexu</code></td>
+<td>位势。</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td><code>histaveid</code></td>
+<td><code>masse</code></td>
+<td><code>iip1*jjp1*llm</code>, <code>ndexu</code></td>
+<td>层质量。</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td><code>histaveid</code></td>
+<td><code>ps</code></td>
+<td><code>iip1*jjp1</code>, <code>ndex2d</code></td>
+<td>地表压。</td>
+</tr>
+</tbody>
+</table>
+<p>tracer 和 <code>phis</code> 写出同样被注释。写出末尾同步 <code>histaveid/histvaveid/histuaveid</code>。</p>
+<h2 id="复现和排查顺序">复现和排查顺序</h2>
+<ol type="1">
+<li>编译选项先确认 <code>CPP_IOIPSL</code>。没有该宏时，<code>inithist/writehist/initdynav/writedynav</code> 不执行 IOIPSL history API。</li>
+<li>在 <code>run.def</code> 中确认 <code>ok_dyn_ins</code>、<code>ok_dyn_ave</code> 和 <code>ok_dynzon</code>。三者分别控制 instant history、averaged dynav 和 <code>bilan_dyn</code>，不要互相替代。</li>
+<li>检查 <code>iecri</code>、<code>iperiod</code>、<code>periodav</code> 和 <code>day_step</code>。初始化阶段用这些量换算 <code>t_ops/t_wrt</code>，写出阶段用 <code>MOD(itau,iecri)</code> 和 <code>MOD(itau,iperiod)</code> 进门。</li>
+<li>若 expected 文件是 <code>dyn_hist*.nc</code> 或 <code>dyn_hist*_ave.nc</code>，排查 COMMON 动力 history 链；若 expected 文件是 <code>diagfi.nc</code>、<code>stats.nc</code> 或 XIOS physics 输出，转到 Mars physics 输出页。</li>
+<li>若需要 tracer 或 <code>phis</code> 出现在 COMMON 串行 history 文件中，当前源码事实是这些 <code>histdef/histwrite</code> 行被注释，不能只改运行配置解决。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>串行 <code>inithist/writehist/initdynav/writedynav</code> 中 tracer 和 <code>phis</code> 被注释，而部分 <code>_p</code> 支撑实现保留更多字段；这是否是历史选择、当前 root 写出路径的有意裁剪，还是待清理差异，需要维护者确认。</li>
+<li><code>histdef</code> 的 <code>t_ops/t_wrt</code> 时间单位由 IOIPSL API 解释；本页按调用方换算公式记录，未做运行文件 header 实测。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="history-xios-getin-boundary.html">history/XIOS/getin 输出配置边界</a></li>
+<li><a href="inithist-serial-parallel.html">history 输出初始化串并行对照</a></li>
+<li><a href="initdynav-serial-parallel.html">initdynav 串并行对照</a></li>
+<li><a href="history-output-serial-parallel.html">history/dynav 输出串并行对照</a></li>
+<li><a href="leapfrog-output-restart.html">串行 leapfrog 输出/restart</a></li>
+<li><a href="leapfrog-p-output-restart.html">并行 leapfrog_p 输出/restart</a></li>
+<li><a href="common-state-control-contract.html">COMMON 状态/控制模块契约</a></li>
+<li><a href="dynamic-output-state-holders.html">动力输出状态持有者</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,279 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>grid-coordinate-state - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/phy_common/grid-coordinate-state.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="regular_lonlat_modf90-与-vertical_layers_modf90">regular_lonlat_mod.F90 与 vertical_layers_mod.F90</h1>
+<p>页面状态：TASK-0169 完成。 源码路径：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\regular_lonlat_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\vertical_layers_mod.F90</code></pre>
+<p>Mars 运行参与度：条件经过。Mars 3D 初始化通过 <code>inigeomphy_mod</code> 写入这两组状态；Mars 1D/testphys1d 也会初始化；Mars 输出、XIOS 输出和若干 physics 参数化读取 regular grid 或垂直层状态。</p>
+<h2 id="文件职责">文件职责</h2>
+<p>这两个模块保存的是物理侧“坐标状态”，但粒度不同：</p>
+<ul>
+<li><code>regular_lonlat_mod</code> 保存全局 regular longitude-latitude 网格中心和边界，不声明 <code>THREADPRIVATE</code>，注释明确为所有线程共享。</li>
+<li><code>vertical_layers_mod</code> 保存当前 OpenMP 线程的物理侧垂直坐标副本，所有变量在同一个 <code>THREADPRIVATE</code> 指令中声明。</li>
+</ul>
+<p>它们都只分配和复制输入，不计算动力网格、物理列切分或插值。全局物理列一维/二维映射由 <a href="mod_grid_phy_lmdz.html">mod_grid_phy_lmdz</a> 管；局部物理列经纬度、cell area 和 cell index 由 <a href="geometry_mod.html">geometry_mod</a> 管。</p>
+<h2 id="模块状态">模块状态</h2>
+<h3 id="regular_lonlat_mod"><code>regular_lonlat_mod</code></h3>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>维度</th>
+<th>单位/含义</th>
+<th>并行语义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>north_east</code>, <code>north_west</code>, <code>south_west</code>, <code>south_east</code></td>
+<td>scalar parameters</td>
+<td>unstructured/四角边界枚举值 1..4</td>
+<td>常量</td>
+</tr>
+<tr>
+<td><code>east</code>, <code>west</code>, <code>north</code>, <code>south</code></td>
+<td>scalar parameters</td>
+<td>regular lon/lat 二边界枚举值</td>
+<td>常量</td>
+</tr>
+<tr>
+<td><code>lon_reg(:)</code></td>
+<td><code>nbp_lon</code></td>
+<td>longitude center, rad</td>
+<td>全局共享</td>
+</tr>
+<tr>
+<td><code>lat_reg(:)</code></td>
+<td><code>nbp_lat</code></td>
+<td>latitude center, rad</td>
+<td>全局共享</td>
+</tr>
+<tr>
+<td><code>boundslon_reg(:,:)</code></td>
+<td><code>nbp_lon,2</code></td>
+<td>longitude boundaries，1 east、2 west，rad</td>
+<td>全局共享</td>
+</tr>
+<tr>
+<td><code>boundslat_reg(:,:)</code></td>
+<td><code>nbp_lat,2</code></td>
+<td>latitude boundaries，1 north、2 south，rad</td>
+<td>全局共享</td>
+</tr>
+</tbody>
+</table>
+<p>源码注释写着 <code>Do not set threadprivate directives</code>，因此不要把这些数组当作每线程局部切片。它们代表完整 regular lon-lat 坐标轴。</p>
+<h3 id="vertical_layers_mod"><code>vertical_layers_mod</code></h3>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>维度</th>
+<th>单位/含义</th>
+<th>并行语义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>preff</code></td>
+<td>scalar</td>
+<td>reference surface pressure, Pa</td>
+<td><code>THREADPRIVATE</code></td>
+</tr>
+<tr>
+<td><code>scaleheight</code></td>
+<td>scalar</td>
+<td>atmospheric reference scale height, km</td>
+<td><code>THREADPRIVATE</code></td>
+</tr>
+<tr>
+<td><code>ap(:)</code></td>
+<td><code>nlayer+1</code></td>
+<td>hybrid pressure coordinate at layer interfaces, Pa</td>
+<td><code>THREADPRIVATE</code></td>
+</tr>
+<tr>
+<td><code>bp(:)</code></td>
+<td><code>nlayer+1</code></td>
+<td>hybrid sigma coordinate at layer interfaces</td>
+<td><code>THREADPRIVATE</code></td>
+</tr>
+<tr>
+<td><code>aps(:)</code></td>
+<td><code>nlayer</code></td>
+<td>hybrid pressure coordinate at mid-layer, Pa</td>
+<td><code>THREADPRIVATE</code></td>
+</tr>
+<tr>
+<td><code>bps(:)</code></td>
+<td><code>nlayer</code></td>
+<td>hybrid sigma coordinate at mid-layer</td>
+<td><code>THREADPRIVATE</code></td>
+</tr>
+<tr>
+<td><code>presnivs(:)</code></td>
+<td><code>nlayer</code></td>
+<td>reference pressure at mid-layer, Pa</td>
+<td><code>THREADPRIVATE</code></td>
+</tr>
+<tr>
+<td><code>pseudoalt(:)</code></td>
+<td><code>nlayer</code></td>
+<td>pseudo-altitude, km</td>
+<td><code>THREADPRIVATE</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>vertical_layers_mod</code> 是 <code>comvert_mod</code> 动力垂直坐标状态的物理侧副本。初始化后 Mars physics 可以在物理侧直接读取这些数组，而不需要依赖动力模块。</p>
+<h2 id="例程">例程</h2>
+<table>
+<thead>
+<tr>
+<th>例程</th>
+<th>输入</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>init_regular_lonlat(nbp_lon, nbp_lat, lon_reg_, lat_reg_, boundslon_reg_, boundslat_reg_)</code></td>
+<td>全局 longitude/latitude 坐标轴和边界</td>
+<td>分配 <code>lon_reg/lat_reg/boundslon_reg/boundslat_reg</code> 并复制输入。</td>
+</tr>
+<tr>
+<td><code>init_vertical_layers(nlayer, preff_, scaleheight_, ap_, bp_, aps_, bps_, presnivs_, pseudoalt_)</code></td>
+<td>垂直坐标和参考压力/高度数组</td>
+<td>分配 <code>ap/bp/aps/bps/presnivs/pseudoalt</code>，复制 scalar 与数组。</td>
+</tr>
+</tbody>
+</table>
+<p>两个例程都没有 deallocate 或重复初始化保护。正常运行应保证同一线程/进程上下文只初始化一次。</p>
+<h2 id="初始化链">初始化链</h2>
+<h3 id="mars-3d">Mars 3D</h3>
+<pre class="text"><code>iniphysiq_mod
+  -&gt; inigeomphy_mod
+      -&gt; 构造 boundslon_reg(iim,2), boundslat_reg(jjm+1,2)
+      -&gt; init_regular_lonlat(iim, jjm+1, rlonv(1:iim), rlatu,
+                             boundslon_reg, boundslat_reg)
+      -&gt; ... 初始化局部 geometry_mod ...
+      -&gt; init_vertical_layers(nlayer, preff, scaleheight,
+                              ap, bp, aps, bps, presnivs, pseudoalt)</code></pre>
+<p><code>inigeomphy_mod</code> 对 longitude 第一列边界做特殊处理：<code>boundslon_reg(1,west)=rlonu(iim)-2*PI</code>，使从 <code>-180</code> 附近开始的 regular grid 具有正确 west boundary。latitude 两端则用 <code>PI/2</code> 和 <code>-PI/2</code> 作为极点边界。</p>
+<p>垂直层初始化发生在 OpenMP parallel 区内，复制的是 <code>comvert_mod</code> 中已经由 <code>disvert</code> 或 <code>disvert_noterre</code> 建好的 <code>preff/ap/bp/aps/bps/presnivs/scaleheight/pseudoalt</code>。</p>
+<h3 id="mars-1dtestphys1d">Mars 1D/testphys1d</h3>
+<pre class="text"><code>init_testphys1d_mod
+  -&gt; disvert_noterre
+  -&gt; init_vertical_layers(nlayer, preff, scaleheight, ap, bp, aps, bps, presnivs, pseudoalt)
+  -&gt; init_regular_lonlat(1, 1, longitude, latitude, (/0.,0./), (/0.,0./))</code></pre>
+<p>1D 路径先在 <code>disvert_noterre</code> 后初始化垂直层，再为单列网格初始化 <code>regular_lonlat_mod</code>。</p>
+<h2 id="mars-消费方">Mars 消费方</h2>
+<table>
+<thead>
+<tr>
+<th>消费方</th>
+<th>读取符号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mars <code>iniwrite.F</code></td>
+<td><code>lon_reg</code>, <code>lat_reg</code>, <code>ap/bp/aps/bps/pseudoalt</code></td>
+<td>写 <code>diagfi</code>/physics 输出文件的 longitude、latitude 和 altitude 轴。3D 时给 longitude 追加冗余端点。</td>
+</tr>
+<tr>
+<td>Mars <code>iniwritesoil.F90</code></td>
+<td><code>lon_reg</code>, <code>lat_reg</code></td>
+<td>写 soil 输出的 longitude/latitude 轴，3D 时同样追加冗余 longitude 端点。</td>
+</tr>
+<tr>
+<td>Mars <code>physiq_mod.F</code></td>
+<td><code>ap/bp/aps/bps/presnivs/pseudoalt</code></td>
+<td><code>CPP_XIOS</code> 下把 <code>presnivs/pseudoalt/mlayer</code> 传给 <code>initialize_xios_output</code>。</td>
+</tr>
+<tr>
+<td>Mars <code>co2cloud_mod.F90</code>, <code>co2condens_mod.F</code></td>
+<td><code>ap</code>, <code>bp</code></td>
+<td>CO2 cloud/condensation vertical coordinate calculations。</td>
+</tr>
+<tr>
+<td>Mars <code>nonoro_gwd_*</code></td>
+<td><code>presnivs</code></td>
+<td>构造重力波 drag 的 reference pressure mid-layer heights。</td>
+</tr>
+<tr>
+<td>Mars <code>aeronomars/inichim_newstart.F90</code></td>
+<td><code>aps</code>, <code>bps</code></td>
+<td>chemistry/newstart vertical interpolation or matching。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li><code>regular_lonlat_mod</code> 使用 rad；Mars 输出通常写前乘 <code>180/pi</code>。</li>
+<li>3D longitude 输出会在 Mars <code>iniwrite</code> / <code>iniwritesoil</code> 中追加一个冗余端点，源码用 <code>lon_reg_ext(nbp_lon+1)=-lon_reg_ext(1)</code>。</li>
+<li><code>vertical_layers_mod</code> 中 <code>pseudoalt</code> 单位是 km，<code>presnivs/ap/aps/preff</code> 是 Pa；输出文件的 axis 名可能叫 <code>altitude</code>，但值来自 <code>pseudoalt</code>。</li>
+<li>OpenMP 下垂直层状态是 threadprivate；若某线程未执行 <code>init_vertical_layers</code>，它读到的 allocatable 数组不会自动来自 master 线程。</li>
+<li>本页只保存坐标状态，不定义垂直坐标生成算法；<code>disvert</code>/<code>disvert_noterre</code> 和 <code>comvert_mod</code> 见 <a href="../../routines/vertical-coordinate-mars-contract.html">vertical-coordinate-mars-contract</a>。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>regular_lonlat_mod</code> 中 <code>lat_reg</code> 与 <code>boundslat_reg</code> 的源码注释有 “longitude cell” 文案，按形参与调用点判断应为 latitude；本页按变量名和 <code>inigeomphy_mod</code> 调用解释。</li>
+<li><code>north_east/north_west/south_west/south_east</code> 在本模块中定义但 regular 初始化只使用 <code>east/west/north/south</code>；四角枚举的活跃消费者需要在 unstructured/subslope 页面继续核对。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">phy_common 总览</a></li>
+<li><a href="geometry-grid-layers.html">物理侧几何、经纬网格、垂直层和网格模块组</a></li>
+<li><a href="geometry_mod.html">geometry_mod</a></li>
+<li><a href="mod_grid_phy_lmdz.html">mod_grid_phy_lmdz</a></li>
+<li><a href="../dynphy_lonlat/inigeomphy_mod.html">inigeomphy_mod</a></li>
+<li><a href="../../routines/vertical-coordinate-mars-contract.html">vertical-coordinate-mars-contract</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

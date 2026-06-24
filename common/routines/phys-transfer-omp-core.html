@@ -1,0 +1,473 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>phys-transfer-omp-core - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/phys-transfer-omp-core.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mod_phys_lmdz_omp_transfert-omp-transfer-核心"><code>mod_phys_lmdz_omp_transfert</code> OMP transfer 核心</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\mod_phys_lmdz_omp_transfert.F90</code></pre>
+<h2 id="本页范围">本页范围</h2>
+<p>本页展开 <code>mod_phys_lmdz_omp_transfert.F90</code>（1119 行）的全部 4 个泛型接口、56 个 specific procedures、12 个引擎子程序和 3 个 buffer 检查 helper。<a href="../modules/phy_common/omp-data-transfer.html">omp-data-transfer</a> 是组页概览；<a href="phys-transfer-para-wrapper.html">phys-transfer-para-wrapper</a> 覆盖上层合并层；本页专注 OMP 底层实现细节。</p>
+<h2 id="模块结构">模块结构</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">MODULE</span> mod_phys_lmdz_omp_transfert</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">PRIVATE</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span>,<span class="dt">PARAMETER</span> <span class="dt">::</span> grow_factor<span class="kw">=</span><span class="fl">1.5</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span>,<span class="dt">PARAMETER</span> <span class="dt">::</span> size_min<span class="kw">=</span><span class="dv">1024</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">CHARACTER(LEN=size_min)</span>,<span class="dt">SAVE</span>            <span class="dt">::</span> buffer_c</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span>,<span class="dt">SAVE</span>,<span class="dt">ALLOCATABLE</span>,<span class="dt">DIMENSION(:)</span>   <span class="dt">::</span> buffer_i</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span>,<span class="dt">SAVE</span>,<span class="dt">ALLOCATABLE</span>,<span class="dt">DIMENSION(:)</span>      <span class="dt">::</span> buffer_r</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">LOGICAL</span>,<span class="dt">SAVE</span>,<span class="dt">ALLOCATABLE</span>,<span class="dt">DIMENSION(:)</span>   <span class="dt">::</span> buffer_l</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>  ...</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">PUBLIC</span> bcast_omp,scatter_omp,gather_omp,reduce_sum_omp, omp_barrier</span></code></pre></div>
+<p>模块默认 <code>PRIVATE</code>，只导出 4 个泛型接口和 <code>omp_barrier</code>。所有 buffer 都是模块级 <code>SAVE</code> 变量，在线程间共享（非 <code>THREADPRIVATE</code>）。</p>
+<h2 id="动态-buffer-机制">动态 buffer 机制</h2>
+<h3 id="模块级-buffer-声明">模块级 buffer 声明</h3>
+<table>
+<thead>
+<tr>
+<th>buffer</th>
+<th>类型</th>
+<th>初始大小</th>
+<th>增长方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>buffer_c</code></td>
+<td><code>CHARACTER(LEN=size_min)</code></td>
+<td>1024 字符</td>
+<td>固定（不动态增长）</td>
+</tr>
+<tr>
+<td><code>buffer_i</code></td>
+<td><code>INTEGER, ALLOCATABLE(:)</code></td>
+<td>0（首次按需）</td>
+<td><code>grow_factor=1.5</code></td>
+</tr>
+<tr>
+<td><code>buffer_r</code></td>
+<td><code>REAL, ALLOCATABLE(:)</code></td>
+<td>0（首次按需）</td>
+<td><code>grow_factor=1.5</code></td>
+</tr>
+<tr>
+<td><code>buffer_l</code></td>
+<td><code>LOGICAL, ALLOCATABLE(:)</code></td>
+<td>0（首次按需）</td>
+<td><code>grow_factor=1.5</code></td>
+</tr>
+</tbody>
+</table>
+<p>配套 size 跟踪变量 <code>size_i</code>/<code>size_r</code>/<code>size_l</code>（初始 0）。</p>
+<h3 id="check_buffer-模式">check_buffer 模式</h3>
+<p><code>check_buffer_i</code>/<code>check_buffer_r</code> 使用 BARRIER+MASTER 模式：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> check_buffer_i(buff_size)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP MASTER</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">IF</span> (buff_size<span class="op">&gt;</span>size_i) <span class="kw">THEN</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">IF</span> (<span class="fu">ALLOCATED</span>(buffer_i)) <span class="kw">DEALLOCATE</span>(buffer_i)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    size_i<span class="kw">=</span><span class="bu">MAX</span>(size_min,<span class="bu">INT</span>(grow_factor<span class="kw">*</span>buff_size))</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">ALLOCATE</span>(buffer_i(size_i))</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ENDIF</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="kw">END SUBROUTINE</span></span></code></pre></div>
+<p>流程：前 barrier 确保所有线程到达 → master 判断是否需要扩容 → 分配 <code>MAX(size_min, 1.5*buff_size)</code> 元素 → 后 barrier 确保所有线程看到新 buffer。</p>
+<h3 id="check_buffer_l-的-single-差异">check_buffer_l 的 SINGLE 差异</h3>
+<p><code>check_buffer_l</code> 使用 <code>!$OMP SINGLE</code> 替代 <code>!$OMP MASTER</code>：</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP SINGLE</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">IF</span> (buff_size<span class="op">&gt;</span>size_l) <span class="kw">THEN</span> ...</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> SINGLE</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span></code></pre></div>
+<p>源码注释解释了原因（Ehouarn 调试发现）：尽管有前后 BARRIER，MASTER 分配后某些调试环境下 buffer 尚未对所有线程可见，SINGLE 行为更可靠。</p>
+<h2 id="4-个泛型接口总览">4 个泛型接口总览</h2>
+<table>
+<thead>
+<tr>
+<th>接口</th>
+<th>过程数</th>
+<th>类型</th>
+<th>最大维度</th>
+<th>buffer 使用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bcast_omp</code></td>
+<td>22</td>
+<td>c, i/i1-i6, r/r1-r6, l/l1-l6</td>
+<td>7D</td>
+<td>buffer_c/i/r/l</td>
+</tr>
+<tr>
+<td><code>scatter_omp</code></td>
+<td>12</td>
+<td>i/i1-i3, r/r1-r3, l/l1-l3</td>
+<td>4D</td>
+<td>buffer_i/r/l</td>
+</tr>
+<tr>
+<td><code>gather_omp</code></td>
+<td>12</td>
+<td>i/i1-i3, r/r1-r3, l/l1-l3</td>
+<td>4D</td>
+<td>buffer_i/l 或 POINTER</td>
+</tr>
+<tr>
+<td><code>reduce_sum_omp</code></td>
+<td>10</td>
+<td>i/i1-i4, r/r1-r4</td>
+<td>5D</td>
+<td>buffer_i/r</td>
+</tr>
+</tbody>
+</table>
+<p>总计 <strong>56 个 specific procedures</strong> + <strong>12 个引擎子程序</strong> + <strong>3 个 check_buffer</strong>。</p>
+<h3 id="类型覆盖差异">类型覆盖差异</h3>
+<ul>
+<li><strong>character</strong>：仅 <code>bcast_omp_c</code>（1 个），使用固定 <code>buffer_c</code>。</li>
+<li><strong>logical</strong>：无 <code>reduce_sum_omp</code>（与 MPI 侧一致）。</li>
+<li><strong>integer/real</strong>：覆盖全部 4 个接口。</li>
+</ul>
+<h3 id="维度后缀约定">维度后缀约定</h3>
+<p>与 MPI 侧一致：<code>_i</code> = scalar，<code>_i1</code> = 1D，<code>_i2</code> = 2D，<code>_i3</code> = 3D。bcast 额外支持到 <code>_i6</code>（6D），reduce_sum 额外支持 <code>_i4</code>（4D）。</p>
+<h2 id="bcast_omp-引擎">bcast_omp 引擎</h2>
+<h3 id="通用模式">通用模式</h3>
+<p>所有 bcast 引擎（<code>bcast_omp_cgen</code>/<code>igen</code>/<code>rgen</code>/<code>lgen</code>）使用相同的 OMP 指令序列：</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP MASTER</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">DO</span> i<span class="kw">=</span><span class="dv">1</span>,Nb</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    Buff(i)<span class="kw">=</span>Var(i)       <span class="co">! master 将值写入共享 buffer</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ENDDO</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER             ! 确保所有线程看到 buffer</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  <span class="kw">DO</span> i<span class="kw">=</span><span class="dv">1</span>,Nb</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    Var(i)<span class="kw">=</span>Buff(i)        <span class="co">! 每个线程从 buffer 读回自己的 Var</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ENDDO</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER             ! 确保所有线程完成读</span></span></code></pre></div>
+<p>bcast 在 OMP 上下文中将 MPI rank 级的值（由 master 线程代表）广播给所有 OMP 线程。master 写 → barrier → 所有线程读 → barrier。</p>
+<h3 id="character-引擎特殊">character 引擎特殊</h3>
+<p><code>bcast_omp_cgen</code> 使用固定 <code>buffer_c</code>（LEN=size_min=1024），不做 <code>check_buffer</code>：</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP MASTER</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  Buff<span class="kw">=</span>Var</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">DO</span> i<span class="kw">=</span><span class="dv">1</span>,Nb</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    Var<span class="kw">=</span>Buff              <span class="co">! 赋值整个字符串</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ENDDO</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span></code></pre></div>
+<h3 id="标量包装">标量包装</h3>
+<p>标量过程（<code>bcast_omp_i</code>/<code>_r</code>/<code>_l</code>）先复制到 <code>Var_tmp(1)</code> 数组，调用引擎，再复制回来。与 MPI 侧 <code>bcast_mpi_i</code> 的标量包装模式相同。</p>
+<h2 id="scatter_omp-引擎">scatter_omp 引擎</h2>
+<h3 id="通用模式-1">通用模式</h3>
+<p>所有 scatter 引擎（<code>scatter_omp_igen</code>/<code>rgen</code>/<code>lgen</code>）使用相同的 OMP 指令序列：</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP MASTER</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">DO</span> i<span class="kw">=</span><span class="dv">1</span>,dimsize</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">DO</span> ij<span class="kw">=</span><span class="dv">1</span>,klon_mpi</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>      Buff(ij,i)<span class="kw">=</span>VarIn(ij,i)    <span class="co">! master 拷贝 rank 级数据到 buffer</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">ENDDO</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ENDDO</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>  <span class="kw">DO</span> i<span class="kw">=</span><span class="dv">1</span>,dimsize</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">DO</span> ij<span class="kw">=</span><span class="dv">1</span>,klon_omp</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>      VarOut(ij,i)<span class="kw">=</span>Buff(klon_omp_begin<span class="kw">-</span><span class="dv">1</span><span class="kw">+</span>ij,i)  <span class="co">! 每个线程取自己的列</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">ENDDO</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ENDDO</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span></code></pre></div>
+<p>scatter 将 rank 级的 <code>VarIn(klon_mpi,dimsize)</code> 分发到各线程的 <code>VarOut(klon_omp,dimsize)</code>。每个线程通过 <code>klon_omp_begin</code> 偏移定位自己在 buffer 中的列段。</p>
+<h3 id="dimsize-计算">dimsize 计算</h3>
+<p>scatter 从 <code>VarOut</code> 额外维度取 <code>dimsize</code>（<code>Size(VarOut,2)</code> 等），与 MPI scatter 侧一致。</p>
+<h3 id="buffer-声明">buffer 声明</h3>
+<p>scatter 引擎的 <code>Buff</code> 声明为 <code>DIMENSION(klon_mpi,dimsize)</code>，由 <code>check_buffer_*</code> 确保模块级 buffer 足够大。</p>
+<h2 id="gather_omp-引擎">gather_omp 引擎</h2>
+<h3 id="integerlogical-引擎buffer-模式">integer/logical 引擎：buffer 模式</h3>
+<p><code>gather_omp_igen</code>/<code>lgen</code> 使用与 scatter 对称的 buffer 模式：</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>  <span class="kw">DO</span> i<span class="kw">=</span><span class="dv">1</span>,dimsize</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">DO</span> ij<span class="kw">=</span><span class="dv">1</span>,klon_omp</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>      Buff(klon_omp_begin<span class="kw">-</span><span class="dv">1</span><span class="kw">+</span>ij,i)<span class="kw">=</span>VarIn(ij,i)  <span class="co">! 每个线程写入自己的列</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">ENDDO</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ENDDO</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP MASTER</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  <span class="kw">DO</span> i<span class="kw">=</span><span class="dv">1</span>,dimsize</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">DO</span> ij<span class="kw">=</span><span class="dv">1</span>,klon_mpi</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>      VarOut(ij,i)<span class="kw">=</span>Buff(ij,i)    <span class="co">! master 从 buffer 拷贝到 rank 级输出</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">ENDDO</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ENDDO</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span></code></pre></div>
+<p>方向与 scatter 相反：所有线程先写 → barrier → master 读 → barrier。</p>
+<h3 id="real-引擎pointer-直写无-buffer">real 引擎：POINTER 直写（无 buffer）</h3>
+<p><code>gather_omp_rgen</code> 使用 POINTER 而非 buffer，是唯一不通过共享 buffer 的引擎：</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> gather_omp_rgen(VarIn,VarOut,dimsize)</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span>,<span class="dt">INTENT(OUT)</span>,<span class="dt">DIMENSION(klon_mpi,dimsize)</span>,<span class="dt">TARGET</span> <span class="dt">::</span> VarOut</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">REAL</span>, <span class="dt">POINTER</span>, <span class="dt">SAVE</span> <span class="dt">::</span> Varout_ptr(:,:)  <span class="co">! Shared between threads, NOT THREADPRIVATE</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>  <span class="co">!$OMP MASTER</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  Varout_ptr <span class="kw">=</span><span class="op">&gt;</span> VarOut</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>  <span class="co">!$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>  <span class="co">!$OMP BARRIER</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>  <span class="kw">DO</span> i<span class="kw">=</span><span class="dv">1</span>,dimsize</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">DO</span> ij<span class="kw">=</span><span class="dv">1</span>,klon_omp</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>      Varout_ptr(klon_omp_begin<span class="kw">-</span><span class="dv">1</span><span class="kw">+</span>ij,i)<span class="kw">=</span>VarIn(ij,i)</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">ENDDO</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ENDDO</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>  <span class="co">!$OMP BARRIER</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a><span class="kw">END SUBROUTINE</span></span></code></pre></div>
+<p>master 获取 <code>VarOut</code> 的 POINTER → barrier → 所有线程通过 POINTER 直接写入各自偏移位置。这避免了 buffer 分配和额外拷贝，是性能优化。</p>
+<p>注意：<code>Varout_ptr</code> 是 <code>SAVE</code> 但非 <code>THREADPRIVATE</code>，所有线程共享同一指针。<code>VarOut</code> 的 <code>TARGET</code> 属性允许 POINTER 关联。</p>
+<h3 id="gather_omp_r-specific-procedures-不检查-buffer">gather_omp_r* specific procedures 不检查 buffer</h3>
+<p><code>gather_omp_r</code>/<code>_r1</code>/<code>_r2</code>/<code>_r3</code> 不调用 <code>check_buffer_r</code>，因为 real gather 不使用 buffer。</p>
+<h2 id="reduce_sum_omp-引擎">reduce_sum_omp 引擎</h2>
+<h3 id="通用模式-2">通用模式</h3>
+<p><code>reduce_sum_omp_igen</code>/<code>rgen</code> 使用 CRITICAL section 实现线程间求和：</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP MASTER</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  Buff(:)<span class="kw">=</span><span class="dv">0</span>                    <span class="co">! master 清零</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP CRITICAL</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">DO</span> i<span class="kw">=</span><span class="dv">1</span>,dimsize</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    Buff(i)<span class="kw">=</span>Buff(i)<span class="kw">+</span>VarIn(i)   <span class="co">! 每个线程串行累加</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ENDDO</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> CRITICAL</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP MASTER</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>  <span class="kw">DO</span> i<span class="kw">=</span><span class="dv">1</span>,dimsize</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>    VarOut(i)<span class="kw">=</span>Buff(i)          <span class="co">! master 将结果写入输出</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ENDDO</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP </span><span class="re">END</span><span class="co"> MASTER</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span></code></pre></div>
+<p>三阶段：master 清零 → barrier → 各线程 CRITICAL 累加（串行化，保证原子性） → barrier → master 输出 → barrier。</p>
+<h3 id="标量包装-1">标量包装</h3>
+<p>标量过程（<code>reduce_sum_omp_i</code>/<code>_r</code>）使用 <code>VarIn_tmp(1)</code>/<code>VarOut_tmp(1)</code> 包装标量为数组。</p>
+<h3 id="dimsize-计算-1">dimsize 计算</h3>
+<p>reduce_sum 使用 <code>SIZE(VarIn)</code> 展平多维数组为连续内存，与 MPI 侧一致。</p>
+<h2 id="omp_barrier-工具">omp_barrier 工具</h2>
+<div class="sourceCode" id="cb11"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> omp_barrier</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="kw">END SUBROUTINE</span></span></code></pre></div>
+<p>独立的 barrier 子程序，供上层代码在需要同步所有 OMP 线程时使用。</p>
+<h2 id="omp-指令使用模式汇总">OMP 指令使用模式汇总</h2>
+<table>
+<thead>
+<tr>
+<th>指令</th>
+<th>用途</th>
+<th>出现位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>!$OMP BARRIER</code></td>
+<td>线程同步</td>
+<td>所有引擎的前/中/后同步点</td>
+</tr>
+<tr>
+<td><code>!$OMP MASTER</code></td>
+<td>单线程执行</td>
+<td>bcast/scatter 写入、gather 读出、reduce 清零/输出</td>
+</tr>
+<tr>
+<td><code>!$OMP SINGLE</code></td>
+<td>单线程执行（任一）</td>
+<td><code>check_buffer_l</code> 的 buffer 分配</td>
+</tr>
+<tr>
+<td><code>!$OMP CRITICAL</code></td>
+<td>互斥访问</td>
+<td>reduce_sum 的累加操作</td>
+</tr>
+<tr>
+<td><code>!$OMP END MASTER/SINGLE/CRITICAL</code></td>
+<td>结束区域</td>
+<td>与上配对</td>
+</tr>
+</tbody>
+</table>
+<h3 id="barrier-计数">barrier 计数</h3>
+<table>
+<thead>
+<tr>
+<th>引擎</th>
+<th>barrier 数</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>bcast_*gen</td>
+<td>2</td>
+<td>master 写后、所有线程读后</td>
+</tr>
+<tr>
+<td>scatter_*gen</td>
+<td>2</td>
+<td>master 写后、所有线程读后</td>
+</tr>
+<tr>
+<td>gather_igen/lgen</td>
+<td>2</td>
+<td>所有线程写后、master 读后</td>
+</tr>
+<tr>
+<td>gather_rgen</td>
+<td>2</td>
+<td>master POINTER 后、所有线程写后</td>
+</tr>
+<tr>
+<td>reduce_sum_*gen</td>
+<td>3</td>
+<td>master 清零后、CRITICAL 后、master 输出后</td>
+</tr>
+<tr>
+<td>check_buffer_i/r/l</td>
+<td>2</td>
+<td>master 分配前、分配后</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与-mpi-侧对比">与 MPI 侧对比</h2>
+<table>
+<thead>
+<tr>
+<th>属性</th>
+<th>OMP（本页）</th>
+<th>MPI（phys-transfer-mpi-core）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>接口数</td>
+<td>4</td>
+<td>8</td>
+</tr>
+<tr>
+<td>过程总数</td>
+<td>56</td>
+<td>94</td>
+</tr>
+<tr>
+<td>scatter/gather 方向</td>
+<td>rank→thread / thread→rank</td>
+<td>global→rank / rank→global</td>
+</tr>
+<tr>
+<td>通信原语</td>
+<td>OMP buffer+barrier</td>
+<td>MPI_BCAST/SCATTERV/GATHERV/REDUCE</td>
+</tr>
+<tr>
+<td>临时存储</td>
+<td>模块级 SAVE ALLOCATABLE buffer</td>
+<td>栈自动数组 VarTmp</td>
+</tr>
+<tr>
+<td>grid 转换</td>
+<td>无</td>
+<td>grid1dTo2d_mpi/grid2dTo1d_mpi</td>
+</tr>
+<tr>
+<td>scatter2D/gather2D</td>
+<td>无</td>
+<td>组合 grid+1D scatter/gather</td>
+</tr>
+<tr>
+<td>守卫</td>
+<td>无 CPP 守卫</td>
+<td>CPP_MPI 双重守卫</td>
+</tr>
+</tbody>
+</table>
+<p>OMP 模块没有 scatter2D/gather2D/grid1dTo2d/grid2dTo1d 接口——这些操作在 MPI 侧完成后，OMP 层只做 rank→thread 的列分配。</p>
+<h2 id="依赖数据汇总">依赖数据汇总</h2>
+<table>
+<thead>
+<tr>
+<th>来源模块</th>
+<th>符号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_phys_lmdz_omp_data</code></td>
+<td><code>klon_omp</code></td>
+<td>本线程列数</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_omp_data</code></td>
+<td><code>klon_omp_begin</code></td>
+<td>本线程列起始偏移</td>
+</tr>
+<tr>
+<td><code>mod_phys_lmdz_mpi_data</code></td>
+<td><code>klon_mpi</code></td>
+<td>本 rank 列数（scatter 输入/gather 输出首维）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 物理侧使用 OMP 并行时经过。CPP_OMP 构建 + omp_size&gt;1 时执行 OMP 指令；
+非 OMP 构建时 OMP 指令被编译器忽略，引擎退化为直接拷贝（buffer 仍存在但无同步语义）。</code></pre>
+<p>Mars 物理过程通过 <a href="phys-transfer-para-wrapper.html">phys-transfer-para-wrapper</a> 的 <code>bcast</code>/<code>scatter</code>/<code>gather</code> 泛型间接调用本模块。<code>_para</code> wrapper 中 OMP 部分在所有线程上执行（非 <code>!$OMP MASTER</code> 区域），确保线程级列分配正确。</p>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/phy_common/index.html">phy_common 总览</a></li>
+<li><a href="../modules/phy_common/omp-data-transfer.html">omp-data-transfer</a>（组页）</li>
+<li><a href="phys-transfer-para-wrapper.html">phys-transfer-para-wrapper</a>（上层合并层）</li>
+<li><a href="phys-transfer-mpi-core.html">phys-transfer-mpi-core</a>（MPI 底层）</li>
+<li><a href="../modules/phy_common/mod_phys_lmdz_omp_transfert.html">mod_phys_lmdz_omp_transfert</a>（TASK-0026 hard 父文件页）</li>
+<li><a href="calfis-p-parallel-transfer.html">calfis-p-parallel-transfer</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

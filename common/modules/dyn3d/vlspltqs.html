@@ -1,0 +1,199 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vlspltqs - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d/vlspltqs.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="vlspltqsf">vlspltqs.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\vlspltqs.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>vlspltqs.F</code> 是串行版饱和水汽 Van Leer split 输送。主例程 <code>vlspltqs</code> 对指定 tracer 计算饱和约束并执行 x-y-z-y-x split；内部 <code>vlxqs</code> 和 <code>vlyqs</code> 在水平两个方向上处理饱和限制，并在需要时调用普通 <code>vlx</code>/<code>vly</code> 更新子 tracer 比值。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 串行动力或接口兼容路径在 tracer 配置选择饱和水汽 split advection 时经过。并行构建使用 `vlspltqs_p.F`。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vlspltqs</code></td>
+<td>subroutine</td>
+<td>4</td>
+<td>串行饱和 tracer split advection 调度。</td>
+</tr>
+<tr>
+<td><code>vlxqs</code></td>
+<td>internal subroutine</td>
+<td>179</td>
+<td>x 方向饱和约束输送。</td>
+</tr>
+<tr>
+<td><code>vlyqs</code></td>
+<td>internal subroutine</td>
+<td>543</td>
+<td>y 方向饱和约束输送。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖和调用">依赖和调用</h2>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>符号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>infotrac</code></td>
+<td><code>nqtot</code>, <code>nqdesc</code>, <code>nqfils</code>, <code>iqfils</code></td>
+<td>tracer 数量和父子关系。</td>
+</tr>
+<tr>
+<td><code>cpdet_mod</code></td>
+<td><code>tpot2t</code></td>
+<td>位温到温度转换。</td>
+</tr>
+<tr>
+<td>BLAS 风格复制</td>
+<td><code>SCOPY</code></td>
+<td>把 <code>q/masse</code> 复制到工作数组。</td>
+</tr>
+<tr>
+<td>公共内核</td>
+<td><code>vlz</code>, <code>vlx</code>, <code>vly</code></td>
+<td>z 方向和子 tracer ratio 输送。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>pi</code></td>
+<td>y 方向几何三角缓存。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入输出">输入输出</h2>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>方向</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q</code></td>
+<td>inout</td>
+<td>tracer 场，目标 tracer 及子 tracer 被更新。</td>
+</tr>
+<tr>
+<td><code>pente_max</code></td>
+<td>in</td>
+<td>limiter 强度。</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td>in</td>
+<td>网格质量。</td>
+</tr>
+<tr>
+<td><code>w</code>, <code>pbaru</code>, <code>pbarv</code></td>
+<td>in</td>
+<td>垂直、x、y 方向质量通量。</td>
+</tr>
+<tr>
+<td><code>pdt</code>, <code>teta</code>, <code>pk</code></td>
+<td>in</td>
+<td>温度和饱和比湿计算所需状态。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>调用 <code>tpot2t(ip1jmp1*llm,teta,tempe,pk)</code> 得到温度。</li>
+<li>计算目标 tracer 的饱和阈值 <code>qsat</code>。</li>
+<li>用 <code>SCOPY</code> 将目标 tracer 和质量复制到 <code>zq/zm</code>；对子 tracer 也复制对应 <code>q</code>。</li>
+<li>按 <code>vlxqs -&gt; vlyqs -&gt; vlz -&gt; vlyqs -&gt; vlxqs</code> 顺序完成 split。</li>
+<li>内部 <code>vlxqs/vlyqs</code> 对父 tracer 应用饱和限制；对子 tracer 构造 ratio 后调用普通 <code>vlx/vly</code>。</li>
+<li>将工作数组回写到 <code>q</code>。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>tempe = tpot2t(teta, pk)
+qsat = saturation(tempe, pressure)
+copy q and masse to zq, zm
+vlxqs(parent tracer with qsat)
+vlyqs(parent tracer with qsat)
+vlz(all involved tracers)
+vlyqs(second pass)
+vlxqs(second pass)
+copy zq back to q</code></pre>
+<h2 id="保存状态和副作用">保存状态和副作用</h2>
+<p><code>vlspltqs</code>、<code>vlxqs</code>、<code>vlyqs</code> 保存若干 CPU 计时变量。<code>vlyqs</code> 还保存 <code>sinlon/coslon/sinlondlon/coslondlon</code> 以及极区面积缓存，用于避免重复构造经向几何权重。这些保存状态不改变物理 prognostic state，但会影响首次调用成本。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>split 顺序是对称的 x-y-z-y-x，不能简化成单次 x-y-z。</li>
+<li>子 tracer 不是直接用饱和限制，而是通过父 tracer ratio 与普通 Van Leer 水平输送耦合。</li>
+<li><code>vlyqs</code> 包含极区和经向面积处理，复现 y 方向时必须保留几何加权。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>饱和公式中的常数和 Mars 水汽物理配置需要与物理包水汽任务交叉确认。</li>
+<li>本文件在当前 Mars 标准串行构建中的触发频率取决于 tracer <code>iadv</code> 配置。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn3d 总览</a></li>
+<li><a href="../dyn3dpar/vlspltqs_p.html">vlspltqs_p 并行版</a></li>
+<li>待写：<code>modules/dyn3d/vlsplt.md</code>（TASK-0028）</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

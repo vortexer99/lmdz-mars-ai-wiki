@@ -1,0 +1,133 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>grilles_gcm_netcdf_sub - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d_common/grilles_gcm_netcdf_sub.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="grilles_gcm_netcdf_subf90">grilles_gcm_netcdf_sub.F90</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\grilles_gcm_netcdf_sub.F90</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>grilles_gcm_netcdf_sub.F90</code> 定义 <code>grilles_gcm_netcdf_sub</code>，用于创建 <code>grilles_gcm.nc</code>，输出 GCM U/V 网格经纬度、掩膜、地表位势和网格面积等 NetCDF 变量。文件注释说明它由 <code>ce0l</code> 在 <code>grilles_gcm_netcdf=TRUE</code> 时调用。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：生成 GCM 网格 NetCDF 辅助文件时经过；是否用于 Mars 标准运行取决于预处理/初始化配置。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>grilles_gcm_netcdf_sub</code></td>
+<td>subroutine</td>
+<td>9</td>
+<td>创建并填充 <code>grilles_gcm.nc</code>。</td>
+</tr>
+<tr>
+<td><code>handle_err</code></td>
+<td>subroutine</td>
+<td>225</td>
+<td>NetCDF 错误时调用 <code>abort_gcm</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>调用 <code>conf_gcm(99,.TRUE.)</code>、<code>iniconst</code>、<code>inigeom</code>，确保常量和动力几何可用。</li>
+<li>将 <code>rlatu/rlatv/rlonu/rlonv</code> 转为 degrees。</li>
+<li>打开/创建 NetCDF 输出文件，定义 <code>lonu/lonv/latu/latv</code> 维度和变量。</li>
+<li>定义 <code>grille_u/grille_v/grille_s</code> 等二维网格变量。</li>
+<li>写出经纬度数组。</li>
+<li>重新打开或继续定义 INCA 需要的额外变量，包括 <code>aire</code>。</li>
+<li>写 <code>masque/phis/aire</code> 等变量，关闭 NetCDF。</li>
+</ol>
+<h2 id="依赖和副作用">依赖和副作用</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comvert_mod</code></td>
+<td><code>pa/preff/presnivs</code>。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td>行星常量和角度转换常量。</td>
+</tr>
+<tr>
+<td><code>dimensions.h</code>, <code>paramet.h</code>, <code>netcdf.inc</code></td>
+<td>网格维度和 NetCDF 常量。</td>
+</tr>
+<tr>
+<td><code>conf_gcm</code>, <code>iniconst</code>, <code>inigeom</code></td>
+<td>初始化配置、常量和几何。</td>
+</tr>
+<tr>
+<td><code>abort_gcm</code></td>
+<td>NetCDF 错误退出。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>ce0l</code> 调用链和 <code>grilles_gcm_netcdf</code> 配置项需在构建/初始化任务中补证。</li>
+<li>文件中 <code>dlon/dlat/resol</code> 等局部变量的完整输出用途需要逐行审计确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn3d_common 总览</a></li>
+<li><a href="inigeom.html">inigeom</a></li>
+<li><a href="../../routines/horizontal-map-functions.html">水平映射函数组</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

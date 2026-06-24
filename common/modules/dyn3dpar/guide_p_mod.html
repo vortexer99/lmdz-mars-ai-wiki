@@ -1,0 +1,274 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>guide_p_mod - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3dpar/guide_p_mod.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="guide_p_modf90">guide_p_mod.F90</h1>
+<p>页面状态：TASK-0021 完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\guide_p_mod.F90</code>。</p>
+<p>Mars 运行参与度：接口兼容 + 条件边界。6.3 源码中 <code>leapfrog_p.F</code> 对 <code>guide_p_mod:guide_main</code> 的活动调用位于 <code>#ifdef CPP_IOIPSL</code> 且 <code>planet_type=="earth"</code> 的分支内；Mars/generic 并行入口的 <code>ok_guide</code> 初始化路径调用 <code>relaxetat0("relax.nc")</code>，generic 时间推进还有 inline <code>attenua</code> u-wind nudging，均不经过本模块的 NetCDF guide 输入链。</p>
+<h2 id="文件定位">文件定位</h2>
+<p><code>guide_p_mod</code> 是并行动力目录中的 nudging/guide 模块，和串行 <a href="../dyn3d/guide_mod.html">guide_mod</a> 对应。它公开 <code>guide_main(itau,ucov,vcov,teta,q,masse,ps)</code>，内部封装配置读取、NetCDF 输入、压力层插值、松弛系数、状态叠加和 <code>guide_ins.nc</code> 输出。</p>
+<p>并行版的核心区别不是输入文件分块读取，而是读入后只处理本 rank 的局部纬向带，并在 V 网格或 staggered 压力需要相邻行时显式做 halo。</p>
+<h2 id="公开入口和私有例程">公开入口和私有例程</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>调用方</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>guide_main</code></td>
+<td>subroutine</td>
+<td><code>leapfrog_p.F</code> 的 Earth/IOIPSL <code>ok_guide</code> 分支</td>
+<td>建立本地 U/V 范围，按频率读取/插值 guide 输入，把 forcing 加到并行动力状态。</td>
+</tr>
+</tbody>
+</table>
+<p>主要私有例程和串行版同名：</p>
+<table>
+<thead>
+<tr>
+<th>例程</th>
+<th>并行职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>guide_init</code></td>
+<td>读取 guide 参数，解析 <code>guide_plevs</code>，分配全局尺寸 guide 数组和并行额外 <code>pnat</code> 场。</td>
+</tr>
+<tr>
+<td><code>guide_read</code> / <code>guide_read2D</code></td>
+<td>每个 MPI rank 读取完整 NetCDF 输入场；并行版额外支持 <code>P.nc</code> 的 <code>PRES</code>。</td>
+</tr>
+<tr>
+<td><code>guide_interp</code></td>
+<td>在 <code>jjb_u:jje_u</code> / <code>jjb_v:jje_v</code> 本地纬向段插值，并用 <code>Register_SwapFieldHallo</code> 补 halo。</td>
+</tr>
+<tr>
+<td><code>guide_addfield</code></td>
+<td>按 <code>hsize==ip1jm</code> 区分 V 网格和 U/scalar 网格，只处理 <code>ijb_v:ije_v</code> 或 <code>ijb_u:ije_u</code>。</td>
+</tr>
+<tr>
+<td><code>guide_zonave</code></td>
+<td>只在本地纬向段计算和填回纬向平均。</td>
+</tr>
+<tr>
+<td><code>guide_out</code></td>
+<td>先 <code>gather_field</code> 到 root，只有 <code>mpi_rank==0</code> 写 <code>guide_ins.nc</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="并行状态">并行状态</h2>
+<p><code>guide_p_mod</code> 保存两组并行边界：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>来源</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ijb_u/ije_u</code>, <code>jjb_u/jje_u</code></td>
+<td><code>parallel_lmdz:ij_begin/jj_begin</code></td>
+<td>U、T、Q、Ps、scalar 网格本地范围。</td>
+</tr>
+<tr>
+<td><code>ijb_v/ije_v</code>, <code>jjb_v/jje_v</code></td>
+<td>同上，若 <code>pole_sud</code> 则缩短末行</td>
+<td>V 网格本地范围。</td>
+</tr>
+<tr>
+<td><code>jjn_u/jjn_v</code>, <code>ijn_u/ijn_v</code></td>
+<td>上述范围长度</td>
+<td>传给 <code>pres2lev</code>、<code>q_sat</code> 和本地循环。</td>
+</tr>
+</tbody>
+</table>
+<p>这些边界在每次 <code>guide_main</code> 开头重设。源码中注释掉了 <code>AllGather_Field(ucov/vcov/teta/ps/q)</code>，所以正常路径依赖 <code>guide_read</code> 全场输入、<code>guide_interp</code> 本地切片和状态局部写回，而不是每步先 allgather 动力状态。</p>
+<h2 id="guide_plevs">guide_plevs</h2>
+<p>并行版新增 <code>guide_plevs</code>，并兼容旧的 <code>guide_modele</code>：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;"><code>guide_plevs</code></th>
+<th>输入压力层</th>
+<th>额外文件/数组</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>纯压力层，<code>apnc(l)</code></td>
+<td>无</td>
+</tr>
+<tr>
+<td style="text-align: right;">1</td>
+<td>混合层，<code>apnc(l)+bpnc(l)*psnat(i,j)</code></td>
+<td><code>apbp.nc</code>, <code>psnat</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>逐格点压力，<code>pnat(i,j,l)</code></td>
+<td><code>P.nc:PRES</code>, <code>pnat1/pnat2</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>guide_plevs=2</code> 是串行 <code>guide_mod</code> 没有的能力。它让 T/Q/U/V 的输入压力可随水平格点和层变化；V 网格计算前需要对 <code>pnat</code> 做 halo，避免用不到相邻纬向行。</p>
+<h2 id="输入和插值流程">输入和插值流程</h2>
+<p><code>guide_read</code> 与 <code>guide_read2D</code> 并不做并行 I/O 分块。每个 rank 打开同一组文件并读完整场，然后 <code>guide_interp</code> 才按本地范围访问：</p>
+<pre class="text"><code>read complete unat/vnat/tnat/qnat/psnat/pnat
+  -&gt; local model pressure on jjb_u:jje_u
+  -&gt; pext halo
+  -&gt; massbar_p -&gt; plunc/plvnc
+  -&gt; pres2lev on local slices
+  -&gt; write Xgui on ijb_u:ije_u or ijb_v:ije_v</code></pre>
+<p>关键通信点：</p>
+<ul>
+<li><code>pext</code> 在 <code>massbar_p</code> 前做 <code>Register_SwapFieldHallo</code>。</li>
+<li><code>guide_plevs=1</code> 的 V 网格前对 <code>psnat1/2</code> 做 halo。</li>
+<li><code>guide_plevs=2</code> 的 V 网格前对 <code>pnat1/2</code> 做 halo。</li>
+</ul>
+<p>T/Q/U 的 <code>pres2lev</code> 传入 <code>iip1,jjn_u</code>；V 的 <code>pres2lev</code> 传入 <code>iip1,jjn_v</code>。湿度相对湿度转换调用 <code>q_sat(iip1*jjn_u*llm,...)</code>，只覆盖本地 U/scalar 范围。</p>
+<h2 id="状态叠加">状态叠加</h2>
+<p>并行版和串行版同样按 U、T、P、Q、V 顺序处理，但只写本地段：</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>本地范围</th>
+<th>后续动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>U</td>
+<td><code>ijb_u:ije_u</code></td>
+<td><code>guide_addfield(ip1jmp1,...)</code> 后写 <code>ucov</code>。</td>
+</tr>
+<tr>
+<td>T</td>
+<td><code>ijb_u:ije_u</code></td>
+<td>写 <code>teta</code>。</td>
+</tr>
+<tr>
+<td>Ps</td>
+<td><code>ijb_u:ije_u</code></td>
+<td>写 <code>ps</code> 后调用 <code>pression_p</code> 和 <code>massdair_p</code>。</td>
+</tr>
+<tr>
+<td>Q</td>
+<td><code>ijb_u:ije_u</code></td>
+<td>写 <code>q</code>。</td>
+</tr>
+<tr>
+<td>V</td>
+<td><code>ijb_v:ije_v</code></td>
+<td><code>guide_addfield(ip1jm,...)</code> 后写 <code>vcov</code>。</td>
+</tr>
+</tbody>
+</table>
+<p><code>ini_anal</code> 分支和串行版有同一疑点：源码把 V 初态写为 <code>ugui2</code>，不是 <code>vgui2</code>。并行版形式是 <code>vcov(ijb_v:ije_v,:)=ugui2(ijb_v:ije_v,:)</code>。</p>
+<h2 id="输出诊断">输出诊断</h2>
+<p><code>guide_out(varname,hsize,vsize,field,factt)</code> 是并行版最明显的 I/O 差异：</p>
+<pre class="text"><code>CALL gather_field(field, iip1*hsize, vsize, 0)
+IF (mpi_rank /= 0) RETURN</code></pre>
+<p>因此只有 root 创建和写 <code>guide_ins.nc</code>。<code>factt</code> 是形式参数，但 6.3 源码体内没有使用它；forcing 量级仍由调用点传入 <code>f_add/factt</code> 决定。</p>
+<p>并行输出还和串行版存在两个源码级差异：</p>
+<ul>
+<li>并行版 <code>SP</code> 写层中心压力 <code>p(1:ip1jmp1,1:llm)</code>，维度定义为 <code>(LONV,LATU,LEVEL,TIME)</code>；串行版 <code>SP</code> 写表面压力 <code>ps</code>，是 3D time field。</li>
+<li>并行版 <code>SELECT CASE ("SP","ps")</code> 共用 <code>count=(iip1,jjp1,llm,1)</code>，但 <code>ps</code> 变量定义为 3D <code>(lon,lat,time)</code>；这是运行验证风险，页面按源码记录，不修改实现。</li>
+</ul>
+<h2 id="mars-边界">Mars 边界</h2>
+<p>并行 guide 模块在 Mars 文档中的价值主要是边界和接口兼容：</p>
+<table>
+<thead>
+<tr>
+<th>路径</th>
+<th>6.3 源码行为</th>
+<th>是否经过 <code>guide_p_mod</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Earth + IOIPSL + <code>ok_guide</code></td>
+<td><code>leapfrog_p</code> 的 OMP master 调 <code>guide_main</code>，随后 barrier</td>
+<td>是</td>
+</tr>
+<tr>
+<td>Mars <code>planet_type=="mars"</code></td>
+<td><code>leapfrog_p</code> 不调 <code>guide_main</code></td>
+<td>否</td>
+</tr>
+<tr>
+<td>Generic + <code>ok_guide</code></td>
+<td><code>gcm.F</code> 初始化读 <code>relax.nc</code>；<code>leapfrog_p</code> 中还有 inline <code>attenua</code></td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<p>因此并行 Mars 排错时，<code>ok_guide</code> 本身不足以说明进入 <code>guide_p_mod</code>。应先确认 <code>planet_type</code>、<code>CPP_IOIPSL</code>、运行入口和是否有本地补丁。</p>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="gcm.html">dyn3dpar/gcm</a></li>
+<li><a href="leapfrog_p.html">leapfrog_p</a></li>
+<li><a href="parallel_lmdz.html">parallel_lmdz</a></li>
+<li><a href="mod_hallo.html">mod_hallo</a></li>
+<li><a href="bands.html">bands</a></li>
+<li><a href="../dyn3d/guide_mod.html">串行 guide_mod</a></li>
+<li><a href="../../routines/guide-config-contract.html">guide 配置与初始化契约</a></li>
+<li><a href="../../routines/guide-input-fields.html">guide 输入场读取</a></li>
+<li><a href="../../routines/guide-interpolation-pressure.html">guide 压力层插值和 nudging 系数</a></li>
+<li><a href="../../routines/guide-tendency-application.html">guide forcing 叠加到动力状态</a></li>
+<li><a href="../../routines/guide-serial-parallel-delta.html">guide 串并行差异</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,344 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ppm3d-horizontal-transport - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/ppm3d-horizontal-transport.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="ppm3d-水平输送和经纬向通量计算">ppm3d 水平输送和经纬向通量计算</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d_common\ppm3d.F: L584-672（主例程水平段 + cross term 调用）
+dyn3d_common\ppm3d.F: L932-1047（xtp）
+dyn3d_common\ppm3d.F: L1049-1107（fxppm）
+dyn3d_common\ppm3d.F: L1109-1123（xmist）
+dyn3d_common\ppm3d.F: L1125-1189（ytp）
+dyn3d_common\ppm3d.F: L1191-1271（ymist）
+dyn3d_common\ppm3d.F: L1273-1350（fyppm）
+dyn3d_common\ppm3d.F: L1352-1440（yadv）
+dyn3d_common\ppm3d.F: L1442-1532（xadv）</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。本页覆盖 ppm3d 内部水平输送的八个子例程和主例程调用模式。和 <a href="ppm3d-entry-contract.html">ppm3d-entry-contract</a> 一样，当前 COMMON 并行构建中 PPM 路径不可达。</p>
+<h2 id="例程定位">例程定位</h2>
+<p>ppm3d 水平输送采用 x-y directional splitting。每个垂直层 k 独立处理：先算交叉项（cross terms），再做 E-W 输送（<code>xtp</code>），最后做 N-S 输送（<code>ytp</code>）。E-W 和 N-S 各有一个 PPM 通量计算子例程（<code>fxppm</code>/<code>fyppm</code>）和一个斜率初始化子例程（<code>xmist</code>/<code>ymist</code>）。交叉项由 <code>xadv</code>/<code>yadv</code> 处理。</p>
+<h2 id="主例程调用模式">主例程调用模式</h2>
+<p>ppm3d 主例程在 L584-672 对每个 tracer IC 和每个垂直层 k 执行以下序列：</p>
+<ol type="1">
+<li><strong>交叉项初始化</strong>（L586-614）：内联计算 E-W 和 N-S 方向的 1 阶上游交叉项存入 <code>wk1(:,:,:,1)</code> 和 <code>wk1(:,:,:,2)</code>。E-W 部分区分高 CFL 区（<code>j&lt;=JS</code> 或 <code>j&gt;=JN</code>，用 Semi-Lagrangian 周期包裹）和 Eulerian 区。</li>
+<li><strong>交叉项修正</strong>（L645-665，如果 <code>cross=.true.</code>）：
+<ul>
+<li><code>xadv(wk1(:,:,2), UA, ..., DC2, iad)</code>：对 N-S advected 场做 E-W 交叉修正</li>
+<li><code>yadv(wk1(:,:,1), VA, ..., PV, jad)</code>：对 E-W advected 场做 N-S 交叉修正</li>
+<li><code>q(i,j,k,IC) += DC2(i,j) + PV(i,j)</code>：叠加交叉修正到 tracer</li>
+</ul></li>
+<li><strong>E-W 输送</strong>（L667-668）：<code>xtp(IMR,JNP,IML,j1,j2,JN,JS,PU,DQ,wk1(:,:,2),CRX,fx1,xmass,IORD)</code></li>
+<li><strong>N-S 输送</strong>（L670-671）：<code>ytp(IMR,JNP,j1,j2,acosp,RCAP,DQ,wk1(:,:,1),CRY,DC2,ymass,WK1(:,:,3),WK1(:,:,4),WK1(:,:,5),WK1(:,:,6),JORD)</code></li>
+</ol>
+<p><code>iad</code> 和 <code>jad</code> 根据 IORD/JORD 决定：<code>&gt;=2</code> 用 2 阶，否则用 1 阶。</p>
+<p><code>cross</code> 在 L300 被 <code>data cross /.true./</code> 初始化，LMDZ 调用时始终为 <code>.true.</code>。</p>
+<h2 id="xtpe-w-输送">xtp：E-W 输送</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> xtp(IMR,JNP,IML,j1,j2,JN,JS,PU,DQ,Q,UC,fx1,xmass,IORD)</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IMR</code></td>
+<td>经向格点数</td>
+</tr>
+<tr>
+<td><code>JNP</code></td>
+<td>纬向格点数（含极点）</td>
+</tr>
+<tr>
+<td><code>IML</code></td>
+<td>周期包裹半宽（= max integer CFL）</td>
+</tr>
+<tr>
+<td><code>j1,j2</code></td>
+<td>活动纬度范围</td>
+</tr>
+<tr>
+<td><code>JN,JS</code></td>
+<td>Eulerian 区边界（由 CFL&gt;1 确定）</td>
+</tr>
+<tr>
+<td><code>PU</code></td>
+<td>E-W 界面密度（= 0.5*(delp2(i)+delp2(i-1))）</td>
+</tr>
+<tr>
+<td><code>DQ</code></td>
+<td>tracer 密度（INOUT，被更新）</td>
+</tr>
+<tr>
+<td><code>Q</code></td>
+<td>混合比（经交叉修正后的值）</td>
+</tr>
+<tr>
+<td><code>UC</code></td>
+<td>Courant 数（= CRX）</td>
+</tr>
+<tr>
+<td><code>fx1</code></td>
+<td>工作数组，最终存放质量加权通量</td>
+</tr>
+<tr>
+<td><code>xmass</code></td>
+<td>E-W 质量通量（= PU * CRX）</td>
+</tr>
+<tr>
+<td><code>IORD</code></td>
+<td>E-W 方案阶数</td>
+</tr>
+</tbody>
+</table>
+<h3 id="两条路径">两条路径</h3>
+<p>xtp 根据纬度位置选择 Eulerian 或 Semi-Lagrangian（FFSL）路径：</p>
+<p><strong>Eulerian 路径</strong>（<code>JS &lt; j &lt; JN</code>，CFL&lt;1 区域）：</p>
+<table>
+<thead>
+<tr>
+<th>IORD</th>
+<th>公式</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code> 或极区边界</td>
+<td><code>fx1(i) = qtmp(iu)</code></td>
+<td>1 阶上游，<code>iu = i - uc(i,j)</code></td>
+</tr>
+<tr>
+<td><code>2</code> 或高纬度</td>
+<td><code>fx1(i) = qtmp(iu) + DC(iu)*(sign(1,uc)-uc)</code></td>
+<td>2 阶 van Leer，DC 由 <code>xmist</code> 计算</td>
+</tr>
+<tr>
+<td><code>&gt;=3</code></td>
+<td><code>call fxppm(...)</code></td>
+<td>PPM 抛物线重构</td>
+</tr>
+</tbody>
+</table>
+<p>最终通量：<code>fx1(i) = fx1(i) * xmass(i,j)</code>。</p>
+<p><strong>Semi-Lagrangian 路径</strong>（<code>j&lt;=JS</code> 或 <code>j&gt;=JN</code>，CFL&gt;1 区域）：</p>
+<p>两条路径都先填充周期包裹的 ghost cells（<code>qtmp(-IML:0)</code> 和 <code>qtmp(IMP:IMP+IML)</code>），确保大 CFL 数时上游取值不越界。</p>
+<p>IORD=1 使用分数部分 <code>rut = uc - int(uc)</code> 和整数偏移 <code>ISAVE = i - int(uc)</code> 做分段累加。IORD&gt;=2 使用 van Leer 斜率加整数格累积。最终通量：<code>fx1(i) = PU(i,j) * fx1(i)</code>。</p>
+<h3 id="dq-更新">DQ 更新</h3>
+<pre><code>fx1(IMP) = fx1(1)                     ! 经向周期闭合
+DQ(i,j) += fx1(i) - fx1(i+1)          ! 通量散度</code></pre>
+<h3 id="高纬度-van-leer-切换">高纬度 van Leer 切换</h3>
+<p>xtp 在纬度 <code>j &lt;= j1vl</code> 或 <code>j &gt;= j2vl</code> 时强制使用 van Leer（即使 IORD&gt;=3），其中 <code>jvan = max(1, JNP/18)</code>，<code>j1vl = j1+jvan</code>，<code>j2vl = j2-jvan</code>。这是为了避免极区附近 PPM 抛物线重构不稳定。</p>
+<h2 id="fxppme-w-ppm-通量">fxppm：E-W PPM 通量</h2>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> fxppm(IMR,IML,UT,P,DC,flux,IORD)</span></code></pre></div>
+<p>PPM 抛物线重构和界面通量计算，分四步：</p>
+<ol type="1">
+<li><strong>左界面值</strong>：<code>AL(i) = 0.5*(p(i-1)+p(i)) + (DC(i-1)-DC(i))/3</code></li>
+<li><strong>右界面值</strong>：<code>AR(i) = AL(i+1)</code>，周期包裹 <code>AR(IMR) = AL(1)</code></li>
+<li><strong>曲率</strong>：<code>A6(i) = 3*(2*p(i) - AL(i) - AR(i))</code></li>
+<li><strong>单调约束</strong>：如果 <code>LMT = IORD-3 &lt;= 2</code>，调用 <code>lmtppm</code> 限制抛物线</li>
+</ol>
+<p>界面通量（对每个格点界面 i）：</p>
+<pre><code>UT(i) &gt; 0:  flux(i) = AR(i-1) + 0.5*UT*(AL(i-1)-AR(i-1) + A6(i-1)*(1-2/3*UT))
+UT(i) &lt;= 0: flux(i) = AL(i)   - 0.5*UT*(AR(i)-AL(i)     + A6(i)*(1+2/3*UT))</code></pre>
+<p>这是标准 PPM 积分公式：对抛物线在 <code>[0, UT]</code> 或 <code>[UT, 0]</code> 区间积分得到通过界面的质量。</p>
+<p>周期包裹：<code>AL(0)=AL(IMR), AR(0)=AR(IMR), A6(0)=A6(IMR)</code>。</p>
+<h2 id="xmiste-w-斜率初始化">xmist：E-W 斜率初始化</h2>
+<div class="sourceCode" id="cb6"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> xmist(IMR,IML,P,DC)</span></code></pre></div>
+<p>4 阶中心差分加单调约束：</p>
+<pre><code>tmp  = (8*(p(i+1)-p(i-1)) + p(i-2)-p(i+2)) / 24
+Pmax = max(p(i-1), p(i), p(i+1)) - p(i)
+Pmin = p(i) - min(p(i-1), p(i), p(i+1))
+DC(i)= sign(min(|tmp|, Pmax, Pmin), tmp)</code></pre>
+<p>DC 是半斜率（0.5 × mismatch），保证重构值不超出邻域极值。</p>
+<h2 id="ytpn-s-输送">ytp：N-S 输送</h2>
+<div class="sourceCode" id="cb8"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> ytp(IMR,JNP,j1,j2,acosp,RCAP,DQ,P,VC,DC2,ymass,fx,A6,AR,AL,JORD)</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>acosp</code></td>
+<td>纬向格面积倒数（1/cos(lat) 归一化）</td>
+</tr>
+<tr>
+<td><code>RCAP</code></td>
+<td>极冠面积倒数</td>
+</tr>
+<tr>
+<td><code>VC</code></td>
+<td>N-S Courant 数（= CRY）</td>
+</tr>
+<tr>
+<td><code>ymass</code></td>
+<td>N-S 质量通量</td>
+</tr>
+<tr>
+<td><code>fx</code></td>
+<td>工作数组，存放 N-S 通量</td>
+</tr>
+<tr>
+<td><code>A6,AR,AL</code></td>
+<td>PPM 工作数组（传入 fyppm）</td>
+</tr>
+<tr>
+<td><code>JORD</code></td>
+<td>N-S 方案阶数</td>
+</tr>
+</tbody>
+</table>
+<h3 id="三条路径">三条路径</h3>
+<table>
+<thead>
+<tr>
+<th>JORD</th>
+<th>公式</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td><code>fx(i,j1) = p(i,JT)</code></td>
+<td>1 阶上游，<code>JT = j1 - VC(i,j1)</code></td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td><code>fx = p(i,JT) + (sign(1,VC)-VC)*DC2(i,JT)</code></td>
+<td>2 阶 van Leer，DC2 由 <code>ymist</code> 计算</td>
+</tr>
+<tr>
+<td><code>&lt;=0</code> 或 <code>&gt;=3</code></td>
+<td><code>call fyppm(...)</code></td>
+<td>PPM 抛物线重构</td>
+</tr>
+</tbody>
+</table>
+<p>最终通量：<code>fx(i,j1) = fx(i,j1) * ymass(i,j1)</code>。</p>
+<h3 id="dq-更新-1">DQ 更新</h3>
+<pre><code>DQ(i,j) += (fx(i,j) - fx(i,j+1)) * acosp(j)    ! 面积加权通量散度</code></pre>
+<h3 id="极区处理">极区处理</h3>
+<p>ytp 在极区做特殊质量守恒处理：</p>
+<pre><code>sum1 = Σ fx(i,j1)      ! 南极边界总通量
+sum2 = Σ fx(i,J2+1)    ! 北极边界总通量
+DQ(i,1)   = DQ(1,1)   - sum1 * RCAP    ! 南极：均匀分配
+DQ(i,JNP) = DQ(1,JNP) + sum2 * RCAP    ! 北极：均匀分配</code></pre>
+<p>如果 <code>j1 ≠ 2</code>（扩大极冠），还会把极冠第二行（j=2 和 j=JMR）也设为极区平均值。</p>
+<h2 id="fyppmn-s-ppm-通量">fyppm：N-S PPM 通量</h2>
+<div class="sourceCode" id="cb11"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> fyppm(VC,P,DC,flux,IMR,JNP,j1,j2,A6,AR,AL,JORD)</span></code></pre></div>
+<p>N-S 方向的 PPM 重构，结构与 fxppm 类似但有极区特殊处理：</p>
+<ol type="1">
+<li><strong>左界面</strong>：<code>AL(i,2) = 0.5*(p(i,1)+p(i,2)) + (DC(i,1)-DC(i,2))/3</code></li>
+<li><strong>右界面</strong>：<code>AR(i,1) = AL(i,2)</code></li>
+<li><strong>极区交叉</strong>（L1317-1323）：跨极点半宽 IMH = IMR/2 的交叉赋值
+<ul>
+<li><code>AL(i,1) = AL(i+IMH,2)</code>，<code>AL(i+IMH,1) = AL(i,2)</code></li>
+<li><code>AR(i,JNP) = AR(i+IMH,JMR)</code>，<code>AR(i+IMH,JNP) = AR(i,JMR)</code></li>
+</ul></li>
+<li><strong>LMDZ.3.3 补丁</strong>（L1328-1329）：<code>AR(IMR,1)=AL(1,1)</code>，<code>AR(IMR,JNP)=AL(1,JNP)</code>，修复经向周期格点的极区界面一致性。</li>
+<li><strong>曲率</strong>：<code>A6(i,j11) = 3*(2*p(i,j11) - AL(i,j11) - AR(i,j11))</code></li>
+<li><strong>单调约束</strong>：<code>LMT = JORD-3</code>，若 <code>&lt;=2</code> 则调用 <code>lmtppm</code></li>
+<li><strong>通量计算</strong>：同 fxppm 公式，使用 VC 符号选择上游方向</li>
+</ol>
+<h2 id="ymistn-s-斜率初始化">ymist：N-S 斜率初始化</h2>
+<div class="sourceCode" id="cb12"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> ymist(IMR,JNP,j1,P,DC,ID)</span></code></pre></div>
+<p>ytp 以 <code>ID=4</code> 调用 ymist，执行 4 阶斜率计算：</p>
+<ul>
+<li><strong>j=2（南边界）</strong>：<code>tmp = (8*(p(i,3)-p(i,1)) + p(i+IMH,2)-p(i,4))/24</code>，使用跨经度半宽 IMH 的邻居。前 IMH 个格点用 <code>+IMH</code> 偏移，后 IMH 个用 <code>-IMH</code> 偏移。</li>
+<li><strong>j=JMR（北边界）</strong>：类似，使用 <code>p(i,JNP)</code> 和跨经度邻居。</li>
+<li><strong>内部（j=3..JMR-1）</strong>：标准 4 阶 <code>(8*(p(i,j+1)-p(i,j-1)) + p(i,j-2)-p(i,j+2))/24</code>。</li>
+</ul>
+<p>极冠斜率（<code>j1=2</code>）：在南极和北极用跨经度差分 <code>tmp = 0.25*(p(i,2)-p(i+IMH,2))</code>，后半经度取反 <code>DC(i+IMH) = -DC(i)</code>。</p>
+<p>如果 <code>j1 ≠ 2</code>（扩大极冠），极点斜率直接设为零。</p>
+<p>所有斜率都做单调约束 <code>DC = sign(min(|tmp|, Pmax, Pmin), tmp)</code>。</p>
+<h2 id="xadve-w-交叉项">xadv：E-W 交叉项</h2>
+<div class="sourceCode" id="cb13"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> xadv(IMR,JNP,j1,j2,p,UA,JS,JN,IML,adx,IAD)</span></code></pre></div>
+<p>计算 E-W 方向的 advective cross term。输入 <code>p</code> 是已经做过 N-S 平流的场（<code>wk1(:,:,2)</code>），输出 <code>adx</code> 是 E-W 交叉修正量。</p>
+<p>只在高 CFL 区域（<code>j&lt;=JS</code> 或 <code>j&gt;=JN</code>）做 Semi-Lagrangian 交叉修正。Eulerian 区域（<code>JS+1</code> 到 <code>JN-1</code>）做简单 upwind：</p>
+<pre><code>IAD=2: adx(i,j) = qtmp(ip)-p(i,j) + ru*(a1*ru+b1)    ! 2阶
+IAD=1: adx(i,j) = UA(i,j)*(qtmp(ip)-qtmp(ip+1))       ! 1阶</code></pre>
+<p>极点处交叉项设为零：<code>adx(i,1) = 0, adx(i,JNP) = 0</code>。如果 <code>j1 ≠ 2</code>，极冠第二行也设为零。</p>
+<h2 id="yadvn-s-交叉项">yadv：N-S 交叉项</h2>
+<div class="sourceCode" id="cb15"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> yadv(IMR,JNP,j1,j2,p,VA,ady,wk,IAD)</span></code></pre></div>
+<p>计算 N-S 方向的 advective cross term。输入 <code>p</code> 是已经做过 E-W 平流的场（<code>wk1(:,:,1)</code>），输出 <code>ady</code> 是 N-S 交叉修正量。</p>
+<p>yadv 准备跨极区 ghost cells（<code>wk(i,-1:0)</code> 和 <code>wk(i,JNP+1:JNP+2)</code>），使用半宽 IMH 跨经度取值以匹配极点物理位置。</p>
+<pre><code>IAD=2: ady(i,j) = wk(i,jp) + rv*(a1*rv+b1) - wk(i,j)   ! 2阶
+IAD=1: ady(i,j) = VA(i,j)*(wk(i,jp)-wk(i,jp+1))         ! 1阶</code></pre>
+<p>极点处做纬向平均：<code>sum1 = Σ ady(i,1) / IMR</code>，然后所有经度格点赋相同值，保证极区质量守恒。</p>
+<h2 id="通量与质量守恒">通量与质量守恒</h2>
+<p>水平输送的质量守恒由以下机制保证：</p>
+<ol type="1">
+<li><strong>E-W 周期闭合</strong>：<code>fx1(IMP) = fx1(1)</code>，通量散度 <code>DQ += fx1(i)-fx1(i+1)</code> 在求和时自动消去内部项。</li>
+<li><strong>N-S 极区分配</strong>：ytp 把所有经度格点的极区边界通量求和，乘以 <code>RCAP</code>（极冠面积倒数）后均匀分配给极点所有经度格。这保证进入/离开极区的总质量精确守恒。</li>
+<li><strong>面积加权</strong>：N-S 通量乘以 <code>acosp(j)</code>（纬向格面积倒数），补偿球面格点面积随纬度的变化。</li>
+<li><strong>Semi-Lagrangian 整数格累积</strong>：当 CFL&gt;1 时，xtp 的 FFSL 路径显式累加穿越的整格质量（<code>fx1(i) += Σ qtmp(ist)</code>），保证大 Courant 数下的质量精确。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>xtp 的 Eulerian/FFSL 切换由 JS/JN 控制，这两个值在主例程 L470-488 通过扫描 CRX 找到首个 <code>|CRX|&gt;1</code> 的纬度确定。复现时必须先正确计算 JS/JN。</li>
+<li>fxppm 和 fyppm 的 LMT 参数每次调用重新计算（<code>LMT = _ORD - 3</code>），不做 SAVE。注释掉的代码（L1058-1079）显示早期版本按分辨率自动选择 LMT，现已废弃。</li>
+<li>ymist 的 <code>ID=4</code> 路径使用跨经度半宽（IMH=IMR/2）邻居，这是因为极点附近经度方向物理距离缩短，4 阶差分需要跨越更大经度范围取样。</li>
+<li>fyppm 的 LMDZ.3.3 补丁（L1328-1329）修复了 <code>AR(IMR)</code> 在极区的周期一致性。如果没有这个补丁，最后一个经度格点的 N-S PPM 界面值会和第一个格点不匹配。</li>
+<li>cross terms（xadv/yadv）的结果叠加到 <code>q</code> 后，xtp/ytp 使用的是已修正的 <code>wk1(:,:,1)</code> 和 <code>wk1(:,:,2)</code>，不是原始混合比。这意味着 cross term 对水平输送有直接影响。</li>
+<li>极点处 xadv 的交叉项被强制设为零（L1527-1530），这是因为极点无经向方向定义，E-W 交叉修正无物理意义。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="ppm3d-entry-contract.html">ppm3d 入口契约</a></li>
+<li><a href="ppm3d-vertical-transport.html">ppm3d 垂直输送</a></li>
+<li><a href="ppm3d-limiters-filters.html">ppm3d limiter 和滤波</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>cross</code> 标志对 Mars 干大气 tracer 的实际影响。<code>cross=.true.</code> 启用交叉项修正，但交叉项的大小和符号依赖具体风场和 tracer 分布。</li>
+<li>ymist 的 <code>ID=2</code> 路径（2 阶简单斜率）在当前 LMDZ 调用中不被使用（ytp 固定传 <code>ID=4</code>），可能在其他 PPM 调用场景中存在。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,402 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>calfis-p-physiq-contract - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/calfis-p-physiq-contract.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="calfis_p-与-call_physiq-接口契约">calfis_p 与 call_physiq 接口契约</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dynphy_lonlat\calfis_p.F: L939-1079（call_physiq 调用和 nsplit_phys 循环）
+dynphy_lonlat\phytitan.old\callphysiq_mod.F90: L1-97（Titan 参考实现）
+dynphy_lonlat\phyvenus\callphysiq_mod.F90: L1-100（Venus 参考实现）
+dyn3d_common\infotrac.F90: L5-26, L667-770（nqtot/tname/niadv 定义与初始化）</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。Mars 并行 GCM 在 <code>apphys=.TRUE.</code> 时经过 <code>calfis_p → call_physiq → physiq</code>。Mars 的 <code>callphysiq_mod</code> 不在 COMMON 树中（位于 Mars 物理目录），但接口签名与 Titan/Venus 版本一致。</p>
+<h2 id="例程定位">例程定位</h2>
+<p>本页聚焦 <code>calfis_p</code> 调用 <code>call_physiq</code> 时的接口契约：哪些参数被传入、哪些被返回、<code>nqtot/tname/niadv</code> 的语义、以及 <code>nsplit_phys</code> 时间分割机制。网格映射细节见 <a href="calfis-p-grid-mapping.html">calfis-p-grid-mapping</a>；整体调用链见 <a href="leapfrog-p-physics-coupling.html">leapfrog-p-physics-coupling</a>。</p>
+<h2 id="call_physiq-签名">call_physiq 签名</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> call_physiq(klon, llm, nqtot, tname,                         <span class="co">&amp;</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>                       debut_split, lafin_split,                        <span class="co">&amp;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>                       jD_cur, jH_cur_split, zdt_split,                 <span class="co">&amp;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>                       zplev_omp, zplay_omp,                            <span class="co">&amp;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>                       zpk_omp, zphi_omp, zphis_omp,                    <span class="co">&amp;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>                       presnivs_omp,                                    <span class="co">&amp;</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>                       zufi_omp, zvfi_omp, zrfi_omp, ztfi_omp, zqfi_omp,<span class="co">&amp;</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>                       flxwfi_omp, pducov,                              <span class="co">&amp;</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>                       zdufi_omp, zdvfi_omp, zdtfi_omp, zdqfi_omp, zdpsrf_omp)</span></code></pre></div>
+<h3 id="参数分类">参数分类</h3>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>参数</th>
+<th>维度</th>
+<th>INTENT</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>维度</td>
+<td><code>klon</code></td>
+<td>scalar</td>
+<td>IN</td>
+<td>当前 OpenMP 线程的物理列数（= <code>klon_omp</code>）</td>
+</tr>
+<tr>
+<td>维度</td>
+<td><code>llm</code></td>
+<td>scalar</td>
+<td>IN</td>
+<td>垂直层数</td>
+</tr>
+<tr>
+<td>维度</td>
+<td><code>nqtot</code></td>
+<td>scalar</td>
+<td>IN</td>
+<td>tracer 总数（含高阶矩、水汽、液水）</td>
+</tr>
+<tr>
+<td>标识</td>
+<td><code>tname(nqtot)</code></td>
+<td>1D char</td>
+<td>IN</td>
+<td>tracer 短名称，用于物理内部按名分派</td>
+</tr>
+<tr>
+<td>控制</td>
+<td><code>debut_split</code></td>
+<td>scalar</td>
+<td>IN</td>
+<td>是否为第一个 split（物理首次初始化）</td>
+</tr>
+<tr>
+<td>控制</td>
+<td><code>lafin_split</code></td>
+<td>scalar</td>
+<td>IN</td>
+<td>是否为最后一个 split（物理收尾操作）</td>
+</tr>
+<tr>
+<td>时间</td>
+<td><code>jD_cur</code></td>
+<td>scalar</td>
+<td>IN</td>
+<td>当前 Julian 日</td>
+</tr>
+<tr>
+<td>时间</td>
+<td><code>jH_cur_split</code></td>
+<td>scalar</td>
+<td>IN</td>
+<td>split 内的 Julian 小时（日内分数）</td>
+</tr>
+<tr>
+<td>时间</td>
+<td><code>zdt_split</code></td>
+<td>scalar</td>
+<td>IN</td>
+<td>单个 split 的时间步长 = <code>dtphys/nsplit_phys</code></td>
+</tr>
+<tr>
+<td>气压</td>
+<td><code>zplev_omp(klon,llm+1)</code></td>
+<td>2D</td>
+<td>IN</td>
+<td>层界气压 (Pa)</td>
+</tr>
+<tr>
+<td>气压</td>
+<td><code>zplay_omp(klon,llm)</code></td>
+<td>2D</td>
+<td>IN</td>
+<td>中层气压 (Pa)</td>
+</tr>
+<tr>
+<td>气压</td>
+<td><code>zpk_omp(klon,llm)</code></td>
+<td>2D</td>
+<td>IN</td>
+<td>Exner 函数值</td>
+</tr>
+<tr>
+<td>位势</td>
+<td><code>zphi_omp(klon,llm)</code></td>
+<td>2D</td>
+<td>IN</td>
+<td>相对地表的中层位势</td>
+</tr>
+<tr>
+<td>位势</td>
+<td><code>zphis_omp(klon)</code></td>
+<td>1D</td>
+<td>IN</td>
+<td>地表位势</td>
+</tr>
+<tr>
+<td>参考</td>
+<td><code>presnivs_omp(llm)</code></td>
+<td>1D</td>
+<td>IN</td>
+<td>各层近似参考气压</td>
+</tr>
+<tr>
+<td>风场</td>
+<td><code>zufi_omp(klon,llm)</code></td>
+<td>2D</td>
+<td>IN</td>
+<td>自然纬向风 (m/s)</td>
+</tr>
+<tr>
+<td>风场</td>
+<td><code>zvfi_omp(klon,llm)</code></td>
+<td>2D</td>
+<td>IN</td>
+<td>自然经向风 (m/s)</td>
+</tr>
+<tr>
+<td>风场</td>
+<td><code>zrfi_omp(klon,llm)</code></td>
+<td>2D</td>
+<td>IN</td>
+<td>相对涡度 (s⁻¹)</td>
+</tr>
+<tr>
+<td>热力</td>
+<td><code>ztfi_omp(klon,llm)</code></td>
+<td>2D</td>
+<td>IN</td>
+<td>温度 (K)</td>
+</tr>
+<tr>
+<td>tracer</td>
+<td><code>zqfi_omp(klon,llm,nqtot)</code></td>
+<td>3D</td>
+<td>IN</td>
+<td>混合比 (*/kg air)</td>
+</tr>
+<tr>
+<td>垂直</td>
+<td><code>flxwfi_omp(klon,llm)</code></td>
+<td>2D</td>
+<td>IN</td>
+<td>下界面垂直质量通量 (kg/s)</td>
+</tr>
+<tr>
+<td>动力</td>
+<td><code>pducov(nbp_lon+1,nbp_lat,llm)</code></td>
+<td>3D</td>
+<td>IN</td>
+<td>动力协变 U tendency</td>
+</tr>
+<tr>
+<td><strong>输出</strong></td>
+<td><code>zdufi_omp(klon,llm)</code></td>
+<td>2D</td>
+<td>OUT</td>
+<td>纬向风 tendency (*/s)</td>
+</tr>
+<tr>
+<td><strong>输出</strong></td>
+<td><code>zdvfi_omp(klon,llm)</code></td>
+<td>2D</td>
+<td>OUT</td>
+<td>经向风 tendency (*/s)</td>
+</tr>
+<tr>
+<td><strong>输出</strong></td>
+<td><code>zdtfi_omp(klon,llm)</code></td>
+<td>2D</td>
+<td>OUT</td>
+<td>温度 tendency (K/s)</td>
+</tr>
+<tr>
+<td><strong>输出</strong></td>
+<td><code>zdqfi_omp(klon,llm,nqtot)</code></td>
+<td>3D</td>
+<td>OUT</td>
+<td>tracer tendency (*/s)</td>
+</tr>
+<tr>
+<td><strong>输出</strong></td>
+<td><code>zdpsrf_omp(klon)</code></td>
+<td>1D</td>
+<td>OUT</td>
+<td>地表气压 tendency (Pa/s)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="nqtot--tname--niadv-的关系">nqtot / tname / niadv 的关系</h2>
+<h3 id="nqtottracer-总数">nqtot（tracer 总数）</h3>
+<p><code>nqtot</code> 由 <code>infotrac_init</code> 计算，包含所有需要输送的 tracer：基本示踪物、高阶矩、水汽、液水等。它是动力和物理共享的 tracer 维度上限。</p>
+<h3 id="tnametracer-名称数组">tname（tracer 名称数组）</h3>
+<p><code>tname(nqtot)</code> 在 <code>infotrac_init</code> 中填充，每个 tracer 对应一个短字符串（如 <code>"H2O_vap"</code>、<code>"dust_1"</code> 等）。物理侧通过 <code>tname</code> 按名查找特定 tracer 以执行 specialized 过程（如辐射吸收、微物理）。</p>
+<h3 id="niadv动力-物理-tracer-映射">niadv（动力-物理 tracer 映射）</h3>
+<p><code>niadv(nqtot)</code> 建立了动力 tracer 索引到物理 tracer 索引的对应关系：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">! infotrac_init 中：</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>niadv(:) <span class="kw">=</span> <span class="dv">0</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> iq <span class="kw">=</span> <span class="dv">1</span>, nqtot</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>   <span class="co">! ... 对每个有 iadv(iq) &gt; 0 的 tracer：</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>   niadv(iiq) <span class="kw">=</span> iq</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span></code></pre></div>
+<p><code>niadv</code> 的设计目的是允许动力和物理使用不同的 tracer 排序。然而在当前 <code>calfis_p</code> 中：</p>
+<ul>
+<li>scatter 阶段按 <code>iq=1,nqtot</code> 顺序直接复制 <code>pq(:,:,:,iq)</code> → <code>zqfi(:,:,:,iq)</code></li>
+<li>gather 阶段同样按 <code>iq=1,nqtot</code> 直接复制 <code>zdqfi(:,:,:,iq)</code> → <code>pdqfi(:,:,:,iq)</code></li>
+<li><strong><code>niadv</code> 在 <code>calfis_p</code> 中未被使用</strong></li>
+</ul>
+<p>这意味着当前实现假设动力和物理使用相同的 tracer 排序。如果未来引入不同排序，需要在 scatter/gather 中加入 <code>niadv</code> 重映射。</p>
+<h2 id="nsplit_phys-时间分割">nsplit_phys 时间分割</h2>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>zdt_split <span class="kw">=</span> dtphys <span class="kw">/</span> nsplit_phys</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="kw">DO</span> isplit <span class="kw">=</span> <span class="dv">1</span>, nsplit_phys</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>   jH_cur_split <span class="kw">=</span> jH_cur <span class="kw">+</span> (isplit<span class="kw">-</span><span class="dv">1</span>) <span class="kw">*</span> dtvr <span class="kw">/</span> (daysec <span class="kw">*</span> nsplit_phys)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>   debut_split <span class="kw">=</span> debut <span class="op">.AND.</span> isplit <span class="op">==</span> <span class="dv">1</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>   lafin_split <span class="kw">=</span> lafin <span class="op">.AND.</span> isplit <span class="op">==</span> nsplit_phys</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>   <span class="kw">CALL</span> call_physiq(klon, llm, nqtot, tname, ...)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>   <span class="co">! 用当前 tendency 更新状态（给下一个 split 用）</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>   zufi_omp <span class="kw">=</span> zufi_omp <span class="kw">+</span> zdufi_omp <span class="kw">*</span> zdt_split</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>   zvfi_omp <span class="kw">=</span> zvfi_omp <span class="kw">+</span> zdvfi_omp <span class="kw">*</span> zdt_split</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>   ztfi_omp <span class="kw">=</span> ztfi_omp <span class="kw">+</span> zdtfi_omp <span class="kw">*</span> zdt_split</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>   zqfi_omp <span class="kw">=</span> zqfi_omp <span class="kw">+</span> zdqfi_omp <span class="kw">*</span> zdt_split</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>   <span class="co">! 累积 tendency</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>   zdufic_omp <span class="kw">=</span> zdufic_omp <span class="kw">+</span> zdufi_omp</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>   <span class="co">! ... 同理其他</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDDO</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a><span class="co">! 平均 tendency</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>zdufi_omp <span class="kw">=</span> zdufic_omp <span class="kw">/</span> nsplit_phys</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a><span class="co">! ... 同理其他</span></span></code></pre></div>
+<p>关键语义：</p>
+<ul>
+<li><code>nsplit_phys</code> 由 <code>control_mod</code> 提供，允许物理时间步内细分。</li>
+<li>每个 split 后，物理输入状态被当前 tendency 更新（前向 Euler），使下一个 split 看到更新后的场。</li>
+<li>最终输出的 tendency 是所有 split 的平均值。</li>
+<li><code>debut_split</code> 只在第一个 split 为真（触发物理初始化）；<code>lafin_split</code> 只在最后一个 split 为真（触发物理收尾）。</li>
+</ul>
+<h2 id="pducov-的特殊处理">pducov 的特殊处理</h2>
+<p><code>pducov</code> 是唯一的"非 OMP 切片"参数：</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="dt">REAL</span>, <span class="dt">INTENT(IN)</span> <span class="dt">::</span> pducov(nbp_lon<span class="kw">+</span><span class="dv">1</span>, nbp_lat, llm)</span></code></pre></div>
+<p>它的维度是 <code>nbp_lon+1 × nbp_lat</code>（物理侧全局网格维度），而不是 <code>klon_omp</code>。在 <code>calfis_p</code> 的 <code>call_physiq</code> 调用中，<code>pducov</code> 被原样传入而未按 OMP 线程切片。这意味着每个 OMP 线程的物理调用都接收完整的 <code>pducov</code> 数组。</p>
+<p>这个设计的可能原因：</p>
+<ol type="1">
+<li>物理参数化可能需要全局视野的协变风 tendency 信息（如潮汐摩擦）。</li>
+<li><code>pducov</code> 可能只在特定行星物理中被使用（Titan/Venus），Mars 物理可能忽略此参数。</li>
+</ol>
+<h2 id="callphysiq_mod-内部分派">callphysiq_mod 内部分派</h2>
+<p>Titan 和 Venus 的 <code>callphysiq_mod</code> 实现相同模式：</p>
+<ol type="1">
+<li><code>firstcall</code> 时验证 <code>planet_type</code> 匹配。</li>
+<li>直接转发到 <code>physiq_mod:physiq</code>（行星特定的物理包）。</li>
+<li>Titan 版向 <code>physiq</code> 传递 <code>zrfi_omp</code>（涡度），Venus 版不传（注释掉了 <code>plevmoy/tmoy</code>）。</li>
+</ol>
+<p>Mars 的 <code>callphysiq_mod</code> 不在 COMMON 树中，位于 Mars 物理目录。根据 COMMON 中 <code>calfis_p.F</code> 的注释代码块（L957-L1066），旧版曾按 <code>planet_type</code> 分支直接调用不同签名的 <code>physiq</code>，现已被统一的 <code>call_physiq</code> 接口替代。</p>
+<h2 id="契约约束总结">契约约束总结</h2>
+<table>
+<thead>
+<tr>
+<th>契约项</th>
+<th>约束</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>klon 一致性</td>
+<td><code>call_physiq</code> 的 <code>klon</code> 必须等于调用方的 <code>klon_omp</code></td>
+</tr>
+<tr>
+<td>nqtot 一致性</td>
+<td>动力和物理必须使用相同的 <code>nqtot</code> 值</td>
+</tr>
+<tr>
+<td>tname 稳定性</td>
+<td><code>tname</code> 在运行期间不变；物理按名查找 tracer</td>
+</tr>
+<tr>
+<td>tendency 单位</td>
+<td>所有输出 tendency 为 */s（每秒变化率）</td>
+</tr>
+<tr>
+<td>tendency 维度</td>
+<td>输出 tendency 的 tracer 维与输入 <code>zqfi</code> 对齐（<code>nqtot</code>）</td>
+</tr>
+<tr>
+<td>状态更新</td>
+<td>物理可以假定输入状态是上一步物理输出更新后的值</td>
+</tr>
+<tr>
+<td>pducov 范围</td>
+<td>物理侧不应假定 <code>pducov</code> 与 <code>klon_omp</code> 有直接索引关系</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>Mars 物理的 <code>callphysiq_mod</code> 接口必须与 COMMON 中 <code>calfis_p</code> 的调用签名严格匹配。修改接口时需要同步更新 Mars 物理目录中的 <code>callphysiq_mod</code>。</li>
+<li><code>niadv</code> 当前未使用意味着 tracer 在动力和物理间的排序必须一致。如果引入新的 tracer 类型，需确认 <code>infotrac_init</code> 产生的排序与物理侧预期一致。</li>
+<li><code>nsplit_phys &gt; 1</code> 时，split 间的状态更新是前向 Euler（一阶），这在大 tendency 或小 split 数时可能引入误差。</li>
+<li><code>pducov</code> 的全局维度传递意味着它不能被 OMP 线程安全地按列访问——物理侧如果读取此数组需要注意线程安全。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p 模块页</a></li>
+<li><a href="calfis-p-grid-mapping.html">calfis_p 格点映射</a></li>
+<li><a href="calfis-p-parallel-transfer.html">calfis_p 并行 transfer 架构</a></li>
+<li><a href="calfis-p-date-planet-branches.html">calfis_p 日期与行星分支</a></li>
+<li><a href="leapfrog-p-physics-coupling.html">leapfrog_p 物理耦合</a></li>
+<li><a href="infotrac-mars-consumers.html">infotrac Mars 消费方</a></li>
+<li><a href="infotrac-state-contract.html">infotrac 状态契约</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Mars 物理目录中 <code>callphysiq_mod</code> 的实际实现是否与 Titan/Venus 签名完全一致。</li>
+<li><code>pducov</code> 在 Mars 物理中是否被实际使用，以及其全局维度传递是否导致 OMP 竞争。</li>
+<li><code>nsplit_phys</code> 在 Mars 配置中的典型值（通常为 1）。</li>
+<li><code>niadv</code> 未使用是否会在某些 tracer 配置下导致排序不一致。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

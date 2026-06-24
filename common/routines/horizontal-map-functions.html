@@ -1,0 +1,104 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>horizontal-map-functions - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/horizontal-map-functions.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="水平映射函数组">水平映射函数组</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d_common\fxhyp_m.F90
+dyn3d_common\fyhyp_m.F90
+dyn3d_common\fxy.F
+dyn3d_common\fxysinus.F</code></pre>
+<p>Mars 运行参与度：<code>必经/条件经过</code>。水平几何初始化在 zoom 或常规经纬网格构造时会调用相关函数。</p>
+<h2 id="文件角色">文件角色</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fxhyp_m.F90</code></td>
+<td>248</td>
+<td><code>fxhyp</code>，使用 <code>invert_zoom_x</code>, <code>principal_cshift</code> 等处理 x 方向 hyperbolic/zoom 映射。</td>
+</tr>
+<tr>
+<td><code>fyhyp_m.F90</code></td>
+<td>340</td>
+<td><code>fyhyp</code>，配合 <code>coefpoly_m</code> 等处理 y 方向映射。</td>
+</tr>
+<tr>
+<td><code>fxy.F</code></td>
+<td>70</td>
+<td>基础二维水平映射函数。</td>
+</tr>
+<tr>
+<td><code>fxysinus.F</code></td>
+<td>69</td>
+<td>sinus 变体映射函数。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用背景">调用背景</h2>
+<p><code>inigeom</code> 根据 <code>fxyhypb</code>、<code>ysinus</code> 等配置选择水平映射函数，进而构造网格经纬度、面积、<code>cu/cv</code>、Coriolis 和极点处理所需数组。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>水平映射函数影响所有后续面积、距离、Coriolis 和差分算子。</li>
+<li>zoom 配置不仅改变经纬度，还会改变网格权重和数值稳定性约束。</li>
+<li><code>fxhyp_m</code> 依赖 <code>serre_mod</code> 与 zoom 反函数，不能用线性经纬插值替代。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3d_common/inigeom.html">inigeom</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Mars 常用 run.def 中哪些 zoom/fxy 分支启用，需要用样例配置补充。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

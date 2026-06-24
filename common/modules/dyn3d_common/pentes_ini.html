@@ -1,0 +1,170 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pentes_ini - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d_common/pentes_ini.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="pentes_inif">pentes_ini.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\pentes_ini.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>pentes_ini.F</code> 定义 <code>pentes_ini</code>，用于为 slope-limited advection 准备 tracer 的方向斜率并做一次对称预输送。它调用 <code>limx/limy/limz</code> 限制斜率，再按 x-y-z-y-x 顺序调用串行 <code>advx/advy/advz</code>。这些外部 <code>advx/advy/advz</code> moments 算子与 <code>advn.F</code> 内部的 <code>advnx/advny/advnz</code> 不是同一组例程；对照见 <a href="../../routines/common-vanleer-advection-operators.html">COMMON tracer advection operator family</a>。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 串行 tracer advection 选择相关 slope/Prather 预处理分支时经过；并行或 PPM/Van Leer 特定路径可能绕过。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pentes_ini</code></td>
+<td>subroutine</td>
+<td>4</td>
+<td>初始化并限制三方向 slope，执行对称预输送。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入输出">输入输出</h2>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>方向</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q</code></td>
+<td>inout</td>
+<td>tracer 场或其工作表示。</td>
+</tr>
+<tr>
+<td><code>w</code>, <code>pbaru</code>, <code>pbarv</code></td>
+<td>in</td>
+<td>垂直、x、y 方向质量通量。</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td>in</td>
+<td>网格质量。</td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td>in</td>
+<td>控制处理模式的整数分支。</td>
+</tr>
+<tr>
+<td><code>pente_max</code></td>
+<td>internal/derived</td>
+<td>slope limiter 上限。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="依赖和调用">依赖和调用</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comconst_mod: dtvr, pi</code></td>
+<td>时间步和几何常数。</td>
+</tr>
+<tr>
+<td><code>limx</code>, <code>limy</code>, <code>limz</code></td>
+<td>分别限制 x/y/z 方向 slope。</td>
+</tr>
+<tr>
+<td><code>advx</code>, <code>advy</code>, <code>advz</code></td>
+<td>串行三方向 slope advection。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>根据输入 <code>q/masse</code> 构造 <code>s0/sx/sy/sz/sm</code> 工作数组。</li>
+<li>对 x 方向调用 <code>limx</code>，再以 <code>0.5*dtvr</code> 调 <code>advx</code>。</li>
+<li>对 y 方向调用 <code>limy</code>，再以 <code>0.5*dtvr</code> 调 <code>advy</code>。</li>
+<li>对 z 方向调用 <code>limz</code>，再以 <code>dtvr</code> 调 <code>advz</code>。</li>
+<li>再做 y 半步和 x 半步，保持 split 对称。</li>
+<li>根据 <code>mode</code> 和 limiter 结果写回更新后的 tracer/slope。</li>
+</ol>
+<h2 id="伪代码">伪代码</h2>
+<pre class="text"><code>prepare cell mean and slopes from q
+limx; advx half dtvr
+limy; advy half dtvr
+limz; advz full dtvr
+limy; advy half dtvr
+limx; advx half dtvr
+write updated slopes/state back</code></pre>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>每个方向 advection 前都先调用同方向 limiter，不能只在开始统一限制一次。</li>
+<li>x/y 是半步，z 是整步；顺序与 Van Leer/Prather 的 split 结构一致。</li>
+<li><code>mode</code> 控制内部处理细节，复现时需按调用方传入值保留分支。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>mode</code> 各取值的物理含义需结合 <code>advtrac.F90</code> 调用条件进一步整理。</li>
+<li><code>pente_max</code> 默认和运行配置来源需由 advection 主题页或 <code>infotrac</code> 页补全。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">dyn3d_common 总览</a></li>
+<li><a href="../../routines/common-vanleer-advection-operators.html">COMMON tracer advection operator family</a></li>
+<li><a href="../../routines/advxyz-serial.html">advxyz 串行内核组</a></li>
+<li><a href="../../routines/operator-helper-families.html">operator helper families</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

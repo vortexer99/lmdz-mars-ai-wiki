@@ -1,0 +1,300 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>common-state-control-contract - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/common-state-control-contract.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="common-状态控制契约">COMMON 状态/控制契约</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\control_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\logic_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\temps_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\comconst_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\com_io_dyn_mod.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\conf_dat_m.F90</code></pre>
+<p>Mars 运行参与度：<code>必经</code> 到 <code>接口兼容</code>。<code>control_mod</code>, <code>logic_mod</code>, <code>temps_mod</code>, <code>comconst_mod</code> 是 Mars GCM、MARS <code>dynphy_lonlat/phymars/nogcm.F90</code>、newstart/start2archive/testphys1d 共享的状态层；<code>com_io_dyn_mod</code> 在动力 history/dynav 输出打开时条件经过；<code>conf_dat_m</code> 是 Mars utility 和插值链可复用的数据方向标准化 helper。</p>
+<h2 id="模块职责">模块职责</h2>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>状态类别</th>
+<th>主要职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>control_mod</code></td>
+<td><code>SAVE</code> 全局控制状态</td>
+<td>运行长度、时间步频率、物理调用频率、输出频率、Mars <code>ecritstart/timestart</code>、<code>planet_type</code>、tracer/守恒/输出开关。</td>
+</tr>
+<tr>
+<td><code>logic_mod</code></td>
+<td>全局逻辑门控</td>
+<td>Matsuno/leapfrog 当前阶段、是否调用 physics/dissipation/guide、是否读 start、垂直坐标类型和物理类型。</td>
+</tr>
+<tr>
+<td><code>temps_mod</code></td>
+<td>全局时间状态</td>
+<td><code>itaufin/itau_dyn/itau_phy</code>、起止日、参考日期、当前动力步长 <code>dt</code>、calendar 和 Mars <code>hour_ini</code>；history/dynav 输出状态深挖见 <a href="dynamic-output-state-holders.html">dynamic-output-state-holders</a>。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td>全局常量和维度</td>
+<td><code>im/jm/lllm</code>、<code>dtvr/dtphys/dtdiss/daysec</code>、行星半径/重力/气体常数/热容/自转、耗散和 sponge 参数。</td>
+</tr>
+<tr>
+<td><code>com_io_dyn_mod</code></td>
+<td>动力输出句柄</td>
+<td><code>dyn_hist*.nc</code> 文件名常量和 IOIPSL history id，由 <code>inithist/initdynav</code> 设置，由 <code>writehist/writedynav</code> 消费；file id 生命周期见 <a href="dynamic-output-state-holders.html">dynamic-output-state-holders</a>。</td>
+</tr>
+<tr>
+<td><code>conf_dat_m</code></td>
+<td>无持久状态 helper</td>
+<td><code>conf_dat2d/conf_dat3d</code> 把输入 lon/lat/pressure 数据调整为 COMMON 期望方向和单位。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="写入和初始化顺序">写入和初始化顺序</h2>
+<ol type="1">
+<li><code>conf_gcm.F90</code> 是 COMMON 6.3 <code>gcm.F90</code> 和 MARS <code>dynphy_lonlat/phymars/nogcm.F90</code> 共同消费的主配置写入点。它 <code>USE control_mod</code>, <code>logic_mod</code>, <code>temps_mod</code>, <code>comconst_mod</code>，通过 <code>getin</code> 设置 <code>planet_type</code>, <code>calend</code>, <code>nday</code>, <code>ndynstep</code>, <code>starttime</code>, <code>timestart</code>, <code>ecritstart</code>, <code>day_step</code>, <code>iperiod</code>, <code>periodav</code>, <code>ok_guide</code>, <code>read_start</code>, <code>iflag_phys</code>, <code>iphysiq</code> 等状态。</li>
+<li>COMMON <code>gcm.F90</code> 和 MARS <code>dynphy_lonlat/phymars/nogcm.F90</code> 在入口处调用 <code>conf_gcm(99,.TRUE.)</code>，随后检查 <code>iphysiq</code> 与 <code>iperiod</code>、<code>day_step</code> 与 <code>iperiod/iphysiq</code> 的整除关系。</li>
+<li>COMMON <code>gcm</code> / MARS <code>dynphy_lonlat/phymars/nogcm</code> 用 <code>daysec/day_step</code> 计算 <code>zdtvr</code>，必要时覆盖 <code>dtvr</code>；然后调用 <code>iniconst</code>。</li>
+<li><code>iniconst.F90</code> 使用 <code>control_mod</code> 和 <code>comconst_mod</code>，把 <code>dtphys=iphysiq*dtvr</code>，并按 <code>planet_type</code> 选择垂直离散默认路径。</li>
+<li>COMMON <code>leapfrog.F</code> 和 MARS <code>phymars/leapfrog_nogcm.F</code> 用 <code>nday/day_step/less1day/fractday/ndynstep</code> 推出 <code>itaufin</code>，再在时间循环中维护 <code>logic_mod</code> 的 <code>forward/leapf/apphys/apdiss</code> 和 <code>temps_mod%dt</code>。</li>
+<li><code>dynetat0.F90</code> 从 <code>start.nc</code> 的 <code>controle</code> 和 <code>Time</code> 恢复 <code>daysec/dtvr/rad/g/omeg/itau_dyn</code> 等状态；<code>dynredem.F90</code> 写回这些控制量，并在 Mars 路径写 <code>Time</code>。</li>
+</ol>
+<h2 id="关键状态契约">关键状态契约</h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>所属模块</th>
+<th>设置/刷新</th>
+<th>主要消费者</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>planet_type</code></td>
+<td><code>control_mod</code></td>
+<td><code>conf_gcm</code>, Mars <code>defrun_new</code></td>
+<td>COMMON <code>gcm</code>, MARS <code>dynphy_lonlat/phymars/nogcm.F90</code>, <code>leapfrog*</code>, <code>dynetat0/dynredem</code>, <code>infotrac</code>, <code>callphysiq_mod</code>, Mars utilities。</td>
+</tr>
+<tr>
+<td><code>day_step</code></td>
+<td><code>control_mod</code></td>
+<td><code>conf_gcm</code>, Mars <code>defrun_new</code>, testphys1d init</td>
+<td>COMMON <code>gcm</code>, MARS <code>dynphy_lonlat/phymars/nogcm.F90</code>, <code>leapfrog*</code>, guide, Mars <code>newstart</code>, <code>defrun_new</code>。</td>
+</tr>
+<tr>
+<td><code>iperiod</code></td>
+<td><code>control_mod</code></td>
+<td><code>conf_gcm</code>, Mars <code>defrun_new</code></td>
+<td>Matsuno/leapfrog 周期、输出平均间隔、<code>inidissip</code>。</td>
+</tr>
+<tr>
+<td><code>iphysiq</code></td>
+<td><code>control_mod</code></td>
+<td><code>conf_gcm</code>, Mars <code>defrun_new</code></td>
+<td>COMMON <code>gcm</code> / MARS <code>dynphy_lonlat/phymars/nogcm.F90</code> 的 physics 初始化、<code>leapfrog*</code> 的 <code>apphys</code> 门控。</td>
+</tr>
+<tr>
+<td><code>ecritstart/timestart</code></td>
+<td><code>control_mod</code></td>
+<td><code>conf_gcm</code>, Mars <code>defrun_new</code></td>
+<td>Mars restart 写出/读取：<code>leapfrog</code>, <code>dynetat0</code>, <code>dynredem</code>。</td>
+</tr>
+<tr>
+<td><code>read_start</code></td>
+<td><code>logic_mod</code></td>
+<td><code>conf_gcm</code></td>
+<td>COMMON <code>gcm</code>, MARS <code>dynphy_lonlat/phymars/nogcm.F90</code>, <code>dynetat0</code>, <code>sortvarc</code>, <code>iniacademic</code>。</td>
+</tr>
+<tr>
+<td><code>iflag_phys</code></td>
+<td><code>logic_mod</code></td>
+<td><code>conf_gcm</code>, Mars <code>defrun_new</code></td>
+<td>physics 是否调用、<code>iniphysiq</code>, <code>leapfrog*</code>, <code>calfis</code>。</td>
+</tr>
+<tr>
+<td><code>forward/leapf/apphys/apdiss</code></td>
+<td><code>logic_mod</code></td>
+<td><code>leapfrog*</code> 时间循环</td>
+<td><code>caldyn/integrd/addfi/dissip</code> 等动力核按阶段解释 tendency。</td>
+</tr>
+<tr>
+<td><code>itaufin/itau_dyn</code></td>
+<td><code>temps_mod</code></td>
+<td><code>leapfrog*</code>, <code>dynetat0</code>, <code>dynredem</code></td>
+<td>restart 时间、history/dynav 输出、平均输出。</td>
+</tr>
+<tr>
+<td><code>dtvr/dtphys/dtdiss</code></td>
+<td><code>comconst_mod</code></td>
+<td><code>conf_gcm</code>, COMMON <code>gcm</code>, MARS <code>dynphy_lonlat/phymars/nogcm.F90</code>, <code>iniconst</code>, <code>inidissip</code></td>
+<td>时间推进、physics、dissipation、guide、Mars utilities。</td>
+</tr>
+<tr>
+<td><code>rad/g/r/cpp/kappa/omeg</code></td>
+<td><code>comconst_mod</code></td>
+<td><code>conf_planete</code>, <code>iniconst</code>, restart 读取；详见 <a href="iniconst-planetary-constants.html">iniconst / conf_planete 行星常数初始化链</a></td>
+<td>几何、Exner、动力倾向、Mars <code>newstart/start2archive/lect_start_archive</code>。</td>
+</tr>
+<tr>
+<td><code>histid/histvid/histuid</code></td>
+<td><code>com_io_dyn_mod</code></td>
+<td><code>inithist.F</code></td>
+<td><code>writehist.F</code>。</td>
+</tr>
+<tr>
+<td><code>histaveid/histvaveid/histuaveid</code></td>
+<td><code>com_io_dyn_mod</code></td>
+<td><code>initdynav.F90</code></td>
+<td><code>writedynav.F90</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mars-主流程中的读写关系">Mars 主流程中的读写关系</h2>
+<h3 id="common-3d-gcm-和-mars-nogcm">COMMON 3D GCM 和 MARS nogcm</h3>
+<p>COMMON 6.3 <code>gcm.F90</code> 与 MARS <code>dynphy_lonlat/phymars/nogcm.F90</code> 共享以下状态层；后者不是 COMMON 6.3 源文件：</p>
+<pre class="text"><code>conf_gcm
+  -&gt; control_mod / logic_mod / temps_mod / comconst_mod
+  -&gt; day_step/iperiod/iphysiq consistency checks
+  -&gt; dtvr = daysec / day_step
+  -&gt; iniconst
+  -&gt; iniphysiq when iflag_phys enables physics
+  -&gt; COMMON leapfrog or MARS dynphy_lonlat/phymars/leapfrog_nogcm</code></pre>
+<p>Mars 运行中 <code>planet_type=="mars"</code> 会影响 <code>leapfrog</code> 的日期计算、<code>ecritstart</code> restart 写出、<code>dynetat0/dynredem</code> 的 <code>controle</code> 偏移和 <code>Time</code> 变量处理。MARS <code>dynphy_lonlat/phymars/nogcm.F90</code> 变体保留同样的状态层，但大部分动力 tendency 被关掉，主要用作 Mars lon-lat 物理驱动。</p>
+<h3 id="mars-utility">Mars utility</h3>
+<p>MARS <code>phymars</code> utility 直接消费这些 COMMON 状态：</p>
+<table>
+<thead>
+<tr>
+<th>Mars 文件</th>
+<th>COMMON 状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>newstart.F</code></td>
+<td><code>control_mod: day_step/iphysiq/anneeref/planet_type</code>, <code>comconst_mod: lllm/daysec/dtphys/dtvr</code>, <code>temps_mod: day_ini/hour_ini</code>。</td>
+</tr>
+<tr>
+<td><code>start2archive.F</code></td>
+<td><code>control_mod: planet_type</code>, <code>comconst_mod: daysec/dtphys/rad/g/r/cpp</code>, <code>temps_mod: day_ini/hour_ini</code>。</td>
+</tr>
+<tr>
+<td><code>lect_start_archive.F</code></td>
+<td><code>comconst_mod: kappa/g/pi</code>。</td>
+</tr>
+<tr>
+<td><code>readhead_NC.F</code></td>
+<td><code>comconst_mod: im/jm/lllm/daysec/dtvr</code>, <code>temps_mod: day_ini</code>。</td>
+</tr>
+<tr>
+<td><code>ini_archive.F</code></td>
+<td><code>comconst_mod: daysec/dtvr/rad/omeg/g/cpp/kappa/pi</code>, <code>logic_mod: fxyhypb/ysinus</code>。</td>
+</tr>
+<tr>
+<td><code>callphysiq_mod.F90</code></td>
+<td><code>control_mod: planet_type</code>，用于检查物理包和行星类型是否一致。</td>
+</tr>
+<tr>
+<td><code>testphys1d/init_testphys1d_mod.F90</code></td>
+<td><code>logic_mod: hybrid</code>，并通过 <code>getin</code> 设置 1D 运行的 day/time/vertical 相关配置。</td>
+</tr>
+</tbody>
+</table>
+<p>这些消费者说明 <code>control_mod/comconst_mod/temps_mod/logic_mod</code> 不是单纯 3D 动力内部状态；它们也是 Mars 初始化、archive 转换和 1D 测试链的接口兼容层。</p>
+<h2 id="conf_dat_m-的数据方向契约"><code>conf_dat_m</code> 的数据方向契约</h2>
+<p><code>conf_dat2d</code> 和 <code>conf_dat3d</code> 不保存状态。它们接受输入坐标和场数组，并原地修改输出坐标/数据：</p>
+<ul>
+<li>经度接受弧度 <code>[-pi,pi]</code> 或 <code>[0,2*pi]</code>，也接受角度 <code>[-180,180]</code> 或 <code>[0,360]</code>；角度会转换成弧度。</li>
+<li><code>[0,2*pi]</code> 或 <code>[0,360]</code> 经度会旋转到 <code>[-pi,pi]</code>。</li>
+<li>纬度若从南到北排列，会翻转成北到南。</li>
+<li><code>conf_dat3d</code> 若垂直坐标最大值小于 <code>1200</code>，把压力从 hPa 量级乘以 100 转为 Pa；若压力从低到高排列，会翻转为地面到模型顶。</li>
+<li><code>interbar=.TRUE.</code> 时，经纬坐标改成相邻点中点，用于 barycentric interpolation。</li>
+</ul>
+<p>这个 helper 适合作为 Mars utility/interpolation 组页的支撑证据；它本身不是状态模块。</p>
+<h2 id="副作用和风险">副作用和风险</h2>
+<ul>
+<li>这些模块大多没有显式初始化默认值，除 <code>conf_gcm</code> 或 Mars <code>defrun_new</code> 写入外，直接读取会得到未定义或旧运行状态。</li>
+<li><code>control_mod</code> 变量带 <code>SAVE</code>，在长进程或工具程序复用时必须确认入口是否重新写入全部关键字段。</li>
+<li><code>logic_mod</code> 的 <code>forward/leapf/apphys/apdiss</code> 是时间循环临时状态，不应在 <code>leapfrog*</code> 外当作配置值解释。</li>
+<li><code>temps_mod%dt</code> 在 Matsuno 和 leapfrog 步之间变化：forward 阶段为 <code>dtvr</code>，leapfrog 阶段通常为 <code>2*dtvr</code>。</li>
+<li><code>com_io_dyn_mod</code> 的 history id 只有在对应 <code>inithist/initdynav</code> 调用后才有效。</li>
+<li><code>conf_dat_m</code> 遇到异常坐标只 <code>WRITE(6,*)</code> 报告，没有 abort；调用方需要自己判断输入是否合法。</li>
+</ul>
+<h2 id="复现顺序">复现顺序</h2>
+<p>要复现 Mars COMMON 状态层，最低顺序是：</p>
+<ol type="1">
+<li>通过 <code>conf_gcm</code> 或 Mars <code>defrun_new</code> 读取 run.def/gcm.def 风格配置，写入 <code>control_mod</code>, <code>logic_mod</code>, <code>temps_mod</code>。</li>
+<li>确认 <code>planet_type=="mars"</code> 或目标 utility 所需的兼容行星类型。</li>
+<li>由 COMMON <code>gcm</code> 或 MARS <code>dynphy_lonlat/phymars/nogcm.F90</code> 校验 <code>day_step</code>, <code>iperiod</code>, <code>iphysiq</code>，并设 <code>dtvr=daysec/day_step</code>。</li>
+<li>调 <code>iniconst</code> 写入 <code>dtphys</code>、维度派生量和垂直离散相关状态。</li>
+<li>如从 start/restart 继续运行，调用 <code>dynetat0</code> 读取 <code>controle</code> 与 <code>Time</code>，刷新 <code>itau_dyn/daysec/dtvr</code> 等状态。</li>
+<li>进入 <code>leapfrog*</code> 后只把 <code>logic_mod</code> 的阶段门控解释为当前时间步状态。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>conf_dat_m</code> 在当前 Mars 工具链中的直接调用点需要由 TASK-0191/TASK-0195 继续反查；本页只根据 COMMON 源码说明其接口契约。</li>
+<li><code>control_mod%periodav/starttime</code> 在 Mars 运行脚本中的推荐值需要结合实际 run.def 样例确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3d/gcm.html">gcm 入口</a></li>
+<li>COMMON 6.3 已删除 <code>dyn3d/nogcm.F90</code>；Mars 专用入口不在 COMMON 6.3 正文展开。</li>
+<li><a href="../modules/dyn3d/conf_gcm.html">conf_gcm 配置</a></li>
+<li><a href="dynamics-control-logic-gates.html">动力控制和逻辑门控链</a></li>
+<li><a href="dynamic-output-state-holders.html">动力输出状态持有者</a></li>
+<li><a href="leapfrog-state-contract.html">leapfrog 状态契约</a></li>
+<li><a href="vertical-discretization.html">垂直离散构造</a></li>
+<li><a href="iniconst-planetary-constants.html">iniconst / conf_planete 行星常数初始化链</a></li>
+<li><a href="dynredem-restart.html">dynredem restart</a></li>
+<li><a href="infotrac-mars-consumers.html">infotrac Mars 消费方</a></li>
+<li><a href="guide-config-contract.html">guide 配置与初始化契约</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

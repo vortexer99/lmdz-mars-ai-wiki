@@ -1,0 +1,197 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>gcm - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3dpar/gcm.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="gcmf">gcm.F</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\gcm.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p><code>gcm.F</code> 是 <code>dyn3dpar</code> 的并行 GCM 启动入口，定义 <code>PROGRAM gcm</code>。它在串行 <code>dyn3d/gcm.F90</code> 的主流程基础上加入 MPI/OpenMP 初始化、纬向 band 分布、halo 模块初始化、物理列分布和 <code>leapfrog_p</code> 调度。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 并行动力构建或复用 COMMON 并行动力入口时经过；MARS dyn1d 物理测试更多使用 COMMON 并行抽象模块而不是直接运行本入口。</code></pre>
+<h2 id="定义的符号">定义的符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>类型</th>
+<th>行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gcm</code></td>
+<td>program</td>
+<td>6</td>
+<td>并行 GCM 主程序。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="主要依赖">主要依赖</h2>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mod_const_mpi:init_const_mpi</code></td>
+<td>初始化 <code>COMM_LMDZ</code> 和 MPI datatype。</td>
+</tr>
+<tr>
+<td><code>parallel_lmdz</code></td>
+<td>初始化 MPI/OMP rank、纬向 decomposition、barrier、<code>SetDistrib</code>。</td>
+</tr>
+<tr>
+<td><code>Bands</code></td>
+<td>读取、设置、写出 caldyn/vanleer/dissip/physics band 分布。</td>
+</tr>
+<tr>
+<td><code>mod_hallo</code></td>
+<td>OpenMP 线程内初始化并行 halo 请求缓冲。</td>
+</tr>
+<tr>
+<td><code>infotrac</code></td>
+<td>读取 tracer 配置并决定 <code>q</code> 的第四维。</td>
+</tr>
+<tr>
+<td><code>control_mod</code>、<code>logic_mod</code>、<code>temps_mod</code></td>
+<td>运行时长、物理调用频率、日期、start/restart 逻辑。</td>
+</tr>
+<tr>
+<td><code>iniphysiq_mod</code>、<code>mod_grid_phy_lmdz</code>、<code>dimphy</code></td>
+<td><code>CPP_PHYS</code> 下初始化物理接口。</td>
+</tr>
+<tr>
+<td><code>comconst_mod</code></td>
+<td><code>daysec/dtvr/dtphys/rad/g/r/cpp</code> 等动力常量。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="输入与输出">输入与输出</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>方向</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>run.def</code></td>
+<td>输入</td>
+<td>启动前用 <code>INQUIRE</code> 检查，缺失则 <code>abort_gcm</code>。</td>
+</tr>
+<tr>
+<td><code>Bands_${iim}x${jjm}x${llm}_${mpi_size}prc.dat</code></td>
+<td>输入/输出</td>
+<td><code>Read_Distrib</code> 可读取已有分布；rank 0 调 <code>WriteBands</code> 写出当前分布。</td>
+</tr>
+<tr>
+<td><code>start.nc</code></td>
+<td>输入</td>
+<td><code>read_start=.true.</code> 时由 <code>dynetat0</code> 读入动力初态。</td>
+</tr>
+<tr>
+<td><code>relax.nc</code></td>
+<td>输入</td>
+<td><code>planet_type=="generic"</code> 且 <code>ok_guide</code> 时读 relaxation 场。</td>
+</tr>
+<tr>
+<td><code>restart.nc</code></td>
+<td>输出</td>
+<td><code>dynredem0_p</code> 写初始或结束日 restart。</td>
+</tr>
+<tr>
+<td><code>dyn_hist</code>、<code>dyn_hist_ave</code></td>
+<td>输出</td>
+<td>rank 0 初始化 history/dynav 输出。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心启动顺序">核心启动顺序</h2>
+<ol type="1">
+<li>设置默认 history 文件名并确认 <code>run.def</code> 存在。</li>
+<li>调用 <code>conf_gcm(99,.TRUE.)</code> 读取运行控制；要求 <code>iphysiq</code> 可被 <code>iperiod</code> 整除。</li>
+<li>调用 <code>init_const_mpi</code>、<code>init_parallel</code>、<code>Read_Distrib</code>、<code>barrier</code>、<code>set_bands</code>；rank 0 写出 band 文件。</li>
+<li>调用 <code>SetDistrib(jj_Nb_Caldyn)</code>，将主动力计算分布切到 caldyn band。</li>
+<li>在 OpenMP parallel 区中调用 <code>Init_Mod_hallo</code>，使每个线程拥有可用 halo 请求/缓冲状态。</li>
+<li>初始化 Cp(T)、IOIPSL 日历和 tracer，按 <code>nqtot</code> 分配 <code>q(ip1jmp1,llm,nqtot)</code>。</li>
+<li>根据 <code>read_start</code> 选择 <code>dynetat0("start.nc",...)</code> 或 <code>iniacademic</code>；generic guide 可补读 <code>relax.nc</code>。</li>
+<li>校验 <code>day_step</code> 与 <code>iperiod/iphysiq</code> 的整除关系，设置 <code>dtvr=daysec/day_step</code>。</li>
+<li>处理 <code>start_time/starttime</code>、<code>raz_date</code>、<code>annee_ref/day_ref/day_ini/itau_dyn/itau_phy</code> 和 Julian day。</li>
+<li>物理开启时调用 <code>iniconst</code>、<code>inigeom</code>、<code>inifilr</code>，随后 <code>inidissip</code>。</li>
+<li><code>CPP_PHYS</code> 下调用 <code>iniphysiq(..., distrib_phys(mpi_rank), comm_lmdz, ..., dtphys/nsplit_phys, ...)</code>。</li>
+<li>写初始 restart，rank 0 初始化 history 和 dynav，最后在 OpenMP parallel 区调用 <code>leapfrog_p</code>。</li>
+</ol>
+<h2 id="并行特有逻辑">并行特有逻辑</h2>
+<p><code>Read_Distrib</code> 和 <code>set_bands</code> 先建立多个用途的纬向 band 数组。<code>SetDistrib(jj_Nb_Caldyn)</code> 将 <code>parallel_lmdz</code> 当前分布设为 caldyn 需要的 band，后续 <code>leapfrog_p</code> 内部可按输送、耗散、物理等阶段重设分布。halo 模块初始化放在 OpenMP parallel 区内，是因为 <code>mod_hallo</code> 中部分缓冲和列表是 <code>THREADPRIVATE</code>。</p>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li><code>iphysiq/iperiod</code> 和 <code>day_step/iphysiq</code> 整除检查必须在进入时间推进前通过。</li>
+<li>并行 history 初始化只在 <code>mpi_rank==0</code> 进行；物理初始化则接收本 rank 的 <code>distrib_phys(mpi_rank)</code>。</li>
+<li>Mars 分支在 <code>ecritstart&gt;0</code> 时用 <code>day_ini</code> 写初始 restart，否则使用 <code>day_end</code>。</li>
+<li><code>iniphysiq</code> 调用传入 <code>dtphys/nsplit_phys</code>，不是直接传 <code>dtphys</code>。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>COMMON 并行 <code>gcm.F</code> 在当前 Mars 标准作业脚本中的直接入口地位需要 build/run 脚本核对。</li>
+<li><code>Read_Distrib</code> 文件缺失时的默认分布由 <a href="bands.html">bands</a> 记录，运行目录中是否保留该文件取决于具体实验。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="parallel_lmdz.html">parallel_lmdz</a></li>
+<li><a href="mod_hallo.html">mod_hallo</a></li>
+<li><a href="bands.html">bands</a></li>
+<li><a href="times.html">times</a></li>
+<li><a href="../dyn3d/gcm.html">串行 gcm</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

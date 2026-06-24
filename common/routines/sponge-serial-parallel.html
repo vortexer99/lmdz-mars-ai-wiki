@@ -1,0 +1,99 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>sponge-serial-parallel - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/sponge-serial-parallel.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="sponge-串并行对照">sponge 串并行对照</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d\sponge_mod.F90
+dyn3dpar\sponge_mod_p.F90</code></pre>
+<p>Mars 运行参与度：<code>条件经过</code>。顶部 sponge 阻尼开启时经过。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>sponge_mod</code> 组实现高层 sponge 阻尼配置和施加逻辑，通常与 <code>conf_gcm</code> 的 sponge/top-bound 参数和 <code>top_bound</code> 例程一起控制模式顶部的反射和波动阻尼。</p>
+<h2 id="对照表">对照表</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sponge_mod.F90</code></td>
+<td>162</td>
+<td>串行模块，包含 sponge 相关例程。</td>
+</tr>
+<tr>
+<td><code>sponge_mod_p.F90</code></td>
+<td>189</td>
+<td>并行模块，使用 <code>parallel_lmdz only: pole_sud,pole_nord,jj_begin,jj_end,OMP_CHUNK</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="核心流程">核心流程</h2>
+<ol type="1">
+<li>读取或接收 sponge 参数。</li>
+<li>确定受阻尼的垂直层和水平范围。</li>
+<li>对风/温度等变量施加随高度变化的阻尼。</li>
+<li>并行版按子域和极点所有权处理边界。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>sponge 不是普通水平耗散；它集中在高层，并由 top-bound 配置共同约束。</li>
+<li>并行版的极点所有权会影响极区阻尼是否重复施加。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="top-bound-serial-parallel.html">top_bound 串并行对照</a></li>
+<li><a href="../modules/dyn3d/conf_gcm.html">conf_gcm</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>sponge 参数默认值和单位需由 <code>conf_gcm</code> 配置表补齐。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

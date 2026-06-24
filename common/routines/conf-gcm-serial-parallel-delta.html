@@ -1,0 +1,279 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>conf-gcm-serial-parallel-delta - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/conf-gcm-serial-parallel-delta.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="conf_gcm-串并行配置差异">conf_gcm 串并行配置差异</h1>
+<p>页面状态：TASK-0221 完成，作为 TASK-0038 <code>dyn3dpar/conf_gcm.F90</code> hard 父页的前置支撑页。 源码基线：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code>。 Mars 运行参与度：必经/条件经过。串行 Mars 3D <code>gcm</code> 经过 <code>dyn3d/conf_gcm.F90</code>；并行动力构建或并行入口测试经过 <code>dyn3dpar/conf_gcm.F90</code>。本页只覆盖 Mars run 相关的 COMMON 配置链，Earth/Titan/Venus 专属行为只作为边界说明。</p>
+<h2 id="源码范围">源码范围</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>入口</th>
+<th>本页用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>libf/dyn3d/conf_gcm.F90</code></td>
+<td><code>SUBROUTINE conf_gcm(tapedef, etatinit)</code>，第 4 行</td>
+<td>串行配置读取中心，写 <code>control_mod</code>、<code>logic_mod</code>、<code>comconst_mod</code>、<code>sponge_mod</code>、<code>serre_mod</code>。</td>
+</tr>
+<tr>
+<td><code>libf/dyn3dpar/conf_gcm.F90</code></td>
+<td><code>SUBROUTINE conf_gcm(tapedef, etatinit)</code>，第 6 行</td>
+<td>并行配置读取中心，主体与串行同构，额外读并行滤波、MPI allocation 和 OMP <code>adjust</code> 约束。</td>
+</tr>
+<tr>
+<td><code>libf/dyn3d/gcm.F90</code></td>
+<td><code>PROGRAM gcm</code></td>
+<td>串行入口在 <code>conf_gcm</code> 后做整除和 FFT filter 约束，随后初始化动力/物理和 history。</td>
+</tr>
+<tr>
+<td><code>libf/dyn3dpar/gcm.F</code></td>
+<td><code>PROGRAM gcm</code></td>
+<td>并行入口在 <code>conf_gcm</code> 后初始化 MPI/OMP、bands、halo 分布，并限制 rank 0 history 初始化。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="共同配置管线">共同配置管线</h2>
+<p>串行和并行入口都先调用 <code>parse_args()</code>，再调用 <code>conf_gcm(99,.TRUE.)</code>。<code>conf_gcm</code> 不是一个返回局部配置对象的例程；它直接把 <code>getin</code> 读到的值写入模块全局状态。后续 <code>gcm</code>、<code>gcm_p</code>、<code>leapfrog</code>、<code>leapfrog_p</code> 通过这些模块变量消费配置。</p>
+<pre class="text"><code>gcm 或 gcm_p
+  -&gt; parse_args()
+  -&gt; conf_gcm(99,.TRUE.)
+       -&gt; getin keys
+       -&gt; control_mod / logic_mod / comconst_mod / sponge(_p) / serre_mod
+  -&gt; 入口硬约束
+  -&gt; 初态、常量、几何、耗散、物理接口、history 初始化
+  -&gt; leapfrog 或 leapfrog_p</code></pre>
+<p>关键共同点：</p>
+<ul>
+<li><code>iphysiq</code> 必须是 <code>iperiod</code> 的倍数。串行入口在 <code>gcm.F90</code> 167-168 行检查；并行入口在 <code>gcm.F</code> 181-182 行检查。</li>
+<li><code>day_step</code> 必须分别是 <code>iperiod</code> 和 <code>iphysiq</code> 的倍数。串行入口在 292-300 行检查；并行入口在 310-318 行检查。</li>
+<li>两个入口都用 <code>zdtvr = daysec / REAL(day_step)</code> 刷新动力时间步，串行在 304 行，并行在 322 行。</li>
+<li><code>raz_date == 1</code> 时，两个入口都把 <code>start_time</code> 重设为 <code>starttime</code>，串行在 314-316 行，并行在 332-334 行。6.3 主线不再把旧版严格 mismatch 逻辑作为主路径。</li>
+<li><code>read_start</code> 都决定是否从 <code>start.nc</code> 读动力初态；否则走 idealized/academic 初始化。</li>
+<li><code>inidissip</code>、<code>iniphysiq</code> 和 <code>ok_dyn_ins/ok_dyn_ave</code> history 初始化都在入口程序里消费 <code>conf_gcm</code> 写入的状态。</li>
+</ul>
+<h2 id="共享-getin-键">共享 getin 键</h2>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>主要键</th>
+<th>写入/影响</th>
+<th>Mars 复现要点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>日期和运行长度</td>
+<td><code>calend</code>, <code>dayref</code>, <code>anneeref</code>, <code>raz_date</code>, <code>nday</code>, <code>ndynstep</code>, <code>starttime</code>, <code>ecritstart</code>, <code>less1day</code>, <code>fractday</code></td>
+<td><code>control_mod</code>, <code>temps_mod</code></td>
+<td>Mars 日期和 restart 时间由入口与 <code>leapfrog*</code> 继续派生；<code>raz_date==1</code> 直接重设初始时间。</td>
+</tr>
+<tr>
+<td>时间步和调度</td>
+<td><code>day_step</code>, <code>nsplit_phys</code>, <code>iperiod</code>, <code>iphysiq</code>, <code>iapp_tracvl</code></td>
+<td><code>control_mod</code></td>
+<td>入口整除检查是硬门；<code>nsplit_phys</code> 进入 <code>iniphysiq</code> 的 <code>dtphys/nsplit_phys</code>。</td>
+</tr>
+<tr>
+<td>物理和 tracer</td>
+<td><code>iflag_phys</code>, <code>iflag_trac</code>, <code>type_trac</code>, <code>config_inca</code>, <code>force_conserv_tracer</code>, <code>cpofT</code></td>
+<td><code>logic_mod</code>, <code>control_mod</code>, <code>infotrac</code></td>
+<td><code>iflag_phys</code> 决定物理初始化和 <code>leapfrog*</code> physics 门，tracer 维度由后续 <code>infotrac_init</code> 消费。</td>
+</tr>
+<tr>
+<td>restart 和初态</td>
+<td><code>read_start</code>, <code>resetvarc</code>, <code>ok_etat0</code>, <code>ok_limit</code>, <code>read_orop</code></td>
+<td><code>logic_mod</code>, <code>control_mod</code></td>
+<td><code>read_start=.true.</code> 进入 <code>dynetat0("start.nc")</code>；Mars utility 对这些 COMMON 状态也有接口兼容需求。</td>
+</tr>
+<tr>
+<td>动力输出</td>
+<td><code>ok_dynzon</code>, <code>ok_dyn_ins</code>, <code>ok_dyn_ave</code>, <code>iecri</code>, <code>periodav</code>, <code>output_grads_dyn</code></td>
+<td><code>control_mod</code></td>
+<td>串行直接初始化 history；并行只在 <code>mpi_rank==0</code> 初始化 history/dynav。</td>
+</tr>
+<tr>
+<td>耗散和顶边界</td>
+<td><code>idissip</code>, <code>dissip_period</code>, <code>lstardis</code>, <code>nitergdiv</code>, <code>nitergrot</code>, <code>niterh</code>, <code>tetagdiv</code>, <code>tetagrot</code>, <code>tetatemp</code>, <code>dissip_*</code>, <code>iflag_top_bound</code>, <code>mode_top_bound</code>, <code>tau_top_bound</code>, <code>callsponge</code></td>
+<td><code>control_mod</code>, <code>comconst_mod</code>, <code>sponge_mod(_p)</code></td>
+<td><code>idissip</code> 是旧 Mars/Generic 兼容键，随后 <code>dissip_period</code> 可覆盖；<code>iflag_top_bound&gt;=1</code> 与 <code>callsponge=.true.</code> 互斥。</td>
+</tr>
+<tr>
+<td>zoom 和网格映射</td>
+<td><code>clon</code>, <code>clat</code>, <code>grossismx</code>, <code>grossismy</code>, <code>fxyhypb</code>, <code>dzoomx</code>, <code>dzoomy</code>, <code>taux</code>, <code>tauy</code>, <code>ysinus</code></td>
+<td><code>serre_mod</code></td>
+<td><code>etatinit=.false.</code> 时会把配置和 start 状态比较；Mars 标准 run 通常关注与 start 文件一致性。</td>
+</tr>
+<tr>
+<td>行星分支</td>
+<td><code>planet_type</code>, <code>ok_strato</code>, <code>vert_prof_dissip</code></td>
+<td><code>control_mod</code>, <code>logic_mod</code>, <code>comconst_mod</code></td>
+<td>非 Earth 行星默认 <code>vert_prof_dissip=0</code>，Mars 分支改成 1；Earth strato 逻辑不展开。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="串并行差异">串并行差异</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>串行 <code>dyn3d</code></th>
+<th>并行 <code>dyn3dpar</code></th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>adjust</code></td>
+<td>串行 <code>conf_gcm.F90</code> 不读该键。</td>
+<td>并行 <code>conf_gcm.F90</code> 104-114 行读 <code>adjust</code>；若 OpenMP 线程数大于 1 且 <code>adjust=y</code>，调用 <code>abort_gcm</code>。</td>
+<td>并行 OMP run 中 <code>adjust</code> 必须关闭。</td>
+</tr>
+<tr>
+<td><code>offline</code> 与 <code>adjust</code></td>
+<td>只读 <code>offline</code>，不检查 <code>adjust</code>。</td>
+<td>537-540 行读 <code>offline</code> 后，如 <code>offline .AND. adjust</code> 打印 warning。</td>
+<td>并行配置排查时要同时查 <code>offline/adjust</code>。</td>
+</tr>
+<tr>
+<td><code>use_filtre_fft</code></td>
+<td>串行 <code>conf_gcm.F90</code> 568-573 行读到 true 即停止；串行入口 <code>gcm.F90</code> 170-173 行又再次 abort。</td>
+<td>并行 <code>conf_gcm.F90</code> 595-596 行读入 <code>mod_filtre_fft:use_filtre_fft</code>，没有同样的停止逻辑。</td>
+<td>FFT filter 是并行路径配置；串行 Mars GCM 不能打开。</td>
+</tr>
+<tr>
+<td><code>use_mpi_alloc</code></td>
+<td>无。</td>
+<td>并行 <code>conf_gcm.F90</code> 607-615 行读 <code>use_mpi_alloc</code> 到 <code>mod_hallo</code>。</td>
+<td>影响并行 halo/通信相关内存分配策略，父页需继续追踪具体消费点。</td>
+</tr>
+<tr>
+<td><code>ngroup</code></td>
+<td>串行 423-426 行读取，要求 <code>iim</code> 可被 <code>2**ngroup</code> 兼容。</td>
+<td>并行 442-445 行同样读取。</td>
+<td>这是共享动力网格约束，不是并行独有键。</td>
+</tr>
+<tr>
+<td>sponge 模块</td>
+<td><code>sponge_mod</code>。</td>
+<td><code>sponge_mod_p</code>。</td>
+<td>配置键相同，但运行时作用到串行/并行不同实现。</td>
+</tr>
+<tr>
+<td>并行初始化</td>
+<td>无 MPI/OMP 初始化。</td>
+<td><code>gcm.F</code> 189-204 行调用 <code>init_const_mpi</code>, <code>init_parallel</code>, <code>Read_Distrib</code>, <code>set_bands</code>, rank 0 <code>WriteBands</code>, <code>SetDistrib(jj_Nb_Caldyn)</code>。</td>
+<td><code>conf_gcm</code> 后进入并行分布状态，很多后续数组必须处在正确 band。</td>
+</tr>
+<tr>
+<td>物理初始化参数</td>
+<td><code>iniphysiq(iim,jjm,llm,...)</code> 消费全局 lon-lat 结构。</td>
+<td><code>iniphysiq(..., distrib_phys(mpi_rank), comm_lmdz, ...)</code>。</td>
+<td>并行物理初始化接收当前 rank 的物理列分布和 communicator。</td>
+</tr>
+<tr>
+<td>history 初始化</td>
+<td>串行入口直接按 <code>ok_dyn_ins/ok_dyn_ave</code> 初始化。</td>
+<td><code>gcm.F</code> 512 行起包在 <code>IF (mpi_rank==0)</code> 内。</td>
+<td>并行 history/dynav 文件由 root rank 建立，其他 rank 只参与计算/通信。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="并行入口约束细节">并行入口约束细节</h2>
+<p>并行版 <code>conf_gcm</code> 的配置读取并不会自己建立 MPI decomposition；它只是把配置写入模块。真正的并行结构在 <code>dyn3dpar/gcm.F</code> 中建立：</p>
+<ol type="1">
+<li><code>conf_gcm(99,.TRUE.)</code> 读配置后，立即检查 <code>iphysiq/iperiod</code>。</li>
+<li><code>init_const_mpi</code> 设置 <code>COMM_LMDZ</code> 和 MPI datatype。</li>
+<li><code>init_parallel</code> 初始化 MPI/OMP rank、局部纬向范围和 communicator。</li>
+<li><code>Read_Distrib</code> 读取可能存在的 <code>Bands_*prc.dat</code> 分布。</li>
+<li><code>set_bands</code> 派生 caldyn、vanleer、dissip、physics 等 band；<code>mpi_rank==0</code> 写 <code>WriteBands</code>。</li>
+<li><code>SetDistrib(jj_Nb_Caldyn)</code> 将当前分布切到动力计算初始 band。</li>
+<li>OpenMP parallel 区内初始化 <code>mod_hallo</code>，使每个线程拥有 halo 请求/缓冲状态。</li>
+</ol>
+<p>所以并行配置问题要按两层排查：先确认 <code>conf_gcm</code> 的 <code>getin</code> 键和入口整除约束，再确认 bands/halo/distribution 是否与当前 MPI size、OMP 线程数和 <code>Bands_*prc.dat</code> 一致。</p>
+<h2 id="mars-run-相关边界">Mars run 相关边界</h2>
+<ul>
+<li>Mars 串行 3D 正常入口不经过并行 MPI/bands 初始化，因此 <code>use_mpi_alloc</code>、rank 0 history 和 <code>distrib_phys(mpi_rank)</code> 只属于并行动力条件路径。</li>
+<li>Mars 并行 run 或并行代码验证会经过 <code>dyn3dpar/gcm.F</code> 与 <code>dyn3dpar/conf_gcm.F90</code>，这些配置不能只从串行页推断。</li>
+<li>Earth stratosphere 的 <code>ok_strato</code> 默认分支和非 Mars Venus/Titan 路径不在本页展开；这里只记录它们不会改变 Mars 配置主线。</li>
+<li>COMMON 6.3 已删除 <code>dyn3d/nogcm.F90</code>；Mars <code>phymars/nogcm.F90</code> 属于 MARS 树边界上下文，不作为 COMMON 文件页目标。</li>
+</ul>
+<h2 id="复现检查表">复现检查表</h2>
+<p>排查 <code>run.def</code> 或并行 Mars run 时，按这个顺序最稳：</p>
+<ol type="1">
+<li>确认入口是串行 <code>dyn3d/gcm.F90</code> 还是并行 <code>dyn3dpar/gcm.F</code>。</li>
+<li>确认 <code>parse_args()</code> 没有因未知命令行参数提前 abort。</li>
+<li>确认 <code>conf_gcm</code> 读到的 <code>planet_type</code>, <code>day_step</code>, <code>iperiod</code>, <code>iphysiq</code>, <code>iflag_phys</code>, <code>read_start</code>, <code>ok_dyn*</code>。</li>
+<li>检查 <code>mod(iphysiq, iperiod)==0</code>、<code>mod(day_step, iperiod)==0</code>、<code>mod(day_step, iphysiq)==0</code>。</li>
+<li>串行入口确认 <code>use_filtre_fft</code> 没有打开；并行入口确认 <code>use_filtre_fft</code> 是否需要 FFT filter 支撑页继续追踪。</li>
+<li>并行入口确认 <code>adjust</code> 与 OMP 线程数兼容，<code>offline .AND. adjust</code> warning 是否出现。</li>
+<li>并行入口确认 <code>Read_Distrib/set_bands/WriteBands/SetDistrib</code> 顺序和 <code>Bands_*prc.dat</code> 是否符合当前 MPI size。</li>
+<li>若 history 缺文件，串行查 <code>ok_dyn_ins/ok_dyn_ave</code>；并行还要确认输出在 <code>mpi_rank==0</code> 初始化。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>use_mpi_alloc</code> 的具体运行时影响需要在 <code>mod_hallo</code> 和相关 allocation 调用里继续追踪；本页只确认配置读取和模块归属。</li>
+<li><code>adjust</code> 的物理/数值意图没有在 <code>conf_gcm.F90</code> 附近解释；本页只确认并行 OMP 约束和 offline warning。</li>
+<li>具体 Mars 生产脚本是否默认使用并行入口，需要结合实验脚本确认；源码层面只能确认两套入口的条件可达性。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3d/conf_gcm.html">dyn3d/conf_gcm</a></li>
+<li><a href="../modules/dyn3dpar/gcm.html">dyn3dpar/gcm</a></li>
+<li><a href="dynamics-control-logic-gates.html">dynamics-control-logic-gates</a></li>
+<li><a href="gcm-runtime-option-entry.html">gcm-runtime-option-entry</a></li>
+<li><a href="common-gcm-mars-run-entry.html">common-gcm-mars-run-entry</a></li>
+<li><a href="../modules/dyn3dpar/parallel_lmdz.html">parallel_lmdz</a></li>
+<li><a href="../modules/dyn3dpar/bands.html">bands</a></li>
+<li><a href="../modules/dyn3dpar/mod_hallo.html">mod_hallo</a></li>
+<li><a href="history-xios-getin-boundary.html">history-xios-getin-boundary</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

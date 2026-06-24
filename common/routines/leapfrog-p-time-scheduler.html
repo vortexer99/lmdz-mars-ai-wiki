@@ -1,0 +1,266 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>leapfrog-p-time-scheduler - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/leapfrog-p-time-scheduler.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="leapfrog_p-时间步调度">leapfrog_p 时间步调度</h1>
+<p>页面状态：TASK-0127 完成。 源码范围：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\leapfrog_p.F</code></pre>
+<p>Mars 运行参与度：条件经过。Mars 并行 GCM 经过 <code>dyn3dpar/gcm.F -&gt; leapfrog_p</code>；串行 Mars GCM 经过 <code>dyn3d/leapfrog.F</code>，MARS <code>phymars/nogcm.F90</code> 只作边界背景，不属于 COMMON 6.3 源码。</p>
+<h2 id="调度职责">调度职责</h2>
+<p>本页只说明并行 <code>leapfrog_p</code> 的时间步状态机：<code>forward/leapf/purmats/apphys/apdiss/lafin</code>、<code>True_itau</code>、<code>itau</code> 推进、history/restart 写出和最终停止。入口数组、<code>SAVE</code> 工作区、<code>SetDistrib</code>、halo/swap 和 root gather 的状态契约见 <a href="leapfrog-p-state-contract.html">leapfrog_p 状态契约</a> 与 <a href="../modules/dyn3dpar/leapfrog_p.html">dyn3dpar/leapfrog_p</a>。</p>
+<p><code>leapfrog_p</code> 仍沿用串行 Matsuno/leapfrog 思路，但阶段转换发生在 OpenMP parallel 区内部。并行差异主要是：输出/restart 写出前需要 gather，physics 前后需要 band/halo 切换；这些并行通信并不改变 <code>itau/forward/leapf</code> 的时间步语义。</p>
+<h2 id="终止步数">终止步数</h2>
+<p>237-250 行计算 <code>itaufin</code>：</p>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nday &gt;= 0</code></td>
+<td><code>itaufin = nday * day_step</code></td>
+</tr>
+<tr>
+<td><code>nday &lt; 0</code></td>
+<td><code>itaufin = -nday</code>，按动力步数运行</td>
+</tr>
+<tr>
+<td><code>less1day</code></td>
+<td>覆盖为 <code>int(fractday * day_step)</code></td>
+</tr>
+<tr>
+<td><code>ndynstep &gt; 0</code></td>
+<td>最终覆盖为 <code>ndynstep</code></td>
+</tr>
+</tbody>
+</table>
+<p>随后 <code>itaufinp1 = itaufin + 1</code>。<code>itau</code> 从 0 开始，<code>physics</code> 初值为 <code>.TRUE.</code>，但 <code>iflag_phys==0</code> 或 <code>iflag_phys==2</code> 会关闭 physics 调度。</p>
+<p>停止不是正常跑出循环：非 <code>purmats</code> 分支在 <code>itau == itaufinp1</code> 时 <code>finalize_parallel</code> 后调用 <code>abort_gcm(modname,'Simulation finished',0)</code>；<code>purmats</code> 分支在 forward 半步后检查同一条件并停止。</p>
+<h2 id="两个-label">两个 label</h2>
+<p>主循环由 label 1 和 label 2 组成：</p>
+<table>
+<thead>
+<tr>
+<th>label</th>
+<th style="text-align: right;">源码位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;">约 405 行前后</td>
+<td>Matsuno forward 入口，设置 <code>forward=.TRUE.</code>, <code>leapf=.FALSE.</code>, <code>dt=dtvr</code>。</td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td style="text-align: right;">417 行</td>
+<td>backward 或 leapfrog 阶段入口，重新计算日期、门控标志、动力/物理/耗散/输出，然后在步末决定下一个阶段。</td>
+</tr>
+</tbody>
+</table>
+<p>label 2 每次进入都会把 <code>apphys/statcl/conser/apdiss</code> 先清零，再按 <code>purmats</code> 和当前 <code>itau/forward</code> 计算门控。随后 685 行把 <code>True_itau=True_itau+1</code>，用于日志输出“实际进入计算段的迭代次数”。因此：</p>
+<ul>
+<li><code>True_itau</code> 计数每次 label 2 计算段。</li>
+<li><code>itau</code> 是模式时间步计数，只在步末按分支推进。</li>
+<li><code>forward</code>、<code>leapf</code> 是当前阶段标志，不等于“已经完成的阶段”。</li>
+</ul>
+<h2 id="日期刷新">日期刷新</h2>
+<p>432-446 行只有在 <code>leapf</code> 为真时刷新 <code>jD_cur/jH_cur</code>：</p>
+<pre class="text"><code>jD_cur = jD_ref + day_ini - day_ref + (itau+1)/day_step
+Mars:     jH_cur = jH_ref + hour_ini   + mod(itau+1,day_step)/day_step
+non-Mars: jH_cur = jH_ref + start_time + mod(itau+1,day_step)/day_step</code></pre>
+<p>若 <code>jH_cur &gt; 1.0</code>，则日期进一日并把小时减 1。Forward/backward Matsuno 段不会在这里刷新日期；Mars restart 写出还有单独的 <code>time_0</code> 小数修正，见 <a href="leapfrog-p-state-contract.html">leapfrog_p 状态契约</a> 和 <a href="dynredem-restart.html">dynredem-restart</a>。</p>
+<h2 id="门控标志">门控标志</h2>
+<p>454-471 行重新计算 <code>apphys/conser/apdiss</code>：</p>
+<table>
+<thead>
+<tr>
+<th>分支</th>
+<th><code>conser</code></th>
+<th><code>apdiss</code></th>
+<th><code>apphys</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>purmats</code></td>
+<td><code>MOD(itau,iconser)==0 .AND. forward</code></td>
+<td><code>MOD(itau,dissip_period)==0 .AND. .NOT.forward</code></td>
+<td><code>MOD(itau,iphysiq)==0 .AND. .NOT.forward .AND. physics</code></td>
+</tr>
+<tr>
+<td>非 <code>purmats</code></td>
+<td><code>MOD(itau,iconser)==0</code></td>
+<td><code>MOD(itau+1,dissip_period)==0 .AND. .NOT.forward</code></td>
+<td><code>MOD(itau+1,iphysiq)==0 .AND. physics</code></td>
+</tr>
+</tbody>
+</table>
+<p>随后还有两个覆盖：</p>
+<ul>
+<li><code>llm==1</code> 的 shallow-water 情况关闭 <code>apdiss</code>。</li>
+<li><code>NODYN</code> 编译分支关闭 <code>apdiss</code>。</li>
+</ul>
+<p>并行版还有一个串行页容易漏掉的细节：487-488 行再次把 <code>statcl=.FALSE.</code>、<code>conser=.FALSE.</code>，注释说明并行版不向 stdout 输出 control variables。因此 <code>conser</code> 的周期逻辑存在，但在当前并行实现中被强制关闭，不应把它解释成会实际触发 <code>sortvarc</code> 控制量输出。</p>
+<h2 id="lafin-与-physics">lafin 与 physics</h2>
+<p>851-855 行在进入 physics 前设置 <code>lafin</code>：</p>
+<table>
+<thead>
+<tr>
+<th>分支</th>
+<th>最后一次 physics 标志</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>purmats</code></td>
+<td><code>itau == itaufin .AND. .NOT.forward</code></td>
+</tr>
+<tr>
+<td>非 <code>purmats</code></td>
+<td><code>itau + 1 == itaufin</code></td>
+</tr>
+</tbody>
+</table>
+<p>只有 <code>apphys</code> 为真时才调用 physics。并行 physics 调度在 <code>calfis_p(lafin,jD_cur,jH_cur,...)</code> 后通过 tendency halo merge 和 <code>addfi_p(dtphys,leapf,forward,...)</code> 回写状态。这里的 <code>lafin</code> 是传给 physics 的“最终调用”语义，不是主循环退出条件；真正退出仍由 <code>itaufinp1</code> 或最终阶段写出后的状态转换决定。</p>
+<h2 id="非-purmats-状态机">非 purmats 状态机</h2>
+<p>非 <code>purmats</code> 分支从 1621 行开始，使用 Matsuno + leapfrog：</p>
+<ol type="1">
+<li>步末若 <code>forward .OR. leapf</code>，执行 <code>itau = itau + 1</code>。Backward Matsuno 段不增加 <code>itau</code>。</li>
+<li>若 <code>itau == itaufinp1</code>，结束并 <code>abort_gcm(...,0)</code>。</li>
+<li>若 <code>MOD(itau,iperiod)==0 .OR. itau==itaufin</code>，写 dynav/zonal 平均输出；<code>itau==itaufin</code> 时 <code>iav=1</code>。</li>
+<li>若 <code>MOD(itau,iecri)==0</code>，只在 <code>leapf</code> 或 backward Matsuno 阶段写 instant history；forward Matsuno 阶段不写。</li>
+<li>restart 门控先设 <code>lrestart=.false.</code>，最终步必写；否则 <code>ecritstart&gt;0</code> 且 <code>MOD(itau,ecritstart)==0</code> 时写。</li>
+<li>阶段转换：
+<ul>
+<li><code>MOD(itau,iperiod)==0</code>：回 label 1，下一轮从 forward 开始。</li>
+<li><code>MOD(itau-1,iperiod)==0</code> 且当前是 <code>forward</code>：转 backward，<code>forward=.FALSE.</code>, <code>leapf=.FALSE.</code>, 回 label 2。</li>
+<li><code>MOD(itau-1,iperiod)==0</code> 且当前不是 <code>forward</code>：进入第一个 leapfrog，<code>leapf=.TRUE.</code>, <code>dt=2*dtvr</code>, 回 label 2。</li>
+<li>其他情况：常规 leapfrog，<code>leapf=.TRUE.</code>, <code>dt=2*dtvr</code>, 回 label 2。</li>
+</ul></li>
+</ol>
+<p>这意味着 <code>iperiod</code> 同时控制 Matsuno restart 周期和 dynav/zonal 平均输出门。<code>iecri</code> 控制 instant history，但还要经过“只在 LF 或 backward Matsuno 输出”的额外阶段过滤。</p>
+<h2 id="purmats-状态机">purmats 状态机</h2>
+<p><code>purmats</code> 分支从 1873 行后开始，只在 forward/backward Matsuno 之间往返：</p>
+<ol type="1">
+<li>若当前 <code>forward</code>，先 <code>itau=itau+1</code>，再 <code>forward=.FALSE.</code>。</li>
+<li>forward 半步结束后若 <code>itau==itaufinp1</code>，停止。</li>
+<li>否则回 label 2 执行 backward 半步。</li>
+<li>backward 半步负责 dynav/history/restart 写出。</li>
+<li>写出和 restart 检查后设置 <code>forward=.TRUE.</code>，回 label 1。</li>
+</ol>
+<p><code>purmats</code> 下没有常规 <code>leapf=.TRUE.</code> 的 leapfrog 阶段；<code>apphys</code> 与 <code>apdiss</code> 都要求 <code>.NOT.forward</code>，因此只落在 backward 半步。</p>
+<h2 id="输出和-restart-门控">输出和 restart 门控</h2>
+<p>并行版两个分支的输出门控基本一致，但写出前需要 gather 到 root：</p>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>非 <code>purmats</code></th>
+<th><code>purmats</code></th>
+<th>并行写出约束</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bilan_dyn_p</code> / dynav</td>
+<td><code>MOD(itau,iperiod)==0 .OR. itau==itaufin</code></td>
+<td>同左，只在 backward 半步</td>
+<td><code>ok_dynzon</code> 或 <code>ok_dyn_ave</code> 后触发；dynav 前 gather 全场。</td>
+</tr>
+<tr>
+<td>instant history</td>
+<td><code>MOD(itau,iecri)==0</code> 且 <code>leapf</code> 或 backward Matsuno</td>
+<td><code>MOD(itau,iecri)==0</code>，发生在 backward 半步</td>
+<td><code>ok_dyn_ins</code> 时 gather 后 rank 0 调 <code>writehist</code>。</td>
+</tr>
+<tr>
+<td>restart</td>
+<td><code>itau==itaufin</code> 或 <code>ecritstart&gt;0</code> 且整除</td>
+<td>同左，只在 backward 半步</td>
+<td>master 调 <code>dynredem1_p</code>；Mars 与非 Mars 时间实参不同。</td>
+</tr>
+</tbody>
+</table>
+<p>Mars restart 时间在两个分支不同：</p>
+<ul>
+<li>非 <code>purmats</code> 中途/最终 restart 使用 <code>REAL(itau)/REAL(day_step) + time_0 - floor(time_0)</code>，最终 <code>ecritstart==0</code> 分支还减 <code>day_end-day_ini</code>。</li>
+<li><code>purmats</code> Mars restart 在 2047-2053 行使用 <code>REAL(itau)/REAL(day_step)</code> 或再减 <code>day_end-day_ini</code>，没有中途分支的 <code>time_0-floor(time_0)</code> 修正。</li>
+<li>非 Mars fallback 使用 <code>JH_cur</code>。</li>
+</ul>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>先判断 <code>purmats</code>，因为 <code>itau</code>、<code>apphys</code>、<code>apdiss</code> 和阶段转换规则都随它改变。</li>
+<li>非 <code>purmats</code> 下 backward 阶段不递增 <code>itau</code>；forward 和 leapfrog 阶段才递增。</li>
+<li><code>apphys</code> 非 <code>purmats</code> 看 <code>itau+1</code>，<code>purmats</code> 看 <code>itau</code> 且必须是 backward 半步。</li>
+<li><code>lafin</code> 只传给 physics，不能当作主循环退出标志。</li>
+<li><code>conser</code> 在并行版最终被强制清零；排查控制量 stdout 输出时不要照串行路径推断。</li>
+<li><code>True_itau</code> 适合对应日志迭代号，<code>itau</code> 适合对应模型时间、输出和 restart 门控。</li>
+<li>输出/restart 发生在阶段转换前；若输出缺字段，先查 <code>Gather_Field</code> 和 root-only 写出，再查时间门控。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>conser</code> 周期逻辑保留但随后被强制关闭，是否仍有历史配置依赖它的 stdout 控制量输出，需要结合旧并行版本或维护者意图确认。</li>
+<li><code>purmats</code> Mars restart 中途写出不加 <code>time_0-floor(time_0)</code>，而非 <code>purmats</code> 中途写出会加；该差异是源码事实，设计意图待确认。</li>
+<li><code>True_itau</code> 未在本例程内初始化，需由调用前状态或模块定义确认其初始值来源。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3dpar/leapfrog_p.html">dyn3dpar/leapfrog_p</a></li>
+<li><a href="leapfrog-p-state-contract.html">leapfrog_p 状态契约</a></li>
+<li><a href="leapfrog-time-scheduler.html">leapfrog 时间步调度</a></li>
+<li><a href="dynamics-control-logic-gates.html">动力控制和逻辑门控链</a></li>
+<li><a href="leapfrog-p-output-restart.html">leapfrog_p 输出和 restart</a></li>
+<li><a href="dynredem-restart.html">dynredem-restart</a></li>
+<li><a href="history-output-serial-parallel.html">history-output-serial-parallel</a></li>
+<li><a href="../themes/serial-parallel-dynamics.html">serial-parallel-dynamics</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

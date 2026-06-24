@@ -1,0 +1,418 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dynamics-time-integration - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a class="active" href="index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>themes/dynamics-time-integration.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="动力时间推进主题页">动力时间推进主题页</h1>
+<p>页面状态：父级主题页，整合 <code>gcm/conf_gcm/leapfrog</code> 支撑页和动力诊断页面。 源码范围：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code> 中 <code>dyn3d</code> 主链，并引用 MARS <code>phymars/nogcm</code> 与 <code>phymars/leapfrog_nogcm.F</code> 的实际消费边界。 Mars 运行参与度：必经 + 条件经过。Mars 3D <code>gcm</code> 经过 COMMON 6.3 <code>conf_gcm/leapfrog</code> 主链；Mars <code>nogcm</code> 类入口位于 MARS 树，但也消费 COMMON 状态模块和初始化接口。完整动力 tendency、tracer 输送、耗散、dynav/history/restart 由入口形态、编译选项和运行开关决定。</p>
+<h2 id="读法">读法</h2>
+<p>这个页面回答一个问题：Mars run 的“一个动力步”如何从配置参数变成 <code>leapfrog</code> 内部的动力、物理、耗散、诊断和 restart 调度。</p>
+<p>推荐阅读顺序：</p>
+<ol type="1">
+<li><a href="../routines/common-gcm-mars-run-entry.html">common-gcm-mars-run-entry</a>：从 <code>makelmdz_fcm -p mars gcm</code>、<code>run.def</code> 和 <code>start.nc</code> 进入主链。</li>
+<li><a href="../modules/dyn3d/conf_gcm.html">conf_gcm</a>：读取 <code>day_step/iperiod/iphysiq/nday/ndynstep/purmats/ecritstart</code> 等时间推进控制。</li>
+<li><a href="../routines/leapfrog-state-contract.html">leapfrog-state-contract</a>：确认 <code>ucov/vcov/teta/ps/masse/phis/q/time_0</code> 的状态契约。</li>
+<li><a href="../routines/leapfrog-time-scheduler.html">leapfrog-time-scheduler</a>：读 Matsuno forward/backward 和 leapfrog 的 label 调度。</li>
+<li>分段追踪：<a href="../routines/leapfrog-dynamics-transport.html">dynamics-transport</a>、<a href="../routines/leapfrog-physics-coupling.html">physics-coupling</a>、<a href="../routines/leapfrog-dissipation-conservation.html">dissipation-conservation</a>、<a href="../routines/leapfrog-output-restart.html">output-restart</a>。</li>
+</ol>
+<h2 id="总览">总览</h2>
+<pre class="text"><code>run.def
+  |
+  v
+conf_gcm
+  |-- day_step / nday / ndynstep / less1day
+  |-- iperiod / purmats
+  |-- iphysiq / nsplit_phys / iflag_phys
+  |-- dissip_period / iconser
+  |-- iecri / periodav / ecritstart
+  v
+gcm or nogcm entry
+  |-- infotrac_init + q allocation
+  |-- dynetat0(&quot;start.nc&quot;) or idealized init
+  |-- iniconst / inigeom / inidissip
+  |-- iniphysiq(..., dtphys, nsplit_phys, ...)
+  v
+leapfrog / leapfrog_nogcm
+  |-- Matsuno forward/backward reset by iperiod
+  |-- complete GCM: caldyn -&gt; caladvtrac -&gt; integrd
+  |-- physics gate: calfis -&gt; addfi
+  |-- dissipation gate: sponge -&gt; dissip
+  |-- output/restart gate: bilan_dyn, writehist, writedynav, dynredem1</code></pre>
+<h2 id="配置到调度的映射">配置到调度的映射</h2>
+<table>
+<thead>
+<tr>
+<th>配置/状态</th>
+<th>写入点</th>
+<th>影响的时间推进行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nday</code>, <code>less1day</code>, <code>fractday</code>, <code>ndynstep</code></td>
+<td><code>conf_gcm</code> -&gt; <code>control_mod</code></td>
+<td>决定 <code>itaufin</code>；<code>ndynstep&gt;0</code> 最终覆盖运行步数。</td>
+</tr>
+<tr>
+<td><code>day_step</code></td>
+<td><code>conf_gcm</code> -&gt; <code>control_mod</code></td>
+<td>决定 <code>dtvr=daysec/day_step</code>，也参与 Mars 日期和 restart 时间换算。</td>
+</tr>
+<tr>
+<td><code>iperiod</code></td>
+<td><code>conf_gcm</code> -&gt; <code>control_mod</code></td>
+<td>控制 Matsuno forward 重启周期，也参与平均/纬向诊断周期。</td>
+</tr>
+<tr>
+<td><code>purmats</code></td>
+<td><code>conf_gcm</code> -&gt; <code>logic_mod</code></td>
+<td>只在 forward/backward 间往返，不进入常规 leapfrog 步。</td>
+</tr>
+<tr>
+<td><code>iphysiq</code>, <code>iflag_phys</code>, <code>nsplit_phys</code></td>
+<td><code>conf_gcm</code> -&gt; <code>control_mod/logic_mod</code></td>
+<td>控制 <code>apphys</code>、<code>dtphys</code>、<code>iniphysiq</code> 和 <code>calfis/addfi</code> 调用。</td>
+</tr>
+<tr>
+<td><code>dissip_period</code>, <code>callsponge</code></td>
+<td><code>conf_gcm/inidissip</code></td>
+<td>控制 <code>apdiss</code>、<code>sponge</code> 和 <code>dissip</code> 段。</td>
+</tr>
+<tr>
+<td><code>iconser</code></td>
+<td><code>conf_gcm</code></td>
+<td>控制 <code>conser</code> 守恒诊断门。</td>
+</tr>
+<tr>
+<td><code>iecri</code>, <code>periodav</code>, <code>ok_dyn*</code>, <code>ecritstart</code></td>
+<td><code>conf_gcm</code></td>
+<td>控制 history/dynav、<code>bilan_dyn</code> 和中途 restart 写出。</td>
+</tr>
+<tr>
+<td><code>read_start</code>, <code>timestart</code>, <code>starttime</code>, <code>raz_date</code></td>
+<td><code>conf_gcm</code></td>
+<td>决定是否读 <code>start.nc</code> 及 restart 时间处理。</td>
+</tr>
+</tbody>
+</table>
+<p>复现时先把这些键对应到 <code>control_mod/logic_mod/temps_mod/comconst_mod</code>，再看 <code>leapfrog</code> 当前步的 <code>itau/forward/leapf</code> 状态。只知道 <code>day_step</code> 或 <code>iphysiq</code> 不足以判断一次 physics 是否会发生。</p>
+<h2 id="入口初始化">入口初始化</h2>
+<p>COMMON <code>gcm</code> 在进入 <code>leapfrog</code> 前做的关键工作：</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>作用</th>
+<th>主题影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>检查 <code>run.def</code></td>
+<td>缺失即 <code>abort_gcm</code></td>
+<td>时间推进参数必须来自运行目录。</td>
+</tr>
+<tr>
+<td><code>conf_gcm(99,.TRUE.)</code></td>
+<td>写运行长度、步长、physics、输出、restart 和开关</td>
+<td>后续所有调度门控的来源。</td>
+</tr>
+<tr>
+<td><code>infotrac_init</code> + <code>q</code> 分配</td>
+<td>确定 <code>nqtot</code> 和 tracer 表</td>
+<td><code>leapfrog</code>、<code>caladvtrac</code>、physics 和 history 都使用同一第三维。</td>
+</tr>
+<tr>
+<td><code>dynetat0("start.nc")</code> 或 <code>iniacademic</code></td>
+<td>读入或构造动力初态</td>
+<td>Mars 标准 3D run 通常依赖 <code>start.nc</code>。</td>
+</tr>
+<tr>
+<td><code>iniconst/inigeom/inifilr/inidissip</code></td>
+<td>初始化常量、几何、滤波和耗散参数</td>
+<td>physics、动力算子、耗散和输出都消费这些状态。</td>
+</tr>
+<tr>
+<td><code>iniphysiq</code></td>
+<td>把网格、常量、<code>dtphys/nsplit_phys</code> 交给 Mars physics</td>
+<td>physics 的 <code>calfis</code> 前置初始化。</td>
+</tr>
+</tbody>
+</table>
+<p>并行 <code>dyn3dpar/gcm</code> 有 MPI/OMP、band、halo 和并行 domain 初始化，但时间推进概念仍对应同一组控制参数。并行主循环见 <a href="../modules/dyn3dpar/leapfrog_p.html">leapfrog_p</a>，它在同一 Matsuno/leapfrog 门控上增加 <code>SetDistrib</code>、halo/swap、physics band 和 gather 写出约束。</p>
+<h2 id="matsunoleapfrog-调度">Matsuno/leapfrog 调度</h2>
+<p><code>leapfrog</code> 主循环不是单一 <code>do</code> 块，而是用 label 1/2 和逻辑标志管理阶段：</p>
+<table>
+<thead>
+<tr>
+<th>标志</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>forward</code></td>
+<td>Matsuno forward 步，<code>dt=dtvr</code>，保存上一时刻状态。</td>
+</tr>
+<tr>
+<td><code>leapf</code></td>
+<td>常规 leapfrog 步，<code>dt=2*dtvr</code>。</td>
+</tr>
+<tr>
+<td><code>purmats</code></td>
+<td>纯 Matsuno 模式，不进入常规 leapfrog。</td>
+</tr>
+<tr>
+<td><code>apphys</code></td>
+<td>当前步是否调用 physics。</td>
+</tr>
+<tr>
+<td><code>apdiss</code></td>
+<td>当前步是否施加耗散；nogcm 不使用。</td>
+</tr>
+<tr>
+<td><code>conser</code></td>
+<td>当前步是否做守恒诊断。</td>
+</tr>
+<tr>
+<td><code>lafin</code></td>
+<td>传给 physics 的最后一次调用标志。</td>
+</tr>
+</tbody>
+</table>
+<p>非 <code>purmats</code> 的直观顺序：</p>
+<pre class="text"><code>label 1: forward=.TRUE., leapf=.FALSE., dt=dtvr
+label 2: 执行当前 forward 步
+if MOD(itau-1, iperiod)==0:
+    backward: forward=.FALSE., leapf=.FALSE., dt=dtvr
+then:
+    leapfrog: forward=.FALSE., leapf=.TRUE., dt=2*dtvr
+every MOD(itau, iperiod)==0:
+    return to label 1</code></pre>
+<p>这也是为什么输出、physics 和耗散不能只按“每 N 步”理解：它们还受 forward/backward/leapfrog 阶段影响。</p>
+<h2 id="完整-gcm-的一步">完整 GCM 的一步</h2>
+<p>完整 <code>leapfrog.F</code> 的主体可按以下顺序理解：</p>
+<table>
+<thead>
+<tr>
+<th>段</th>
+<th>关键调用</th>
+<th>状态变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>压力/热力刷新</td>
+<td><code>pression</code>, <code>exner_hyb</code> 或 <code>exner_milieu</code>, <code>geopot</code></td>
+<td>从 <code>ps/teta/phis</code> 重算 <code>p/pk/phi</code>。</td>
+</tr>
+<tr>
+<td>动力 tendency</td>
+<td><code>caldyn</code></td>
+<td>计算 <code>du/dv/dteta/dp/w/pbaru/pbarv</code>。</td>
+</tr>
+<tr>
+<td>tracer 输送</td>
+<td><code>caladvtrac</code></td>
+<td>按 <code>iadv</code> 和 mass flux 更新 <code>dq</code>。</td>
+</tr>
+<tr>
+<td>状态积分</td>
+<td><code>integrd</code></td>
+<td>把动力 tendency 写回 <code>ucov/vcov/teta/q/ps/masse</code>。</td>
+</tr>
+<tr>
+<td>physics</td>
+<td><code>calfis -&gt; addfi</code></td>
+<td>Mars physics tendency 写回动力状态；之后必须刷新 <code>p/masse/pk</code>。</td>
+</tr>
+<tr>
+<td>耗散/sponge</td>
+<td><code>sponge</code>, <code>dissip</code></td>
+<td>风场耗散和 conservative heat correction。</td>
+</tr>
+<tr>
+<td>诊断/I/O</td>
+<td><code>bilan_dyn</code>, <code>writehist</code>, <code>writedynav</code>, <code>dynredem1</code></td>
+<td>输出 history/dynav/diagnostics/restart。</td>
+</tr>
+</tbody>
+</table>
+<p><code>caldyn</code>、<code>caladvtrac</code>、<code>integrd</code>、<code>dissip</code> 等具体数值公式由各支撑页展开；主题页只给调用顺序和状态传递。</p>
+<h2 id="physics-和-mars-日期">Physics 和 Mars 日期</h2>
+<p>physics 段由 <code>apphys</code> 控制。调用前要重算 pressure、Exner 和 geopotential，并构造传给 Mars physics 的日期：</p>
+<ul>
+<li>完整 GCM 对 Mars/generic 使用 <code>jD_cur=int(day_ini+itau/day_step)</code>。</li>
+<li>Mars 小时使用 <code>hour_ini + mod(itau,day_step)/day_step</code>，不是简单的 <code>itau+1</code>。</li>
+<li><code>calfis</code> 只产生 physics tendency；<code>addfi</code> 才把 <code>dufi/dvfi/dtetafi/dqfi/dpfi</code> 写回状态。</li>
+<li>physics 后若 <code>ps</code> 改变，必须重算 <code>p/masse/pk</code>，否则后续耗散、输出和 restart 会看到不一致状态。</li>
+</ul>
+<p>这解释了为什么动力时间推进主题和动力-物理接口主题相互依赖：时间门控在 COMMON <code>leapfrog</code>，physics 字段含义在 Mars physics。</p>
+<h2 id="耗散守恒和诊断">耗散、守恒和诊断</h2>
+<p>耗散只在完整 GCM 中由 <code>apdiss</code> 触发；nogcm 删除了这一段。完整路径中：</p>
+<ol type="1">
+<li><code>sponge</code> 如果启用，先于水平耗散执行。</li>
+<li><code>dissip</code> 产生 <code>dudis/dvdis/dtetadis</code>。</li>
+<li><code>dissip_conservative</code> 默认开启，把动能损失转成热力修正。</li>
+<li><code>conser</code> 和 <code>bilan_dyn</code> 等诊断在独立门控下输出守恒/通量信息。</li>
+</ol>
+<p><code>bilan_dyn</code> 不是主推进器，但它是复现中检查质量、动量、能量和通量趋势的重要输出点。串行见 <a href="../modules/dyn3d/bilan_dyn.html">bilan_dyn</a>，并行见 <a href="../modules/dyn3dpar/bilan_dyn_p.html">bilan_dyn_p</a>。</p>
+<h2 id="restarthistory-发生在哪里">restart/history 发生在哪里</h2>
+<p>时间推进内的输出与 H1 restart/I/O 主题衔接：</p>
+<table>
+<thead>
+<tr>
+<th>输出</th>
+<th>门控</th>
+<th>关键页</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>instant history</td>
+<td><code>MOD(itau,iecri)==0</code> 且非半步状态</td>
+<td><a href="../routines/leapfrog-output-restart.html">leapfrog-output-restart</a></td>
+</tr>
+<tr>
+<td>dynav / zonal diagnostic</td>
+<td><code>MOD(itau,iperiod)==0</code> 或最终步</td>
+<td><a href="../routines/history-output-serial-parallel.html">history-output-serial-parallel</a></td>
+</tr>
+<tr>
+<td>restart</td>
+<td>最终步或 <code>ecritstart&gt;0</code> 中途步</td>
+<td><a href="restart-io.html">restart-io</a></td>
+</tr>
+<tr>
+<td>physics diagfi/stats/XIOS</td>
+<td>physics 配置和 Mars 输出开关</td>
+<td><a href="../routines/history-xios-getin-boundary.html">history-xios-getin-boundary</a></td>
+</tr>
+</tbody>
+</table>
+<p><code>writehist</code> 不在 forward Matsuno 半步写出，避免输出半步状态。完整 GCM 的 Mars restart 时间还包含 <code>time_0</code> 和 <code>day_end-day_ini</code> 修正，不能直接用 <code>itau/day_step</code> 替代。</p>
+<h2 id="mars-nogcm-差异">Mars nogcm 差异</h2>
+<p>Mars <code>nogcm</code> 类路径保留时间调度和 physics 骨架，但不是完整动力：</p>
+<table>
+<thead>
+<tr>
+<th>完整 GCM</th>
+<th>nogcm</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>caldyn</code> 计算动力 tendency</td>
+<td>tendency 置零，不调用完整动力段。</td>
+</tr>
+<tr>
+<td><code>caladvtrac</code> 做 tracer 输送</td>
+<td>不调用 tracer advection。</td>
+</tr>
+<tr>
+<td><code>integrd</code> 写回动力 tendency</td>
+<td>不调用 <code>integrd</code>。</td>
+</tr>
+<tr>
+<td><code>sponge/dissip</code> 可执行耗散</td>
+<td>删除 <code>apdiss</code> 和耗散段。</td>
+</tr>
+<tr>
+<td>支持 <code>ecritstart</code> 中途 restart</td>
+<td>只在最终步写 restart。</td>
+</tr>
+<tr>
+<td>状态变化来自 dynamics + physics + dissipation</td>
+<td>状态变化主要来自 physics tendency 和 pressure/CO2/teta 松弛混合。</td>
+</tr>
+</tbody>
+</table>
+<p>因此按 Mars 运行判断“哪些地球/完整动力部分不走”时，关键不是文件名里有 <code>leapfrog</code>，而是入口到底是完整 <code>gcm</code> 还是 Mars <code>nogcm</code> 变体。</p>
+<h2 id="guidenudging-边界">guide/nudging 边界</h2>
+<p><code>conf_gcm</code> 读取 <code>ok_guide</code>，COMMON <code>gcm</code> 和 MARS <code>phymars/nogcm</code> 可在 <code>planet_type=="generic"</code> 且 <code>ok_guide</code> 时读取 <code>relax.nc</code>；完整 <code>leapfrog</code> 中也有 Earth/IOIPSL 条件下的 <code>guide_main</code> 路径和 generic <code>uforc</code> nudging 分支。串行 <a href="../modules/dyn3d/guide_mod.html">guide_mod</a> 与并行 <a href="../modules/dyn3dpar/guide_p_mod.html">guide_p_mod</a> 已按 6.3 源码确认：<code>guide_main</code> 调用不属于 Mars 标准 3D 主线，因此本主题只把 guide 作为条件边界记录：</p>
+<ul>
+<li>Mars 标准 3D 运行是否启用 guide 取决于具体配置。</li>
+<li>guide/nudging 的串行父文件页见 <a href="../modules/dyn3d/guide_mod.html">guide_mod</a>，并行父文件页见 <a href="../modules/dyn3dpar/guide_p_mod.html">guide_p_mod</a>；输入读取、压力层插值、湿度限制和状态叠加支撑页分别见 <a href="../routines/guide-input-fields.html">guide-input-fields</a>、<a href="../routines/guide-interpolation-pressure.html">guide-interpolation-pressure</a> 和 <a href="../routines/guide-tendency-application.html">guide-tendency-application</a>。</li>
+<li>本页不把 guide 作为 Mars 主时间推进的必经段。</li>
+</ul>
+<h2 id="复现检查表">复现检查表</h2>
+<ol type="1">
+<li>从 <code>run.def</code> 抽出 <code>day_step/nday/ndynstep/iperiod/iphysiq/purmats/dissip_period/ecritstart</code>。</li>
+<li>判断入口是完整 <code>gcm</code>、并行 <code>gcm</code>，还是 Mars <code>nogcm</code>。</li>
+<li>确认 <code>q</code> 的第三维来自 <code>infotrac%nqtot</code>，而不是物理 tracer 个数。</li>
+<li>对单步问题，先确定当前步是 forward、backward 还是 leapfrog。</li>
+<li>对 physics 问题，检查 <code>apphys</code> 和 Mars 日期 <code>jD_cur/jH_cur</code>，再追 <code>calfis/addfi</code>。</li>
+<li>对耗散问题，确认不是 nogcm，并检查 <code>dissip_period/callsponge/dissip_conservative</code>。</li>
+<li>对输出或 restart 问题，先看 <code>iecri/periodav/ecritstart</code>，再回到 <a href="restart-io.html">restart-io</a>。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>Mars 生产配置中完整 <code>gcm</code>、并行 <code>gcm</code> 和 Mars <code>nogcm</code> 的使用比例需由具体运行脚本确认。</li>
+<li><code>guide_mod/guide_p_mod</code> 已确认主要是 Earth/IOIPSL 条件路径和 Mars/generic <code>relax.nc</code> 边界；若运行分支有本地补丁，仍需结合具体源码再核对。</li>
+<li><code>dissip_conservative</code> 对 <code>dtetadis</code> 的逐行热力修正仍需由 <code>dissip.F</code> 深度页确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../routines/common-gcm-mars-run-entry.html">common-gcm-mars-run-entry</a></li>
+<li><a href="../modules/dyn3d/gcm.html">gcm</a></li>
+<li><a href="../modules/dyn3dpar/leapfrog_p.html">leapfrog_p</a></li>
+<li><a href="../modules/dyn3d/conf_gcm.html">conf_gcm</a></li>
+<li><a href="../modules/dyn3d/guide_mod.html">guide_mod</a></li>
+<li><a href="../modules/dyn3dpar/guide_p_mod.html">guide_p_mod</a></li>
+<li><a href="../routines/leapfrog-state-contract.html">leapfrog-state-contract</a></li>
+<li><a href="../routines/leapfrog-time-scheduler.html">leapfrog-time-scheduler</a></li>
+<li><a href="../routines/leapfrog-dynamics-transport.html">leapfrog-dynamics-transport</a></li>
+<li><a href="../routines/leapfrog-physics-coupling.html">leapfrog-physics-coupling</a></li>
+<li><a href="../routines/leapfrog-dissipation-conservation.html">leapfrog-dissipation-conservation</a></li>
+<li><a href="../routines/leapfrog-output-restart.html">leapfrog-output-restart</a></li>
+<li>COMMON 6.3 已删除 <code>leapfrog_nogcm.F</code>；旧版差异后续集中说明。</li>
+<li><a href="../routines/caldyn-serial-parallel.html">caldyn-serial-parallel</a></li>
+<li><a href="../routines/advtrac-serial-parallel.html">advtrac-serial-parallel</a></li>
+<li><a href="../routines/integrd-serial-parallel.html">integrd-serial-parallel</a></li>
+<li><a href="../modules/dyn3d/bilan_dyn.html">bilan_dyn</a></li>
+<li><a href="restart-io.html">restart-io</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

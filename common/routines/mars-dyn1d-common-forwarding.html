@@ -1,0 +1,287 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mars-dyn1d-common-forwarding - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/mars-dyn1d-common-forwarding.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-dyn1d-common-直接转发契约">Mars dyn1d COMMON 直接转发契约</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.MARS\libf\phymars\dyn1d
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dynphy_lonlat</code></pre>
+<p>Mars 运行参与度：<code>接口兼容</code>。<code>phymars/dyn1d</code> 是 Mars 1D physics driver 的编译目录，不走 3D <code>gcm -&gt; leapfrog</code> 主链；但它通过一批“一行路径文件”把 COMMON 动力状态、垂直坐标、tracer、并行占位和 dyn-phys 接口暴露给 <code>testphys1d</code>。这些文件本身不是独立实现，等价于在 Mars dyn1d 编译上下文中纳入对应 COMMON 源文件。</p>
+<h2 id="直接转发清单">直接转发清单</h2>
+<p>每个转发文件内容只有一行相对路径，形式为 <code>../../../../LMDZ.COMMON/...</code>。本页核验到 14 个目标文件均存在。</p>
+<table>
+<thead>
+<tr>
+<th>Mars dyn1d 文件</th>
+<th>COMMON 目标</th>
+<th>角色</th>
+<th>1D 链使用状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abort_gcm.F</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d\abort_gcm.F</code></td>
+<td>动力侧 abort 例程</td>
+<td><code>init_testphys1d_mod.F90</code> 在 orphan tracer 检查失败时调用。</td>
+</tr>
+<tr>
+<td><code>logic_mod.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d\logic_mod.F90</code></td>
+<td>动力逻辑开关模块</td>
+<td><code>init_testphys1d_mod.F90</code> 使用 <code>hybrid</code> 选择垂直坐标。</td>
+</tr>
+<tr>
+<td><code>comconst_mod.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\comconst_mod.F90</code></td>
+<td>COMMON 动力常量状态</td>
+<td>1D 目录暴露该模块；当前 <code>testphys1d</code> 主链主要使用 Mars physics 常量模块。</td>
+</tr>
+<tr>
+<td><code>comvert_mod.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\comvert_mod.F90</code></td>
+<td><code>ap/bp/aps/bps/pa/preff</code> 垂直坐标状态</td>
+<td><code>testphys1d</code> 和 <code>init_testphys1d_mod</code> 直接使用。</td>
+</tr>
+<tr>
+<td><code>control_mod.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\control_mod.F90</code></td>
+<td>3D GCM 控制状态</td>
+<td>1D 目录暴露接口；当前 1D 初始化不走 <code>control_mod</code> 主配置链。</td>
+</tr>
+<tr>
+<td><code>disvert_noterre.F</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\disvert_noterre.F</code></td>
+<td>非地球垂直离散构造</td>
+<td><code>init_testphys1d_mod.F90</code> 调用后再初始化 <code>vertical_layers_mod</code>。</td>
+</tr>
+<tr>
+<td><code>ener_mod.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\ener_mod.F90</code></td>
+<td>动力能量守恒状态</td>
+<td>1D 目录暴露接口；当前 1D 主链不写这些守恒量。</td>
+</tr>
+<tr>
+<td><code>infotrac.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\infotrac.F90</code></td>
+<td>tracer 名称、数量、父子关系状态</td>
+<td><code>init_testphys1d_mod</code> 写 <code>nqtot/tname/nqperes/nqfils</code>；<code>read_profile_mod</code> 读 <code>tname</code>。</td>
+</tr>
+<tr>
+<td><code>paramet.h</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\paramet.h</code></td>
+<td>动力维度 include</td>
+<td>支撑 COMMON 例程编译时的维度符号。</td>
+</tr>
+<tr>
+<td><code>comgeom.h</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\comgeom.h</code></td>
+<td>动力几何 common/include</td>
+<td>支撑 COMMON 例程编译时的几何符号。</td>
+</tr>
+<tr>
+<td><code>serre_mod.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3d_common\serre_mod.F90</code></td>
+<td>zoom/网格相关状态</td>
+<td>1D 目录暴露接口；当前 1D 主链未直接消费。</td>
+</tr>
+<tr>
+<td><code>mod_const_mpi.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3dpar\mod_const_mpi.F90</code></td>
+<td>MPI 通信器和常量</td>
+<td><code>testphys1d</code> 在 <code>CPP_XIOS</code> 下调用 <code>init_const_mpi</code>；<code>init_testphys1d_mod</code> 使用 <code>COMM_LMDZ</code>。</td>
+</tr>
+<tr>
+<td><code>parallel_lmdz.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dyn3dpar\parallel_lmdz.F90</code></td>
+<td>并行初始化抽象</td>
+<td><code>testphys1d</code> 在 <code>CPP_XIOS</code> 下调用 <code>init_parallel</code>。</td>
+</tr>
+<tr>
+<td><code>mod_interface_dyn_phys.F90</code></td>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat\mod_interface_dyn_phys.F90</code></td>
+<td>动力-物理接口初始化状态</td>
+<td><code>init_testphys1d_mod.F90</code> 调用 <code>init_interface_dyn_phys</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="本地-1d-文件边界">本地 1D 文件边界</h2>
+<p><code>phymars/dyn1d</code> 同时包含非转发的本地 Mars 1D 文件：</p>
+<table>
+<thead>
+<tr>
+<th>本地文件</th>
+<th>角色</th>
+<th>COMMON 转发关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>testphys1d.F90</code></td>
+<td>1D Mars physics driver，编译示例为 <code>makegcm -p mars -d 25 testphys1d</code>。</td>
+<td>使用转发的 <code>comvert_mod</code>, <code>mod_const_mpi</code>, <code>parallel_lmdz</code>。</td>
+</tr>
+<tr>
+<td><code>init_testphys1d_mod.F90</code></td>
+<td>1D 初始化主模块，读取 <code>traceur.def</code>、<code>run.def/callphys.def</code> 参数，初始化垂直层、网格、surface 和 physics state。</td>
+<td>使用转发的 <code>infotrac</code>, <code>comvert_mod</code>, <code>logic_mod</code>, <code>mod_const_mpi</code>, <code>mod_interface_dyn_phys</code>, <code>disvert_noterre</code>, <code>abort_gcm</code>。</td>
+</tr>
+<tr>
+<td><code>read_profile_mod.F90</code></td>
+<td>读取 <code>profile_&lt;tracer&gt;</code> 输入剖面，缺失时按 tracer 名称给默认值。</td>
+<td>使用转发的 <code>infotrac%tname</code>。</td>
+</tr>
+<tr>
+<td><code>profile_temp_mod.F90</code></td>
+<td>构造或读取 1D 温度剖面。</td>
+<td>不使用直接转发模块；使用 Mars physics 常量和 <code>getin</code>。</td>
+</tr>
+<tr>
+<td><code>writerestart1D_mod.F90</code></td>
+<td>写 <code>restart1D.txt</code>，包含 <code>ps/pa/preff</code>、tracer、风和温度剖面。</td>
+<td>接收由 <code>comvert_mod</code> 和 1D 初始化得到的 <code>pa/preff</code>，自身不 <code>USE</code> COMMON 转发模块。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="1d-初始化如何消费转发模块">1D 初始化如何消费转发模块</h2>
+<p><code>testphys1d.F90</code> 第 31-37 行说明该程序只运行 Martian GCM 的物理部分，需要 <code>testphys1d.def</code>、<code>callphys.def</code>、<code>run.def</code> 和垂直层文件。它不是普通 Mars 3D GCM，也不调用 COMMON 的 <code>gcm/leapfrog</code>。</p>
+<p>关键顺序：</p>
+<ol type="1">
+<li><code>testphys1d.F90</code> 第 98-100 行在 <code>CPP_XIOS</code> 下调用 <code>init_const_mpi</code> 和 <code>init_parallel</code>，这两个符号来自转发的 <code>mod_const_mpi.F90</code> 和 <code>parallel_lmdz.F90</code>。</li>
+<li><code>testphys1d.F90</code> 第 122-130 行通过 <code>getin('startfiles_1D',...)</code> 决定是否读 1D restart/startfi。</li>
+<li><code>init_testphys1d_mod.F90</code> 第 177-220 行读取 <code>traceur.def</code>，设置 <code>nqtot=nq</code> 并分配 <code>tname</code>；第 222-253 行构造父子 tracer 关系，orphan tracer 时调用转发的 <code>abort_gcm</code>。</li>
+<li><code>init_testphys1d_mod.F90</code> 第 255-259 行初始化 physics distribution，XIOS 编译时把转发的 <code>COMM_LMDZ</code> 传入。</li>
+<li>第 296-310 行读取 <code>day_step/ndt</code> 并计算 <code>dttestphys=daysec/steps_per_sol</code>。这里使用的是 Mars physics <code>time_phylmdz_mod</code>，不是 COMMON <code>control_mod</code>。</li>
+<li>第 314-339 行设置 <code>psurf/pa/preff/hybrid</code>，调用转发的 <code>disvert_noterre</code> 填充 <code>ap/bp/aps/bps</code>，再调用 <code>vertical_layers_mod:init_vertical_layers</code>。</li>
+<li>第 423-433 行调用 <code>init_interface_dyn_phys</code>、<code>init_regular_lonlat</code>、<code>init_geometry</code>、<code>phys_state_var_init</code>、<code>conf_phys</code> 和 <code>initracer</code>，让 1D 列满足 physics 接口期望。</li>
+<li>第 435-440 行如果 <code>conf_phys</code> 设置的 <code>iphysiq</code> 不是 1，则强制设为 1，因为 1D driver 每一步都调用 physics。</li>
+</ol>
+<p>伪流程：</p>
+<pre class="text"><code>testphys1d
+  -&gt; optional init_const_mpi/init_parallel
+  -&gt; getin startfiles_1D
+  -&gt; init_testphys1d
+       -&gt; read traceur.def into infotrac state
+       -&gt; init_physics_distribution(COMM_LMDZ or 1)
+       -&gt; getin day0/time/day_step/ndt/psurf/hybrid
+       -&gt; disvert_noterre -&gt; comvert_mod ap/bp/aps/bps
+       -&gt; init_vertical_layers
+       -&gt; init_interface_dyn_phys + geometry + phys_state_var_init
+       -&gt; conf_phys + initracer
+  -&gt; timestep loop calls physiq every step
+  -&gt; optional writerestart1D</code></pre>
+<h2 id="与-3d-mars-gcm-的差异">与 3D Mars GCM 的差异</h2>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>3D Mars GCM</th>
+<th>dyn1d/testphys1d</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>入口</td>
+<td><code>gcm</code> 或 <code>nogcm</code>，进入 COMMON/Mars leapfrog 链。</td>
+<td><code>testphys1d</code>，只驱动一个物理列。</td>
+</tr>
+<tr>
+<td>控制状态</td>
+<td><code>conf_gcm/defrun_new</code> 写 <code>control_mod/logic_mod/temps_mod/comconst_mod</code>。</td>
+<td>多数控制量由 <code>getin</code> 和 Mars physics state 写入；<code>control_mod</code> 只是转发暴露。</td>
+</tr>
+<tr>
+<td>行星常量</td>
+<td>从 Mars 配置、start/control 表和 <code>iniconst</code> 链进入动力/物理。</td>
+<td><code>init_testphys1d_mod</code> 第 131-170 行手写 Mars 常量。</td>
+</tr>
+<tr>
+<td>垂直坐标</td>
+<td>3D 初始化和 restart/control 表共同决定。</td>
+<td><code>getin("hybrid")</code> 后调用转发的 <code>disvert_noterre</code>，再用 <code>init_vertical_layers</code> 同步 physics 层。</td>
+</tr>
+<tr>
+<td>tracer 状态</td>
+<td>COMMON <code>infotrac_init</code> 读取并扩展 tracer。</td>
+<td>1D 自己读取 <code>traceur.def</code>，手动写 <code>nqtot/tname/nqperes/nqfils</code>。</td>
+</tr>
+<tr>
+<td>并行</td>
+<td>3D 并行入口由 <code>dyn3dpar</code> decomposition/halo 驱动。</td>
+<td>只在 XIOS/physics distribution 接口上需要 <code>COMM_LMDZ</code> 和初始化占位。</td>
+</tr>
+<tr>
+<td>restart</td>
+<td><code>dynetat0/dynredem</code> 和 Mars <code>phyetat0/phyredem</code>。</td>
+<td>文本 <code>start1D.txt/restart1D.txt</code> 加可选 <code>startfi.nc</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现注意事项">复现注意事项</h2>
+<ul>
+<li>这些一行文件必须被看作 COMMON 源码的别名，不要把它们写成 Mars 本地实现。</li>
+<li><code>comconst_mod/control_mod/ener_mod/serre_mod/comgeom.h/paramet.h</code> 在 dyn1d 目录中可见，不等于当前 1D 主流程都会读写其全部状态。</li>
+<li>1D <code>nqtot/tname</code> 初始化绕过 <code>infotrac_init</code>，但仍使用 COMMON <code>infotrac</code> 模块变量。因此 tracer 文件格式错误会影响 <code>read_profile_mod</code> 和 physics tracer 初始化。</li>
+<li><code>disvert_noterre</code> 的输出进入 <code>comvert_mod</code>，随后 <code>vertical_layers_mod</code> 同步到 physics；如果 <code>hybrid/psurf/pa/preff</code> 不一致，<code>plev/play</code> 会直接影响 <code>physiq</code> 输入。</li>
+<li><code>CPP_XIOS</code> 打开时，<code>mod_const_mpi/parallel_lmdz</code> 转发路径变成运行前置；不开 XIOS 时，physics distribution 用串行 communicator 值 <code>1</code>。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="mars-utility-common-state-consumers.html">Mars utility COMMON 状态消费链</a></li>
+<li><a href="common-state-control-contract.html">COMMON 状态/控制契约</a></li>
+<li><a href="vertical-discretization.html">垂直离散构造</a></li>
+<li><a href="mod-const-mpi.html">mod_const_mpi 串并行通信常量对照</a></li>
+<li><a href="infotrac-mars-consumers.html">infotrac Mars 消费方</a></li>
+<li><a href="../modules/dynphy_lonlat/mod_interface_dyn_phys.html">动力-物理接口索引模块</a></li>
+<li><a href="../modules/phy_common/geometry-grid-layers.html">物理侧几何、regular lon-lat、垂直层和网格互转</a></li>
+<li><a href="../reference/mars-common-map.html">MARS-COMMON 文件/功能映射表</a></li>
+<li><a href="../reference/common-consumer-map.html">COMMON 使用方映射表</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

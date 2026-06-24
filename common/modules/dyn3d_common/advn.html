@@ -1,0 +1,359 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>advn - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3d_common/advn.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="dyn3d_commonadvnf">dyn3d_common/advn.F</h1>
+<p>页面状态：TASK-0063 完成。</p>
+<p>源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\advn.F</code></p>
+<p>Mars 运行参与度：条件经过 + 历史兼容。<code>advn</code> 是 F. Hourdin 的 pseudo amont tracer advection 内核，串行 <code>dyn3d/advtrac.F90</code> 在 <code>iadv=12</code> 和 <code>iadv=13</code> 时调用；但 6.3 <code>infotrac_init</code> 最终只放行 <code>iadv=10/14/0</code>，Mars 标准配置通常在初始化阶段阻断 <code>12/13</code>。并行 <code>dyn3dpar/advtrac_p.F90</code> 中保留的 advn 分支位于 <code>GOTO 1234</code> 之后，不可达。</p>
+<h2 id="文件角色">文件角色</h2>
+<p><code>advn.F</code> 是一个 977 行 Fortran 77 文件，包含主例程 <code>advn</code> 和六个方向子例程。它与 <code>vlsplt</code> 同样采用 x-y-z-y-x 的 directional split，但不是外部调用短小 <code>advx/advy/advz</code> 内核；它在文件内完成：</p>
+<ul>
+<li>界面值重构：<code>advnqx/advnqy/advnqz</code>。</li>
+<li>质量加权 tracer 通量计算：<code>advnx/advny/advnz</code>。</li>
+<li>同步更新工作质量场 <code>zm/masse</code> 和 tracer 混合比 <code>zq/q</code>。</li>
+<li>极区或边界特殊处理：E-W CFL&gt;1 的 semi-Lagrangian 累加、N-S 极点面积加权、垂直顶底无通量。</li>
+</ul>
+<h2 id="子例程清单">子例程清单</h2>
+<table>
+<thead>
+<tr>
+<th>子例程</th>
+<th style="text-align: right;">源码行</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>advn</code></td>
+<td style="text-align: right;">4</td>
+<td>主调度：预处理通量、极点均一化、复制工作数组，执行 x-y-z-y-x split，再写回 <code>q</code>。</td>
+</tr>
+<tr>
+<td><code>advnqx</code></td>
+<td style="text-align: right;">141</td>
+<td>E-W 方向界面重构，含 4 阶修正、单调约束、极值退化和经向周期包裹。</td>
+</tr>
+<tr>
+<td><code>advnqy</code></td>
+<td style="text-align: right;">258</td>
+<td>N-S 方向界面重构，极点行强制退化为原格点值。</td>
+</tr>
+<tr>
+<td><code>advnqz</code></td>
+<td style="text-align: right;">354</td>
+<td>垂直方向界面重构，顶层和底层边界退化为 1 阶。</td>
+</tr>
+<tr>
+<td><code>advnx</code></td>
+<td style="text-align: right;">470</td>
+<td>E-W 通量计算和质量/tracer 更新；唯一消费主例程 <code>mode</code> 参数。</td>
+</tr>
+<tr>
+<td><code>advny</code></td>
+<td style="text-align: right;">735</td>
+<td>N-S 通量计算和更新；极点行用 <code>SSUM</code> 和 <code>aire/apol*</code> 重新分配质量。</td>
+</tr>
+<tr>
+<td><code>advnz</code></td>
+<td style="text-align: right;">865</td>
+<td>垂直通量计算和更新；<code>w_mq(:,1)</code> 与 <code>w_mq(:,llm+1)</code> 置零。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用入口和-mode">调用入口和 mode</h2>
+<p>串行 <code>advtrac.F90</code> 对每个 tracer 的 <code>iadv(iq)</code> 分支如下：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;"><code>iadv</code></th>
+<th style="text-align: right;"><code>advn</code> mode</th>
+<th>上游处理</th>
+<th>调用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;"><code>12</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td><code>adaptdt(iadv, dtbon, n, pbarug, massem)</code> 后循环 <code>n</code> 次</td>
+<td><code>call advn(q(1,1,iq), massem, wg, pbarug, pbarvg, dtbon, 1)</code></td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>13</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td>同上</td>
+<td><code>call advn(q(1,1,iq), massem, wg, pbarug, pbarvg, dtbon, 2)</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>mode=1</code> 和 <code>mode=2</code> 的区别只在 <code>advnx</code> 的 E-W 通量公式中直接生效。三个重构子例程内部各自有 <code>save mode</code> 和 <code>data mode/1/</code>，不读取主例程实参；<code>advny</code> 和 <code>advnz</code> 也没有 mode 分支，始终使用抛物线式通量公式。</p>
+<p>并行 <code>advtrac_p.F90</code> 先调用 <code>vlspltgen_p(q,iadv,2.,...)</code>，随后 <code>GOTO 1234</code>，因此后续 <code>iadv=12/13</code> 分支虽然有 <code>stop 'advtrac : schema non parallelise'</code> 和 <code>call advn(...)</code> 文本，但当前源码控制流不会到达。</p>
+<h2 id="主例程数据流">主例程数据流</h2>
+<p><code>advn(q,masse,w,pbaru,pbarv,pdt,mode)</code> 的实参含义：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>维度</th>
+<th>读写</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q</code></td>
+<td><code>ip1jmp1,llm</code></td>
+<td>INOUT</td>
+<td>tracer 混合比；主例程开始复制到 <code>zq</code>，结束写回。</td>
+</tr>
+<tr>
+<td><code>masse</code></td>
+<td><code>ip1jmp1,llm</code></td>
+<td>IN</td>
+<td>输入气柱质量；复制到工作数组 <code>zm</code>，原实参本身不写回。</td>
+</tr>
+<tr>
+<td><code>w</code></td>
+<td><code>ip1jmp1,llm</code></td>
+<td>IN</td>
+<td>垂直质量通量；转换成 <code>mw(:,1:llm)</code>，并把 <code>mw(:,llm+1)=0</code>。</td>
+</tr>
+<tr>
+<td><code>pbaru</code></td>
+<td><code>ip1jmp1,llm</code></td>
+<td>IN</td>
+<td>E-W 质量通量，乘 <code>0.5*pdt</code> 后进入 <code>mu</code>。</td>
+</tr>
+<tr>
+<td><code>pbarv</code></td>
+<td><code>ip1jm,llm</code></td>
+<td>IN</td>
+<td>N-S 质量通量，乘 <code>0.5*pdt</code> 后进入 <code>mv</code>。</td>
+</tr>
+<tr>
+<td><code>pdt</code></td>
+<td>scalar</td>
+<td>IN</td>
+<td>当前子步长。</td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td>scalar</td>
+<td>IN</td>
+<td>只影响 <code>advnx</code> 的通量公式：1 为分段线性，2 为抛物线修正。</td>
+</tr>
+</tbody>
+</table>
+<p>主例程先设置：</p>
+<pre class="text"><code>zzpbar = 0.5 * pdt
+zzw    = pdt
+mu = pbaru * zzpbar
+mv = pbarv * zzpbar
+mw = w * zzw
+mw(:,llm+1) = 0</code></pre>
+<p>随后把南北极点同一纬圈内的 <code>q*masse</code> 做质量平均，使极点行在 split 前保持经向一致。工作数组 <code>zq</code> 和 <code>zm</code> 分别复制 <code>q</code> 与 <code>masse</code>，后续各方向子例程在 <code>zm</code> 上更新质量，在 <code>zq</code> 上更新混合比。</p>
+<p>核心 split 顺序是：</p>
+<pre class="text"><code>advnqx -&gt; advnx
+advnqy -&gt; advny
+advnqz -&gt; advnz
+advnqy -&gt; advny
+advnqx -&gt; advnx</code></pre>
+<p>这是一条对称的 x-y-z-y-x 顺序。E-W 和 N-S 通量用半步水平质量通量 <code>0.5*pdt</code>，垂直通量用整步 <code>pdt</code>。结束时 <code>zq</code> 写回 <code>q</code>，并重新复制每行周期边界 <code>q(ij+iim,l)=q(ij,l)</code>。</p>
+<h2 id="界面重构">界面重构</h2>
+<p>三个 <code>advnq*</code> 子例程共用同一思路：</p>
+<ol type="1">
+<li>从相邻格点差分构造界面候选值。</li>
+<li>使用 <code>1/12</code> 系数做 4 阶中心修正。</li>
+<li>将界面值夹在相邻格点的 <code>min/max</code> 之间。</li>
+<li>若相邻斜率变号，认为格点处有极值，界面左右值退化为格点中心值。</li>
+<li>在方向边界处用周期或一阶退化处理。</li>
+</ol>
+<p>方向差异：</p>
+<table>
+<thead>
+<tr>
+<th>方向</th>
+<th>接口值</th>
+<th>边界处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E-W</td>
+<td><code>qg/qd</code></td>
+<td>经向周期复制；<code>GOTO 8888</code> 跳过一段旧的极值传播补丁。</td>
+</tr>
+<tr>
+<td>N-S</td>
+<td><code>qs/qn</code></td>
+<td>南北极点行强制 <code>qs=qn=q</code>。</td>
+</tr>
+<tr>
+<td>垂直</td>
+<td><code>qh/qb</code></td>
+<td>顶底边界 <code>zqw(:,2)=q(:,1)</code>、<code>zqw(:,llm)=q(:,llm)</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="通量更新">通量更新</h2>
+<p><code>advnx/advny/advnz</code> 都先把中心值相对上下游界面值的位置转成 sigma 参数，再用 <code>|flux_mass|/cell_mass</code> 决定通量积分长度。</p>
+<h3 id="e-w-advnx">E-W: advnx</h3>
+<p><code>advnx</code> 使用 <code>qg/qd</code> 和 <code>u_m</code>。当 <code>mode=1</code> 时，通量公式是分段线性；当 <code>mode</code> 不是 1 时，源码进入抛物线修正公式。若 <code>|u_m| &gt; masse</code>，<code>ladvplus</code> 标记该界面为 CFL&gt;1，常规通量先置零，再在 <code>n0 &gt; 1</code> 时进入 semi-Lagrangian 累加：沿经向逐格点扣减 <code>masse</code>，完整跨越的格点直接累计 <code>q*masse</code>，最后一个未完整跨越的格点按同一 sigma 公式补足。</p>
+<p>注意：源码条件是 <code>if(n0.gt.1)</code>，不是 <code>n0.gt.0</code>。因此只有一个 CFL&gt;1 点时不会进入特殊累加，支撑页将其列为复现风险。</p>
+<h3 id="n-s-advny">N-S: advny</h3>
+<p><code>advny</code> 使用 <code>qs/qn</code> 和 <code>v_m</code>，没有 <code>mode</code> 分支。普通格点按 <code>masse + v_m(ij) - v_m(ij-iip1)</code> 更新。北极和南极行单独处理：</p>
+<ul>
+<li>用 <code>SSUM</code> 汇总穿过极冠边界的 tracer 通量和质量通量。</li>
+<li>先更新极点代表格的 <code>q</code>。</li>
+<li>再按 <code>aire(ij)/apoln</code> 或 <code>aire(ij)/apols</code> 把新质量分配给极点行各经向格。</li>
+</ul>
+<p>这让极点行保持同一个 tracer 值，但质量按格点面积分布。</p>
+<h3 id="垂直-advnz">垂直: advnz</h3>
+<p><code>advnz</code> 使用 <code>qh/qb</code> 和 <code>w_m</code>。垂直方向的 <code>prec</code> 在非 CRAY 平台为 <code>1.e-13</code>，比水平的 <code>1.e-15</code> 更宽松；<code>zsigb</code> 还会被裁剪到 <code>[0,1]</code>。顶底通量强制：</p>
+<pre class="text"><code>w_mq(:,1) = 0
+w_mq(:,llm+1) = 0</code></pre>
+<p>然后每层按 <code>masse + w_m(:,l+1) - w_m(:,l)</code> 更新质量和 tracer。</p>
+<h2 id="静态状态和诊断">静态状态和诊断</h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>位置</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>testcpu</code></td>
+<td>主例程 <code>save</code></td>
+<td>默认 <code>.false.</code>；CRAY 条件下可打印 split 时间。</td>
+</tr>
+<tr>
+<td><code>temps1/temps2/temps3</code></td>
+<td>主例程 <code>save</code></td>
+<td>CRAY timing 累计量，当前普通构建不活跃。</td>
+</tr>
+<tr>
+<td><code>qmin/qmax</code></td>
+<td>主例程 <code>data</code></td>
+<td>只服务已注释的 <code>minmaxq</code> 调试调用。</td>
+</tr>
+<tr>
+<td><code>prec</code></td>
+<td><code>advnx/advny/advnz</code></td>
+<td>平台相关阈值；水平非 CRAY 为 <code>1.e-15</code>，垂直非 CRAY 为 <code>1.e-13</code>。</td>
+</tr>
+<tr>
+<td>局部 <code>mode</code></td>
+<td><code>advnqx/advnqy/advnqz</code></td>
+<td>固定 <code>1</code>，不受主例程 mode 实参影响。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mars-可达性">Mars 可达性</h2>
+<table>
+<thead>
+<tr>
+<th>路径</th>
+<th>源码事实</th>
+<th>当前 Mars 标准可达性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>串行 <code>advtrac</code> + <code>iadv=12</code></td>
+<td>调用 <code>advn(...,mode=1)</code></td>
+<td>通常否，<code>infotrac_init</code> 白名单阻断。</td>
+</tr>
+<tr>
+<td>串行 <code>advtrac</code> + <code>iadv=13</code></td>
+<td>调用 <code>advn(...,mode=2)</code></td>
+<td>通常否，<code>infotrac_init</code> 白名单阻断。</td>
+</tr>
+<tr>
+<td>并行 <code>advtrac_p</code></td>
+<td><code>vlspltgen_p</code> 后 <code>GOTO 1234</code>，旧分支不可达</td>
+<td>否。</td>
+</tr>
+<tr>
+<td>旧 Mars/generic <code>iniadvtrac</code></td>
+<td>仅支持旧 <code>iadv=1..4</code>，不映射到 <code>12/13</code></td>
+<td>否。</td>
+</tr>
+</tbody>
+</table>
+<p>因此本页主要用于理解保留的历史输送格式、读懂旧配置或本地补丁下的串行路径。不要从 <code>advn.F</code> 存在推断 6.3 Mars 默认会执行该格式。</p>
+<h2 id="复现检查点">复现检查点</h2>
+<ol type="1">
+<li>先确认 tracer 初始化是否允许 <code>iadv=12/13</code>；标准 6.3 <code>infotrac_init</code> 会拒绝它们。</li>
+<li>若只复现 <code>advn.F</code> 单元测试，需要传入与 LMDZ 一致的 <code>ip1jmp1/ip1jm/iip1/iim/llm</code> 维度和 <code>comgeom</code> 极点面积。</li>
+<li>水平质量通量进入 <code>advn</code> 后会乘 <code>0.5*pdt</code>，垂直通量乘 <code>pdt</code>。</li>
+<li><code>masse</code> 实参不会被主例程最终写回；内部工作质量 <code>zm</code> 只用于本次 split。</li>
+<li><code>mode=2</code> 只改变 E-W <code>advnx</code>，N-S 和垂直方向仍按抛物线公式运行。</li>
+<li>检查 CFL&gt;1 时要特别注意 <code>n0.gt.1</code> 条件和 <code>prt_level &gt; 9</code> 诊断。</li>
+<li>极点行在进入 split 前会按 <code>q*masse</code> 质量平均，N-S 更新后又按面积重新分配质量。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../routines/advn-dispatcher-order.html">advn 调度顺序</a></li>
+<li><a href="../../routines/advn-stencil-reconstruction.html">advn 界面重构</a></li>
+<li><a href="../../routines/advn-flux-updates.html">advn 通量更新</a></li>
+<li><a href="../../routines/advtrac-serial-parallel.html">advtrac 串并行调度</a></li>
+<li><a href="../../routines/infotrac-advection-schemes.html">infotrac advection scheme</a></li>
+<li><a href="infotrac.html">infotrac</a></li>
+<li><a href="ppm3d.html">ppm3d</a></li>
+<li><a href="prather.html">prather</a></li>
+<li><a href="pentes_ini.html">pentes_ini</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>advny/advnz</code> 没有 mode 分支是否为有意设计，需要数值实验或维护者说明确认。</li>
+<li><code>advnz</code> 使用 <code>1.e-13</code> 阈值而水平使用 <code>1.e-15</code> 的物理/数值理由，源码未说明。</li>
+<li><code>n0.gt.1</code> 是否刻意跳过单个 CFL&gt;1 点，源码注释不足。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

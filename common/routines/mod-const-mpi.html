@@ -1,0 +1,155 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mod-const-mpi - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/mod-const-mpi.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mod_const_mpi-串并行对照">mod_const_mpi 串并行对照</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>dyn3d\mod_const_mpi.F90
+dyn3dpar\mod_const_mpi.F90</code></pre>
+<p>Mars 运行参与度：<code>必经/条件经过</code>。串行动力入口通过 <code>COMM_LMDZ</code> 与物理初始化保持接口一致；并行动力入口调用并行版本初始化 MPI/XIOS/OASIS 通信环境。</p>
+<h2 id="例程定位">例程定位</h2>
+<p><code>mod_const_mpi</code> 统一提供 <code>COMM_LMDZ</code> 和 <code>MPI_REAL_LMDZ</code>。串行目录中的实现是占位模块，直接把两个整数设为 0；并行目录中的实现负责初始化 MPI 线程级别、设置 <code>COMM_LMDZ</code>，并在 XIOS 或 coupled ocean 分支中取得正确 communicator。</p>
+<h2 id="对照表">对照表</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>串行 <code>dyn3d/mod_const_mpi.F90</code></th>
+<th>并行 <code>dyn3dpar/mod_const_mpi.F90</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>行数</td>
+<td>16</td>
+<td>104</td>
+</tr>
+<tr>
+<td>全局状态</td>
+<td><code>COMM_LMDZ</code>, <code>MPI_REAL_LMDZ</code></td>
+<td><code>COMM_LMDZ</code>, <code>MPI_REAL_LMDZ</code>，均为 <code>SAVE</code></td>
+</tr>
+<tr>
+<td>初始化例程</td>
+<td><code>Init_const_mpi</code></td>
+<td><code>Init_const_mpi</code>, <code>Init_mpi</code></td>
+</tr>
+<tr>
+<td>MPI 初始化</td>
+<td>无，设为 0</td>
+<td><code>MPI_INIT_THREAD(MPI_THREAD_SERIALIZED,...)</code></td>
+</tr>
+<tr>
+<td>XIOS</td>
+<td>无</td>
+<td><code>wxios_init("LMDZ", outcom=COMM_LMDZ)</code> 或无 outcom 分支</td>
+</tr>
+<tr>
+<td>OASIS/Prism</td>
+<td>无</td>
+<td><code>type_ocean=='couple'</code> 且 <code>CPP_COUPLE/CPP_OMCT</code> 时使用 coupler communicator</td>
+</tr>
+</tbody>
+</table>
+<h2 id="串行逻辑">串行逻辑</h2>
+<p><code>dyn3d/mod_const_mpi.F90</code> 只定义同名模块和同名 <code>Init_const_mpi</code>，将 <code>COMM_LMDZ=0</code>、<code>MPI_REAL_LMDZ=0</code>。这让串行 <code>gcm.F90</code>、<code>nogcm.F90</code> 和物理初始化代码可以使用同一个 <code>COMM_LMDZ</code> 接口，而不要求真实 MPI 环境。</p>
+<h2 id="并行逻辑">并行逻辑</h2>
+<ol type="1">
+<li><code>Init_const_mpi</code> 先在 OpenMP master 区读取 <code>type_ocean</code>，默认值为 <code>'force '</code>。</li>
+<li>若 <code>type_ocean=='couple'</code>，coupled 分支尝试通过 XIOS 或 Prism/OASIS 获取 <code>COMM_LMDZ</code>，并设置 <code>MPI_REAL_LMDZ=MPI_REAL8</code>。</li>
+<li>否则调用 <code>Init_mpi</code>。</li>
+<li><code>Init_mpi</code> 在 <code>CPP_MPI</code> 下调用 <code>MPI_INIT_THREAD</code>，要求 <code>MPI_THREAD_SERIALIZED</code>。</li>
+<li>若 MPI 库提供的线程级别不足，会打印警告，但源码没有直接 abort。</li>
+<li>设置 <code>COMM_LMDZ=MPI_COMM_WORLD</code>、<code>MPI_REAL_LMDZ=MPI_REAL8</code>。</li>
+<li>若启用 <code>CPP_XIOS</code>，初始化 XIOS 并把 <code>COMM_LMDZ</code> 作为输出 communicator。</li>
+</ol>
+<h2 id="调用关系">调用关系</h2>
+<table>
+<thead>
+<tr>
+<th>调用方/使用方</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dyn3dpar/gcm.F</code></td>
+<td><code>USE mod_const_mpi, ONLY: init_const_mpi</code>，并行入口初始化通信常量。</td>
+</tr>
+<tr>
+<td><a href="../modules/dyn3dpar/parallel_lmdz.html">parallel_lmdz</a></td>
+<td><code>USE mod_const_mpi</code> 读取 <code>COMM_LMDZ</code> 执行 rank/size、barrier、halo、gather。</td>
+</tr>
+<tr>
+<td>COMMON <code>dyn3d/gcm.F90</code>, MARS <code>phymars/nogcm.F90</code></td>
+<td><code>USE mod_const_mpi, ONLY: COMM_LMDZ</code>，传给物理初始化接口。</td>
+</tr>
+<tr>
+<td><code>dynphy_lonlat/calfis_p.F</code></td>
+<td>使用并行 communicator 进入物理接口。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>并行构建中必须先调用 <code>Init_const_mpi</code>，再调用 <code>parallel_lmdz/init_parallel</code>，否则 <code>COMM_LMDZ</code> 尚未可用。</li>
+<li>OpenMP+MPI 组合假定 MPI 库至少支持 <code>MPI_THREAD_SERIALIZED</code>。</li>
+<li><code>type_ocean='couple'</code> 会改变 communicator 来源；coupled 实验不能简单假定 <code>MPI_COMM_WORLD</code>。</li>
+<li>串行占位值 0 是接口兼容值，不代表真实通信域。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>CPP_COUPLE</code> 与 <code>CPP_OMCT</code> 在 Mars 当前构建中的实际启用情况需由 arch/build 任务确认。</li>
+<li><code>MPI_REAL_LMDZ</code> 定义后实际使用点需在 halo/mod_hallo 页继续追踪。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3dpar/parallel_lmdz.html">parallel_lmdz</a></li>
+<li><a href="../modules/dyn3d/index.html">dyn3d 总览</a></li>
+<li><a href="../modules/dynphy_lonlat/index.html">dynphy_lonlat 总览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

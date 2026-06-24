@@ -1,0 +1,133 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>advxyz-parallel-common - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/advxyz-parallel-common.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="advxpadvypadvzp-prather-内核组">advxp/advyp/advzp Prather 内核组</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\advxp.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\advyp.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\advzp.F</code></pre>
+<h2 id="文件定位">文件定位</h2>
+<p>这组三个固定格式 Fortran 文件实现 Prather/SOM moments 输送的 x/y/z 方向内核。名称带 <code>p</code>，但文件位于 <code>dyn3d_common</code>，用于 COMMON 的 Prather moments 方向搬运逻辑，而不是 <code>dyn3dpar</code> 专属 MPI halo 层。</p>
+<h2 id="mars-运行参与度">Mars 运行参与度</h2>
+<pre class="text"><code>条件经过：Mars 或 COMMON 运行选择 Prather/SOM moments advection scheme 时经过；默认 tracer 输送是否进入本组取决于 `infotrac` 的 `iadv` 配置和上层调度。</code></pre>
+<h2 id="例程清单">例程清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>例程</th>
+<th>方向</th>
+<th>主要通量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>advxp.F</code></td>
+<td>648</td>
+<td><code>ADVXP</code></td>
+<td>x</td>
+<td><code>PBARU(iip1,jjp1,llm)</code></td>
+</tr>
+<tr>
+<td><code>advyp.F</code></td>
+<td>651</td>
+<td><code>ADVYP</code></td>
+<td>y</td>
+<td><code>PBARV(iip1,jjm,llm)</code></td>
+</tr>
+<tr>
+<td><code>advzp.F</code></td>
+<td>376</td>
+<td><code>ADVZP</code></td>
+<td>z</td>
+<td><code>W(iip1,jjp1,llm)</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="共同接口">共同接口</h2>
+<p>三者都接收 limiter 开关、方向时间步、质量 <code>SM</code>、均值 <code>S0</code> 和 moments/slopes 数组 <code>SSX/SY/SZ/SSXX/SSXY/SSXZ/SYY/SYZ/SZZ</code>，并按方向通量把 moments 在相邻格点间移动。<code>ntra</code> 是 tracer 维度，调用方需要保证传入数组已经按 Prather 格式初始化。</p>
+<h2 id="advxp"><code>ADVXP</code></h2>
+<p><code>ADVXP</code> 处理周期 x 方向。它把 <code>pbaru(i,j,l)</code> 反转到 <code>ugri(i,j,llm+1-l)</code>，对每个垂直层和纬向行按 <code>PBARU</code> 的符号决定从左格或右格向相邻格搬运 moments。代码包含极区扩展区聚合逻辑，通过 <code>NUM(K)</code> 把极点附近多个 i 方向格点合并处理。</p>
+<p>复现要点：</p>
+<ul>
+<li>x 方向是周期边界，<code>I=1</code> 与 <code>I=IIM</code> 相邻。</li>
+<li><code>LIMIT</code> 为真时会限制 x 方向 moments，防止更新后出现负质量或过冲。</li>
+<li>末尾保留 <code>sqi</code> 诊断打印/检查痕迹，主要用于调试守恒误差。</li>
+</ul>
+<h2 id="advyp"><code>ADVYP</code></h2>
+<p><code>ADVYP</code> 处理 y 方向。它把 <code>pbarv(i,j,l)</code> 转为 <code>vgri(i,j,llm+1-l)=-pbarv(i,j,l)</code>，并将南北边界外的 <code>vgri(:,0,:)</code> 与 <code>vgri(:,jjp1,:)</code> 设为 0。极点附近存在专门的 north/south moments 汇总变量，例如 <code>sbms/sfms/sfzs/sbmn/sfmn/sfzn</code>。</p>
+<p>复现要点：</p>
+<ul>
+<li>y 通量符号在构造 <code>vgri</code> 时取负，因此方向判断不能直接套用 <code>pbarv</code> 原符号。</li>
+<li>极点行不是普通纬向行，代码对极区 moments 做汇总再分配。</li>
+<li>limiter 主要作用于 <code>SY/SYY/SSXY/SYZ</code> 相关项。</li>
+</ul>
+<h2 id="advzp"><code>ADVZP</code></h2>
+<p><code>ADVZP</code> 处理垂直方向。它把 <code>w(i,j,l)</code> 转为 <code>wgri(i,j,llm+1-l)</code>，并设置 <code>wgri(:,:,0)=0</code>。主循环遍历垂直接口 <code>L=1,NIV-1</code>，根据 <code>WGRI</code> 符号在 <code>L</code> 和 <code>LP=L+1</code> 两层之间搬运 moments。</p>
+<p>复现要点：</p>
+<ul>
+<li>垂直索引在入口通量到内部 <code>wgri</code> 时反向。</li>
+<li>limiter 主要作用于 <code>SZ/SZZ/SSXZ/SYZ</code>。</li>
+<li>注释中对符号和 <code>0:llm</code> 边界有历史疑问，复现时应以当前数组赋值和循环边界为准。</li>
+</ul>
+<h2 id="与串行-advxadvyadvz-的区别">与串行 <code>advx/advy/advz</code> 的区别</h2>
+<p><code>advx/advy/advz</code> 是 slope/limiter advection 内核；本页的 <code>advxp/advyp/advzp</code> 维护 Prather moments，包括一阶和二阶矩数组。两组都在 <code>dyn3d_common</code>，但不能互换：调用方必须按 tracer advection scheme 选择对应格式。</p>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>本组在当前 Mars 默认 tracer 配置中是否实际启用，需要结合 <code>infotrac</code> 的 <code>iadv</code> 和上层 advection 分支核对。</li>
+<li><code>ADVZP</code> 注释中的符号疑问应在具体测试或原始算法说明中确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="advxyz-serial.html">串行 advx/advy/advz 内核组</a></li>
+<li><a href="../modules/dyn3d_common/prather.html">Prather moments 输送格式</a></li>
+<li><a href="advtrac-serial-parallel.html">tracer advection 调度串并行对照</a></li>
+<li><a href="infotrac-advection-schemes.html">infotrac advection schemes</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

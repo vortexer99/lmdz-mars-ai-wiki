@@ -1,0 +1,159 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>program-options - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/misc/program-options.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="program_optionsf90">program_options.F90</h1>
+<p>页面状态：6.3 返工完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\program_options.F90</code>。 Mars 运行参与度：必经入口前置层；串行/并行 Mars GCM 均调用。</p>
+<h2 id="文件定位">文件定位</h2>
+<p><code>program_options</code> 是 6.3 新增 command-line option parser。它不读取 <code>run.def</code>，而是遍历 Fortran argv，在模型配置前处理 option。</p>
+<h2 id="符号与依赖">符号与依赖</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>parse_args</code></td>
+<td style="text-align: right;">37</td>
+<td>主 parser。</td>
+</tr>
+<tr>
+<td><code>command_argument_count</code></td>
+<td style="text-align: right;">68</td>
+<td>参数个数。</td>
+</tr>
+<tr>
+<td><code>get_command_argument</code></td>
+<td style="text-align: right;">73, 83</td>
+<td>读取 option 和 <code>--version</code> 可选文件名。</td>
+</tr>
+<tr>
+<td><code>print_pgrm_version</code></td>
+<td style="text-align: right;">97-101</td>
+<td>输出 build provenance。</td>
+</tr>
+<tr>
+<td><code>--add-sso</code></td>
+<td style="text-align: right;">106</td>
+<td>设置 SSO 开关。</td>
+</tr>
+<tr>
+<td><code>--auto-exit</code></td>
+<td style="text-align: right;">110-112</td>
+<td>调 job helper。</td>
+</tr>
+</tbody>
+</table>
+<p>依赖 <code>version_control:print_pgrm_version</code>、<code>job:get_job_id/get_job_timelimit</code> 和 <code>abort_gcm</code>。</p>
+<h2 id="option-表">Option 表</h2>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>行为</th>
+<th>Mars 边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--help</code></td>
+<td>打印帮助文本。</td>
+<td>任意入口可触发。</td>
+</tr>
+<tr>
+<td><code>--version [file]</code></td>
+<td>有文件名则写该文件，否则写默认 provenance 文件。</td>
+<td>Mars 二进制留档推荐使用。</td>
+</tr>
+<tr>
+<td><code>--add-sso</code></td>
+<td><code>add_sso=.true.</code>。</td>
+<td>帮助文本限定 Mars <code>start2archive</code>。</td>
+</tr>
+<tr>
+<td><code>--auto-exit</code></td>
+<td>查询 scheduler timelimit，设置 <code>job:timewall</code>。</td>
+<td>帮助文本限定 PEM；COMMON 6.3 不再包含 <code>libf/evolution</code>。</td>
+</tr>
+<tr>
+<td>未知 option</td>
+<td><code>abort_gcm</code>。</td>
+<td>早于 <code>run.def</code> 失败。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="调用方">调用方</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th style="text-align: right;">行号</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>libf/dyn3d/gcm.F90</code></td>
+<td style="text-align: right;">146</td>
+</tr>
+<tr>
+<td><code>libf/dyn3dpar/gcm.F</code></td>
+<td style="text-align: right;">160</td>
+</tr>
+</tbody>
+</table>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../../themes/runtime-options-build-provenance.html">runtime-options-build-provenance</a></li>
+<li><a href="../../architecture/build-provenance-version-control.html">build-provenance-version-control</a></li>
+<li><a href="job.html">job</a></li>
+<li><a href="../../routines/gcm-runtime-option-entry.html">gcm-runtime-option-entry</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

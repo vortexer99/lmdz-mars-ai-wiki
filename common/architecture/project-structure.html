@@ -1,0 +1,200 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>project-structure - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a class="active" href="project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>architecture/project-structure.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="lmdzcommon-项目结构">LMDZ.COMMON 项目结构</h1>
+<h2 id="路径">路径</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON</code></pre>
+<h2 id="职责">职责</h2>
+<p><code>LMDZ.COMMON</code> 是 LMDZ 系列行星模式共享的源码树。本 wiki 只覆盖 <code>LMDZ.MARS</code> 运行会经过、条件经过，或为了 MARS 接口兼容必须保留的 COMMON 路径。源码根目录包含构建脚本、平台配置、IOIPSL 安装脚本和 <code>libf/</code> Fortran 源码。</p>
+<p>Mars 运行参与度：<code>条件经过</code>。MARS 运行可通过构建链组合 COMMON 的动力、公共接口和工具代码；MARS 源码中还存在 <code>phymars/dyn1d</code> 到 COMMON 文件的直接路径转发。</p>
+<h2 id="目录内容">目录内容</h2>
+<table>
+<thead>
+<tr>
+<th>子目录/文件</th>
+<th>类型</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>arch/</code></td>
+<td>平台配置目录</td>
+<td>提供不同机器、编译器、MPI/OMP 组合的 <code>.fcm</code>、<code>.path</code>、<code>.env</code> 配置。</td>
+</tr>
+<tr>
+<td><code>ioipsl/</code></td>
+<td>外部依赖安装脚本</td>
+<td>按平台安装或配置 IOIPSL，供 NetCDF、日历和 <code>getin</code> 相关路径使用。</td>
+</tr>
+<tr>
+<td><code>libf/</code></td>
+<td>Fortran 源码目录</td>
+<td>动力、动力-物理接口、公共物理层、IO/数值工具和滤波实现。</td>
+</tr>
+<tr>
+<td><code>bld.cfg</code></td>
+<td>FCM 构建配置</td>
+<td>约束构建系统使用的源目录、预处理和对象组织。</td>
+</tr>
+<tr>
+<td><code>build_gcm</code></td>
+<td>构建入口脚本</td>
+<td>辅助构建 GCM 可执行程序。</td>
+</tr>
+<tr>
+<td><code>create_make_gcm</code></td>
+<td>makefile 生成脚本</td>
+<td>生成或协调 GCM 构建所需 make 规则。</td>
+</tr>
+<tr>
+<td><code>makelmdz</code>, <code>makelmdz_fcm</code></td>
+<td>构建脚本</td>
+<td>面向 LMDZ/FCM 的构建入口。</td>
+</tr>
+<tr>
+<td><code>Licence_CeCILL_V2-*.txt</code></td>
+<td>许可证</td>
+<td>CeCILL 许可证文本。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与其他目录的关系">与其他目录的关系</h2>
+<table>
+<thead>
+<tr>
+<th>相关目录</th>
+<th>关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LMDZ.MARS</code></td>
+<td>MARS 通过构建链和若干直接路径转发使用 COMMON 的公共动力、接口和工具文件。</td>
+</tr>
+<tr>
+<td><code>LMDZ.COMMON\libf\dyn3d_common</code></td>
+<td>串行/并行动力共享的常量、状态、初始化、restart、算子和输送例程。</td>
+</tr>
+<tr>
+<td><code>LMDZ.COMMON\libf\dyn3d</code></td>
+<td>串行动力入口、配置、主循环和串行 helper。</td>
+</tr>
+<tr>
+<td><code>LMDZ.COMMON\libf\dyn3dpar</code></td>
+<td>并行动力入口和 MPI/halo/decomposition 路径，本批只在总览中提及，未写专页。</td>
+</tr>
+<tr>
+<td><code>LMDZ.COMMON\libf\dynphy_lonlat</code></td>
+<td>lon-lat 动力与物理之间的数据映射和行星专用接口边界。</td>
+</tr>
+<tr>
+<td><code>LMDZ.COMMON\libf\evolution</code></td>
+<td>当前登记为范围排除；无 MARS 正常运行路径证据。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="关键文件">关键文件</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>libf\dyn3d\gcm.F90</code></td>
+<td>串行 GCM program 入口，读取配置、初始化状态并进入 <code>leapfrog</code>。</td>
+</tr>
+<tr>
+<td><code>libf\dyn3d\conf_gcm.F90</code></td>
+<td>串行运行控制变量和 <code>run.def</code>/<code>getin</code> 配置读取中心。</td>
+</tr>
+<tr>
+<td><code>libf\dyn3d_common\dynetat0.F90</code></td>
+<td>从 <code>start.nc</code> 读取动力初始状态，包含 Mars 的 planeto start 处理。</td>
+</tr>
+<tr>
+<td><code>libf\dyn3d_common\inigeom.F</code></td>
+<td>构造动力网格几何、面积、伸长系数和 Coriolis 相关数组。</td>
+</tr>
+<tr>
+<td><code>libf\dynphy_lonlat\mod_interface_dyn_phys.F90</code></td>
+<td>MARS dyn1d 直接转发的动力-物理接口状态模块。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="典型流程">典型流程</h2>
+<ol type="1">
+<li>构建脚本读取平台配置和源目录设置，把 <code>libf/</code> 下的 COMMON 源码与行星侧源码组合。</li>
+<li>COMMON 6.3 串行动力入口从 <code>dyn3d/gcm.F90</code> 进入；入口先解析 runtime options，再读取 <code>run.def</code> 配置，初始化 tracer、restart、网格、耗散、I/O 和物理接口。</li>
+<li><code>dyn3d_common</code> 提供初始化状态、几何、垂直坐标、差分算子、输送和 restart 读写。</li>
+<li><code>dynphy_lonlat</code> 在 lon-lat 网格上衔接动力和物理；Venus/Titan 子目录是行星专用变体，本 wiki 不为其写专页。</li>
+</ol>
+<h2 id="复现要点">复现要点</h2>
+<ul>
+<li>复现 COMMON 行为不能只读 COMMON 源码，还要查 MARS 侧调用点；但 COMMON 6.3 已删除 <code>dyn3d/nogcm.F90</code> 和 <code>leapfrog_nogcm.F</code>，Mars 专用同类入口不在当前 COMMON 正文展开。</li>
+<li><code>arch/</code> 和顶层构建脚本决定实际编译哪些目录，但本页不展开 build 细节；构建链有独立任务 <code>TASK-0009</code>。</li>
+<li><code>evolution/</code>、<code>phyvenus/</code>、<code>phytitan.old/</code> 已按登记表标注为非 Mars 路径或边界说明，不应扩写普通专页。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>COMMON 串行 <code>dyn3d/gcm.F90</code> 在当前 Mars 常规生产运行中是否直接作为入口使用，还是主要作为接口兼容和构建候选路径保留，需要结合具体 make 配置确认。</li>
+<li><code>phy_common</code> 中各并行和 XIOS 文件对 Mars 的参与度需要后续从构建清单和 MARS 物理调用链逐项确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/libf-overview.html">libf 总览</a></li>
+<li><a href="../modules/dyn3d_common/index.html">dyn3d_common 总览</a></li>
+<li><a href="../modules/dyn3d/index.html">dyn3d 总览</a></li>
+<li><a href="../modules/dynphy_lonlat/index.html">dynphy_lonlat 总览</a></li>
+<li><a href="../reference/mars-common-map.html">MARS-COMMON 文件/功能映射表</a></li>
+<li><a href="../reference/common-consumer-map.html">COMMON 使用方映射表</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

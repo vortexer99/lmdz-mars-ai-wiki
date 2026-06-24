@@ -1,0 +1,883 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>index - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="assets/wiki.css">
+  <script type="module" src="assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a class="active" href="index.html">主页</a>
+        <a href="architecture/project-structure.html">架构</a>
+        <a href="modules/libf-overview.html">模块</a>
+        <a href="themes/index.html">主题</a>
+        <a href="routines/index.html">例程</a>
+        <a href="reference/file-index.html">文件索引</a>
+        <a href="reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="index.html">LMDZ.COMMON Wiki</a>
+      <span>index.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="lmdzcommon-wiki">LMDZ.COMMON Wiki</h1>
+<p>本 wiki 的目标是帮助读者理解并复现 <code>LMDZ.COMMON 6.3</code> 中 <code>LMDZ.MARS</code> 运行会经过或必须保持接口兼容的公共动力、并行、I/O、网格和动力-物理接口代码逻辑。非 Mars 正常运行路径不纳入任务范围；6.3 已删除的 COMMON 文件不再作为当前 wiki 页面维护。</p>
+<p>源码只读目录：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code></p>
+<h2 id="阅读路径推荐">阅读路径推荐</h2>
+<table>
+<thead>
+<tr>
+<th>我想了解...</th>
+<th>推荐顺序</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>COMMON 的目录结构和角色</td>
+<td><a href="reference/version-6.3-baseline.html">version-6.3-baseline</a> -&gt; <code>architecture/project-structure.md</code> -&gt; <code>modules/libf-overview.md</code></td>
+</tr>
+<tr>
+<td>GCM 主流程</td>
+<td><a href="themes/dynamics-time-integration.html">themes/dynamics-time-integration.md</a> -&gt; <code>routines/common-gcm-mars-run-entry.md</code> -&gt; <code>modules/dyn3d/gcm.md</code> -&gt; <code>modules/dyn3d/conf_gcm.md</code></td>
+</tr>
+<tr>
+<td>串行和并行动力差异</td>
+<td><a href="themes/serial-parallel-dynamics.html">themes/serial-parallel-dynamics.md</a> -&gt; <code>modules/dyn3d/index.md</code> -&gt; <code>modules/dyn3dpar/index.md</code></td>
+</tr>
+<tr>
+<td>输送和 advection</td>
+<td><a href="themes/transport-advection.html">themes/transport-advection.md</a> -&gt; <code>routines/advtrac-serial-parallel.md</code> -&gt; <code>modules/dyn3d/vlsplt.md</code> -&gt; <code>modules/dyn3dpar/vlspltgen_p.md</code></td>
+</tr>
+<tr>
+<td>动力-物理耦合</td>
+<td><a href="themes/dynphys-interface.html">themes/dynphys-interface.md</a> -&gt; <code>modules/dynphy_lonlat/index.md</code> -&gt; <code>modules/phy_common/index.md</code></td>
+</tr>
+<tr>
+<td>restart 和历史输出</td>
+<td><a href="themes/restart-io.html">themes/restart-io.md</a> -&gt; dynetat/dynredem/inithist/writehist/ioipsl 页面</td>
+</tr>
+<tr>
+<td>MARS 和 COMMON 的对应关系</td>
+<td><a href="reference/mars-common-map.html">mars-common-map</a> -&gt; <a href="reference/common-consumer-map.html">common-consumer-map</a></td>
+</tr>
+<tr>
+<td>某个源码文件</td>
+<td><code>reference/file-index.md</code></td>
+</tr>
+<tr>
+<td>某个符号或配置入口</td>
+<td><a href="reference/symbol-index.html">reference/symbol-index.md</a></td>
+</tr>
+<tr>
+<td>当前还剩哪些待确认点</td>
+<td><a href="reference/pending-confirmation-triage.html">reference/pending-confirmation-triage.md</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="architecture">Architecture</h2>
+<table>
+<thead>
+<tr>
+<th>页面</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="architecture/project-structure.html">project-structure.md</a></td>
+<td>项目结构总览。</td>
+</tr>
+<tr>
+<td><a href="architecture/build-and-arch.html">build-and-arch.md</a></td>
+<td>build 脚本、arch 配置和 FCM/make 构建链。</td>
+</tr>
+<tr>
+<td><a href="architecture/ioipsl-build-mars-contract.html">ioipsl-build-mars-contract.md</a></td>
+<td>IOIPSL 安装脚本、<code>makelmdz_fcm -io</code> 和 Mars I/O 构建契约。</td>
+</tr>
+<tr>
+<td><a href="architecture/makelmdz-fcm-mars-paths.html">makelmdz-fcm-mars-paths.md</a></td>
+<td><code>makelmdz_fcm -p mars gcm</code> 的 COMMON/MARS 源码路径和 FCM source groups。</td>
+</tr>
+<tr>
+<td><a href="architecture/build-provenance-version-control.html">build-provenance-version-control.md</a></td>
+<td>6.3 <code>makelmdz_fcm</code> 生成 <code>version_control.F90</code>、<code>--version</code> 输出和构建溯源。</td>
+</tr>
+<tr>
+<td><a href="architecture/arch-ioipsl-6.3-platforms.html">arch-ioipsl-6.3-platforms.md</a></td>
+<td>6.3 新增 arch 平台、NetCDF config 工具和 IOIPSL install 脚本变化。</td>
+</tr>
+<tr>
+<td><a href="architecture/arch-env-mars-run.html">arch-env-mars-run.md</a></td>
+<td><code>arch.env/.fcm/.path</code> 与 Mars deftank run 脚本的环境、MPI/OMP 和 restart 链契约。</td>
+</tr>
+<tr>
+<td><a href="architecture/makelmdz-target-output-naming.html">makelmdz-target-output-naming.md</a></td>
+<td><code>gcm/newstart/start2archive/testphys1d</code> target、suffix、<code>bin/</code> 输出名和 deftank 可执行名匹配。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="modules">Modules</h2>
+<p>每个模块页都必须标注 <code>Mars 运行参与度</code>。<code>phyvenus</code>、<code>phytitan.old</code> 等非 Mars 路径只在映射表中说明；<code>libf/evolution</code> 在 6.3 已删除。</p>
+<table>
+<thead>
+<tr>
+<th>页面</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="modules/libf-overview.html">libf-overview.md</a></td>
+<td><code>libf/</code> 总览。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3d_common/index.html">dyn3d_common/index.md</a></td>
+<td>串/并行共用动力内核。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3d/index.html">dyn3d/index.md</a></td>
+<td>串行动力入口和调度。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3d/leapfrog.html">dyn3d/leapfrog.md</a></td>
+<td>6.3 串行 Matsuno/leapfrog 主循环和 Mars/非 Mars restart 时间分支。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3d/guide_mod.html">dyn3d/guide_mod.md</a></td>
+<td>串行 guide/nudging 模块：配置、输入、插值、状态叠加、诊断输出和 Mars 边界。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3d/interp_horiz.html">dyn3d/interp_horiz.md</a></td>
+<td>LMDZ scalar 网格面积交叠水平插值，支撑 Mars surface/archive/MONS 数据重网格。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3d/vlsplt.html">dyn3d/vlsplt.md</a></td>
+<td>串行 Van Leer split transport，解释 <code>iadv=10</code>、x-y-z-y-x split、父子 tracer 递归和三方向边界。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3d/vlspltqs.html">dyn3d/vlspltqs.md</a></td>
+<td>串行饱和水汽 Van Leer split 输送。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3d/bilan_dyn.html">dyn3d/bilan_dyn.md</a></td>
+<td>串行动力守恒与 history 诊断。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3dpar/index.html">dyn3dpar/index.md</a></td>
+<td>并行动力目录总览，覆盖入口、配置、主循环、decomposition、halo、bands、输送、I/O 和 Mars 并行边界。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3dpar/gcm.html">dyn3dpar/gcm.md</a></td>
+<td>并行 GCM 入口、MPI/OMP 初始化和主调度。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3dpar/conf_gcm.html">dyn3dpar/conf_gcm.md</a></td>
+<td>并行 GCM 配置读取、并行专用开关、耗散/sponge/zoom 状态写入和串并行差异。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3dpar/leapfrog_p.html">dyn3dpar/leapfrog_p.md</a></td>
+<td>并行 Matsuno/leapfrog 主循环、band 切换、halo、physics、耗散和 restart。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3dpar/guide_p_mod.html">dyn3dpar/guide_p_mod.md</a></td>
+<td>并行 guide/nudging 模块：<code>guide_plevs</code>、局部分布、halo、root 输出和 Mars 边界。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3dpar/vlsplt_p.html">dyn3dpar/vlsplt_p.md</a></td>
+<td>并行 Van Leer split transport；解释 band、halo、OMP、父子 tracer 和串并行边界。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3dpar/bilan_dyn_p.html">dyn3dpar/bilan_dyn_p.md</a></td>
+<td>并行动力守恒和 zonal diagnostic 输出。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3dpar/vlspltqs_p.html">dyn3dpar/vlspltqs_p.md</a></td>
+<td>并行饱和水汽 Van Leer split 输送。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3dpar/vlspltgen_p.html">dyn3dpar/vlspltgen_p.md</a></td>
+<td>并行通用 tracer Van Leer split 调度。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3dpar/parallel_lmdz.html">dyn3dpar/parallel_lmdz.md</a></td>
+<td>并行动力 decomposition、MPI/OMP 状态和通信基础。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3dpar/mod_hallo.html">dyn3dpar/mod_hallo.md</a></td>
+<td>并行 halo 请求、打包通信和重分布复制。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3dpar/bands.html">dyn3dpar/bands.md</a></td>
+<td>并行动力 band 分布和自适应重平衡。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3dpar/times.html">dyn3dpar/times.md</a></td>
+<td>并行动力 timing 统计和 adaptive bands 支撑。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3d_common/advn.html">dyn3d_common/advn.md</a></td>
+<td>Hourdin pseudo amont tracer 输送内核；解释 <code>iadv=12/13</code>、x-y-z-y-x split、mode 边界和 6.3 可达性。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3d_common/prather.html">dyn3d_common/prather.md</a></td>
+<td>Prather moments 输送格式。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3d_common/ppm3d.html">dyn3d_common/ppm3d.md</a></td>
+<td>PPM 三维 tracer 输送内核，解释串行旧分支、水平/垂直 split、limiter 和 6.3 可达性边界。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3d_common/pentes_ini.html">dyn3d_common/pentes_ini.md</a></td>
+<td>slope/limiter 初始化和预输送。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3d_common/inidissip.html">dyn3d_common/inidissip.md</a></td>
+<td>水平耗散初始化：特征值估算、垂直剖面和 <code>dissip_period</code> 自动计算。</td>
+</tr>
+<tr>
+<td><a href="modules/dyn3d_common/infotrac.html">dyn3d_common/infotrac.md</a></td>
+<td>tracer 元数据核心：<code>traceur.def</code>、<code>nqtot/tname/iadv/niadv</code>、父子 tracer、isotope 和 Mars 消费链。</td>
+</tr>
+<tr>
+<td><a href="modules/dynphy_lonlat/index.html">dynphy_lonlat/index.md</a></td>
+<td>lon-lat 动力-物理接口。</td>
+</tr>
+<tr>
+<td><a href="modules/dynphy_lonlat/calfis.html">dynphy_lonlat/calfis.md</a></td>
+<td>串行动力调用物理的 lon-lat 接口。</td>
+</tr>
+<tr>
+<td><a href="modules/dynphy_lonlat/calfis_p.html">dynphy_lonlat/calfis_p.md</a></td>
+<td>并行动力调用物理接口、物理列映射、OMP split 调用和 tendency 回写。</td>
+</tr>
+<tr>
+<td><a href="modules/dynphy_lonlat/mod_interface_dyn_phys.html">dynphy_lonlat/mod_interface_dyn_phys.md</a></td>
+<td>动力-物理接口索引模块。</td>
+</tr>
+<tr>
+<td><a href="modules/dynphy_lonlat/inigeomphy_mod.html">dynphy_lonlat/inigeomphy_mod.md</a></td>
+<td>物理侧几何和垂直层初始化。</td>
+</tr>
+<tr>
+<td><a href="modules/dynphy_lonlat/grid_atob_m.html">dynphy_lonlat/grid_atob_m.md</a></td>
+<td>A/B 网格重采样、粗糙度和海冰辅助。</td>
+</tr>
+<tr>
+<td><a href="modules/misc/index.html">misc/index.md</a></td>
+<td>NetCDF/ioipsl、插值、样条、断言和通用数值工具。</td>
+</tr>
+<tr>
+<td><a href="modules/misc/program-options.html">misc/program-options.md</a></td>
+<td>6.3 runtime option parser：<code>--help</code>、<code>--version</code>、<code>--add-sso</code>、<code>--auto-exit</code>。</td>
+</tr>
+<tr>
+<td><a href="modules/misc/job.html">misc/job.md</a></td>
+<td>SLURM/PBS walltime 查询 helper。</td>
+</tr>
+<tr>
+<td><a href="modules/misc/readTracFiles_mod.html">misc/readTracFiles_mod.md</a></td>
+<td>6.3 tracer/isotope parser、phase 和 metadata 数据库。</td>
+</tr>
+<tr>
+<td><a href="modules/misc/strings_mod.html">misc/strings_mod.md</a></td>
+<td>字符串解析、类型转换、表达式约简和表格显示工具。</td>
+</tr>
+<tr>
+<td><a href="modules/misc/ioipsl_getincom.html">misc/ioipsl_getincom.md</a></td>
+<td>fallback <code>getin</code> hard 父文件页：<code>run.def/INCLUDEDEF</code>、key 表、typed memory、12 个 specific procedures 和 <code>getin_dump</code>。</td>
+</tr>
+<tr>
+<td><a href="modules/misc/ioipsl-local-support.html">misc/ioipsl-local-support.md</a></td>
+<td>fallback <code>getin</code> 使用的 IOIPSL 本地字符串清洗和错误报告支撑。</td>
+</tr>
+<tr>
+<td><a href="modules/misc/write-field-debug.html">misc/write-field-debug.md</a></td>
+<td>旧式 debug 写场接口，覆盖 <code>WriteField</code> NetCDF dump、<code>.field</code> 文本 dump 和物理列 gather 桥接。</td>
+</tr>
+<tr>
+<td><a href="modules/misc/wxios.html">misc/wxios.md</a></td>
+<td><code>CPP_XIOS</code> 下 XIOS context、calendar、domain、axis、file 和 field helper。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/index.html">phy_common/index.md</a></td>
+<td>物理侧并行、网格、输出公共层。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/parallel-transfer-6d.html">phy_common/parallel-transfer-6d.md</a></td>
+<td>6.3 MPI/OMP transfer 5D/6D broadcast 和 OMP buffer 修复。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/ioipsl_getin_p_mod.html">phy_common/ioipsl_getin_p_mod.md</a></td>
+<td>6.3 <code>is_master</code> getin wrapper 和 broadcast 契约。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/mod_phys_lmdz_para.html">phy_common/mod_phys_lmdz_para.md</a></td>
+<td>物理侧并行抽象主模块。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/mpi-data-transfer.html">phy_common/mpi-data-transfer.md</a></td>
+<td>物理侧 MPI data/transfer 组页。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/mod_phys_lmdz_mpi_transfert.html">phy_common/mod_phys_lmdz_mpi_transfert.md</a></td>
+<td>MPI rank 间 transfer hard 父文件页：<code>bcast/scatter/gather/reduce/grid1d-grid2d</code> 泛型、SCATTERV/GATHERV/REDUCE 和局部极点转换。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/omp-data-transfer.html">phy_common/omp-data-transfer.md</a></td>
+<td>物理侧 OMP data/transfer 组页。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/mod_phys_lmdz_transfert_para.html">phy_common/mod_phys_lmdz_transfert_para.md</a></td>
+<td>MPI/OMP 组合 transfer wrapper 父文件页：<code>bcast/scatter/gather/scatter2D/gather2D/reduce_sum</code> 泛型、执行顺序和临时数组契约。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/mod_phys_lmdz_omp_transfert.html">phy_common/mod_phys_lmdz_omp_transfert.md</a></td>
+<td>OMP 线程内 transfer hard 父文件页：共享 buffer、barrier/master/single/critical、scatter/gather 列契约和 5D/6D broadcast。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/physics_distribution_mod.html">phy_common/physics_distribution_mod.md</a></td>
+<td>物理点分布初始化模块。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/mod_grid_phy_lmdz.html">phy_common/mod_grid_phy_lmdz.md</a></td>
+<td>全局物理网格规模、<code>klon_glo</code> 和 1D/2D lon-lat 映射。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/geometry-grid-layers.html">phy_common/geometry-grid-layers.md</a></td>
+<td>物理侧几何、regular lon-lat、垂直层和网格互转。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/geometry_mod.html">phy_common/geometry_mod.md</a></td>
+<td>物理列局部几何状态、THREADPRIVATE 数组、输出面积和 Mars/XIOS 消费边界。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/grid-coordinate-state.html">phy_common/grid-coordinate-state.md</a></td>
+<td>regular lon-lat 坐标轴、垂直层 threadprivate 状态和 Mars 输出消费边界。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/write-field-xios.html">phy_common/write-field-xios.md</a></td>
+<td>物理侧 XIOS/write_field 输出封装。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/xios_writefield.html">phy_common/xios_writefield.md</a></td>
+<td><code>CPP_XIOS</code> 下临时 field dump 封装，区分 regular、unstructured native 和 unstructured 插值输出。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/print-control-abort.html">phy_common/print-control-abort.md</a></td>
+<td>物理侧打印控制和 abort 组页。</td>
+</tr>
+<tr>
+<td><a href="modules/phy_common/abort_physic.html">phy_common/abort_physic.md</a></td>
+<td>物理侧统一错误终止入口、IOIPSL close/getin dump 和 MPI abort。</td>
+</tr>
+<tr>
+<td><a href="modules/filtrez/index.html">filtrez/index.md</a></td>
+<td>动力滤波、FFT backend 和辅助工具。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="routines">Routines</h2>
+<table>
+<thead>
+<tr>
+<th>页面</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="routines/caldyn-serial-parallel.html">caldyn-serial-parallel.md</a></td>
+<td><code>caldyn</code> 串并行 tendency 计算对照。</td>
+</tr>
+<tr>
+<td><a href="routines/caldyn-dynamic-tendencies.html">caldyn-dynamic-tendencies.md</a></td>
+<td><code>caldyn</code> 动力 tendency 5 段管线深度拆解：风场转换/压力、质量初始化、位温通量/dp、涡度/能量、垂直平流。</td>
+</tr>
+<tr>
+<td><a href="routines/advtrac-serial-parallel.html">advtrac-serial-parallel.md</a></td>
+<td>tracer advection 调度串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/ppm3d-entry-contract.html">ppm3d-entry-contract.md</a></td>
+<td><code>ppm3d</code> 入口契约、<code>IORD/JORD/KORD</code> 方案选项、<code>interpre</code>/<code>interpost</code>/<code>adaptdt</code> 接口层和串并行可达性分析。</td>
+</tr>
+<tr>
+<td><a href="routines/ppm3d-vertical-transport.html">ppm3d-vertical-transport.md</a></td>
+<td><code>ppm3d</code> 垂直输送：FZPPM 算法、垂直质量通量递推、层序翻转和 zflip 工具。</td>
+</tr>
+<tr>
+<td><a href="routines/ppm3d-horizontal-transport.html">ppm3d-horizontal-transport.md</a></td>
+<td><code>ppm3d</code> 水平输送：xtp/ytp 经纬向通量、fxppm/fyppm PPM 重构、xmist/ymist 斜率、xadv/yadv 交叉项。</td>
+</tr>
+<tr>
+<td><a href="routines/ppm3d-limiters-filters.html">ppm3d-limiters-filters.md</a></td>
+<td><code>ppm3d</code> limiter 和滤波：lmtppm 单调约束、qckxyz 正值性检查、filns/filew/filcr 负值填充。</td>
+</tr>
+<tr>
+<td><a href="routines/advn-dispatcher-order.html">advn-dispatcher-order.md</a></td>
+<td><code>advn</code> 调度：x-y-z-y-x split、mode 分支、advtrac iadv=12/13 调用关系。</td>
+</tr>
+<tr>
+<td><a href="routines/advn-stencil-reconstruction.html">advn-stencil-reconstruction.md</a></td>
+<td><code>advn</code> 界面重构：advnqx/advnqy/advnqz 的 4 阶模板、单调约束、极值和边界处理。</td>
+</tr>
+<tr>
+<td><a href="routines/advn-flux-updates.html">advn-flux-updates.md</a></td>
+<td><code>advn</code> 通量更新：advnx/advny/advnz 的 sigma 参数、mode 分支、Semi-Lagrangian 极区和守恒机制。</td>
+</tr>
+<tr>
+<td><a href="routines/vlsplt-serial-family-tracers.html">vlsplt-serial-family-tracers.md</a></td>
+<td><code>vlsplt</code> 串行父子 tracer 比例输送和饱和路径：递归 vlx/vly/vlz、qsat 裁剪、infotrac 状态。</td>
+</tr>
+<tr>
+<td><a href="routines/vlsplt-serial-split-kernels.html">vlsplt-serial-split-kernels.md</a></td>
+<td><code>vlsplt</code> 串行 split 内核：vlx/vly/vlz 的 Van Leer 斜率、通量计算、极点/周期/垂直边界处理。</td>
+</tr>
+<tr>
+<td><a href="routines/vlsplt-p-halo-split.html">vlsplt-p-halo-split.md</a></td>
+<td><code>vlsplt_p</code> 并行 halo 注册、边界带/内区计算重叠和 band 依赖。</td>
+</tr>
+<tr>
+<td><a href="routines/vlsplt-serial-parallel-delta.html">vlsplt-serial-parallel-delta.md</a></td>
+<td><code>vlsplt</code> 与 <code>vlsplt_p</code> 串并行 Van Leer 差异逐项对照。</td>
+</tr>
+<tr>
+<td><a href="routines/advect-serial-parallel.html">advect-serial-parallel.md</a></td>
+<td><code>advect</code> 文件组对照。</td>
+</tr>
+<tr>
+<td><a href="routines/integrd-serial-parallel.html">integrd-serial-parallel.md</a></td>
+<td>状态积分写回串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/dissip-serial-parallel.html">dissip-serial-parallel.md</a></td>
+<td>水平耗散施加串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/common-dissip-mars-chain.html">common-dissip-mars-chain.md</a></td>
+<td>Mars 水平耗散链路：inidissip → apdiss → dissip → conservative 修正全数据流。</td>
+</tr>
+<tr>
+<td><a href="routines/friction-serial-parallel.html">friction-serial-parallel.md</a></td>
+<td>摩擦/阻尼分支串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/addfi-serial-parallel.html">addfi-serial-parallel.md</a></td>
+<td>物理 tendency 加和串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/qminimum-serial-parallel.html">qminimum-serial-parallel.md</a></td>
+<td>tracer 最小值保护串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/fluxstokenc-serial-parallel.html">fluxstokenc-serial-parallel.md</a></td>
+<td>flux storage/history 写出对照。</td>
+</tr>
+<tr>
+<td><a href="routines/top-bound-serial-parallel.html">top-bound-serial-parallel.md</a></td>
+<td>顶边界处理串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/vertical-discretization.html">vertical-discretization.md</a></td>
+<td>垂直离散构造与非地球变体。</td>
+</tr>
+<tr>
+<td><a href="routines/dynamics-initializers.html">dynamics-initializers.md</a></td>
+<td>动力初始化辅助例程组。</td>
+</tr>
+<tr>
+<td><a href="routines/iniconst-planetary-constants.html">iniconst-planetary-constants.md</a></td>
+<td>Mars/Generic 行星常数、时间步和 <code>iniconst</code> 派生链。</td>
+</tr>
+<tr>
+<td><a href="routines/inigeom-zoom-map-contract.html">inigeom-zoom-map-contract.md</a></td>
+<td><code>inigeom</code> zoom/map 几何契约：<code>defrun_new/run.def</code> 到 archive header、surface 插值和 physics 几何消费。</td>
+</tr>
+<tr>
+<td><a href="routines/vertical-coordinate-mars-contract.html">vertical-coordinate-mars-contract.md</a></td>
+<td>Mars 垂直坐标、<code>ap/bp/aps/bps/presnivs/pseudoalt</code> 和动力-物理共享状态契约。</td>
+</tr>
+<tr>
+<td><a href="routines/initdynav-serial-parallel.html">initdynav-serial-parallel.md</a></td>
+<td>dynav 初始化串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/advxyz-serial.html">advxyz-serial.md</a></td>
+<td>串行 x/y/z advection 内核组。</td>
+</tr>
+<tr>
+<td><a href="routines/advxyz-parallel-common.html">advxyz-parallel-common.md</a></td>
+<td>Prather/SOM x/y/z moments advection 内核组。</td>
+</tr>
+<tr>
+<td><a href="routines/dyn-phys-grid-transforms.html">dyn-phys-grid-transforms.md</a></td>
+<td>动力格点和物理格点互转例程组。</td>
+</tr>
+<tr>
+<td><a href="routines/horizontal-map-functions.html">horizontal-map-functions.md</a></td>
+<td>水平映射函数组。</td>
+</tr>
+<tr>
+<td><a href="routines/sponge-serial-parallel.html">sponge-serial-parallel.md</a></td>
+<td>sponge 顶层阻尼串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/differential-operators-overview.html">differential-operators-overview.md</a></td>
+<td>动力差分算子总览。</td>
+</tr>
+<tr>
+<td><a href="routines/common-dissipation-stencil-families.html">common-dissipation-stencil-families.md</a></td>
+<td>水平微分/耗散 stencil family 深度页：叶子算子、Laplacian 复合、耗散复合和死代码串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/common-pressure-mass-operators.html">common-pressure-mass-operators.md</a></td>
+<td>压力/质量短算子 family：pression、massdair、massbar/massbarxy、psextbar 串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/common-wind-massflux-operators.html">common-wind-massflux-operators.md</a></td>
+<td>风场转换与质量通量算子组：covcont/covnat/flumass/convmas/vitvert 串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/common-energy-vorticity-operators.html">common-energy-vorticity-operators.md</a></td>
+<td>动能、Bernoulli、位势涡度与位势高度算子：enercin/bernoui/tourpot/geopot 串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/exner-cpdet-helpers.html">exner-cpdet-helpers.md</a></td>
+<td>Exner 函数（exner_hyb/exner_milieu）与 cp(T) 变比热路径（cpdet/tpot2t/t2tpot）串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/mass-pressure-energy-overview.html">mass-pressure-energy-overview.md</a></td>
+<td>质量、压力、位势和能量例程总览。</td>
+</tr>
+<tr>
+<td><a href="routines/operator-helper-families.html">operator-helper-families.md</a></td>
+<td>短小算子 helper families 总览。</td>
+</tr>
+<tr>
+<td><a href="routines/mod-const-mpi.html">mod-const-mpi.md</a></td>
+<td><code>mod_const_mpi</code> 串并行通信常量对照。</td>
+</tr>
+<tr>
+<td><a href="routines/common-state-control-contract.html">common-state-control-contract.md</a></td>
+<td>COMMON 状态/控制模块契约，覆盖时间、逻辑、常量、I/O id 和 Mars utility 消费。</td>
+</tr>
+<tr>
+<td><a href="routines/dynamic-output-state-holders.html">dynamic-output-state-holders.md</a></td>
+<td><code>temps_mod</code> 时间状态与 <code>com_io_dyn_mod</code> history/dynav file id 生命周期。</td>
+</tr>
+<tr>
+<td><a href="routines/dynamics-control-logic-gates.html">dynamics-control-logic-gates.md</a></td>
+<td><code>conf_gcm</code>、<code>gcm/gcm_p</code> 和 <code>leapfrog*</code> 之间的控制开关、入口约束和时间步逻辑门控。</td>
+</tr>
+<tr>
+<td><a href="routines/conf-gcm-serial-parallel-delta.html">conf-gcm-serial-parallel-delta.md</a></td>
+<td>串行/并行 <code>conf_gcm</code> 配置读取差异，覆盖 shared getin keys、FFT filter、<code>use_mpi_alloc</code>、<code>adjust/offline</code>、MPI/OMP/bands/history 边界。</td>
+</tr>
+<tr>
+<td><a href="routines/common-gcm-mars-run-entry.html">common-gcm-mars-run-entry.md</a></td>
+<td>Mars 3D <code>gcm</code> 主入口链，从 <code>run.def/conf_gcm</code> 到初始化、physics 接口和 <code>leapfrog</code>。</td>
+</tr>
+<tr>
+<td><a href="routines/mars-utility-common-state-consumers.html">mars-utility-common-state-consumers.md</a></td>
+<td>Mars <code>newstart/start2archive/archive/testphys1d</code> 对 COMMON 状态、垂直坐标、网格、插值和 getin 接口的消费链。</td>
+</tr>
+<tr>
+<td><a href="routines/mars-utility-constants-vertical.html">mars-utility-constants-vertical.md</a></td>
+<td>Mars utility 对 COMMON 行星常量、动力侧垂直坐标和物理侧 <code>vertical_layers_mod</code> 副本的消费链。</td>
+</tr>
+<tr>
+<td><a href="routines/mars-utility-netcdf-helper-use.html">mars-utility-netcdf-helper-use.md</a></td>
+<td>Mars utility 的直接 <code>NF_*</code> NetCDF 读写、<code>getin("datadir")</code> 输入链和 COMMON <code>netcdf95/handle_err/new_unit</code> 边界。</td>
+</tr>
+<tr>
+<td><a href="routines/mars-dyn1d-common-forwarding.html">mars-dyn1d-common-forwarding.md</a></td>
+<td>Mars <code>phymars/dyn1d</code> 一行转发到 COMMON 的接口兼容契约。</td>
+</tr>
+<tr>
+<td><a href="routines/infotrac-state-contract.html">infotrac-state-contract.md</a></td>
+<td><code>infotrac</code> 模块级 tracer 状态契约。</td>
+</tr>
+<tr>
+<td><a href="routines/infotrac-traceur-def.html">infotrac-traceur-def.md</a></td>
+<td><code>traceur.def</code> 旧格式、现代格式和 Mars 缺文件行为。</td>
+</tr>
+<tr>
+<td><a href="routines/infotrac-advection-schemes.html">infotrac-advection-schemes.md</a></td>
+<td><code>iadv</code> 编号、<code>nqtrue -&gt; nqtot</code> 扩展和 abort 条件。</td>
+</tr>
+<tr>
+<td><a href="routines/infotrac-family-isotopes.html">infotrac-family-isotopes.md</a></td>
+<td>父子 tracer、isotope 表和一致性检查。</td>
+</tr>
+<tr>
+<td><a href="routines/infotrac-mars-consumers.html">infotrac-mars-consumers.md</a></td>
+<td>COMMON 与 MARS 对 <code>infotrac</code> 状态的消费方。</td>
+</tr>
+<tr>
+<td><a href="routines/leapfrog-state-contract.html">leapfrog-state-contract.md</a></td>
+<td><code>leapfrog</code> 入口、状态数组和初始化契约；6.3 COMMON 不再包含 <code>leapfrog_nogcm</code>。</td>
+</tr>
+<tr>
+<td><a href="routines/leapfrog-p-state-contract.html">leapfrog-p-state-contract.md</a></td>
+<td>并行 <code>leapfrog_p</code> 入口实参、<code>USE</code> 依赖、工作数组和 Mars 并行动力状态边界。</td>
+</tr>
+<tr>
+<td><a href="routines/leapfrog-time-scheduler.html">leapfrog-time-scheduler.md</a></td>
+<td>Matsuno/leapfrog 时间步、门控标志和 Mars 日期推进。</td>
+</tr>
+<tr>
+<td><a href="routines/leapfrog-p-time-scheduler.html">leapfrog-p-time-scheduler.md</a></td>
+<td>并行 <code>leapfrog_p</code> 的 <code>forward/leapf/purmats/apphys/apdiss/lafin</code>、<code>True_itau</code> 和输出/restart 调度。</td>
+</tr>
+<tr>
+<td><a href="routines/leapfrog-p-distribution-halo.html">leapfrog-p-distribution-halo.md</a></td>
+<td>并行 <code>leapfrog_p</code> 的 <code>SetDistrib</code>、band 切换、halo/swap request 和阶段分布边界。</td>
+</tr>
+<tr>
+<td><a href="routines/leapfrog-p-physics-coupling.html">leapfrog-p-physics-coupling.md</a></td>
+<td>并行 <code>leapfrog_p</code> 的 <code>calfis_p</code> 调用、physics tendency halo、<code>addfi_p</code> 写回和 <code>top_bound_p</code>。</td>
+</tr>
+<tr>
+<td><a href="routines/leapfrog-p-output-restart.html">leapfrog-p-output-restart.md</a></td>
+<td>并行 <code>leapfrog_p</code> 的 history/dynav/zonal diagnostic 和 restart 写出门控。</td>
+</tr>
+<tr>
+<td><a href="routines/calfis-p-grid-mapping.html">calfis-p-grid-mapping.md</a></td>
+<td><code>calfis_p</code> 动力格点到物理列映射：index_i/index_j、scatter/gather、wind 转换、极点投影、MPI 边界交换。</td>
+</tr>
+<tr>
+<td><a href="routines/calfis-p-physiq-contract.html">calfis-p-physiq-contract.md</a></td>
+<td><code>calfis_p</code> 与 <code>call_physiq</code> 接口契约：nqtot/tname/niadv、nsplit_phys 时间分割、tendency 输出约定。</td>
+</tr>
+<tr>
+<td><a href="routines/calfis-p-parallel-transfer.html">calfis-p-parallel-transfer.md</a></td>
+<td><code>calfis_p</code> 两层并行 transfer：OMP scatter/gather 手动循环、MPI wind exchange、编译/运行时守卫、与 phy_common transfer 的关系。</td>
+</tr>
+<tr>
+<td><a href="routines/calfis-p-date-planet-branches.html">calfis-p-date-planet-branches.md</a></td>
+<td><code>calfis_p</code> 日期参数、<code>planet_type</code> 分支和接口兼容风险。</td>
+</tr>
+<tr>
+<td><a href="routines/guide-config-contract.html">guide-config-contract.md</a></td>
+<td><code>guide_init</code> 配置契约：<code>ok_guide</code> 开关、<code>guide_*</code> 参数读取、<code>guide_plevs</code> 三级垂直坐标、串并行差异和 Mars 条件边界。</td>
+</tr>
+<tr>
+<td><a href="routines/guide-input-fields.html">guide-input-fields.md</a></td>
+<td><code>guide_read</code>/<code>guide_read2D</code> 输入场读取：NetCDF 文件映射、<code>NC_DOUBLE</code> 精度守卫、2D/3D 模式、时间步管理和串并行 I/O 差异。</td>
+</tr>
+<tr>
+<td><a href="routines/guide-interpolation-pressure.html">guide-interpolation-pressure.md</a></td>
+<td>guide 压力层插值、湿度转换和 <code>tau2alpha</code> nudging 系数构造。</td>
+</tr>
+<tr>
+<td><a href="routines/guide-tendency-application.html">guide-tendency-application.md</a></td>
+<td>guide forcing 叠加到 U/V/T/P/Q 动力状态的流程。</td>
+</tr>
+<tr>
+<td><a href="routines/guide-serial-parallel-delta.html">guide-serial-parallel-delta.md</a></td>
+<td><code>guide_mod</code> 与 <code>guide_p_mod</code> 串并行差异：数组布局、局部分布、halo、root 输出、<code>factt</code> 和 Mars 条件边界。</td>
+</tr>
+<tr>
+<td><a href="routines/leapfrog-dynamics-transport.html">leapfrog-dynamics-transport.md</a></td>
+<td>动力 tendency、tracer 输送和 <code>integrd</code> 写回顺序。</td>
+</tr>
+<tr>
+<td><a href="routines/leapfrog-physics-coupling.html">leapfrog-physics-coupling.md</a></td>
+<td><code>calfis/addfi</code> 物理耦合。</td>
+</tr>
+<tr>
+<td><a href="routines/leapfrog-dissipation-conservation.html">leapfrog-dissipation-conservation.md</a></td>
+<td>耗散、sponge 和 conservative heat correction。</td>
+</tr>
+<tr>
+<td><a href="routines/leapfrog-output-restart.html">leapfrog-output-restart.md</a></td>
+<td>history/dynav 输出和 restart 写出。</td>
+</tr>
+<tr>
+<td><a href="routines/dynredem-restart.html">dynredem-restart.md</a></td>
+<td>动力 restart 写出串并行和 NetCDF helper 对照。</td>
+</tr>
+<tr>
+<td><a href="routines/restart-variable-sorting.html">restart-variable-sorting.md</a></td>
+<td><code>dynetat0/dynredem</code> 的 restart 变量名匹配、tracer 缺失处理和 <code>sortvarc</code> 控制量基准重置。</td>
+</tr>
+<tr>
+<td><a href="routines/gcm-runtime-option-entry.html">gcm-runtime-option-entry.md</a></td>
+<td>串行/并行 <code>gcm</code> 入口调用 <code>parse_args()</code> 的位置和运行参数边界。</td>
+</tr>
+<tr>
+<td><a href="routines/geometry-output-cell-area.html">geometry-output-cell-area.md</a></td>
+<td>6.3 lon-lat 输出面积与物理 cell area 拆分。</td>
+</tr>
+<tr>
+<td><a href="routines/mars-start-restart-archive-boundary.html">mars-start-restart-archive-boundary.md</a></td>
+<td>Mars <code>start/restart/archive</code> 文件职责边界，区分 COMMON 动力 restart、Mars physics startfi 和 archive 转换层。</td>
+</tr>
+<tr>
+<td><a href="routines/history-xios-getin-boundary.html">history-xios-getin-boundary.md</a></td>
+<td><code>getin/getin_p</code>、动力 history/dynav、Mars diagfi/stats 和 XIOS 输出职责边界。</td>
+</tr>
+<tr>
+<td><a href="routines/history-field-registration.html">history-field-registration.md</a></td>
+<td>COMMON 动力 <code>history/dynav</code> 的文件 id、字段注册、<code>ok_dyn_*</code> 门控和 Mars nogcm 条件经过。</td>
+</tr>
+<tr>
+<td><a href="routines/xios-domain-field-setup.html">xios-domain-field-setup.md</a></td>
+<td>Mars XIOS axes/domain/calendar/field 发送链和 COMMON <code>wxios/xios_writefield</code> helper 分工。</td>
+</tr>
+<tr>
+<td><a href="routines/getin-fallback-file-precedence.html">getin-fallback-file-precedence.md</a></td>
+<td>fallback <code>getin</code> 文件来源、key 表初始化和 Mars 无 IOIPSL 条件经过。</td>
+</tr>
+<tr>
+<td><a href="routines/getin-typed-parser.html">getin-typed-parser.md</a></td>
+<td>scalar/1D/2D integer/real/logical/character 解析契约。</td>
+</tr>
+<tr>
+<td><a href="routines/phys-transfer-para-wrapper.html">phys-transfer-para-wrapper.md</a></td>
+<td>上层 <code>bcast/scatter/gather/reduce_sum</code> 如何组合 MPI/OMP，Mars 物理并行条件经过。</td>
+</tr>
+<tr>
+<td><a href="routines/parallel-physics-grid-distribution.html">parallel-physics-grid-distribution.md</a></td>
+<td>物理列分布初始化：<code>klon_glo/klon_mpi/klon_omp/dimphy:klon</code>、MPI/OMP 切片和 Mars <code>iniphysiq</code> 契约。</td>
+</tr>
+<tr>
+<td><a href="routines/phys-transfer-mpi-core.html">phys-transfer-mpi-core.md</a></td>
+<td><code>mod_phys_lmdz_mpi_transfert</code> 8 接口 94 过程：MPI bcast/scatter/gather/reduce 和 1D/2D grid 转换实现细节。</td>
+</tr>
+<tr>
+<td><a href="routines/phys-transfer-omp-core.html">phys-transfer-omp-core.md</a></td>
+<td><code>mod_phys_lmdz_omp_transfert</code> 4 接口 56 过程：OMP buffer、barrier、master/critical transfer 实现和 gather_omp_rgen POINTER 优化。</td>
+</tr>
+<tr>
+<td><a href="routines/initfluxsto-serial-parallel.html">initfluxsto-serial-parallel.md</a></td>
+<td>flux storage 初始化串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/inithist-serial-parallel.html">inithist-serial-parallel.md</a></td>
+<td>history 输出初始化串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/history-output-serial-parallel.html">history-output-serial-parallel.md</a></td>
+<td>history/dynav 写出串并行对照。</td>
+</tr>
+<tr>
+<td><a href="routines/history-field-registration.html">history-field-registration.md</a></td>
+<td>history/dynav 字段注册和写出门控深度页。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="themes">Themes</h2>
+<table>
+<thead>
+<tr>
+<th>页面</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="themes/dynamics-time-integration.html">dynamics-time-integration.md</a></td>
+<td><code>gcm/conf_gcm/leapfrog</code> 主时间推进链；需按 6.3 重核 restart 时间。</td>
+</tr>
+<tr>
+<td><a href="themes/runtime-options-build-provenance.html">runtime-options-build-provenance.md</a></td>
+<td>6.3 runtime options、<code>--version</code> 和 build provenance 父主题。</td>
+</tr>
+<tr>
+<td><a href="themes/serial-parallel-dynamics.html">serial-parallel-dynamics.md</a></td>
+<td>串行 <code>dyn3d</code> 与并行 <code>dyn3dpar</code> 的主流程、decomposition、halo、bands 和 I/O 对照。</td>
+</tr>
+<tr>
+<td><a href="themes/transport-advection.html">transport-advection.md</a></td>
+<td>advection、Van Leer、PPM、Prather、advn 和串并行输送边界。</td>
+</tr>
+<tr>
+<td><a href="themes/dynphys-interface.html">dynphys-interface.md</a></td>
+<td>动力-物理接口父主题，串联 <code>inigeomphy</code>、<code>calfis/calfis_p</code>、<code>call_physiq</code>、<code>addfi/addfi_p</code> 和 <code>phy_common</code> 分布/transfer 边界。</td>
+</tr>
+<tr>
+<td><a href="themes/restart-io.html">restart-io.md</a></td>
+<td>restart、history、NetCDF/ioipsl 输出链，区分 COMMON 动力 restart、Mars physics restart、archive 工具链和输出边界。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="reference">Reference</h2>
+<table>
+<thead>
+<tr>
+<th>页面</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="reference/file-index.html">file-index.md</a></td>
+<td>源码文件到 wiki 页面反查。</td>
+</tr>
+<tr>
+<td><a href="reference/symbol-index.html">symbol-index.md</a></td>
+<td>模块、例程、全局状态、配置键、文件名和 hard 待深挖符号反查。</td>
+</tr>
+<tr>
+<td><a href="reference/source-coverage-matrix.html">source-coverage-matrix.md</a></td>
+<td>6.3 覆盖状态和 hard 待写矩阵。</td>
+</tr>
+<tr>
+<td><a href="reference/pending-confirmation-triage.html">pending-confirmation-triage.md</a></td>
+<td>当前剩余待确认项的复扫分诊：区分已解决过期项、运行验证、Mars 配置、设计意图、外部库和物理/数值解释。</td>
+</tr>
+<tr>
+<td><a href="reference/version-6.3-baseline.html">version-6.3-baseline.md</a></td>
+<td>6.3 源码基线、删除项和返工优先级。</td>
+</tr>
+<tr>
+<td><a href="reference/practical-wiki-acceptance.html">practical-wiki-acceptance.md</a></td>
+<td>实用版验收清单，按功能面判断完成度，不以任务数量单独判定。</td>
+</tr>
+<tr>
+<td><a href="reference/mars-common-map.html">mars-common-map.md</a></td>
+<td>从 MARS 文件/功能反查 COMMON 提供者、同名变体和待写任务。</td>
+</tr>
+<tr>
+<td><a href="reference/common-consumer-map.html">common-consumer-map.md</a></td>
+<td>从 COMMON 文件/模块反查 MARS 使用方和优先级。</td>
+</tr>
+<tr>
+<td><a href="reference/first-batch-review.html">first-batch-review.md</a></td>
+<td>首批普通任务源感知复核记录。</td>
+</tr>
+<tr>
+<td><a href="reference/recent-completion-review.html">recent-completion-review.md</a></td>
+<td>近期 hard 父页、索引页和实用版收口页复核记录。</td>
+</tr>
+</tbody>
+</table>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

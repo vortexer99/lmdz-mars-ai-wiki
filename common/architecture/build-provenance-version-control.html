@@ -1,0 +1,132 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>build-provenance-version-control - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a class="active" href="project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>architecture/build-provenance-version-control.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="build-provenance-and-version_controlf90">build provenance and version_control.F90</h1>
+<p>页面状态：6.3 返工完成。 源码基线：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code>。 Mars 运行参与度：必经构建层。</p>
+<h2 id="63-机制">6.3 机制</h2>
+<p><code>makelmdz_fcm</code> 在构建时生成：</p>
+<pre class="text"><code>libf/misc/version_control.F90</code></pre>
+<p>关键位置：</p>
+<table>
+<thead>
+<tr>
+<th>行号</th>
+<th>符号/变量</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>makelmdz_fcm:590</code></td>
+<td><code>version_F90file</code></td>
+<td>生成目标。</td>
+</tr>
+<tr>
+<td><code>makelmdz_fcm:593</code></td>
+<td><code>default_filename</code></td>
+<td>默认输出 <code>pgrm_version_control.txt</code>。</td>
+</tr>
+<tr>
+<td><code>makelmdz_fcm:641</code></td>
+<td><code>MODULE version_control</code></td>
+<td>运行时模块。</td>
+</tr>
+<tr>
+<td><code>makelmdz_fcm:677</code></td>
+<td><code>print_pgrm_version</code></td>
+<td><code>--version [file]</code> 调用入口。</td>
+</tr>
+</tbody>
+</table>
+<p>输出包括编译命令、日期、用户、主机、当前目录，以及 Git/SVN metadata、status、diff 信息。这个信息被编译进二进制，不依赖运行目录仍是源码仓库。</p>
+<h2 id="关联构建变化">关联构建变化</h2>
+<table>
+<thead>
+<tr>
+<th>变化</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SUFF_DIR</code></td>
+<td>build config 目录 suffix 与可执行 suffix 分离。</td>
+</tr>
+<tr>
+<td>debug suffix</td>
+<td>debug build 可进入独立配置目录。</td>
+</tr>
+<tr>
+<td><code>-clean</code></td>
+<td>清理 build 产物和 <code>dimensions.h</code>。</td>
+</tr>
+<tr>
+<td>failure cleanup</td>
+<td><code>fcm build</code> 失败后移除 stale <code>.lock</code> 并失败退出。</td>
+</tr>
+<tr>
+<td><code>bld.cfg</code></td>
+<td><code>%CONFIG_NAME</code> 使用 <code>%{ARCH}%{SUFF_DIR}</code>，且不再包含 <code>src::evolution %EVOLUTION</code>。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现清单">复现清单</h2>
+<ol type="1">
+<li>保存完整编译命令和 <code>--version</code> 输出。</li>
+<li>保存实际 arch 与 suffix 展开后的 build 目录。</li>
+<li>不再把 <code>libf/evolution</code> 当作 COMMON 6.3 构建输入。</li>
+<li>构建失败后重试前，确认 <code>.lock</code> 和 <code>dimensions.h</code> 清理状态。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../themes/runtime-options-build-provenance.html">runtime-options-build-provenance</a></li>
+<li><a href="../modules/misc/program-options.html">program-options</a></li>
+<li><a href="makelmdz-fcm-mars-paths.html">makelmdz-fcm-mars-paths</a></li>
+<li><a href="makelmdz-target-output-naming.html">makelmdz-target-output-naming</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

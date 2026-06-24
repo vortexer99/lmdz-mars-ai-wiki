@@ -1,0 +1,474 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>getin-fallback-file-precedence - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/getin-fallback-file-precedence.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="fallback-getin-文件来源key-表初始化和-mars-无-ioipsl-条件经过">fallback <code>getin</code> 文件来源、key 表初始化和 Mars 无 IOIPSL 条件经过</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\ioipsl_getincom.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\ioipsl_getin_p_mod.F90</code></pre>
+<h2 id="本页范围">本页范围</h2>
+<p>本页深入 <code>ioipsl_getincom.F90</code> 的 fallback <code>getin</code> 实现，覆盖：<code>.def</code> 文件如何被读入内存、key 表如何构建和缓存、keystatus 语义、向量 key 和压缩字段的处理方式，以及 Mars 在 <code>CPP_IOIPSL</code> 未定义时经由 <code>getin_p</code> 调到此 fallback 的完整链路。<a href="../modules/misc/ioipsl-getin-system.html">ioipsl-getin-system</a> 组页给出系统级概述；本页聚焦文件来源和 key 表内部机制。</p>
+<h2 id="编译守卫与-fallback-选择">编译守卫与 fallback 选择</h2>
+<p><code>ioipsl_getin_p_mod.F90</code> 的编译守卫决定 <code>getin</code> 的来源：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ot">#ifdef CPP_IOIPSL</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">USE</span> ioipsl, <span class="kw">ONLY</span>: getin        <span class="co">! IOIPSL 库版本</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ot">#else</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">USE</span> ioipsl_getincom, <span class="kw">ONLY</span>: getin <span class="co">! 本 fallback 版本</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ot">#endif</span></span></code></pre></div>
+<p>Mars 编译通常不定义 <code>CPP_IOIPSL</code>，因此 <code>getin_p</code> 的每个 specific procedure 在 master 线程上调用的是本页描述的 <code>ioipsl_getincom:getin</code>。动力侧 <code>conf_gcm.F90</code> 直接 <code>USE ioipsl_getincom</code> 或 IOIPSL <code>getin</code>，取决于动力编译选项。</p>
+<h2 id="文件来源">文件来源</h2>
+<h3 id="初始文件列表">初始文件列表</h3>
+<p><code>getin_read</code> 将 <code>filelist(1)</code> 硬编码为 <code>'run.def'</code>，<code>nbfiles=1</code>。<code>filelist</code> 是 <code>CHARACTER(LEN=100)</code> 的 SAVE 数组，容量 <code>max_files=100</code>。</p>
+<h3 id="includedef-机制">INCLUDEDEF 机制</h3>
+<p>当 <code>getin_readdef</code> 遇到 <code>INCLUDEDEF</code> 关键字时，<code>getin_decrypt</code> 将该行所有空格分隔的文件名追加到 <code>filelist</code>。<code>getin_read</code> 的 <code>DO WHILE (current &lt;= nbfiles)</code> 循环会随之读取新增文件，形成深度优先的包含链。</p>
+<pre class="text"><code>run.def
+  INCLUDEDEF phys_mars.def watercloud.def
+    → filelist(2) = &#39;phys_mars.def&#39;
+    → filelist(3) = &#39;watercloud.def&#39;</code></pre>
+<h3 id="文件打开与缺失处理">文件打开与缺失处理</h3>
+<p><code>getin_readdef</code> 用 <code>OPEN(UNIT=22, FILE=filelist(current), STATUS="OLD", IOSTAT=io_err)</code> 打开文件。若 <code>io_err /= 0</code>，调用 <code>ipslerr(2,...)</code>（warning 级别）并 <code>RETURN</code>，不终止程序。因此 Mars 运行时若某 <code>.def</code> 文件不存在，该文件被静默跳过，后续 key 查找将使用调用方提供的默认值。</p>
+<h2 id="文件解析管线">文件解析管线</h2>
+<h3 id="行读取与注释跳过">行读取与注释跳过</h3>
+<p><code>getin_skipafew</code> 逐行读取，跳过以 <code>#</code> 开头的注释行。遇到注释行时重置 <code>nb_lastkey = 0</code>，终止向量续行上下文。空行同样终止续行。</p>
+<h3 id="keyvalue-解析">key=value 解析</h3>
+<p><code>getin_readdef</code> 用 <code>INDEX(READ_str, '=')</code> 分割 key 和 value：</p>
+<ol type="1">
+<li><strong>key 提取</strong>：<code>key_str = TRIM(ADJUSTL(READ_str(1:ptn-1)))</code>。</li>
+<li><strong><code>__NNN</code> 向量下标规整</strong>：若 key 含 <code>__</code>，将下标部分重格式化为 <code>c_i_fmt = '(I5.5)'</code>（5 位零填充），确保 <code>key__1</code> 和 <code>key__00001</code> 匹配。</li>
+<li><strong>value 清洗</strong>：<code>nocomma</code> 去逗号，<code>cmpblank</code> 压缩多余空白。</li>
+</ol>
+<h3 id="压缩字段表示">压缩字段表示</h3>
+<p><code>getin_decrypt</code> 检测 value 中的 <code>*</code> 号（非引号开头时）：<code>N*value</code> 表示该值重复 N 次。<code>compline(nb_lines)</code> 存储重复次数（<code>&gt; 0</code>），否则 <code>-1</code>。</p>
+<h3 id="多值行拆分">多值行拆分</h3>
+<p>若 value 含空格且非引号包裹，<code>getin_decrypt</code> 按空格拆分为多个 <code>TARGET__00001</code>, <code>TARGET__00002</code>, ... 条目。每个条目独立存入 <code>targetlist</code>/<code>fichier</code>/<code>fromfile</code>。</p>
+<h3 id="向量续行">向量续行</h3>
+<p>无 <code>=</code> 号的非空行被视为上一个 key 的续行。若上一个 key 是标量（<code>nb_lastkey == 1</code>），自动转换为 <code>TARGET__00001</code> 向量表示并继续递增下标。</p>
+<h2 id="文本存储层">文本存储层</h2>
+<p>文件解析结果存入三组并行数组：</p>
+<table>
+<thead>
+<tr>
+<th>数组</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>targetlist(:)</code></td>
+<td><code>CHARACTER(LEN=l_n)</code></td>
+<td>key 名（截断至 <code>l_n=30</code> 字符）</td>
+</tr>
+<tr>
+<td><code>fichier(:)</code></td>
+<td><code>CHARACTER(LEN=100)</code></td>
+<td>原始 value 文本</td>
+</tr>
+<tr>
+<td><code>fromfile(:)</code></td>
+<td><code>INTEGER</code></td>
+<td>来源文件索引（<code>filelist</code> 下标）</td>
+</tr>
+<tr>
+<td><code>compline(:)</code></td>
+<td><code>INTEGER</code></td>
+<td>压缩重复次数（<code>&gt; 0</code>）或 <code>-1</code></td>
+</tr>
+</tbody>
+</table>
+<p>初始分配 <code>i_txtslab=1000</code> 行，<code>getin_alloctxt</code> 按 slab 扩容。<code>nb_lines</code> 跟踪当前行数。</p>
+<h2 id="一致性检查">一致性检查</h2>
+<p><code>getin_read</code> 在所有文件读取完成后调用 <code>getin_checkcohe</code>。该子程序对 <code>targetlist</code> 做 O(n²) 逐对比较，发现重复 key 时：</p>
+<ol type="1">
+<li>打印两个值的来源和文本。</li>
+<li>将<strong>先出现</strong>的 <code>targetlist(line)</code> 置为空白（<code>' '</code>），保留<strong>后出现</strong>的值。</li>
+<li>打印 <code>"We will keep only the last value"</code>。</li>
+</ol>
+<p>这意味着后读入的文件覆盖先读入的同名 key，同一文件内后面的行覆盖前面的行。</p>
+<h2 id="key-表结构">key 表结构</h2>
+<h3 id="t_key-类型"><code>t_key</code> 类型</h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="dt">TYPE</span> <span class="dt">::</span> t_key</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">CHARACTER(LEN=l_n)</span> <span class="dt">::</span> keystr         <span class="co">! key 名（30 字符）</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span> <span class="dt">::</span> keystatus                 <span class="co">! 1=文件, 2=默认, 3=部分默认</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span> <span class="dt">::</span> keytype                   <span class="co">! k_i=1, k_r=2, k_c=3, k_l=4</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span> <span class="dt">::</span> keycompress               <span class="co">! &gt;0: 压缩重复次数; &lt;0: 未压缩</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span> <span class="dt">::</span> keyfromfile               <span class="co">! 来源文件索引</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span> <span class="dt">::</span> keymemstart               <span class="co">! typed memory 起始位置</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">INTEGER</span> <span class="dt">::</span> keymemlen                 <span class="co">! typed memory 占用长度</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="dt">END TYPE</span> t_key</span></code></pre></div>
+<h3 id="类型常量">类型常量</h3>
+<table>
+<thead>
+<tr>
+<th>常量</th>
+<th>值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>k_i</code></td>
+<td>1</td>
+<td>INTEGER</td>
+</tr>
+<tr>
+<td><code>k_r</code></td>
+<td>2</td>
+<td>REAL</td>
+</tr>
+<tr>
+<td><code>k_c</code></td>
+<td>3</td>
+<td>CHARACTER</td>
+</tr>
+<tr>
+<td><code>k_l</code></td>
+<td>4</td>
+<td>LOGICAL</td>
+</tr>
+</tbody>
+</table>
+<h3 id="typed-memory-池">typed memory 池</h3>
+<p>四组一维 SAVE 数组分别存储各类型值：</p>
+<table>
+<thead>
+<tr>
+<th>数组</th>
+<th>类型</th>
+<th>初始大小</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>i_mem(:)</code></td>
+<td><code>INTEGER</code></td>
+<td><code>memslabs=200</code></td>
+</tr>
+<tr>
+<td><code>r_mem(:)</code></td>
+<td><code>REAL</code></td>
+<td><code>memslabs=200</code></td>
+</tr>
+<tr>
+<td><code>c_mem(:)</code></td>
+<td><code>CHARACTER(LEN=100)</code></td>
+<td><code>memslabs=200</code></td>
+</tr>
+<tr>
+<td><code>l_mem(:)</code></td>
+<td><code>LOGICAL</code></td>
+<td><code>memslabs=200</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>i_mempos</code>/<code>r_mempos</code>/<code>c_mempos</code>/<code>l_mempos</code> 跟踪各池当前末尾位置。<code>getin_allocmem</code> 按需扩容，每次增加 <code>MAX(memslabs, len_wanted)</code> 个元素，使用 tmp 数组复制旧数据。</p>
+<h3 id="key_tab-分配">key_tab 分配</h3>
+<p><code>getin_allockeys</code> 初始分配 <code>memslabs=200</code> 个 <code>t_key</code> 条目。空间不足时按 <code>memslabs</code> 增量扩容。<code>key_tab(:)%keycompress</code> 初始化为 <code>-1</code>。</p>
+<h2 id="getin-调用流首次-vs-缓存命中"><code>getin</code> 调用流（首次 vs 缓存命中）</h2>
+<p>每个 typed specific procedure（<code>getinis</code>/<code>getini1d</code>/<code>getini2d</code>/<code>getinrs</code>/<code>getinr1d</code>/<code>getinr2d</code>/<code>getincs</code>/<code>getinc1d</code>/<code>getinc2d</code>/<code>getinls</code>/<code>getinl1d</code>/<code>getinl2d</code>）遵循相同模式。以 <code>getinis</code> 为例：</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> getinis (<span class="dt">target</span>, ret_val)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> get_findkey (<span class="dv">1</span>, <span class="dt">target</span>, pos)     <span class="co">! ① 在 key_tab 中查找</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  tmp_ret_val(<span class="dv">1</span>) <span class="kw">=</span> ret_val              <span class="co">! ② 保存调用方默认值</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">IF</span> (pos <span class="op">&lt;</span> <span class="dv">0</span>) <span class="kw">THEN</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CALL</span> get_fil (<span class="dt">target</span>, status, fileorig, i_val<span class="kw">=</span>tmp_ret_val)  <span class="co">! ③ 从文件文本解析</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CALL</span> get_wdb (<span class="dt">target</span>, status, fileorig, <span class="dv">1</span>, i_val<span class="kw">=</span>tmp_ret_val) <span class="co">! ④ 写入 key 表</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ELSE</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CALL</span> get_rdb (pos, <span class="dv">1</span>, <span class="dt">target</span>, i_val<span class="kw">=</span>tmp_ret_val)  <span class="co">! ⑤ 从 key 表读取</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ENDIF</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>  ret_val <span class="kw">=</span> tmp_ret_val(<span class="dv">1</span>)              <span class="co">! ⑥ 回写</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="kw">END SUBROUTINE</span> getinis</span></code></pre></div>
+<h3 id="流程阶段">流程阶段</h3>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>子程序</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>① 查找</td>
+<td><code>get_findkey(i_tab=1)</code></td>
+<td>线性扫描 <code>key_tab(1:nb_keys)%keystr</code>，匹配返回 <code>pos</code>，不匹配返回 <code>-1</code></td>
+</tr>
+<tr>
+<td>③ 文件解析</td>
+<td><code>get_fil</code></td>
+<td>调用 <code>getin_read</code>（懒初始化），在 <code>targetlist</code> 中 <code>get_findkey(i_tab=2)</code> 查找；找不到则试 <code>TARGET__NNN</code> 下标形式</td>
+</tr>
+<tr>
+<td>④ 写表</td>
+<td><code>get_wdb</code></td>
+<td>新建 <code>key_tab(nb_keys+1)</code> 条目，在对应 typed memory 池中分配并写入值</td>
+</tr>
+<tr>
+<td>⑤ 读表</td>
+<td><code>get_rdb</code></td>
+<td>校验 <code>keytype</code> 匹配，从 typed memory 池复制值；压缩字段则单值填充整个数组</td>
+</tr>
+</tbody>
+</table>
+<h3 id="懒初始化">懒初始化</h3>
+<p><code>getin_read</code> 由 <code>SAVE</code> 变量 <code>allread</code> 守卫，仅在首次调用时执行：分配文本、key 表和四组 typed memory → 读取 <code>run.def</code> 及所有 INCLUDEDEF 文件 → <code>getin_checkcohe</code> → <code>allread=1</code>。后续调用直接返回。</p>
+<h2 id="keystatus-语义">keystatus 语义</h2>
+<p><code>get_fil</code> 根据解析结果设置 <code>status</code>：</p>
+<table>
+<thead>
+<tr>
+<th>keystatus</th>
+<th>含义</th>
+<th>设置条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>值来自 <code>.def</code> 文件</td>
+<td>所有请求的元素都在 <code>targetlist</code> 中找到，且非 <code>"def"</code>/<code>"default"</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>使用调用方默认值</td>
+<td>所有元素都未在文件中找到，或值为 <code>"def"</code>/<code>"default"</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>部分默认</td>
+<td>部分元素找到、部分使用默认值（仅向量 key）</td>
+</tr>
+</tbody>
+</table>
+<p><code>keystatus=2</code> 时打印 <code>"USING DEFAULT BEHAVIOUR FOR &lt;target&gt;"</code>。部分默认时逐个打印 <code>"USING DEFAULTS : &lt;target&gt;__&lt;n&gt; = &lt;value&gt;"</code>，超过 <code>max_msgs=15</code> 条后缩写为 <code>"USING DEFAULTS ..."</code>。</p>
+<h2 id="值解码">值解码</h2>
+<p><code>get_fil</code> 按 <code>get_qtyp</code> 返回的类型解码：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>解码方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>INTEGER</td>
+<td><code>READ(str, FMT='(I&lt; len &gt;)')</code></td>
+</tr>
+<tr>
+<td>REAL</td>
+<td><code>READ(str, FMT=*)</code></td>
+</tr>
+<tr>
+<td>CHARACTER</td>
+<td>直接截取 <code>str(1:len_str)</code></td>
+</tr>
+<tr>
+<td>LOGICAL</td>
+<td>搜索 <code>"tru"</code>/<code>"y"</code> → <code>.TRUE.</code>；<code>"fal"</code>/<code>"n"</code> → <code>.FALSE.</code></td>
+</tr>
+</tbody>
+</table>
+<p>IOSTAT 非零时调用 <code>ipslerr(3,...)</code> fatal 终止。</p>
+<h3 id="压缩字段展开">压缩字段展开</h3>
+<p>当 <code>compline(pos) &gt; 0</code> 时，<code>get_fil</code> 将解析到的单值 <code>i_cmpval</code>/<code>r_cmpval</code> 填充到所有 <code>found(it) == .FALSE.</code> 的位置。<code>get_rdb</code> 中压缩字段也使用单值填充：<code>i_val(1:size_of_in) = i_mem(key_tab(pos)%keymemstart)</code>。</p>
+<p><code>get_wdb</code> 在写入时判断压缩条件：<code>MINVAL(val) == MAXVAL(val)</code> 且 <code>size_of_in &gt; compress_lim=20</code>，满足则 <code>keycompress = size_of_in</code>、<code>keymemlen = 1</code>。</p>
+<h2 id="向量-key-索引格式">向量 key 索引格式</h2>
+<p>向量 key 使用 <code>TARGET__NNNNN</code> 格式，<code>NNNNN</code> 为 5 位零填充整数（<code>c_i_fmt = '(I5.5)'</code>）。<code>get_fil</code> 查找时先尝试 <code>target</code> 原名，失败后尝试 <code>target//__NNN</code>（<code>it</code> 从 1 到 <code>nb_to_ret</code>）。</p>
+<p><code>l_n=30</code> 限制 key 名最长 30 字符。向量 key 的基名部分截断至 <code>l_n - n_d_fmt - 2 = 30 - 5 - 2 = 23</code> 字符，为 <code>__NNNNN</code> 后缀预留空间。</p>
+<h2 id="并行-wrappergetin_p">并行 wrapper（<code>getin_p</code>）</h2>
+<p><code>ioipsl_getin_p_mod.F90</code> 将 <code>getin</code> 包装为并行安全版本。每个 specific procedure 遵循：</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">!$OMP BARRIER</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (is_master) <span class="kw">THEN</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">CALL</span> getin(VarIn, VarOut)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co">CALL bcast(VarOut)</span></span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>specific procedure</th>
+<th>类型</th>
+<th>维度</th>
+<th>bcast 方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getincs_p</code></td>
+<td>CHARACTER</td>
+<td>scalar</td>
+<td><code>bcast(VarOut)</code></td>
+</tr>
+<tr>
+<td><code>getinc1d_p</code></td>
+<td>CHARACTER</td>
+<td>1D</td>
+<td>逐元素 <code>bcast(VarOut(i))</code></td>
+</tr>
+<tr>
+<td><code>getinis_p</code></td>
+<td>INTEGER</td>
+<td>scalar</td>
+<td><code>bcast(VarOut)</code></td>
+</tr>
+<tr>
+<td><code>getini1d_p</code></td>
+<td>INTEGER</td>
+<td>1D</td>
+<td><code>bcast(VarOut)</code></td>
+</tr>
+<tr>
+<td><code>getini2d_p</code></td>
+<td>INTEGER</td>
+<td>2D</td>
+<td><code>bcast(VarOut)</code></td>
+</tr>
+<tr>
+<td><code>getinrs_p</code></td>
+<td>REAL</td>
+<td>scalar</td>
+<td><code>bcast(VarOut)</code></td>
+</tr>
+<tr>
+<td><code>getinr1d_p</code></td>
+<td>REAL</td>
+<td>1D</td>
+<td><code>bcast(VarOut)</code></td>
+</tr>
+<tr>
+<td><code>getinr2d_p</code></td>
+<td>REAL</td>
+<td>2D</td>
+<td><code>bcast(VarOut)</code></td>
+</tr>
+<tr>
+<td><code>getinls_p</code></td>
+<td>LOGICAL</td>
+<td>scalar</td>
+<td><code>bcast(VarOut)</code></td>
+</tr>
+<tr>
+<td><code>getinl1d_p</code></td>
+<td>LOGICAL</td>
+<td>1D</td>
+<td><code>bcast(VarOut)</code></td>
+</tr>
+<tr>
+<td><code>getinl2d_p</code></td>
+<td>LOGICAL</td>
+<td>2D</td>
+<td><code>bcast(VarOut)</code></td>
+</tr>
+</tbody>
+</table>
+<p>character 1D 逐元素广播是因为 Fortran <code>CHARACTER(LEN=*)</code> 数组在内存中不连续，不能直接整体 bcast。</p>
+<p><code>bcast</code> 来自 <code>mod_phys_lmdz_transfert_para</code>，<code>is_master</code> 来自 <code>mod_phys_lmdz_para</code>。因此 <code>getin_p</code> 的前提是物理侧并行基础设施已初始化。</p>
+<h2 id="mars-无-ioipsl-条件经过">Mars 无 IOIPSL 条件经过</h2>
+<p>Mars 编译不定义 <code>CPP_IOIPSL</code> 时：</p>
+<ol type="1">
+<li><code>ioipsl_getin_p_mod.F90</code> 使用 <code>USE ioipsl_getincom, ONLY: getin</code>。</li>
+<li>物理配置（<code>phymars/conf_phys.F</code> 等）调用 <code>getin_p</code>。</li>
+<li>master 线程触发 <code>getin</code> → <code>get_findkey(1)</code> 查 key_tab → 首次 miss → <code>getin_read</code> 懒初始化（读 <code>run.def</code> + INCLUDEDEF 文件） → <code>get_fil</code> 解析 → <code>get_wdb</code> 写表 → <code>bcast</code>。</li>
+<li>后续同 key 调用命中 key_tab → <code>get_rdb</code> 直接读 typed memory → <code>bcast</code>。</li>
+</ol>
+<p>Mars 动力侧（<code>conf_gcm.F90</code>）可能使用 IOIPSL <code>getin</code> 或 <code>ioipsl_getincom</code> <code>getin</code>，取决于动力编译路径，但 fallback 行为一致。</p>
+<h2 id="关键常量汇总">关键常量汇总</h2>
+<table>
+<thead>
+<tr>
+<th>常量</th>
+<th>值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>max_files</code></td>
+<td>100</td>
+<td>最大文件数</td>
+</tr>
+<tr>
+<td><code>l_n</code></td>
+<td>30</td>
+<td>key 名最大长度</td>
+</tr>
+<tr>
+<td><code>i_txtslab</code></td>
+<td>1000</td>
+<td>文本 slab 初始大小</td>
+</tr>
+<tr>
+<td><code>memslabs</code></td>
+<td>200</td>
+<td>key_tab 和 typed memory slab 大小</td>
+</tr>
+<tr>
+<td><code>compress_lim</code></td>
+<td>20</td>
+<td>压缩阈值（元素数超过此值才允许压缩）</td>
+</tr>
+<tr>
+<td><code>n_d_fmt</code></td>
+<td>5</td>
+<td>向量下标格式宽度</td>
+</tr>
+<tr>
+<td><code>max_msgs</code></td>
+<td>15</td>
+<td>默认值打印上限</td>
+</tr>
+</tbody>
+</table>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/misc/ioipsl-getin-system.html">ioipsl-getin-system</a></li>
+<li><a href="../modules/phy_common/ioipsl_getin_p_mod.html">ioipsl_getin_p_mod</a></li>
+<li><a href="../modules/phy_common/mod_phys_lmdz_para.html">mod_phys_lmdz_para</a></li>
+<li><a href="getin-typed-parser.html">getin-typed-parser</a></li>
+<li><a href="history-xios-getin-boundary.html">history-xios-getin-boundary</a></li>
+<li><a href="common-gcm-mars-run-entry.html">common-gcm-mars-run-entry</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

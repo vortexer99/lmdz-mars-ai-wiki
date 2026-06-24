@@ -1,0 +1,233 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>leapfrog-p-distribution-halo - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a class="active" href="index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>routines/leapfrog-p-distribution-halo.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="leapfrog_p-分布和-halo-调度">leapfrog_p 分布和 halo 调度</h1>
+<p>页面状态：TASK-0128 完成。 源码范围：</p>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\leapfrog_p.F
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\parallel_lmdz.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\mod_hallo.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\bands.F90</code></pre>
+<p>Mars 运行参与度：条件经过。Mars 并行 GCM 经过 <code>dyn3dpar/leapfrog_p.F</code> 的分布切换和 halo/swap；串行 Mars GCM 不经过本页路径。</p>
+<h2 id="职责边界">职责边界</h2>
+<p>本页解释 <code>leapfrog_p</code> 如何在 caldyn、physics、dissip 等阶段之间切换纬向 band，并用 <code>mod_hallo</code> request 补齐 halo 或重新分布字段。时间步状态机见 <a href="leapfrog-p-time-scheduler.html">leapfrog_p 时间步调度</a>，入口数组和工作区见 <a href="leapfrog-p-state-contract.html">leapfrog_p 状态契约</a>。</p>
+<p>三个动作不能混用：</p>
+<table>
+<thead>
+<tr>
+<th>动作</th>
+<th>例程</th>
+<th>语义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>切当前分布</td>
+<td><code>SetDistrib(jj_Nb_*)</code></td>
+<td>只重算当前 rank 的 <code>jj_begin/jj_end/jj_nb</code> 和 <code>ij_begin/ij_end</code>。</td>
+</tr>
+<tr>
+<td>当前分布 halo</td>
+<td><code>Register_Hallo</code></td>
+<td>在当前分布上向上下邻居收发边界 band。</td>
+</tr>
+<tr>
+<td>分布切换交换</td>
+<td><code>Register_SwapField</code> / <code>Register_SwapFieldHallo</code></td>
+<td>在旧分布和目标分布之间搬运重叠字段；<code>SwapFieldHallo</code> 还按 <code>Up/Down</code> 扩展目标 halo。</td>
+</tr>
+</tbody>
+</table>
+<p><code>SendRequest</code> 负责按 request 打包并 post MPI send/recv，<code>WaitRequest</code> 等待所有 request 并把接收缓冲解包回字段。<code>WaitRequest</code> 结束后会清空 request 并把 tag 重置为 1。</p>
+<h2 id="setdistrib-只改索引">SetDistrib 只改索引</h2>
+<p><code>parallel_lmdz:SetDistrib</code> 在 223-251 行接收全 rank 的 <code>jj_Nb_New(0:MPI_Size-1)</code>：</p>
+<ol type="1">
+<li>写入 <code>jj_Nb_Para</code>。</li>
+<li>从 rank 0 开始累计 <code>jj_begin_para/jj_end_para</code>。</li>
+<li>取当前 <code>mpi_rank</code> 的 <code>jj_begin/jj_end/jj_nb</code>。</li>
+<li>派生一维数组范围 <code>ij_begin=(jj_begin-1)*iip1+1</code>、<code>ij_end=jj_end*iip1</code>。</li>
+</ol>
+<p>它不复制任何数组数据。因此 <code>leapfrog_p</code> 每次切分布前后都必须配套 <code>Register_SwapField* -&gt; SendRequest -&gt; WaitRequest</code>，否则当前 rank 的 <code>ij_begin/ij_end</code> 会指向新范围，但字段内容仍只保证旧范围有效。</p>
+<h2 id="request-类型在-leapfrog_p-中的角色">request 类型在 leapfrog_p 中的角色</h2>
+<p><code>leapfrog_p</code> 声明三个 request：</p>
+<table>
+<thead>
+<tr>
+<th>request</th>
+<th>主要用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TestRequest</code></td>
+<td>caldyn 初始或动态调整后的字段重分布，以及常规动力 halo。</td>
+</tr>
+<tr>
+<td><code>Request_physic</code></td>
+<td>caldyn/physics 分布切换、physics tendency halo、physics 后回到 caldyn。</td>
+</tr>
+<tr>
+<td><code>Request_Dissip</code></td>
+<td>dissip 前后分布切换、sponge/dissip 守恒修正相关 halo。</td>
+</tr>
+</tbody>
+</table>
+<p>physics request 在两处调用 <code>SetTag(Request_physic,800)</code>，用于把 physics 阶段的 MPI tag 与默认 tag 分开。实际 MPI tag 还会加 <code>1000*omp_rank</code>，以区分 OpenMP 线程。</p>
+<h2 id="初始化和自适应调整">初始化和自适应调整</h2>
+<p>490-500 行第一次进入 caldyn 时：</p>
+<ol type="1">
+<li>master 调 <code>SetDistrib(jj_Nb_Caldyn)</code>。</li>
+<li>barrier 后 <code>firstCaldyn=.FALSE.</code>。</li>
+<li>master 初始化 timing。</li>
+</ol>
+<p>509-605 行是可选 <code>Adjust</code> 路径。只有满足 <code>iapptrac==iapp_tracvl</code>、当前为 <code>forward</code> 或 <code>leapf</code>、<code>itau/iphysiq&gt;2</code> 且 <code>AdjustCount&gt;30</code> 时才进入。流程是：</p>
+<ol type="1">
+<li><code>allgather_timer_average</code> 汇总计时。</li>
+<li><code>AdjustBands_caldyn</code> 可能移动 caldyn band，rank 0 可 <code>WriteBands</code>。</li>
+<li>对 <code>ucov/vcov/teta/masse/ps/pk/pks/phis/phi/q/temp/tsurpk</code> 等当前状态注册 <code>Register_SwapFieldHallo(..., jj_Nb_caldyn, 0, 0, TestRequest)</code>。</li>
+<li>调 <code>SetDistrib(jj_nb_caldyn)</code>。</li>
+<li><code>SendRequest(TestRequest)</code> 后 <code>WaitRequest(TestRequest)</code> 完成重分布。</li>
+<li>再调用 <code>AdjustBands_dissip</code> 和 <code>AdjustBands_physic</code>，更新后续阶段的目标分布。</li>
+</ol>
+<p>这里 <code>Up=0, Down=0</code>，所以虽然使用 <code>SwapFieldHallo</code>，实际不扩展 halo；它主要是在 caldyn band 自适应改变后搬运全状态到新 caldyn 分布。</p>
+<h2 id="动力计算前-halo">动力计算前 halo</h2>
+<p>631-660 行在动力 tendency 计算前做当前 caldyn 分布的 halo：</p>
+<ul>
+<li><code>Register_Hallo</code> 覆盖 <code>ucov/vcov/teta/ps/pkf/pk/pks/p/temp/tsurpk</code>。</li>
+<li><code>ps</code> 用 <code>RUp=1,RDown=2,SUp=2,SDown=1</code>，需要比普通 3D 场更宽的不对称边界。</li>
+<li>tracer <code>q</code> 的 halo 注册被注释掉，本段不交换 <code>q</code>。</li>
+<li>request 顺序是 <code>Register_Hallo* -&gt; SendRequest(TestRequest) -&gt; barrier -&gt; WaitRequest(TestRequest) -&gt; barrier</code>。</li>
+</ul>
+<p>这一步不是分布切换；它只补齐当前 caldyn 分布的上下邻居边界，供后续 <code>geopot_p/caldyn_p/caladvtrac</code> 等使用。</p>
+<h2 id="physics-前切到物理分布">physics 前切到物理分布</h2>
+<p>当 <code>apphys</code> 为真时，948-1002 行把动力字段从 caldyn 分布换到 physics 分布：</p>
+<ol type="1">
+<li>设 <code>Request_physic</code> tag 为 800。</li>
+<li>用 <code>Register_SwapFieldHallo(..., jj_Nb_physic, Up, Down, Request_physic)</code> 注册字段。</li>
+<li>主要 prognostic state、pressure/Exner、位势、垂直速度、每个 tracer 和 <code>flxw</code> 都参与交换。</li>
+<li>多数字段使用 <code>Up=2, Down=2</code>；<code>masse</code> 使用 <code>Up=1, Down=2</code>。</li>
+<li><code>SendRequest/WaitRequest</code> 完成后，master 调 <code>SetDistrib(jj_nb_Physic)</code>。</li>
+</ol>
+<p>这里必须先注册交换再切当前分布，因为 <code>Register_SwapFieldHallo</code> 需要同时知道旧的 <code>jj_begin/jj_end</code> 和目标 <code>jj_Nb_physic</code>。<code>SetDistrib</code> 放在通信完成后，避免当前 rank 在字段还没搬完时就按新范围解释数组。</p>
+<h2 id="physics-tendency-halo-和回填">physics tendency halo 和回填</h2>
+<p><code>calfis_p</code> 之后，1040-1077 行先切到 <code>jj_nb_Physic_bis</code>，再给 physics tendency 做 halo：</p>
+<ul>
+<li><code>dufi/dvfi/dtetafi/dpfi/dqfi</code> 用 <code>Register_Hallo(..., 1,0,0,1, Request_physic)</code>。</li>
+<li><code>SendRequest/WaitRequest</code> 后回到 <code>SetDistrib(jj_nb_Physic)</code>。</li>
+<li>1078-1097 行把 <code>_tmp</code> 暂存 tendency 加回 <code>dufi/dvfi/dtetafi/dqfi/dpfi</code>。</li>
+</ul>
+<p>这段的重点是 tendency 的边界合并，而不是完整状态重分布。<code>jj_nb_Physic_bis</code> 提供一个辅助分布来处理 physics tendency 的上下拼接。</p>
+<h2 id="physics-后回到-caldyn">physics 后回到 caldyn</h2>
+<p><code>addfi_p</code>、pressure/mass/Exner 刷新和可选 top-bound 之后，1135-1189 行把状态换回 caldyn：</p>
+<ol type="1">
+<li>再次设置 <code>Request_physic</code> tag 为 800。</li>
+<li>对 <code>ucov/vcov/teta/masse/ps/p/pk/phis/phi/w/q</code> 注册 <code>Register_SwapField(..., jj_Nb_caldyn, Request_physic)</code>。</li>
+<li><code>Register_SwapField</code> 不带 halo 扩展，只把目标 caldyn 分布需要的重叠字段搬回。</li>
+<li><code>SendRequest/WaitRequest</code> 后 master 调 <code>SetDistrib(jj_Nb_caldyn)</code>。</li>
+</ol>
+<p>因此 physics 阶段前是“切到 physics 并扩 halo”，physics 后是“回 caldyn，不额外扩 halo”。后续若动力或输出还需要边界，会再单独走 <code>Register_Hallo</code>。</p>
+<h2 id="friction-和-dissip-前后">friction 和 dissip 前后</h2>
+<p><code>iflag_phys==2</code> 分支中，1249-1255 行在 <code>friction_p</code> 前对 <code>ucov/vcov</code> 做 halo：</p>
+<ul>
+<li><code>ucov</code> 用 <code>Register_Hallo(0,1,1,0)</code>。</li>
+<li><code>vcov</code> 用 <code>Register_Hallo(1,1,1,1)</code>。</li>
+</ul>
+<p><code>apdiss</code> 分支从 1291 行开始，通信分三段：</p>
+<table>
+<thead>
+<tr>
+<th>段</th>
+<th style="text-align: right;">源码范围</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sponge 前</td>
+<td style="text-align: right;">1303-1319</td>
+<td>若 <code>callsponge</code>，对 <code>teta</code> 和 <code>ps</code> 注册 halo。源码注释说明原则上只需 <code>ps</code>，但 mixed MPI/OpenMP 下只注册 2D 场会让 <code>WaitRequest</code> 崩溃，因此额外注册 3D <code>teta</code>。</td>
+</tr>
+<tr>
+<td>切到 dissip</td>
+<td style="text-align: right;">1323-1347</td>
+<td><code>ucov/vcov</code> 用 <code>Register_SwapFieldHallo(..., jj_Nb_dissip, 1,1)</code>，<code>teta/p/pk</code> 用 <code>Register_SwapField</code>；通信完成后 <code>SetDistrib(jj_Nb_dissip)</code>。</td>
+</tr>
+<tr>
+<td>dissip 后回 caldyn</td>
+<td style="text-align: right;">1518-1542</td>
+<td><code>ucov/vcov/teta/p/pk</code> 用 <code>Register_SwapField(..., jj_Nb_caldyn)</code>，通信完成后 <code>SetDistrib(jj_Nb_caldyn)</code>。</td>
+</tr>
+</tbody>
+</table>
+<p>如果 <code>dissip_conservative</code> 为真，1385-1399 行在重新计算动能前还会对 <code>ucov/vcov</code> 做一次普通 halo。</p>
+<h2 id="复现检查表">复现检查表</h2>
+<ol type="1">
+<li>记录当前阶段的 <code>jj_Nb_Caldyn/jj_Nb_physic/jj_Nb_physic_bis/jj_Nb_dissip</code>，不要只看 <code>init_parallel</code> 后的初始分布。</li>
+<li>看到 <code>SetDistrib</code> 前，检查是否已经注册并完成了对应 <code>Register_SwapField*</code> request。</li>
+<li>区分 <code>Register_Hallo</code> 与 <code>Register_SwapField*</code>：前者补边界，后者搬运到新分布。</li>
+<li>physics 前交换使用 <code>SwapFieldHallo</code> 并带 <code>Up/Down</code>，physics 后回 caldyn 使用 <code>SwapField</code>。</li>
+<li>若 mixed MPI/OpenMP 在 <code>WaitRequest</code> 附近崩溃，优先检查 <code>omp_chunk</code>、request 是否包含 3D 字段、tag 是否与 OpenMP rank 匹配。</li>
+<li>对输出/restart 字段缺失，先查 <a href="../modules/dyn3dpar/leapfrog_p.html">dyn3dpar/leapfrog_p</a> 的 gather/root-only 输出；本页只覆盖计算阶段分布和 halo。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>callsponge</code> 分支中“只注册 <code>ps</code> 会让 mixed MPI/OpenMP 的 <code>WaitRequest</code> 崩溃”的注释说明了经验性规避，但根因需结合具体 MPI/OMP 平台复现。</li>
+<li><code>AdjustBands_*</code> 的运行时收益依赖 <code>timer_average</code> 稳定性；典型 Mars 生产配置是否启用 <code>Adjust</code> 需由运行样例确认。</li>
+<li>physics 前 <code>masse</code> 使用 <code>Up=1,Down=2</code> 而其他多数字段使用 <code>2,2</code>，源码未在本段解释设计理由。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../modules/dyn3dpar/leapfrog_p.html">dyn3dpar/leapfrog_p</a></li>
+<li><a href="leapfrog-p-state-contract.html">leapfrog_p 状态契约</a></li>
+<li><a href="leapfrog-p-time-scheduler.html">leapfrog_p 时间步调度</a></li>
+<li><a href="../modules/dyn3dpar/parallel_lmdz.html">parallel_lmdz</a></li>
+<li><a href="../modules/dyn3dpar/mod_hallo.html">mod_hallo</a></li>
+<li><a href="../modules/dyn3dpar/bands.html">bands</a></li>
+<li><a href="../modules/dyn3dpar/times.html">times</a></li>
+<li><a href="../themes/serial-parallel-dynamics.html">serial-parallel-dynamics</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

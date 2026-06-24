@@ -1,0 +1,179 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>parallel_lmdz - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/dyn3dpar/parallel_lmdz.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="parallel_lmdzf90">parallel_lmdz.F90</h1>
+<p>页面状态：6.3 返工完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\parallel_lmdz.F90</code>。 Mars 运行参与度：条件经过；Mars 并行动力构建依赖本模块。</p>
+<h2 id="文件定位">文件定位</h2>
+<p><code>parallel_lmdz</code> 保存 MPI/OMP 使用状态、纬向 band decomposition、局部 <code>ij</code> 范围、极点所有权和常用通信例程。<code>dyn3dpar</code> 中多数 <code>_p</code> 算子、输送、I/O 和物理接口例程都从这里取得并行边界。</p>
+<h2 id="主要符号">主要符号</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th style="text-align: right;">行号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>init_parallel</code></td>
+<td style="text-align: right;">53</td>
+<td>初始化 MPI/OMP、纬向分块和日志。</td>
+</tr>
+<tr>
+<td><code>SetDistrib</code></td>
+<td style="text-align: right;">223</td>
+<td>切换当前 rank 的纬向 band。</td>
+</tr>
+<tr>
+<td><code>Finalize_parallel</code></td>
+<td style="text-align: right;">约 256</td>
+<td>释放并关闭并行后端。</td>
+</tr>
+<tr>
+<td><code>exchange_hallo</code></td>
+<td style="text-align: right;">约 370</td>
+<td>上下相邻 rank 交换 halo。</td>
+</tr>
+<tr>
+<td><code>Gather_Field</code></td>
+<td style="text-align: right;">512</td>
+<td>收集分布式场到指定 rank。</td>
+</tr>
+<tr>
+<td><code>AllGather_Field</code></td>
+<td style="text-align: right;">596</td>
+<td>gather 到 0 后广播。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="63-omp_chunk-修复">6.3 omp_chunk 修复</h2>
+<p>6.3 在 <code>init_parallel</code> 的 OpenMP chunk 计算中加入下调逻辑：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">行号</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">191-192</td>
+<td>初始按 <code>(llm+1)/omp_size</code> 向上取整。</td>
+</tr>
+<tr>
+<td style="text-align: right;">197</td>
+<td>注释说明 idle threads 可能触发 <code>MPI_Waitall</code>。</td>
+</tr>
+<tr>
+<td style="text-align: right;">200-201</td>
+<td>当最后线程无工作且 <code>omp_chunk&gt;=1</code> 时递减 <code>omp_chunk</code>。</td>
+</tr>
+<tr>
+<td style="text-align: right;">207</td>
+<td>若下调后覆盖不足，再检查异常。</td>
+</tr>
+<tr>
+<td style="text-align: right;">211</td>
+<td>仍允许 <code>getin('omp_chunk',omp_chunk)</code> 覆盖。</td>
+</tr>
+</tbody>
+</table>
+<p>这个修复的目的是避免 hybrid MPI/OMP 中某些 <code>llm</code> 与 <code>omp_size</code> 组合让线程没有垂直层工作，却仍进入 MPI wait 路径，造成 request 错配。</p>
+<h2 id="并行分布状态">并行分布状态</h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>using_mpi/using_omp</code></td>
+<td>编译宏决定运行路径。</td>
+</tr>
+<tr>
+<td><code>mpi_size/mpi_rank</code></td>
+<td><code>COMM_LMDZ</code> 上进程数和 rank。</td>
+</tr>
+<tr>
+<td><code>jj_begin/jj_end/jj_nb</code></td>
+<td>当前 rank 纬向 band 范围。</td>
+</tr>
+<tr>
+<td><code>ij_begin/ij_end</code></td>
+<td>当前 rank 一维水平数组范围。</td>
+</tr>
+<tr>
+<td><code>pole_nord/pole_sud</code></td>
+<td>是否拥有北/南极。</td>
+</tr>
+<tr>
+<td><code>OMP_CHUNK/omp_rank/omp_size</code></td>
+<td>OMP 垂直层分块；<code>omp_rank</code> threadprivate。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="复现要点">复现要点</h2>
+<ol type="1">
+<li>并行问题先记录 <code>mpi_size/mpi_rank/omp_size/omp_chunk/llm</code>。</li>
+<li><code>leapfrog_p</code> 会频繁 <code>SetDistrib(jj_Nb_Caldyn/Physic/Dissip)</code>，不要只看初始化分布。</li>
+<li>hybrid <code>MPI_Waitall</code> 错误先查 <code>omp_chunk</code> 是否被用户 <code>getin</code> 覆盖成危险值。</li>
+<li><code>Gather_Field</code> 支持 <code>ip1jmp1</code> 和 <code>ip1jm</code> 两类水平维度，南端处理不同。</li>
+</ol>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="leapfrog_p.html">leapfrog_p</a></li>
+<li><a href="../../routines/leapfrog-p-distribution-halo.html">leapfrog-p-distribution-halo</a></li>
+<li><a href="../phy_common/parallel-transfer-6d.html">parallel-transfer-6d</a></li>
+<li><a href="mod_hallo.html">mod_hallo</a></li>
+<li><a href="bands.html">bands</a></li>
+<li><a href="times.html">times</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,118 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>numerical-helpers - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a class="active" href="../libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../../reference/file-index.html">文件索引</a>
+        <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.COMMON Wiki</a>
+      <span>modules/misc/numerical-helpers.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="通用数值-helper-组页">通用数值 helper 组页</h1>
+<h2 id="输入范围">输入范围</h2>
+<pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\slopes_m.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\simple.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\coefpoly_m.F90
+LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\arth_m.F90</code></pre>
+<p>Mars 运行参与度：<code>条件经过/接口兼容</code>。<code>simple.F90</code> 是 NetCDF95 wrapper 的底层之一；<code>slopes_m</code>、<code>coefpoly_m</code>、<code>arth_m</code> 为通用数值工具，是否经过 Mars 标准运行取决于具体调用方。</p>
+<h2 id="模块清单">模块清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>slopes_m.F90</code></td>
+<td>226</td>
+<td><code>slopes</code>, <code>slopes1/2/3/4</code></td>
+<td>对 1D 到 4D cell average 沿第一维计算 Van Leer 限制斜率。</td>
+</tr>
+<tr>
+<td><code>simple.F90</code></td>
+<td>361</td>
+<td><code>nf95_open/create/def_dim/...</code></td>
+<td>NetCDF common simple wrappers；详细见 NetCDF95 页面。</td>
+</tr>
+<tr>
+<td><code>coefpoly_m.F90</code></td>
+<td>52</td>
+<td><code>coefpoly</code></td>
+<td>由端点函数值和导数构造三次多项式系数 <code>a0:a3</code>。</td>
+</tr>
+<tr>
+<td><code>arth_m.F90</code></td>
+<td>82</td>
+<td><code>arth</code> generic</td>
+<td>生成 real/integer arithmetic progression。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="slopes-算法"><code>slopes</code> 算法</h2>
+<ol type="1">
+<li>输入 cell average <code>f</code> 和 cell bounds <code>x</code>。</li>
+<li>计算 cell center <code>xc(i)=(x(i)+x(i+1))/2</code>。</li>
+<li>两端斜率设为 0。</li>
+<li>内点若是局部极大或极小，斜率设为 0，避免产生新极值。</li>
+<li>否则先用中心差分算二阶斜率，再用左右 cell 差分约束其绝对值。</li>
+</ol>
+<p>该接口对 2D/3D/4D 数组只沿第一维做同样计算，其余维度作为批量索引。</p>
+<h2 id="其他-helper">其他 helper</h2>
+<ul>
+<li><code>coefpoly</code> 求满足端点值与端点导数的 cubic polynomial，适合 Hermite 型插值或轨迹辅助。</li>
+<li><code>arth</code> 对短数组逐项递推，对较长数组先生成一段再用块复制式扩展，减少循环次数。</li>
+<li><code>simple</code> 的 <code>nf95_*</code> 例程若未传 <code>ncerr</code> 会直接进入 <code>handle_err</code>，因此是带默认 fatal 行为的 NetCDF wrapper。</li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li><code>slopes_m</code> 与动力输送中的 limiter 是否在当前 Mars 标准路径中直接连接，需由后续输送 hard 页或 coverage matrix 核实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="index.html">misc 总览</a></li>
+<li><a href="netcdf95-wrappers.html">NetCDF95 wrapper</a></li>
+<li><a href="regridding-interpolation.html">重网格和插值工具</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>
