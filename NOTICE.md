@@ -29,7 +29,7 @@ svn update LMDZ.COMMON LMDZ.MARS
 
 The local `LMDZ.MARS` source snapshot documented by this wiki does not include `.git` or `.svn` metadata. It was compared against the official SVN history: local `changelog.txt` and `deftank/xios/file_def_physics.xml` match r4249/r4258 and do not match r4259. The official log shows no other `LMDZ.MARS` subtree changes from r4249 through r4258, so the documented source content can be labeled `r4258-equivalent` (same content throughout r4249-r4258). It does not include the r4259 change from 2026-06-11 for XIOS/PEM output variable names.
 
-The integrated LMDZ.COMMON pages discuss COMMON build and runtime interfaces used by Mars, including IOIPSL and FCM integration points. The repository includes additional upstream notice copies at `UPSTREAM-LICENSES/IOIPSL_License_CeCILL.txt`, `UPSTREAM-LICENSES/fcm/LICENSE.html`, and `UPSTREAM-LICENSES/fcm/COPYRIGHT.txt`.
+The integrated LMDZ.COMMON pages discuss COMMON build and runtime interfaces used by Mars, including IOIPSL and FCM integration points. The user-provided current IOIPSL project entry is <https://gitlab.in2p3.fr/ipsl/icmc/plateforme/IOIPSL>. The repository includes additional upstream notice copies at `UPSTREAM-LICENSES/IOIPSL_License_CeCILL.txt`, `UPSTREAM-LICENSES/fcm/LICENSE.html`, and `UPSTREAM-LICENSES/fcm/COPYRIGHT.txt`.
 
 本仓库包含生成的 Pagefind 静态搜索资产。Pagefind 按 MIT License 发布；许可副本位于 `UPSTREAM-LICENSES/Pagefind-LICENSE.txt`。  
 This repository includes generated Pagefind static search assets. Pagefind is distributed under the MIT License; a copy is included in `UPSTREAM-LICENSES/Pagefind-LICENSE.txt`.
