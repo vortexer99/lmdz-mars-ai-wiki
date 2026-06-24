@@ -8,9 +8,9 @@ Unless otherwise noted, the generated wiki prose, navigation structure, and HTML
 
 You may share and adapt this documentation with attribution.
 
-本许可不重新授权上游 LMDZ.MARS 源代码、上游文档、数据集、项目名称、商标或任何第三方材料。上游 LMDZ.MARS 材料仍受其原始许可和权利声明约束，包括 `UPSTREAM-LICENSES/` 中保留的 CeCILL v2 许可文本。
+本许可不重新授权上游 LMDZ.MARS、LMDZ.COMMON、IOIPSL、FCM 源代码、上游文档、数据集、项目名称、商标或任何第三方材料。上游材料仍受其原始许可和权利声明约束，包括 `UPSTREAM-LICENSES/` 中保留的 CeCILL v2、IOIPSL 和 FCM 许可/版权文本。
 
-This license does not relicense upstream LMDZ.MARS source code, upstream documentation, datasets, project names, trademarks, or any third-party material. Upstream LMDZ.MARS materials remain under their own licenses and rights notices, including the CeCILL v2 license texts included in `UPSTREAM-LICENSES/`.
+This license does not relicense upstream LMDZ.MARS, LMDZ.COMMON, IOIPSL, FCM source code, upstream documentation, datasets, project names, trademarks, or any third-party material. Upstream materials remain under their own licenses and rights notices, including the CeCILL v2, IOIPSL, and FCM license/copyright texts included in `UPSTREAM-LICENSES/`.
 
 本仓库包含的 Pagefind 资产仍按 Pagefind MIT License 发布；见 `UPSTREAM-LICENSES/Pagefind-LICENSE.txt`。
 
