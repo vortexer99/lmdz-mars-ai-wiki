@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -32,7 +33,7 @@
       <span>architecture/makelmdz-target-output-naming.md</span>
     </nav>
     <article class="content" data-pagefind-body>
-<h1 id="makelmdz_fcm-mars-target-和输出命名契约">makelmdz_fcm Mars target 和输出命名契约</h1>
+<h1 id="makelmdz_fcm-mars-target-和输出命名约定">makelmdz_fcm Mars target 和输出命名约定</h1>
 <h2 id="输入范围">输入范围</h2>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\makelmdz_fcm
 LMDZ.COMMON-6.3\LMDZ.COMMON\bld.cfg
@@ -48,7 +49,7 @@ LMDZ.MARS\deftank\launch_orb_1Dchained.sh</code></pre>
 <p><code>makelmdz_fcm</code> 的参数解析把最后一个非选项参数写入 <code>code</code>：</p>
 <pre class="text"><code>makelmdz_fcm -arch local -d 62x48x32 -p mars gcm
                                                    ^ code</code></pre>
-<p>Mars 实用版需要关心的 target：</p>
+<p>Mars GCM 常用 target：</p>
 <table>
 <thead>
 <tr>
@@ -85,7 +86,7 @@ LMDZ.MARS\deftank\launch_orb_1Dchained.sh</code></pre>
 </tr>
 </tbody>
 </table>
-<p><code>bld.cfg</code> 不单独列出这些名字；它消费 <code>makelmdz_fcm</code> 写入的：</p>
+<p><code>bld.cfg</code> 不单独列出这些名字；它读取 <code>makelmdz_fcm</code> 写入的：</p>
 <pre class="text"><code>%EXEC          &lt;code&gt;
 %SUFF_NAME     &lt;suffix&gt;
 bld::target    liblmdz.a %EXEC%SUFF_NAME
@@ -133,7 +134,7 @@ SUFF_NAME = _&lt;dim_full&gt;_phy&lt;physique&gt;</code></pre>
 </tr>
 </tbody>
 </table>
-<p>普通 Mars run 不走 ORCHIDEE、coupled、INCA 分支；若显式打开 <code>-v</code>、<code>-c</code> 或 <code>-chimie INCA</code>，脚本还会追加 <code>_orch</code>、<code>_couple</code> 或 <code>_inca</code>。这些不是当前 Mars GCM 实用版主路径。</p>
+<p>普通 Mars run 不走 ORCHIDEE、coupled、INCA 分支；若显式打开 <code>-v</code>、<code>-c</code> 或 <code>-chimie INCA</code>，脚本还会追加 <code>_orch</code>、<code>_couple</code> 或 <code>_inca</code>。这些不是当前 Mars GCM 主路径。</p>
 <p>最后，若不是 <code>-libphy</code>，脚本追加 <code>.e</code>：</p>
 <pre class="text"><code>&lt;target&gt;_&lt;dim&gt;_phymars_seq.e
 &lt;target&gt;_&lt;dim&gt;_phymars_para.e
@@ -248,12 +249,12 @@ run0:gcm=gcm_&lt;dim&gt;_phymars_&lt;seq|para&gt;.e</code></pre>
 <h2 id="待确认">待确认</h2>
 <ul>
 <li>当前本地 workspace 没有实际运行一次 FCM build；本页按源码规则和 Mars 文档示例推导输出名。</li>
-<li><code>_para</code> 后缀不区分 MPI/OMP，真实混合并行配置需要结合具体 <code>arch-*.fcm</code> 和作业脚本核对。</li>
+<li><code>_para</code> 后缀不区分 MPI/OMP，真实混合并行配置需要结合具体 <code>arch-*.fcm</code> 和作业脚本确认。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>
-<li><a href="makelmdz-fcm-mars-paths.html">makelmdz_fcm Mars 源码路径契约</a></li>
-<li><a href="arch-env-mars-run.html">arch 环境和 Mars deftank 运行契约</a></li>
+<li><a href="makelmdz-fcm-mars-paths.html">makelmdz_fcm Mars 源码路径约定</a></li>
+<li><a href="arch-env-mars-run.html">arch 环境和 Mars deftank 运行约定</a></li>
 <li><a href="build-and-arch.html">build 和 arch 配置链</a></li>
 <li><a href="../routines/common-gcm-mars-run-entry.html">Mars 3D GCM 主入口链</a></li>
 <li><a href="../routines/mars-start-restart-archive-boundary.html">Mars start/restart/archive 文件职责边界</a></li>

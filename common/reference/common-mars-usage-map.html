@@ -1,0 +1,258 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>common-mars-usage-map - LMDZ.COMMON Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.COMMON Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="file-index.html">文件索引</a>
+        <a href="source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.COMMON Wiki</a>
+      <span>reference/common-mars-usage-map.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="common-mars-使用位置映射">COMMON-&gt;MARS 使用位置映射</h1>
+<p>源码范围：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code> 与 <code>LMDZ.MARS</code>。 用途：从 COMMON 文件或模块反查 MARS 侧的直接使用位置、路径转发和相关复现链路。</p>
+<h2 id="使用方式">使用方式</h2>
+<ul>
+<li><code>直接转发</code> 表示 MARS 文件内容直接指向 COMMON 文件。</li>
+<li><code>USE/CALL</code> 表示 MARS 源码中搜索到模块或例程使用点。</li>
+<li><code>同名变体</code> 表示 MARS 与 COMMON 中其他行星目录存在同名流程文件，不能自动视为相同实现。</li>
+</ul>
+<h2 id="common-文件到-mars-使用位置">COMMON 文件到 MARS 使用位置</h2>
+<table>
+<thead>
+<tr>
+<th>COMMON 文件或模块</th>
+<th>COMMON 角色</th>
+<th>MARS 使用位置</th>
+<th>使用方式</th>
+<th>覆盖状态</th>
+<th>优先级</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>libf\dyn3d_common\comconst_mod.F90</code></td>
+<td>动力常量、时间步和行星参数状态</td>
+<td><code>libf\phymars\dyn1d\comconst_mod.F90</code>; <code>dynphy_lonlat\phymars\newstart.F</code>; <code>ini_archive.F</code>; <code>start2archive.F</code>; <code>phymars\leapfrog_nogcm.F</code>; <code>phymars\nogcm.F90</code>; <code>xvik.F</code></td>
+<td>直接转发 + <code>USE comconst_mod</code></td>
+<td>已由状态约定和 Mars utility 页面覆盖</td>
+<td>P0</td>
+</tr>
+<tr>
+<td><code>libf\dyn3d_common\comvert_mod.F90</code></td>
+<td>垂直坐标状态 <code>ap/bp/aps/bps/pa/preff</code> 等</td>
+<td><code>libf\phymars\dyn1d\comvert_mod.F90</code>; <code>caldyn0.F</code>; <code>newstart.F</code>; <code>ini_archive.F</code>; <code>start2archive.F</code>; <code>phymars\leapfrog_nogcm.F</code>; <code>xvik.F</code></td>
+<td>直接转发 + <code>USE comvert_mod</code></td>
+<td>已由垂直坐标和 Mars utility 页面覆盖</td>
+<td>P0</td>
+</tr>
+<tr>
+<td><code>libf\dyn3d_common\control_mod.F90</code></td>
+<td>GCM 控制变量和运行开关</td>
+<td><code>libf\phymars\dyn1d\control_mod.F90</code>; <code>callphysiq_mod.F90</code>; <code>defrun_new.F</code>; <code>phymars\leapfrog_nogcm.F</code>; <code>phymars\nogcm.F90</code>; <code>newstart.F</code></td>
+<td>直接转发 + <code>USE control_mod</code></td>
+<td>已由控制状态约定覆盖</td>
+<td>P0</td>
+</tr>
+<tr>
+<td><code>libf\dyn3d_common\infotrac.F90</code></td>
+<td>tracer 名称、数量和父子关系</td>
+<td><code>libf\phymars\dyn1d\infotrac.F90</code>; <code>iniphysiq_mod.F90</code>; <code>newstart.F</code>; <code>start2archive.F</code>; <code>phymars\leapfrog_nogcm.F</code>; <code>init_testphys1d_mod.F90</code></td>
+<td>直接转发 + <code>USE infotrac</code></td>
+<td>已由 <code>infotrac</code> 主页面和细节页面覆盖</td>
+<td>P0</td>
+</tr>
+<tr>
+<td><code>libf\dyn3d_common\disvert_noterre.F</code></td>
+<td>非地球垂直离散构造</td>
+<td><code>libf\phymars\dyn1d\disvert_noterre.F</code></td>
+<td>直接转发</td>
+<td>已由垂直离散页面覆盖</td>
+<td>P1</td>
+</tr>
+<tr>
+<td><code>libf\dyn3d_common\ener_mod.F90</code></td>
+<td>动力能量相关状态</td>
+<td><code>libf\phymars\dyn1d\ener_mod.F90</code></td>
+<td>直接转发</td>
+<td>已由动力状态页面支撑</td>
+<td>P1</td>
+</tr>
+<tr>
+<td><code>libf\dyn3d_common\comgeom.h</code></td>
+<td>动力网格几何 include</td>
+<td><code>libf\phymars\dyn1d\comgeom.h</code></td>
+<td>直接转发</td>
+<td>已由几何和目录页支撑</td>
+<td>P1</td>
+</tr>
+<tr>
+<td><code>libf\dyn3d_common\paramet.h</code></td>
+<td>动力维度 include</td>
+<td><code>libf\phymars\dyn1d\paramet.h</code></td>
+<td>直接转发</td>
+<td>已由目录页和维度说明支撑</td>
+<td>P1</td>
+</tr>
+<tr>
+<td><code>libf\dyn3d_common\serre_mod.F90</code></td>
+<td>动力工作状态模块</td>
+<td><code>libf\phymars\dyn1d\serre_mod.F90</code></td>
+<td>直接转发</td>
+<td>已由状态约定页支撑</td>
+<td>P2</td>
+</tr>
+<tr>
+<td><code>libf\dyn3d\logic_mod.F90</code></td>
+<td>串行动力逻辑开关</td>
+<td><code>libf\phymars\dyn1d\logic_mod.F90</code>; <code>defrun_new.F</code>; <code>phymars\leapfrog_nogcm.F</code>; <code>ini_archive.F</code>; <code>phymars\nogcm.F90</code></td>
+<td>直接转发 + <code>USE logic_mod</code></td>
+<td>已由控制逻辑页面覆盖</td>
+<td>P0</td>
+</tr>
+<tr>
+<td><code>libf\dyn3d\abort_gcm.F</code></td>
+<td>动力侧错误退出</td>
+<td><code>libf\phymars\dyn1d\abort_gcm.F</code>; <code>callphysiq_mod.F90</code>; <code>phymars\leapfrog_nogcm.F</code>; <code>phymars\nogcm.F90</code></td>
+<td>直接转发 + <code>CALL abort_gcm</code></td>
+<td>已由错误处理组页支撑</td>
+<td>P2</td>
+</tr>
+<tr>
+<td><code>libf\dyn3dpar\mod_const_mpi.F90</code></td>
+<td>MPI 通信器和并行常量</td>
+<td><code>libf\phymars\dyn1d\mod_const_mpi.F90</code>; <code>nogcm.F90</code>; <code>start2archive.F</code>; <code>newstart.F</code>; <code>init_testphys1d_mod.F90</code>; <code>testphys1d.F90</code></td>
+<td>直接转发 + <code>USE mod_const_mpi</code></td>
+<td>已由并行常量页面覆盖</td>
+<td>P2</td>
+</tr>
+<tr>
+<td><code>libf\dyn3dpar\parallel_lmdz.F90</code></td>
+<td>并行初始化/抽象接口</td>
+<td><code>libf\phymars\dyn1d\parallel_lmdz.F90</code>; <code>testphys1d.F90</code></td>
+<td>直接转发 + <code>USE parallel_lmdz</code></td>
+<td>已由并行初始化页面覆盖</td>
+<td>P2</td>
+</tr>
+<tr>
+<td><code>libf\dynphy_lonlat\mod_interface_dyn_phys.F90</code></td>
+<td>动力-物理接口变量和初始化</td>
+<td><code>libf\phymars\dyn1d\mod_interface_dyn_phys.F90</code>; <code>init_testphys1d_mod.F90</code></td>
+<td>直接转发 + <code>USE mod_interface_dyn_phys</code></td>
+<td>已由动力-物理接口页面覆盖</td>
+<td>P3</td>
+</tr>
+<tr>
+<td><code>libf\dynphy_lonlat\inigeomphy_mod.F90</code></td>
+<td>物理网格几何初始化</td>
+<td><code>dynphy_lonlat\phymars\iniphysiq_mod.F90</code></td>
+<td><code>USE inigeomphy_mod</code> + <code>CALL inigeomphy</code></td>
+<td>已由物理几何初始化页面覆盖</td>
+<td>P3</td>
+</tr>
+<tr>
+<td><code>libf\misc\write_field.F90</code> / module <code>write_field</code></td>
+<td>通用 writefield 输出接口</td>
+<td><code>dynphy_lonlat\phymars\leapfrog_nogcm.F</code></td>
+<td><code>USE write_field, ONLY: writefield</code></td>
+<td>已由 write_field/debug 输出页面支撑</td>
+<td>P4</td>
+</tr>
+</tbody>
+</table>
+<h2 id="common-区域级使用图">COMMON 区域级使用图</h2>
+<table>
+<thead>
+<tr>
+<th>COMMON 区域</th>
+<th>MARS 使用形态</th>
+<th>当前证据</th>
+<th>文档说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>libf\dyn3d_common</code></td>
+<td>MARS 1D dyn wrapper 直接转发；MARS lon-lat phymars 通过 <code>USE</code> 使用状态模块</td>
+<td>直接路径转发 10 个；<code>USE comconst_mod/comvert_mod/control_mod/infotrac</code> 多处</td>
+<td>以状态页、垂直坐标页、tracer 页和 Mars utility 页交叉覆盖。</td>
+</tr>
+<tr>
+<td><code>libf\dyn3d</code></td>
+<td>MARS 1D dyn wrapper 转发 <code>abort_gcm.F</code>、<code>logic_mod.F90</code>；MARS phymars <code>nogcm/leapfrog_nogcm</code> 使用串行动力逻辑</td>
+<td>直接路径转发 2 个；<code>CALL abort_gcm</code> 多处</td>
+<td>串行入口、控制逻辑和错误处理页共同说明边界。</td>
+</tr>
+<tr>
+<td><code>libf\dyn3dpar</code></td>
+<td>MARS 1D 物理测试复用 MPI 常量和 parallel abstraction</td>
+<td>直接路径转发 <code>mod_const_mpi.F90</code>、<code>parallel_lmdz.F90</code>；<code>testphys1d</code> USE</td>
+<td>并行抽象页需显式说明 1D 串行/占位使用场景。</td>
+</tr>
+<tr>
+<td><code>libf\dynphy_lonlat</code></td>
+<td>MARS phymars 有自己的行星实现，同时复用 COMMON 接口模块和几何初始化</td>
+<td><code>mod_interface_dyn_phys</code> 直接转发；<code>CALL inigeomphy</code>；同名 Venus/Titan 文件</td>
+<td>目录页把 shared interface 与 planet-specific variants 分开。</td>
+</tr>
+<tr>
+<td><code>libf\phy_common</code></td>
+<td>MARS 使用关系主要来自物理侧输出、网格、transfer 和 getin 边界</td>
+<td>输出、并行公共层、XIOS/getin 页面已有覆盖</td>
+<td>以物理公共层组页和 restart/history 主题维护。</td>
+</tr>
+<tr>
+<td><code>libf\misc</code></td>
+<td>MARS 使用关系主要表现为通用库、NetCDF/ioipsl 和 write_field</td>
+<td><code>write_field</code> 在 <code>phymars\leapfrog_nogcm.F</code> 中可见</td>
+<td>以 NetCDF/getin/write_field 工具页维护。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../routines/mars-dyn1d-common-forwarding.html">Mars dyn1d COMMON 直接转发约定</a></li>
+<li><a href="../routines/mars-utility-common-state-consumers.html">Mars utility COMMON 状态使用链</a></li>
+<li><a href="../routines/common-state-control-contract.html">COMMON 状态/控制模块约定</a></li>
+<li><a href="../routines/vertical-coordinate-mars-contract.html">Mars 垂直坐标约定</a></li>
+<li><a href="source-coverage-matrix.html">源码覆盖矩阵</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

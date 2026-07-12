@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mars-utilities - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a href="../../modules/libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../file-index.html">文件索引</a>
+        <a href="../source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta/mars-utilities.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-util-工具">MARS util 工具</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>覆盖后处理、重网格、柱积分、观测模拟和 1D 输入生成工具。</p>
+<p>兼容性关注：影响离线工作流、变量命名和输出兼容性，不参与主积分。</p>
+<p>本页是 5.3 到 6.3 版本差异详情页，只解释改动职责与影响，不展开逐行代码差异。</p>
+<h2 id="变化统计">变化统计</h2>
+<p>本主题覆盖 22 个路径事件：新增 8、删除 0、修改 14。</p>
+<h2 id="主要变化">主要变化</h2>
+<ul>
+<li><code>util/aeropt_mod.F90</code>：新增离线工具或辅助文件 <code>aeropt_mod.F90</code>，其中定义 <code>aeropt_mod</code>、<code>read_optpropfile</code>、<code>interp_wvl_reff</code>、<code>create_logfile</code>；该实现进入 6.3。</li>
+<li><code>util/aeroptical.def</code>：重排 aeroptical 输入格式，新增柱积分光学厚度开关，并把各气溶胶的质量混合比、有效半径、密度和光学表改为逐行配置。</li>
+<li><code>util/aeroptical.F90</code>：把气溶胶光学工具扩展为任意气溶胶配置，支持常数或字段 reff、消光/吸收剖面与柱积分输出，并通过多种坐标来源回退计算层厚。</li>
+<li><code>util/check_co2cycle.def</code>：新增 check_co2cycle.e 的批量输入模板，指定输入/输出目录、NetCDF 文件名和 sol/Ls 输出时间单位。</li>
+<li><code>util/check_co2cycle.F90</code>：由旧 xvik 工具重命名并扩展为 check_co2cycle，继续生成着陆点气压、日平均和谐波诊断。</li>
+<li><code>util/compile</code>：更新 util 编译脚本，新增 Irene/Adastra 编译环境，并让 aeroptical 工具联编 aeropt_mod。</li>
+<li><code>util/concatnc.F90</code>：扩展 concatnc 对传统 diagfi 与 XIOS 文件的兼容：识别 lat/lon、time_counter、controle_axe、area 和 phisfi 等坐标、时间、控制轴、面积及地表位势别名。</li>
+<li><code>util/expandstartfi.F90</code>：扩展 startfi 工具以适配坡面维状态，并修正极区网格扩展时的索引与字段复制。</li>
+<li><code>util/extractcolumnfor1D.F90</code>：新增 3D 文件柱提取工具，可按 i/j/time 索引选择变量并生成 testphys1d 使用的 profile_* 文件。</li>
+<li><code>util/gencol.def</code>：新增 gencol.e 的批量输入模板，指定输入 NetCDF、待积分变量及输出文件约定。</li>
+<li><code>util/gencol.F90</code>：新增 gencol 柱积分工具，可从质量/体积混合比或浓度计算选定 tracer 的柱含量。</li>
+<li><code>util/README</code>：扩展 util 使用说明：补充气溶胶柱光学厚度，并新增 gencol、check_co2cycle 与 extractcolumnfor1D 工作流。</li>
+<li>其余 10 项见下表和全量索引。</li>
+</ul>
+<h2 id="受影响路径">受影响路径</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>5.3 路径</th>
+<th>6.3 路径</th>
+<th>类型</th>
+<th>SHA-256 核验</th>
+<th>改动概述</th>
+<th>官方记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>M-0286</code></td>
+<td>—</td>
+<td><code>util/aeropt_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→3035e9cf1d9e</code>（已核验）</td>
+<td>新增离线工具或辅助文件 <code>aeropt_mod.F90</code>，其中定义 <code>aeropt_mod</code>、<code>read_optpropfile</code>、<code>interp_wvl_reff</code>、<code>create_logfile</code>；该实现进入 6.3。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/11/2022，AB</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">23/11/2022，AB</a></td>
+</tr>
+<tr>
+<td><code>M-0287</code></td>
+<td><code>util/aeroptical.def</code></td>
+<td><code>util/aeroptical.def</code></td>
+<td>修改</td>
+<td><code>5988a590e6f4→4292d8412912</code>（已核验）</td>
+<td>重排 aeroptical 输入格式，新增柱积分光学厚度开关，并把各气溶胶的质量混合比、有效半径、密度和光学表改为逐行配置。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/11/2022，AB</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">23/11/2022，AB</a></td>
+</tr>
+<tr>
+<td><code>M-0288</code></td>
+<td><code>util/aeroptical.F90</code></td>
+<td><code>util/aeroptical.F90</code></td>
+<td>修改</td>
+<td><code>ab6a217b5eb6→367655e0b979</code>（已核验）</td>
+<td>把气溶胶光学工具扩展为任意气溶胶配置，支持常数或字段 reff、消光/吸收剖面与柱积分输出，并通过多种坐标来源回退计算层厚。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/11/2022，AB</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">23/11/2022，AB</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">23/02/2023，AB</a></td>
+</tr>
+<tr>
+<td><code>M-0289</code></td>
+<td>—</td>
+<td><code>util/check_co2cycle.def</code></td>
+<td>新增</td>
+<td><code>—→b77da3e40726</code>（已核验）</td>
+<td>新增 check_co2cycle.e 的批量输入模板，指定输入/输出目录、NetCDF 文件名和 sol/Ls 输出时间单位。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">30/04/2026，JM</a></td>
+</tr>
+<tr>
+<td><code>M-0290</code></td>
+<td>—</td>
+<td><code>util/check_co2cycle.F90</code></td>
+<td>新增</td>
+<td><code>—→49b58c4733c1</code>（已核验）</td>
+<td>由旧 xvik 工具重命名并扩展为 check_co2cycle，继续生成着陆点气压、日平均和谐波诊断。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">30/04/2026，JM</a></td>
+</tr>
+<tr>
+<td><code>M-0291</code></td>
+<td><code>util/compile</code></td>
+<td><code>util/compile</code></td>
+<td>修改</td>
+<td><code>641260c87422→791f674aabe8</code>（已核验）</td>
+<td>更新 util 编译脚本，新增 Irene/Adastra 编译环境，并让 aeroptical 工具联编 aeropt_mod。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">29/11/2022，AB</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">05/10/2023，AB</a></td>
+</tr>
+<tr>
+<td><code>M-0292</code></td>
+<td><code>util/concatnc.F90</code></td>
+<td><code>util/concatnc.F90</code></td>
+<td>修改</td>
+<td><code>5ba0655f329d→63cb71fd62a3</code>（已核验）</td>
+<td>扩展 concatnc 对传统 diagfi 与 XIOS 文件的兼容：识别 lat/lon、time_counter、controle_axe、area 和 phisfi 等坐标、时间、控制轴、面积及地表位势别名。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0293</code></td>
+<td><code>util/expandstartfi.F90</code></td>
+<td><code>util/expandstartfi.F90</code></td>
+<td>修改</td>
+<td><code>439bd90a29fb→6ad1daf1250c</code>（已核验）</td>
+<td>扩展 startfi 工具以适配坡面维状态，并修正极区网格扩展时的索引与字段复制。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">30/05/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">06/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0294</code></td>
+<td>—</td>
+<td><code>util/extractcolumnfor1D.F90</code></td>
+<td>新增</td>
+<td><code>—→c31ce5ab6f48</code>（已核验）</td>
+<td>新增 3D 文件柱提取工具，可按 i/j/time 索引选择变量并生成 testphys1d 使用的 profile_* 文件。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">05/06/2026，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0295</code></td>
+<td>—</td>
+<td><code>util/gencol.def</code></td>
+<td>新增</td>
+<td><code>—→f1a3df09fd2b</code>（已核验）</td>
+<td>新增 gencol.e 的批量输入模板，指定输入 NetCDF、待积分变量及输出文件约定。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">16/06/2025，JM</a></td>
+</tr>
+<tr>
+<td><code>M-0296</code></td>
+<td>—</td>
+<td><code>util/gencol.F90</code></td>
+<td>新增</td>
+<td><code>—→9db1fefe07c3</code>（已核验）</td>
+<td>新增 gencol 柱积分工具，可从质量/体积混合比或浓度计算选定 tracer 的柱含量。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">16/06/2025，JM</a></td>
+</tr>
+<tr>
+<td><code>M-0297</code></td>
+<td><code>util/README</code></td>
+<td><code>util/README</code></td>
+<td>修改</td>
+<td><code>24d08c9b6a73→f5f3f1c74e41</code>（已核验）</td>
+<td>扩展 util 使用说明：补充气溶胶柱光学厚度，并新增 gencol、check_co2cycle 与 extractcolumnfor1D 工作流。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">16/06/2025，JM</a></td>
+</tr>
+<tr>
+<td><code>M-0298</code></td>
+<td><code>util/simu_MCS.F90</code></td>
+<td><code>util/simu_MCS.F90</code></td>
+<td>修改</td>
+<td><code>8380b34202ae→c36c5c837916</code>（已核验）</td>
+<td>适配 aeroptical 新尘埃光学厚度变量 opa_dust，同时保留旧 opadust 名称的向后兼容读取。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">09/06/2023，AB</a></td>
+</tr>
+<tr>
+<td><code>M-0299</code></td>
+<td><code>util/startarchive2icosa/compile</code></td>
+<td><code>util/startarchive2icosa/compile</code></td>
+<td>修改</td>
+<td><code>ad7f11e6d113→85837b912840</code>（已核验）</td>
+<td>更新 startarchive2icosa 编译脚本的源码清单、编译选项或依赖链接设置。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">08/11/2022，RV</a></td>
+</tr>
+<tr>
+<td><code>M-0300</code></td>
+<td><code>util/startarchive2icosa/icosa_finalize.bash</code></td>
+<td><code>util/startarchive2icosa/icosa_finalize.bash</code></td>
+<td>修改</td>
+<td><code>6eb6ad6c858c→c9de97e1c9d0</code>（已核验）</td>
+<td>更新 DYNAMICO 转换环境收尾脚本，调整模块环境恢复与清理步骤。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">08/11/2022，RV</a></td>
+</tr>
+<tr>
+<td><code>M-0301</code></td>
+<td><code>util/startarchive2icosa/iodef.xml</code></td>
+<td><code>util/startarchive2icosa/iodef.xml</code></td>
+<td>修改</td>
+<td><code>79781ffe5f4c→052ba3c3ebff</code>（已核验）</td>
+<td>更新 XIOS/XML 配置 <code>iodef.xml</code> 的对象定义或输出选择，涉及 <code>ZMEA_clean</code>、<code>ZSTD_clean</code>、<code>ZSIG_clean</code>、<code>ZGAM_clean</code>。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">08/11/2022，RV</a></td>
+</tr>
+<tr>
+<td><code>M-0302</code></td>
+<td><code>util/startarchive2icosa/README</code></td>
+<td><code>util/startarchive2icosa/README</code></td>
+<td>修改</td>
+<td><code>5a7e72f3c2d4→25fdb22443cf</code>（已核验）</td>
+<td>更新 startarchive2icosa 工具说明，补充当前编译、环境装载和转换使用约定。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">08/11/2022，RV</a></td>
+</tr>
+<tr>
+<td><code>M-0303</code></td>
+<td><code>util/startarchive2icosa/rearrange_startphy.f90</code></td>
+<td><code>util/startarchive2icosa/rearrange_startphy.f90</code></td>
+<td>修改</td>
+<td><code>21574d9e5d4b→e37ca31b8522</code>（已核验）</td>
+<td>扩展 startphy 重排以识别 subslope、index、inter_slope 和 nslope 维度，并支持坡面及土壤×坡面数组。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">08/11/2022，RV</a></td>
+</tr>
+<tr>
+<td><code>M-0304</code></td>
+<td>—</td>
+<td><code>util/startarchive2icosa/run_icosa.def_no_start</code></td>
+<td>新增</td>
+<td><code>—→9f3ba5879d3f</code>（已核验）</td>
+<td>新增离线工具或辅助文件 <code>run_icosa.def_no_start</code>，包含 <code>nbp</code>、<code>llm</code>、<code>disvert</code>、<code>optim_it</code> 等配置项；该配置进入 6.3。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">08/11/2022，RV</a></td>
+</tr>
+<tr>
+<td><code>M-0305</code></td>
+<td><code>util/startarchive2icosa/start_archive2icosa.f90</code></td>
+<td><code>util/startarchive2icosa/start_archive2icosa.f90</code></td>
+<td>修改</td>
+<td><code>5c4858422eed→3c627ef2b66f</code>（已核验）</td>
+<td>扩展 DYNAMICO 初始场转换：tracer 数由 7 增至 11，加入 subslope 轴与字段，并把地表温度、发射率、表面 tracer 和土壤温度改为坡面维。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">08/11/2022，RV</a></td>
+</tr>
+<tr>
+<td><code>M-0306</code></td>
+<td>—</td>
+<td><code>util/startarchive2icosa/tracer.def_no_start</code></td>
+<td>新增</td>
+<td><code>—→710acc744350</code>（已核验）</td>
+<td>新增离线工具或辅助文件 <code>tracer.def_no_start</code>，列出 <code>default</code>、<code>co2</code>、<code>dust_number</code>、<code>dust_mass</code> 等条目；该配置进入 6.3。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">08/11/2022，RV</a></td>
+</tr>
+<tr>
+<td><code>M-0307</code></td>
+<td><code>util/zrecast.F90</code></td>
+<td><code>util/zrecast.F90</code></td>
+<td>修改</td>
+<td><code>3677230ff7cf→b16a4150de2f</code>（已核验）</td>
+<td>为新 NCO 补充 _FillValue 读写兼容，并在对数插值中把非正值映射到数值精度以下的近零值。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/09/2023，YL+AB</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="证据边界">证据边界</h2>
+<ul>
+<li>路径状态和哈希关系来自两棵本地快照的机械比较。</li>
+<li>官方记录来自 MARS Changelog 增量；COMMON 命中仅表示间接记录。</li>
+<li>未找到 Changelog 条目不等于改动无意义，只表示没有可直接关联的官方文字记录。</li>
+<li>本页不把未运行的数值或性能影响写成既定事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../version-delta-index.html">全量变更索引</a></li>
+<li><a href="../../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

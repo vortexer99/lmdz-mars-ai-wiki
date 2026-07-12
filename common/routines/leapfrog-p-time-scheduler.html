@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,11 +34,11 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="leapfrog_p-时间步调度">leapfrog_p 时间步调度</h1>
-<p>页面状态：TASK-0127 完成。 源码范围：</p>
+<p>源码范围：</p>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\leapfrog_p.F</code></pre>
-<p>Mars 运行参与度：条件经过。Mars 并行 GCM 经过 <code>dyn3dpar/gcm.F -&gt; leapfrog_p</code>；串行 Mars GCM 经过 <code>dyn3d/leapfrog.F</code>，MARS <code>phymars/nogcm.F90</code> 只作边界背景，不属于 COMMON 6.3 源码。</p>
+<p>Mars 运行参与度：条件经过。Mars 并行 GCM 经过 <code>dyn3dpar/gcm.F -&gt; leapfrog_p</code>；串行 Mars GCM 经过 <code>dyn3d/leapfrog.F</code>，MARS <code>phymars/nogcm.F90</code> 只作边界背景，不属于 COMMON 源码。</p>
 <h2 id="调度职责">调度职责</h2>
-<p>本页只说明并行 <code>leapfrog_p</code> 的时间步状态机：<code>forward/leapf/purmats/apphys/apdiss/lafin</code>、<code>True_itau</code>、<code>itau</code> 推进、history/restart 写出和最终停止。入口数组、<code>SAVE</code> 工作区、<code>SetDistrib</code>、halo/swap 和 root gather 的状态契约见 <a href="leapfrog-p-state-contract.html">leapfrog_p 状态契约</a> 与 <a href="../modules/dyn3dpar/leapfrog_p.html">dyn3dpar/leapfrog_p</a>。</p>
+<p>本页只说明并行 <code>leapfrog_p</code> 的时间步状态机：<code>forward/leapf/purmats/apphys/apdiss/lafin</code>、<code>True_itau</code>、<code>itau</code> 推进、history/restart 写出和最终停止。入口数组、<code>SAVE</code> 工作区、<code>SetDistrib</code>、halo/swap 和 root gather 的状态约定见 <a href="leapfrog-p-state-contract.html">leapfrog_p 状态约定</a> 与 <a href="../modules/dyn3dpar/leapfrog_p.html">dyn3dpar/leapfrog_p</a>。</p>
 <p><code>leapfrog_p</code> 仍沿用串行 Matsuno/leapfrog 思路，但阶段转换发生在 OpenMP parallel 区内部。并行差异主要是：输出/restart 写出前需要 gather，physics 前后需要 band/halo 切换；这些并行通信并不改变 <code>itau/forward/leapf</code> 的时间步语义。</p>
 <h2 id="终止步数">终止步数</h2>
 <p>237-250 行计算 <code>itaufin</code>：</p>
@@ -103,7 +104,7 @@
 <pre class="text"><code>jD_cur = jD_ref + day_ini - day_ref + (itau+1)/day_step
 Mars:     jH_cur = jH_ref + hour_ini   + mod(itau+1,day_step)/day_step
 non-Mars: jH_cur = jH_ref + start_time + mod(itau+1,day_step)/day_step</code></pre>
-<p>若 <code>jH_cur &gt; 1.0</code>，则日期进一日并把小时减 1。Forward/backward Matsuno 段不会在这里刷新日期；Mars restart 写出还有单独的 <code>time_0</code> 小数修正，见 <a href="leapfrog-p-state-contract.html">leapfrog_p 状态契约</a> 和 <a href="dynredem-restart.html">dynredem-restart</a>。</p>
+<p>若 <code>jH_cur &gt; 1.0</code>，则日期进一日并把小时减 1。Forward/backward Matsuno 段不会在这里刷新日期；Mars restart 写出还有单独的 <code>time_0</code> 小数修正，见 <a href="leapfrog-p-state-contract.html">leapfrog_p 状态约定</a> 和 <a href="dynredem-restart.html">dynredem-restart</a>。</p>
 <h2 id="门控标志">门控标志</h2>
 <p>454-471 行重新计算 <code>apphys/conser/apdiss</code>：</p>
 <table>
@@ -241,7 +242,7 @@ non-Mars: jH_cur = jH_ref + start_time + mod(itau+1,day_step)/day_step</code></p
 <h2 id="相关页面">相关页面</h2>
 <ul>
 <li><a href="../modules/dyn3dpar/leapfrog_p.html">dyn3dpar/leapfrog_p</a></li>
-<li><a href="leapfrog-p-state-contract.html">leapfrog_p 状态契约</a></li>
+<li><a href="leapfrog-p-state-contract.html">leapfrog_p 状态约定</a></li>
 <li><a href="leapfrog-time-scheduler.html">leapfrog 时间步调度</a></li>
 <li><a href="dynamics-control-logic-gates.html">动力控制和逻辑门控链</a></li>
 <li><a href="leapfrog-p-output-restart.html">leapfrog_p 输出和 restart</a></li>

@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -45,7 +46,7 @@ dyn3dpar\massbar_p.F
 dyn3dpar\massbarxy_p.F</code></pre>
 <p>Mars 运行参与度：<code>必经</code>。每次 <code>ps</code> 更新后都需要重新计算压力和空气质量；<code>massbar/massbarxy</code> 在初始化阶段必经，<code>psextbar</code> 仅串行初始化调用。</p>
 <h2 id="例程定位">例程定位</h2>
-<p>这组短算子从地表压力 <code>ps</code> 和混合坐标系数 <code>ap/bp</code> 出发，依次构造 3D 压力场 <code>p</code>、每层空气质量 <code>masse</code>、质量在 U/V/Z 点的加权平均 <code>massebx/masseby/massebxy</code> 以及地表压力面积加权平均 <code>psexbarxy</code>。它们是 <code>caldyn</code> 初始化段和 <code>leapfrog</code> 主循环中压力/质量刷新的基础，被动力 tendency、能量诊断和耗散链路消费。</p>
+<p>这组短算子从地表压力 <code>ps</code> 和混合坐标系数 <code>ap/bp</code> 出发，依次构造 3D 压力场 <code>p</code>、每层空气质量 <code>masse</code>、质量在 U/V/Z 点的加权平均 <code>massebx/masseby/massebxy</code> 以及地表压力面积加权平均 <code>psexbarxy</code>。它们是 <code>caldyn</code> 初始化段和 <code>leapfrog</code> 主循环中压力/质量刷新的基础，被动力 tendency、能量诊断和耗散链路使用。</p>
 <h2 id="对照表">对照表</h2>
 <table>
 <thead>
@@ -232,13 +233,13 @@ dyn3dpar\massbarxy_p.F</code></pre>
 <li><code>pression</code> 是所有压力相关计算的起点；<code>ap/bp</code> 来自 <code>comvert_mod</code>，<code>ps</code> 是 prognostic 变量。</li>
 <li><code>airesurg</code>、<code>alpha1..alpha4</code>、<code>alpha1p2..alpha1p4</code> 等几何系数必须在 <code>inigeom</code>/<code>iniconst</code> 之后才可用。</li>
 <li>并行版的 halo 扩展范围意味着 <code>pression_p</code> 和 <code>massdair_p</code> 的输出覆盖了 halo 带，调用方无需额外 halo 交换即可使用。</li>
-<li><code>massbar/massbarxy</code> 只在初始化时被调用一次；后续主循环中不再刷新，因此假设 <code>massebx/masseby/massebxy</code> 在时间推进中保持不变或由其消费方自行更新。</li>
-<li><code>psextbar</code> 的并行缺失不影响 Mars 正常运行，因为 <code>psexbarxy</code> 在并行路径中不被消费。</li>
+<li><code>massbar/massbarxy</code> 只在初始化时被调用一次；后续主循环中不再刷新，因此假设 <code>massebx/masseby/massebxy</code> 在时间推进中保持不变或由其使用方自行更新。</li>
+<li><code>psextbar</code> 的并行缺失不影响 Mars 正常运行，因为 <code>psexbarxy</code> 在并行路径中不被使用。</li>
 </ul>
 <h2 id="待确认">待确认</h2>
 <ul>
-<li><code>psexbarxy</code> 在串行 <code>caldyn.F</code> 中的消费方需在 caldyn 文件页中追踪确认。</li>
-<li><code>massbar/massbarxy</code> 输出 <code>massebx/masseby/massebxy</code> 在 <code>caldyn</code> 中的消费链需逐行核对（可能被 <code>flumass</code>、<code>bernoui</code> 或 tendency 组装使用）。</li>
+<li><code>psexbarxy</code> 在串行 <code>caldyn.F</code> 中的使用方需在 caldyn 文件页中追踪确认。</li>
+<li><code>massbar/massbarxy</code> 输出 <code>massebx/masseby/massebxy</code> 在 <code>caldyn</code> 中的使用链路需逐行确认（可能被 <code>flumass</code>、<code>bernoui</code> 或 tendency 组装使用）。</li>
 <li><code>massdair</code> 注释掉的极点面积加权平均在 Mars 配置下是否有激活路径。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>

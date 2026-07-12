@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,9 +34,8 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="dyn3dadvtracf90">dyn3d/advtrac.F90</h1>
-<p>页面状态：TASK-0164 完成。</p>
 <p>源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\advtrac.F90</code></p>
-<p>Mars 运行参与度：<code>条件经过</code>。串行 Mars 3D 动力时间步在 <code>leapfrog -&gt; caladvtrac -&gt; advtrac</code> 链中进入本文件；只有累计步数 <code>iadvtr == iapp_tracvl</code> 时才真正执行 tracer advection。当前 6.3 <code>infotrac_init</code> 标准白名单只允许 <code>iadv=0/10/14</code>，因此 Mars 标准可达的串行输送主要是 Van Leer <code>vlsplt</code> 和第 1 个 tracer 的饱和水汽 <code>vlspltqs</code> 路径。PPM、Prather、<code>advn</code>、<code>pentes_ini</code> 分支保留在源码中，但标准初始化通常会在进入本文件前阻断对应 <code>iadv</code>。</p>
+<p>Mars 运行参与度：<code>条件经过</code>。串行 Mars 3D 动力时间步在 <code>leapfrog -&gt; caladvtrac -&gt; advtrac</code> 链中进入本文件；只有累计步数 <code>iadvtr == iapp_tracvl</code> 时才真正执行 tracer advection。当前 <code>infotrac_init</code> 标准白名单只允许 <code>iadv=0/10/14</code>，因此 Mars 标准可达的串行输送主要是 Van Leer <code>vlsplt</code> 和第 1 个 tracer 的饱和水汽 <code>vlspltqs</code> 路径。PPM、Prather、<code>advn</code>、<code>pentes_ini</code> 分支保留在源码中，但标准初始化通常会在进入本文件前阻断对应 <code>iadv</code>。</p>
 <h2 id="文件角色">文件角色</h2>
 <p><code>advtrac.F90</code> 是串行动力 tracer advection 调度器，不是具体数值格式内核。它负责：</p>
 <ul>
@@ -142,7 +142,7 @@
 </tr>
 <tr>
 <td><code>vlspltqs</code></td>
-<td><code>iadv=14</code> 饱和水汽路径；6.3 白名单只允许第 1 个 tracer。</td>
+<td><code>iadv=14</code> 饱和水汽路径；当前白名单只允许第 1 个 tracer。</td>
 </tr>
 <tr>
 <td><code>adaptdt</code></td>
@@ -166,7 +166,7 @@
 </tr>
 </tbody>
 </table>
-<h2 id="参数契约">参数契约</h2>
+<h2 id="参数约定">参数约定</h2>
 <div class="sourceCode" id="cb1"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> advtrac(pbaru,pbarv,p,masse,q,iapptrac,teta,flxw,pk)</span></code></pre></div>
 <table>
 <thead>
@@ -355,7 +355,7 @@ if max(abs(zdpmin),abs(zdpmax)) &gt; 0.5:
 <tr>
 <th style="text-align: right;"><code>iadv(iq)</code></th>
 <th>调用链</th>
-<th>当前 6.3 Mars 标准可达性</th>
+<th>当前 当前 Mars 标准可达性</th>
 </tr>
 </thead>
 <tbody>
@@ -425,13 +425,13 @@ interpre(q,qppm,wg,fluxwppm,massem,apppm,bpppm,massebx,masseby,pbarug,pbarvg,una
 for indice = 1..n:
   ppm3d(..., IORD,JORD,KORD by iadv)
 interpost(q,qppm)</code></pre>
-<p><code>interpre</code>/<code>interpost</code> 负责 LMDZ 与 PPM3d 的数组、垂直层序和通量格式转换；只测试 <code>ppm3d</code> 内核不能代表 <code>advtrac</code> 的 PPM 分支。当前 6.3 初始化通常阻断 <code>11/16/17/18</code>，所以这段主要用于历史兼容或本地补丁审查。</p>
+<p><code>interpre</code>/<code>interpost</code> 负责 LMDZ 与 PPM3d 的数组、垂直层序和通量格式转换；只测试 <code>ppm3d</code> 内核不能代表 <code>advtrac</code> 的 PPM 分支。当前 初始化通常阻断 <code>11/16/17/18</code>，所以这段主要用于历史兼容或本地补丁审查。</p>
 <h2 id="mars-边界">Mars 边界</h2>
 <ul>
 <li>Mars 串行动力若启用 tracer，会通过 <code>leapfrog -&gt; caladvtrac -&gt; advtrac</code> 条件经过本文件。</li>
 <li>本文件本身不读取 <code>planet_type</code>；Mars/Earth 后处理差异在调用者 <code>caladvtrac</code> 中处理。</li>
-<li>本文件直接消费 <code>infotrac</code> 的 <code>nqtot/nqperes/iadv</code>，因此 <code>traceur.def</code> 与 <code>infotrac_init</code> 是复现入口。</li>
-<li>标准 Mars 6.3 可达输送格式应先按 <code>iadv=10/14/0</code> 判断；旧格式分支存在不等于可达。</li>
+<li>本文件直接使用 <code>infotrac</code> 的 <code>nqtot/nqperes/iadv</code>，因此 <code>traceur.def</code> 与 <code>infotrac_init</code> 是复现入口。</li>
+<li>标准 Mars 可达输送格式应先按 <code>iadv=10/14/0</code> 判断；旧格式分支存在不等于可达。</li>
 <li>并行 Mars 构建应读 <code>advtrac_p</code> 和 <code>vlspltgen_p</code>，不要把本页的串行局部数组和循环范围套到并行 band/halo 上。</li>
 </ul>
 <h2 id="复现检查点">复现检查点</h2>

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>common-tracer-runtime - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a href="../../modules/libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../file-index.html">文件索引</a>
+        <a href="../source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta/common-tracer-runtime.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="common-tracer-与通用运行时">COMMON tracer 与通用运行时</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>覆盖 tracer 文件解析、字符串工具、命令行选项和作业运行时支持。</p>
+<p>兼容性关注：影响 tracer 元数据来源、公共解析接口和运行时辅助能力。</p>
+<p>本页是 5.3 到 6.3 版本差异详情页，只解释改动职责与影响，不展开逐行代码差异。</p>
+<h2 id="变化统计">变化统计</h2>
+<p>本主题覆盖 4 个路径事件：新增 4、删除 0、修改 0。</p>
+<h2 id="主要变化">主要变化</h2>
+<ul>
+<li><code>libf/misc/job.F90</code>：新增作业环境模块，识别 SLURM/PBS 作业号与时限，解析 days-hours:minutes:seconds，并提供提前终止所需的 timelimit/timewall 状态。</li>
+<li><code>libf/misc/program_options.F90</code>：新增通用命令行选项模块，解析帮助、并行布局和运行参数并提供 usage 输出，供动力主程序启动时调用。</li>
+<li><code>libf/misc/readTracFiles_mod.f90</code>：新增公共 tracer.def/traceur.def 解析设施，供 MARS 物理侧新格式解析调用。</li>
+<li><code>libf/misc/strings_mod.f90</code>：新增通用字符串与消息模块，提供大小写转换、裁剪/清洗、分割/堆叠、查找替换、计数解析及分级输出工具。</li>
+</ul>
+<h2 id="受影响路径">受影响路径</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>5.3 路径</th>
+<th>6.3 路径</th>
+<th>类型</th>
+<th>SHA-256 核验</th>
+<th>改动概述</th>
+<th>官方记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>C-0098</code></td>
+<td>—</td>
+<td><code>libf/misc/job.F90</code></td>
+<td>新增</td>
+<td><code>—→6a52490c2a6b</code>（已核验）</td>
+<td>新增作业环境模块，识别 SLURM/PBS 作业号与时限，解析 days-hours:minutes:seconds，并提供提前终止所需的 timelimit/timewall 状态。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0099</code></td>
+<td>—</td>
+<td><code>libf/misc/program_options.F90</code></td>
+<td>新增</td>
+<td><code>—→63b1dae798be</code>（已核验）</td>
+<td>新增通用命令行选项模块，解析帮助、并行布局和运行参数并提供 usage 输出，供动力主程序启动时调用。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0100</code></td>
+<td>—</td>
+<td><code>libf/misc/readTracFiles_mod.f90</code></td>
+<td>新增</td>
+<td><code>—→508b2fb1bcb0</code>（已核验）</td>
+<td>新增公共 tracer.def/traceur.def 解析设施，供 MARS 物理侧新格式解析调用。</td>
+<td>间接记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">20/05/2026，EM</a></td>
+</tr>
+<tr>
+<td><code>C-0101</code></td>
+<td>—</td>
+<td><code>libf/misc/strings_mod.f90</code></td>
+<td>新增</td>
+<td><code>—→f5c6ab2874a3</code>（已核验）</td>
+<td>新增通用字符串与消息模块，提供大小写转换、裁剪/清洗、分割/堆叠、查找替换、计数解析及分级输出工具。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+</tbody>
+</table>
+<h2 id="证据边界">证据边界</h2>
+<ul>
+<li>路径状态和哈希关系来自两棵本地快照的机械比较。</li>
+<li>官方记录来自 MARS Changelog 增量；COMMON 命中仅表示间接记录。</li>
+<li>未找到 Changelog 条目不等于改动无意义，只表示没有可直接关联的官方文字记录。</li>
+<li>本页不把未运行的数值或性能影响写成既定事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../version-delta-index.html">全量变更索引</a></li>
+<li><a href="../../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

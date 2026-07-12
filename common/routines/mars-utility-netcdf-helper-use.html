@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -44,7 +45,7 @@
 <li><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\lect_start_archive.F</code></li>
 <li>COMMON helper：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\netcdf95.F90</code>、<code>handle_err_m.F90</code>、<code>new_unit_m.F90</code>、<code>ioipsl_getincom.F90</code></li>
 </ul>
-<p>状态：TASK-0195 完成。本文只说明 Mars utility 的 NetCDF 读写方式、COMMON helper 的真实边界和复现排错顺序；start/restart/archive 文件职责见 <a href="mars-start-restart-archive-boundary.html">Mars start/restart/archive 边界</a>，COMMON 状态恢复见 <a href="mars-utility-common-state-consumers.html">Mars utility COMMON 状态消费链</a>。</p>
+<p>本文只说明 Mars utility 的 NetCDF 读写方式、COMMON helper 的真实边界和复现排错顺序；start/restart/archive 文件职责见 <a href="mars-start-restart-archive-boundary.html">Mars start/restart/archive 边界</a>，COMMON 状态恢复见 <a href="mars-utility-common-state-consumers.html">Mars utility COMMON 状态使用链路</a>。</p>
 <h2 id="结论">结论</h2>
 <p>Mars <code>newstart/start2archive/archive</code> 工具链没有直接使用 COMMON <code>netcdf95</code> 聚合模块，也没有直接调用 <code>handle_err_m</code> 或 <code>new_unit_m</code>。这些 Mars utility 主要通过：</p>
 <pre class="text"><code>include &quot;netcdf.inc&quot;
@@ -117,7 +118,7 @@
 <td>COMMON <code>new_unit_m</code></td>
 <td><code>new_unit</code> 从 <code>unit=0</code> 开始 <code>INQUIRE</code>，找存在且未打开的 Fortran unit。</td>
 <td>无 NetCDF 错误处理。</td>
-<td>当前 6.3 源码没有 10..99 上限；不要沿用旧描述。</td>
+<td>当前源码没有 10..99 上限；不要沿用旧描述。</td>
 </tr>
 </tbody>
 </table>
@@ -176,14 +177,14 @@
 </ol>
 <h2 id="风险和待确认">风险和待确认</h2>
 <ul>
-<li>本页为静态源码核对，未运行真实 <code>start_archive.nc/start.nc/startfi.nc/surface.nc</code> 样例。</li>
+<li>本页为静态源码确认，未运行真实 <code>start_archive.nc/start.nc/startfi.nc/surface.nc</code> 样例。</li>
 <li><code>newstart.F</code> 对 <code>nid_dyn/nid_fi</code> 的关闭路径未作为本页主结论；如排查文件句柄泄漏，需要单独跟踪所有分支。</li>
 <li><code>lect_start_archive.F</code> 对缺失变量的容错粒度很细，本页只给边界说明；具体变量缺失行为需按变量名回到源码分支确认。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>
-<li><a href="mars-utility-common-state-consumers.html">Mars utility COMMON 状态消费链</a></li>
-<li><a href="mars-utility-constants-vertical.html">Mars utility 常量和垂直坐标消费链</a></li>
+<li><a href="mars-utility-common-state-consumers.html">Mars utility COMMON 状态使用链路</a></li>
+<li><a href="mars-utility-constants-vertical.html">Mars utility 常量和垂直坐标使用链路</a></li>
 <li><a href="mars-start-restart-archive-boundary.html">Mars start/restart/archive 边界</a></li>
 <li><a href="../modules/dyn3d/interp_horiz.html">dyn3d 水平面积交叠插值</a></li>
 <li><a href="../modules/misc/netcdf95-wrappers.html">NetCDF95 wrapper 组页</a></li>

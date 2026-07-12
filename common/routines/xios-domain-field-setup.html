@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,7 +34,7 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="xios-domainaxisfield-setup-flow">XIOS domain/axis/field setup flow</h1>
-<p>页面状态：TASK-0188 完成。 输入范围：</p>
+<p>输入范围：</p>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\wxios.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\xios_writefield.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\regular_lonlat_mod.F90
@@ -284,7 +285,7 @@ OMP MASTER:
 <p>Mars <code>iniwrite/iniwritesoil</code> 使用这些数组写 <code>diagfi</code>/soil 输出坐标轴。XIOS regular domain 当前主要通过 <code>wxios_domain_param</code> 从 <code>geometry_mod</code> 的局部物理列坐标重构 <code>io_lon/io_lat</code>，而不是直接读取 <code>lon_reg/lat_reg</code>。因此：</p>
 <ul>
 <li><code>regular_lonlat_mod</code> 是 Mars non-XIOS/legacy 输出坐标轴和全局 regular state。</li>
-<li><code>geometry_mod</code> 是 XIOS domain helper 实际消费的局部 geometry state。</li>
+<li><code>geometry_mod</code> 是 XIOS domain helper 实际使用的局部 geometry state。</li>
 <li>两者都由 <code>inigeomphy_mod</code> 初始化，必须保持一致。</li>
 </ul>
 <h2 id="复现和排查顺序">复现和排查顺序</h2>
@@ -303,7 +304,7 @@ OMP MASTER:
 <ul>
 <li>本地没有运行 <code>CPP_XIOS</code> 案例，domain mask、unstructured <code>i_index</code> 和 XIOS interpolation 行为仍需运行验证。</li>
 <li><code>wxios</code> 中 <code>THREADPRIVATE(g_comm,g_cts_name,g_ctx)</code> 的 <code>g_cts_name</code> 拼写风险可能影响多线程 context name 行为。</li>
-<li>Mars XML 中每个 field 对 <code>dom_glo</code>、axis 和 active 状态的最终配置不属于 COMMON 源码，需结合 Mars <code>deftank/xios/*.xml</code> 或运行配置核对。</li>
+<li>Mars XML 中每个 field 对 <code>dom_glo</code>、axis 和 active 状态的最终配置不属于 COMMON 源码，需结合 Mars <code>deftank/xios/*.xml</code> 或运行配置确认。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>

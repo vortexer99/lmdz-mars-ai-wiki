@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -32,10 +33,10 @@
       <span>routines/guide-config-contract.md</span>
     </nav>
     <article class="content" data-pagefind-body>
-<h1 id="guide-配置与初始化契约">guide 配置与初始化契约</h1>
+<h1 id="guide-配置与初始化约定">guide 配置与初始化约定</h1>
 <p><code>guide_init</code> 是 nudging（松弛逼近）子系统的唯一入口，负责读取全部配置参数、打开 NetCDF 文件确定垂直层数、分配所有工作数组并加载第一个时间片。串行版 <code>guide_mod</code>（<code>dyn3d/guide_mod.F90</code>）和并行版 <code>guide_p_mod</code>（<code>dyn3dpar/guide_p_mod.F90</code>）共享几乎相同的参数集合，但并行版额外支持 <code>guide_plevs</code> 三级压力坐标系选择，并在数组分配和索引上适配域分解。</p>
 <h2 id="调用链">调用链</h2>
-<p><code>ok_guide</code> 是 <code>logic_mod</code> 中的全局逻辑开关，由 <code>conf_gcm</code> 通过 <code>getin('ok_guide',ok_guide)</code> 从 <code>run.def</code> 读取，默认 <code>.FALSE.</code>。在 6.3 源码中，<code>leapfrog</code> / <code>leapfrog_p</code> 对 <code>guide_main(itau,ucov,vcov,teta,q,masse,ps)</code> 的活动调用位于 <code>#ifdef CPP_IOIPSL</code> 且 <code>planet_type=="earth"</code> 的分支内；<code>guide_main</code> 内部首次执行时通过 <code>first</code> flag 调用 <code>guide_init</code>。Mars/generic 行星在 <code>gcm.F90</code> / <code>gcm.F</code> 初始化阶段额外使用 <code>relaxetat0("relax.nc")</code> 做独立松弛，与 guide 模块无耦合。</p>
+<p><code>ok_guide</code> 是 <code>logic_mod</code> 中的全局逻辑开关，由 <code>conf_gcm</code> 通过 <code>getin('ok_guide',ok_guide)</code> 从 <code>run.def</code> 读取，默认 <code>.FALSE.</code>。在 当前源码中，<code>leapfrog</code> / <code>leapfrog_p</code> 对 <code>guide_main(itau,ucov,vcov,teta,q,masse,ps)</code> 的活动调用位于 <code>#ifdef CPP_IOIPSL</code> 且 <code>planet_type=="earth"</code> 的分支内；<code>guide_main</code> 内部首次执行时通过 <code>first</code> flag 调用 <code>guide_init</code>。Mars/generic 行星在 <code>gcm.F90</code> / <code>gcm.F</code> 初始化阶段额外使用 <code>relaxetat0("relax.nc")</code> 做独立松弛，与 guide 模块无耦合。</p>
 <h2 id="guide_init-参数读取">guide_init 参数读取</h2>
 <p><code>guide_init</code> 调用 <code>ini_getparam("nudging_parameters_out.txt")</code> 打开参数文件（仅串行版显式传文件名；并行版依赖 getparam 默认行为），然后通过 <code>getpar</code> 读取以下参数组：</p>
 <h3 id="变量开关">变量开关</h3>
@@ -115,7 +116,7 @@
 </tbody>
 </table>
 <h2 id="mars-运行参与度">Mars 运行参与度</h2>
-<p>Mars 运行只把本模块作为接口兼容和配置边界。6.3 <code>leapfrog_p</code> 的 <code>guide_main</code> 调用同样在 <code>CPP_IOIPSL</code> + <code>planet_type=="earth"</code> 分支；generic 行星的 <code>ok_guide</code> 路径包含 <code>relaxetat0("relax.nc")</code> 和 inline <code>attenua</code> u-wind nudging，均不等同于本模块的 NetCDF guide 输入链。</p>
+<p>Mars 运行只把本模块作为接口兼容和配置边界。<code>leapfrog_p</code> 的 <code>guide_main</code> 调用同样在 <code>CPP_IOIPSL</code> + <code>planet_type=="earth"</code> 分支；generic 行星的 <code>ok_guide</code> 路径包含 <code>relaxetat0("relax.nc")</code> 和 inline <code>attenua</code> u-wind nudging，均不等同于本模块的 NetCDF guide 输入链。</p>
 <h2 id="依赖表">依赖表</h2>
 <table>
 <thead>

@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,9 +34,8 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="dyn3dvlspltf">dyn3d/vlsplt.F</h1>
-<p>页面状态：TASK-0028 完成。</p>
 <p>源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\vlsplt.F</code></p>
-<p>Mars 运行参与度：条件经过。<code>vlsplt</code> 是串行 <code>dyn3d/advtrac.F90</code> 的 <code>iadv=10</code> Van Leer tracer 输送主内核；6.3 <code>infotrac_init</code> 白名单允许 <code>iadv=10</code>，因此这是 Mars 标准 tracer 输送路径中应优先理解的 COMMON 串行格式。饱和水汽 <code>iadv=14</code> 走 <a href="vlspltqs.html">vlspltqs</a>，并行构建走 <a href="../dyn3dpar/vlspltgen_p.html">vlspltgen_p</a> 和 <a href="../dyn3dpar/vlsplt_p.html">vlsplt_p</a> 父页。</p>
+<p>Mars 运行参与度：条件经过。<code>vlsplt</code> 是串行 <code>dyn3d/advtrac.F90</code> 的 <code>iadv=10</code> Van Leer tracer 输送主内核；<code>infotrac_init</code> 白名单允许 <code>iadv=10</code>，因此这是 Mars 标准 tracer 输送路径中应优先理解的 COMMON 串行格式。饱和水汽 <code>iadv=14</code> 走 <a href="vlspltqs.html">vlspltqs</a>，并行构建走 <a href="../dyn3dpar/vlspltgen_p.html">vlspltgen_p</a> 和 <a href="../dyn3dpar/vlsplt_p.html">vlsplt_p</a> 主页面。</p>
 <h2 id="文件角色">文件角色</h2>
 <p><code>vlsplt.F</code> 是 1138 行 Fortran 77 串行 Van Leer split transport 文件。它包含：</p>
 <ul>
@@ -45,7 +45,7 @@
 <li><code>vlz</code>：垂直 Van Leer 通量更新，含顶底零通量和父子 tracer 递归。</li>
 <li><code>minmaxq</code>：<code>#ifdef isminismax</code> 下的极值诊断。</li>
 </ul>
-<p>本页是串行父文件页；三方向公式的展开见 <a href="../../routines/vlsplt-serial-split-kernels.html">vlsplt 串行 split 内核</a>，父子 tracer 和饱和路径见 <a href="../../routines/vlsplt-serial-family-tracers.html">vlsplt 串行父子 tracer</a>。</p>
+<p>本页是串行主文件页；三方向公式的展开见 <a href="../../routines/vlsplt-serial-split-kernels.html">vlsplt 串行 split 内核</a>，父子 tracer 和饱和路径见 <a href="../../routines/vlsplt-serial-family-tracers.html">vlsplt 串行父子 tracer</a>。</p>
 <h2 id="子例程清单">子例程清单</h2>
 <table>
 <thead>
@@ -84,7 +84,7 @@
 </tbody>
 </table>
 <h2 id="调用入口">调用入口</h2>
-<p>串行 <code>advtrac.F90</code> 在 tracer 循环中按 <code>iadv(iq)</code> 调度：</p>
+<p>串行 <a href="./advtrac.html"><code>advtrac.F90</code></a> 在 tracer 循环中按 <code>iadv(iq)</code> 调度：</p>
 <table>
 <thead>
 <tr>
@@ -269,23 +269,23 @@ Ratio(child) = 0                     otherwise</code></pre>
 <td>串行非饱和 Van Leer，<code>iadv=10</code>。</td>
 </tr>
 <tr>
-<td><code>vlspltqs.F</code></td>
+<td><a href="./vlspltqs.html"><code>vlspltqs.F</code></a></td>
 <td><a href="vlspltqs.html">vlspltqs</a></td>
 <td>饱和水汽水平裁剪 <code>qsat</code>，垂直共享 <code>vlz</code>。</td>
 </tr>
 <tr>
-<td><code>vlsplt_p.F</code></td>
+<td><a href="../dyn3dpar/vlsplt_p.html"><code>vlsplt_p.F</code></a></td>
 <td><a href="../dyn3dpar/vlsplt_p.html">vlsplt_p</a></td>
-<td>并行 split 内核父页，含 halo、OMP、band 范围和 <code>_p</code> 差异。</td>
+<td>并行 split 内核主页面，含 halo、OMP、band 范围和 <code>_p</code> 差异。</td>
 </tr>
 <tr>
-<td><code>vlspltgen_p.F</code></td>
+<td><a href="../dyn3dpar/vlspltgen_p.html"><code>vlspltgen_p.F</code></a></td>
 <td><a href="../dyn3dpar/vlspltgen_p.html">vlspltgen_p</a></td>
 <td>并行 tracer split 调度，按 <code>iadv=10/14</code> 调用 <code>_p</code> 内核。</td>
 </tr>
 </tbody>
 </table>
-<p>串并行差异支撑页说明：数值公式大体等价，但并行版增加 band、halo、OpenMP 同步和 <code>mw(:,:,iq)</code> 存储差异；实际 bitwise 是否一致仍需回归测试。</p>
+<p>串并行差异细节页说明：数值公式大体等价，但并行版增加 band、halo、OpenMP 同步和 <code>mw(:,:,iq)</code> 存储差异；实际 bitwise 是否一致仍需回归测试。</p>
 <h2 id="复现检查点">复现检查点</h2>
 <ol type="1">
 <li><code>advtrac</code> 传入 <code>pente_max=2.</code>，不要把 <code>pente_max</code> 当作运行时可随意忽略的常量。</li>

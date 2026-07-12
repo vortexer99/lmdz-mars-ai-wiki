@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,7 +34,6 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="filtreg_modf90-滤波初始化模块">filtreg_mod.F90 滤波初始化模块</h1>
-<h2 id="页面状态">页面状态</h2>
 <p>源码范围：</p>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\filtreg_mod.F90</code></pre>
 <p>源码行数：559。</p>
@@ -47,7 +47,7 @@
 <li>分配并填充矩阵滤波路径使用的北半球、南半球矩阵；</li>
 <li>在 <code>CPP_PARA</code> 且 <code>use_filtre_fft</code> 为真时初始化全局和本地 FFT 滤波 backend。</li>
 </ul>
-<p>实际施加滤波的是 <code>filtreg.F</code> 和 <code>dyn3dpar/filtreg_p.F</code>；它们消费本模块保存的矩阵数组和 <code>coefils.h</code> 中的滤波边界状态。</p>
+<p>实际施加滤波的是 <a href="./filtreg-operators.html"><code>filtreg.F</code></a> 和 <code>dyn3dpar/filtreg_p.F</code>；它们使用本模块保存的矩阵数组和 <code>coefils.h</code> 中的滤波边界状态。</p>
 <h2 id="符号清单">符号清单</h2>
 <table>
 <thead>
@@ -182,7 +182,7 @@
 <tr>
 <td><code>coefils.h</code></td>
 <td><code>coefilu</code>, <code>coefilv</code>, <code>coefilu2</code>, <code>coefilv2</code>, <code>modfrstu</code>, <code>modfrstv</code>, <code>jfiltn*</code>, <code>jfilts*</code> 等滤波状态</td>
-<td><code>inifilr</code> 写入，<code>filtreg</code>/<code>filtreg_p</code> 消费。</td>
+<td><code>inifilr</code> 写入，<code>filtreg</code>/<code>filtreg_p</code> 使用。</td>
 </tr>
 </tbody>
 </table>
@@ -236,8 +236,8 @@
 </tr>
 </tbody>
 </table>
-<h3 id="被调例程和后续消费者">被调例程和后续消费者</h3>
-<p><code>inifilr</code> 调用 <code>inifgn(eignvl)</code>，由 <a href="filter-helpers.html">filter-helpers</a> 覆盖。矩阵路径后续由 <a href="filtreg-system.html">filtreg-system</a> 中的串行 <code>filtreg.F</code> 和并行 <code>dyn3dpar/filtreg_p.F</code> 消费。</p>
+<h3 id="被调例程和后续使用位置">被调例程和后续使用位置</h3>
+<p><code>inifilr</code> 调用 <code>inifgn(eignvl)</code>，由 <a href="filter-helpers.html">filter-helpers</a> 覆盖。矩阵路径后续由 <a href="filtreg-system.html">filtreg-system</a> 中的串行 <a href="./filtreg-operators.html"><code>filtreg.F</code></a> 和并行 <code>dyn3dpar/filtreg_p.F</code> 使用。</p>
 <h2 id="初始化流程">初始化流程</h2>
 <h3 id="1-读取网格尺度并计算特征值">1. 读取网格尺度并计算特征值</h3>
 <p><code>inifilr</code> 首先设置 <code>pi = 2*asin(1.)</code>，把 <code>xprimu(i)</code> 拷贝到 <code>dlonu(i)</code>，调用 <code>inifgn(eignvl)</code> 计算离散 Laplacian 特征值。随后从 <code>rlatu(j)-rlatu(j+1)</code> 得到 <code>dlatu(j)</code>。</p>
@@ -321,7 +321,7 @@ matricev    = eignfnu * eignft</code></pre>
 <li>北半球 <code>matrinvn(:,:,j)</code></li>
 <li>南半球 <code>matrinvs(:,:,j-jfiltsu+1)</code></li>
 </ul>
-<p>源码没有为 V/Z 网格构造 <code>matrinv</code> 对应矩阵；串行和并行滤波例程也只在 <code>iaire == 3</code> 的 inverse 分支消费 <code>matrinvn/matrinvs</code>。</p>
+<p>源码没有为 V/Z 网格构造 <code>matrinv</code> 对应矩阵；串行和并行滤波例程也只在 <code>iaire == 3</code> 的 inverse 分支使用 <code>matrinvn/matrinvs</code>。</p>
 <h3 id="8-可选-fft-初始化">8. 可选 FFT 初始化</h3>
 <p>在 <code>CPP_PARA</code> 构建中，如果 <code>use_filtre_fft</code> 为真，<code>inifilr</code> 调用：</p>
 <pre class="text"><code>Init_filtre_fft(coefilu, modfrstu, jfiltnu, jfiltsu,
@@ -345,7 +345,7 @@ Init_filtre_fft_loc(coefilu, modfrstu, jfiltnu, jfiltsu,
 <li><code>first_call_inifilr</code> 只控制分配，不控制重分配。若同一进程里对不同水平网格重复调用，数组形状可能与第二次计算出的 <code>jfiltn*/jfilts*</code> 不一致；源码没有保护这一情形。</li>
 <li><code>ysinus</code> 特殊分支会把 <code>alphax</code> 改为 0，这是对 <code>serre_mod</code> 全局状态的写入副作用，不只是局部计算。</li>
 <li><code>rlamda(1)</code> 未赋值但也不被滤波系数循环读取；审查时不应把它误判为运行期 bug。</li>
-<li>待确认：Mars 标准 <code>run.def</code> 中 <code>use_filtre_fft</code> 的默认开启状态仍应由 <code>conf_gcm</code> 并行 hard 页最终整合确认。</li>
+<li>待确认：Mars 标准 <code>run.def</code> 中 <code>use_filtre_fft</code> 的默认开启状态仍应由 <code>conf_gcm</code> 并行 主页面最终确认。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>

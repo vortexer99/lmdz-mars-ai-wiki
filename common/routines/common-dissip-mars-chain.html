@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -83,7 +84,7 @@ dyn3d_common\inidissip.F90</code></pre>
 <li><strong>极点温度平均</strong>：用面积加权把极点 <code>iip1</code> 个格点的 <code>teta</code> 统一为极区均值。</li>
 </ol>
 <h3 id="阶段-6leapfrog_nogcm-排除">阶段 6：leapfrog_nogcm 排除</h3>
-<p>MARS <code>phymars/leapfrog_nogcm.F</code> 不设置 <code>apdiss</code>、不调用 <code>sponge</code>/<code>dissip</code>/<code>covcont</code>/<code>enercin</code>。所有耗散相关代码已被注释删除（ED18 标注）。它保留 <code>dudis/dvdis/dtetadis</code> 数组和 <code>comdissnew.h</code> include 仅为接口兼容；COMMON 6.3 已删除 <code>dyn3d/leapfrog_nogcm.F</code>。</p>
+<p>MARS <code>phymars/leapfrog_nogcm.F</code> 不设置 <code>apdiss</code>、不调用 <code>sponge</code>/<code>dissip</code>/<code>covcont</code>/<code>enercin</code>。所有耗散相关代码已被注释删除（ED18 标注）。它保留 <code>dudis/dvdis/dtetadis</code> 数组和 <code>comdissnew.h</code> include 仅为接口兼容；当前 COMMON 源码已删除 <code>dyn3d/leapfrog_nogcm.F</code>。</p>
 <h2 id="串并行差异">串并行差异</h2>
 <h3 id="并行-halo-和-band-切换">并行 halo 和 band 切换</h3>
 <p><code>leapfrog_p</code> 在进入耗散段前执行 halo 请求注册和发送（<code>Register_Hallo</code>/<code>SendRequest</code>/<code>WaitRequest</code>），确保 <code>ucov/vcov/teta/p</code> 的子域边界带满足 stencil 宽度。随后通过 <code>SetDistrib(jj_Nb_dissip)</code> 切换到耗散专用的 band 分布，并启动 <code>timer_dissip</code> 计时。</p>

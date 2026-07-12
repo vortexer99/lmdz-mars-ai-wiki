@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,7 +34,7 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="wxiosf90">wxios.F90</h1>
-<p>页面状态：TASK-0172 完成。 源码路径：</p>
+<p>源码路径：</p>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\wxios.F90</code></pre>
 <p>Mars 运行参与度：条件经过。<code>CPP_XIOS</code> 构建中，COMMON <code>gcm</code>/并行初始化会调用 <code>wxios_init</code>，Mars <code>physiq_mod</code> 会调用 <code>wxios_context_init</code>，Mars <code>xios_output_mod</code> 通过 <code>wxios_domain_param</code> 或 <code>wxios_domain_param_unstructured</code> 初始化 horizontal domain，并用 <code>wxios_closedef</code> 关闭 context definition。未启用 <code>CPP_XIOS</code> 时，本文件主体不提供 <code>wxios</code> 模块能力。</p>
 <h2 id="文件职责">文件职责</h2>
@@ -234,7 +235,7 @@ dyn3dpar/parallel_lmdz.F90
 </ol>
 <p>这个 domain 是当前 MPI rank 的纬向块，和 <a href="../phy_common/mod_grid_phy_lmdz.html">mod_grid_phy_lmdz</a> 的 <code>nbp_lon/nbp_lat/klon_glo</code> 约定一致。</p>
 <h2 id="unstructured-domain">unstructured domain</h2>
-<p><code>wxios_domain_param_unstructured(dom_id, flip_coordinates)</code> 直接消费 <a href="../phy_common/geometry_mod.html">geometry_mod</a> 的局部几何状态：</p>
+<p><code>wxios_domain_param_unstructured(dom_id, flip_coordinates)</code> 直接使用 <a href="../phy_common/geometry_mod.html">geometry_mod</a> 的局部几何状态：</p>
 <table>
 <thead>
 <tr>
@@ -329,7 +330,7 @@ dyn3dpar/parallel_lmdz.F90
 <h2 id="待确认">待确认</h2>
 <ul>
 <li><code>THREADPRIVATE(g_comm,g_cts_name,g_ctx)</code> 中 <code>g_cts_name</code> 疑似为 <code>g_ctx_name</code> 拼写错误；实际线程私有行为需编译器诊断或 OpenMP 运行验证。</li>
-<li><code>missing_val_omp/missing_val</code> 在本文件内未见消费方，是否为旧接口遗留需更大范围确认。</li>
+<li><code>missing_val_omp/missing_val</code> 在本文件内未见使用方，是否为旧接口遗留需更大范围确认。</li>
 <li><code>wxios_add_field_to_file</code> 中 <code>axis_id</code> 固定长度 20，源码注释标注 dangerous；长 axis 名是否会截断需调用方约束。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>

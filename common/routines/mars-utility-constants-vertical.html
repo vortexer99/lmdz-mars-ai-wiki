@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -32,15 +33,15 @@
       <span>routines/mars-utility-constants-vertical.md</span>
     </nav>
     <article class="content" data-pagefind-body>
-<h1 id="mars-utility-常量和垂直坐标消费链">Mars utility 常量和垂直坐标消费链</h1>
+<h1 id="mars-utility-常量和垂直坐标使用链路">Mars utility 常量和垂直坐标使用链路</h1>
 <p>源码范围：</p>
 <ul>
 <li><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\comconst_mod.F90</code></li>
 <li><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\comvert_mod.F90</code></li>
 <li><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\vertical_layers_mod.F90</code></li>
-<li>Mars 消费边界：<code>LMDZ.MARS\libf\dynphy_lonlat\phymars\newstart.F</code>、<code>start2archive.F</code>、<code>lect_start_archive.F</code>、<code>ini_archive.F</code>、<code>readhead_NC.F</code>、<code>datareadnc.F</code>，以及 <code>LMDZ.MARS\libf\phymars\dyn1d\testphys1d.F90</code>、<code>init_testphys1d_mod.F90</code>。</li>
+<li>Mars 使用边界：<code>LMDZ.MARS\libf\dynphy_lonlat\phymars\newstart.F</code>、<code>start2archive.F</code>、<code>lect_start_archive.F</code>、<code>ini_archive.F</code>、<code>readhead_NC.F</code>、<code>datareadnc.F</code>，以及 <code>LMDZ.MARS\libf\phymars\dyn1d\testphys1d.F90</code>、<code>init_testphys1d_mod.F90</code>。</li>
 </ul>
-<p>状态：TASK-0197 完成。本文只解释 Mars utility 如何读取、重建、写回 COMMON 常量和垂直坐标状态；更宽的 start/restart/archive 文件职责见 <a href="mars-start-restart-archive-boundary.html">Mars start/restart/archive 边界</a>，垂直离散公式见 <a href="vertical-coordinate-mars-contract.html">Mars 垂直坐标契约</a>。</p>
+<p>本文只解释 Mars utility 如何读取、重建、写回 COMMON 常量和垂直坐标状态；更宽的 start/restart/archive 文件职责见 <a href="mars-start-restart-archive-boundary.html">Mars start/restart/archive 边界</a>，垂直离散公式见 <a href="vertical-coordinate-mars-contract.html">Mars 垂直坐标约定</a>。</p>
 <p>NetCDF 读写和 helper 边界见 <a href="mars-utility-netcdf-helper-use.html">Mars utility NetCDF 和 COMMON helper 边界</a>：Mars archive utilities 主要直接使用 <code>netcdf.inc</code>/<code>NF_*</code>，COMMON <code>netcdf95/handle_err</code> 只适用于实际 <code>nf95_*</code> 调用链。</p>
 <h2 id="结论">结论</h2>
 <p>Mars <code>newstart/start2archive/archive</code> 工具不是只搬 NetCDF 变量。它们会把 archive 或 start/startfi 中的控制量重新灌回 COMMON 状态模块，再调用 COMMON 初始化链重建当前编译网格下的常量、垂直坐标和物理侧垂直层副本。</p>
@@ -60,7 +61,7 @@
 <th>模块</th>
 <th>状态</th>
 <th>维度和含义</th>
-<th>Mars utility 消费方式</th>
+<th>Mars utility 使用方式</th>
 </tr>
 </thead>
 <tbody>
@@ -74,7 +75,7 @@
 <td><code>comvert_mod</code></td>
 <td><code>ap,bp,aps,bps,presnivs,pseudoalt,pa,preff,scaleheight</code></td>
 <td>动力侧 hybrid/sigma 垂直层状态</td>
-<td><code>ini_archive</code> 写入 archive；<code>lect_start_archive</code> 用新旧 <code>ap/bp/aps/bps/preff</code> 做垂直重映射；<code>newstart/start2archive</code> 在压力、Exner 和写出前消费。</td>
+<td><code>ini_archive</code> 写入 archive；<code>lect_start_archive</code> 用新旧 <code>ap/bp/aps/bps/preff</code> 做垂直重映射；<code>newstart/start2archive</code> 在压力、Exner 和写出前使用。</td>
 </tr>
 <tr>
 <td><code>vertical_layers_mod</code></td>
@@ -117,9 +118,9 @@
 </ul>
 <p>同一例程还定义并写出 <code>ap,bp,aps,bps,presnivs,pseudoalt</code>。这些变量让后续 archive 可同时支持动力侧 pressure 计算、物理侧 vertical axis 和旧网格到新网格的垂直插值。</p>
 <p><code>readhead_NC.F</code> 是读取方向。它把 <code>controle</code> 写回 <code>im/jm/lllm/day_ini/rad/omeg/g/cpp/kappa/daysec/dtvr</code> 和能量基准量，再设置 <code>r=kappa*cpp</code>。源码中 <code>preff=610.</code> 覆盖了注释里的 <code>tab_cntrl(18)</code> 读取路径，并带有“diagfi 不一定适用”的注释。这是 Mars utility 的特殊边界：<code>readhead_NC</code> 并不等价于完整反序列化 <code>ini_archive</code> 的每一个字段。</p>
-<h2 id="lect_start_archivef-的垂直插值消费"><code>lect_start_archive.F</code> 的垂直插值消费</h2>
+<h2 id="lect_start_archivef-的垂直插值使用"><code>lect_start_archive.F</code> 的垂直插值使用</h2>
 <p><code>lect_start_archive.F</code> 是 <code>newstart</code> 从 archive 重建 start 的核心读入器。它直接 <code>USE comvert_mod, ONLY: ap,bp,aps,bps,preff</code>，并从 <code>comconst_mod</code> 取 <code>kappa,g,pi</code>。</p>
-<p>关键消费点：</p>
+<p>关键使用点：</p>
 <ul>
 <li>读取旧 archive 的垂直坐标，与当前 <code>comvert_mod</code> 中的新坐标对照。</li>
 <li><code>aps/bps</code> 参与 mid-layer 变量垂直插值；<code>ap/bp</code> 参与 interface 变量和 pressure 层构造。</li>
@@ -127,14 +128,14 @@
 <li><code>g</code> 用于 surface pressure、CO2 ice 和大气质量的守恒缩放。</li>
 </ul>
 <p>复现要点：<code>lect_start_archive</code> 是兼容旧 archive 的地方。它可以处理某些旧变量名或缺失分支，但这种 fallback 不应推广到 <code>readhead_NC</code>、<code>ini_archive</code> 或其他读取器。</p>
-<h2 id="datareadncf-的常量消费"><code>datareadnc.F</code> 的常量消费</h2>
-<p><code>datareadnc.F</code> 不消费垂直坐标，但消费 COMMON 常量接口。它从 <code>comconst_mod</code> 取 <code>g,pi</code>，读取 <code>surface.nc</code> 并把地形、反照率、热惯量等插值到当前动力网格：</p>
+<h2 id="datareadncf-的常量使用"><code>datareadnc.F</code> 的常量使用</h2>
+<p><code>datareadnc.F</code> 不使用垂直坐标，但使用 COMMON 常量接口。它从 <code>comconst_mod</code> 取 <code>g,pi</code>，读取 <code>surface.nc</code> 并把地形、反照率、热惯量等插值到当前动力网格：</p>
 <ul>
 <li><code>pi</code> 用于角度和弧度转换。</li>
 <li><code>g</code> 用于地形/位势高度相关换算。</li>
 <li><code>getin("datadir",datadir)</code> 决定 surface 数据路径。</li>
 </ul>
-<p>这说明 Mars utility 的常量消费不只在 archive header 内，也贯穿 surface 初始化和网格插值输入准备。</p>
+<p>这说明 Mars utility 的常量使用不只在 archive header 内，也贯穿 surface 初始化和网格插值输入准备。</p>
 <h2 id="1dtestphys1d-边界">1D/testphys1d 边界</h2>
 <p>Mars 1D 路径通过 <code>phymars/dyn1d</code> 转发文件暴露 COMMON 模块名，但初始化顺序不同于 3D GCM：</p>
 <ol type="1">
@@ -158,18 +159,18 @@
 <h2 id="风险和待确认">风险和待确认</h2>
 <ul>
 <li><code>readhead_NC.F</code> 中 <code>preff=610.</code> 与 <code>ini_archive.F</code> 写 <code>tab_cntrl(18)=preff</code> 存在非对称行为；源码注释说明这和 <code>diagfi/start</code> 适用范围有关，但未做运行样例验证。</li>
-<li>本页根据源码静态核对，不验证具体 <code>start_archive.nc</code> 是否包含完整 <code>ap/bp/aps/bps/presnivs/pseudoalt</code>。</li>
+<li>本页根据源码静态确认，不验证具体 <code>start_archive.nc</code> 是否包含完整 <code>ap/bp/aps/bps/presnivs/pseudoalt</code>。</li>
 <li>1D 路径的 <code>init_vertical_layers</code> 调用已确认；但不同 <code>testphys1d.def/start1D.txt</code> 组合下的输入覆盖优先级需要结合运行文件进一步检查。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>
-<li><a href="common-state-control-contract.html">COMMON 状态/控制契约</a></li>
-<li><a href="mars-utility-common-state-consumers.html">Mars utility COMMON 状态消费链</a></li>
+<li><a href="common-state-control-contract.html">COMMON 状态/控制约定</a></li>
+<li><a href="mars-utility-common-state-consumers.html">Mars utility COMMON 状态使用链路</a></li>
 <li><a href="mars-utility-netcdf-helper-use.html">Mars utility NetCDF 和 COMMON helper 边界</a></li>
-<li><a href="vertical-coordinate-mars-contract.html">Mars 垂直坐标与动力-物理共享状态契约</a></li>
+<li><a href="vertical-coordinate-mars-contract.html">Mars 垂直坐标与动力-物理共享状态约定</a></li>
 <li><a href="iniconst-planetary-constants.html">iniconst / conf_planete 行星常数初始化链</a></li>
 <li><a href="mars-start-restart-archive-boundary.html">Mars start/restart/archive 边界</a></li>
-<li><a href="mars-dyn1d-common-forwarding.html">Mars dyn1d COMMON 转发契约</a></li>
+<li><a href="mars-dyn1d-common-forwarding.html">Mars dyn1d COMMON 转发约定</a></li>
 </ul>
 
     </article>

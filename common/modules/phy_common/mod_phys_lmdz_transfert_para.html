@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,7 +34,7 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="mod_phys_lmdz_transfert_paraf90"><code>mod_phys_lmdz_transfert_para.F90</code></h1>
-<p>页面状态：TASK-0025 完成。 源码基线：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code>。 Mars 运行参与度：条件经过。Mars physics 和 COMMON 物理公共层通过本模块的 <code>bcast</code>、<code>gather</code>、<code>scatter</code> 等泛型完成物理列数据在 MPI ranks 和 OpenMP threads 之间的组合传输。</p>
+<p>源码基线：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code>。 Mars 运行参与度：条件经过。Mars physics 和 COMMON 物理公共层通过本模块的 <code>bcast</code>、<code>gather</code>、<code>scatter</code> 等泛型完成物理列数据在 MPI ranks 和 OpenMP threads 之间的组合传输。</p>
 <h2 id="源码范围">源码范围</h2>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\mod_phys_lmdz_transfert_para.F90</code></pre>
 <p>该文件 1349 行，只定义 <code>MODULE mod_phys_lmdz_transfert_para</code>。模块本身不声明 <code>PRIVATE</code> 或 <code>PUBLIC</code>，因此其中 6 个 generic interface 和 80 个具体 <code>SUBROUTINE</code> 按 Fortran 默认规则公开。</p>
@@ -250,7 +251,7 @@
 </table>
 <p>复现时要先确认物理并行初始化已经给出正确的 <code>klon_mpi</code>。若 <code>klon_mpi</code> 与实参的物理列维不一致，错误通常会在底层 transfer 或数组越界检查中暴露，而不是在本 wrapper 层显式检查。</p>
 <h2 id="调用方和运行链">调用方和运行链</h2>
-<p>COMMON 6.3 内部直接使用本模块的路径包括：</p>
+<p>COMMON 内部直接使用本模块的路径包括：</p>
 <table>
 <thead>
 <tr>
@@ -282,7 +283,7 @@
 </tr>
 </tbody>
 </table>
-<p>Mars 源码侧也直接消费本模块，常见模式是：</p>
+<p>Mars 源码侧也直接使用本模块，常见模式是：</p>
 <ul>
 <li><code>conf_phys.F</code>、<code>tracer_mod.F90</code>、<code>read_dust_scenario_mod.F90</code>、<code>suaer.F90</code>、aeronomy photolysis/parameter readers 等使用 <code>bcast</code> 同步 root 读取的数据。</li>
 <li><code>iostart.F90</code> 使用 <code>gather</code>、<code>scatter</code> 和 <code>bcast</code> 处理物理 restart/start 读写的全局/局部数组。</li>
@@ -307,7 +308,7 @@
 </ol>
 <h2 id="待确认">待确认</h2>
 <ul>
-<li>本页按 COMMON 6.3 和当前本地 MARS 调用点核对；外部 physics 包或本地私有补丁是否新增 <code>scatter2D/gather2D/reduce_sum</code> 调用，需要在对应源码树中另行 <code>rg</code>。</li>
+<li>本页按 COMMON 和当前本地 MARS 调用点确认；外部 physics 包或本地私有补丁是否新增 <code>scatter2D/gather2D/reduce_sum</code> 调用，需要在对应源码树中另行 <code>rg</code>。</li>
 <li>自动数组的实际栈空间限制取决于编译器和运行环境，本页只给出源码形状，不判断特定平台是否需要调栈大小。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>

@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -32,7 +33,7 @@
       <span>routines/calfis-p-physiq-contract.md</span>
     </nav>
     <article class="content" data-pagefind-body>
-<h1 id="calfis_p-与-call_physiq-接口契约">calfis_p 与 call_physiq 接口契约</h1>
+<h1 id="calfis_p-与-call_physiq-接口约定">calfis_p 与 call_physiq 接口约定</h1>
 <h2 id="输入范围">输入范围</h2>
 <pre class="text"><code>dynphy_lonlat\calfis_p.F: L939-1079（call_physiq 调用和 nsplit_phys 循环）
 dynphy_lonlat\phytitan.old\callphysiq_mod.F90: L1-97（Titan 参考实现）
@@ -40,7 +41,7 @@ dynphy_lonlat\phyvenus\callphysiq_mod.F90: L1-100（Venus 参考实现）
 dyn3d_common\infotrac.F90: L5-26, L667-770（nqtot/tname/niadv 定义与初始化）</code></pre>
 <p>Mars 运行参与度：<code>条件经过</code>。Mars 并行 GCM 在 <code>apphys=.TRUE.</code> 时经过 <code>calfis_p → call_physiq → physiq</code>。Mars 的 <code>callphysiq_mod</code> 不在 COMMON 树中（位于 Mars 物理目录），但接口签名与 Titan/Venus 版本一致。</p>
 <h2 id="例程定位">例程定位</h2>
-<p>本页聚焦 <code>calfis_p</code> 调用 <code>call_physiq</code> 时的接口契约：哪些参数被传入、哪些被返回、<code>nqtot/tname/niadv</code> 的语义、以及 <code>nsplit_phys</code> 时间分割机制。网格映射细节见 <a href="calfis-p-grid-mapping.html">calfis-p-grid-mapping</a>；整体调用链见 <a href="leapfrog-p-physics-coupling.html">leapfrog-p-physics-coupling</a>。</p>
+<p>本页聚焦 <code>calfis_p</code> 调用 <code>call_physiq</code> 时的接口约定：哪些参数被传入、哪些被返回、<code>nqtot/tname/niadv</code> 的语义、以及 <code>nsplit_phys</code> 时间分割机制。网格映射细节见 <a href="calfis-p-grid-mapping.html">calfis-p-grid-mapping</a>；整体调用链见 <a href="leapfrog-p-physics-coupling.html">leapfrog-p-physics-coupling</a>。</p>
 <h2 id="call_physiq-签名">call_physiq 签名</h2>
 <div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> call_physiq(klon, llm, nqtot, tname,                         <span class="co">&amp;</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>                       debut_split, lafin_split,                        <span class="co">&amp;</span></span>
@@ -322,11 +323,11 @@ dyn3d_common\infotrac.F90: L5-26, L667-770（nqtot/tname/niadv 定义与初始�
 <li>Titan 版向 <code>physiq</code> 传递 <code>zrfi_omp</code>（涡度），Venus 版不传（注释掉了 <code>plevmoy/tmoy</code>）。</li>
 </ol>
 <p>Mars 的 <code>callphysiq_mod</code> 不在 COMMON 树中，位于 Mars 物理目录。根据 COMMON 中 <code>calfis_p.F</code> 的注释代码块（L957-L1066），旧版曾按 <code>planet_type</code> 分支直接调用不同签名的 <code>physiq</code>，现已被统一的 <code>call_physiq</code> 接口替代。</p>
-<h2 id="契约约束总结">契约约束总结</h2>
+<h2 id="约定约束总结">约定约束总结</h2>
 <table>
 <thead>
 <tr>
-<th>契约项</th>
+<th>约定项</th>
 <th>约束</th>
 </tr>
 </thead>
@@ -375,8 +376,8 @@ dyn3d_common\infotrac.F90: L5-26, L667-770（nqtot/tname/niadv 定义与初始�
 <li><a href="calfis-p-parallel-transfer.html">calfis_p 并行 transfer 架构</a></li>
 <li><a href="calfis-p-date-planet-branches.html">calfis_p 日期与行星分支</a></li>
 <li><a href="leapfrog-p-physics-coupling.html">leapfrog_p 物理耦合</a></li>
-<li><a href="infotrac-mars-consumers.html">infotrac Mars 消费方</a></li>
-<li><a href="infotrac-state-contract.html">infotrac 状态契约</a></li>
+<li><a href="infotrac-mars-consumers.html">infotrac Mars 使用关系</a></li>
+<li><a href="infotrac-state-contract.html">infotrac 状态约定</a></li>
 </ul>
 <h2 id="待确认">待确认</h2>
 <ul>

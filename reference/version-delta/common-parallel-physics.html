@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>common-parallel-physics - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a href="../../modules/libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../file-index.html">文件索引</a>
+        <a href="../source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta/common-parallel-physics.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="common-物理侧并行与传输">COMMON 物理侧并行与传输</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>覆盖 MPI、OpenMP 及组合并行的数据广播、分发、收集和控制状态。</p>
+<p>兼容性关注：影响混合并行正确性、物理列通信和 XIOS/getin 广播。</p>
+<p>本页是 5.3 到 6.3 版本差异详情页，只解释改动职责与影响，不展开逐行代码差异。</p>
+<h2 id="变化统计">变化统计</h2>
+<p>本主题覆盖 9 个路径事件：新增 0、删除 0、修改 9。</p>
+<h2 id="主要变化">主要变化</h2>
+<ul>
+<li><code>libf/phy_common/abort_physic.F90</code>：调整物理侧终止诊断的标点和错误码文字，不改变 MPI_ABORT 与串行停止分支。</li>
+<li><code>libf/phy_common/geometry_mod.F90</code>：新增线程私有 cell_area_for_lonlat_outputs，并提供初始化入口保存含复制极点的经纬网输出面积，避免改变物理 cell_area。</li>
+<li><code>libf/phy_common/init_print_control_mod.F90</code>：把 lunout、prt_level 和 debug 改为初始化例程内的局部默认值，再通过 getin_p 读取覆盖值，避免依赖模块中的预置状态。</li>
+<li><code>libf/phy_common/ioipsl_getin_p_mod.F90</code>：统一 getin_p 的主控判断：所有标量/数组读取从 MPI-root 与 OMP-root 联合条件迁到 mod_phys_lmdz_para:is_master。</li>
+<li><code>libf/phy_common/mod_phys_lmdz_mpi_transfert.F90</code>：更新源码文件 <code>mod_phys_lmdz_mpi_transfert.F90</code>：新增 <code>bcast_mpi_i5</code>、<code>bcast_mpi_i6</code>、<code>bcast_mpi_r5</code>、<code>bcast_mpi_r6</code>；移除 <code>grid2dTo1d_mpi_r3</code>、<code>grid2dTo1d_mpi_l</code>、<code>grid2dTo1d_mpi_l1</code>、<code>grid2dTo1d_mpi_l2</code>。</li>
+<li><code>libf/phy_common/mod_phys_lmdz_omp_transfert.F90</code>：新增 5/6 维 OMP 广播，并把缓冲增长因子改为实数、分配区改用 SINGLE 同步，修正并行缓冲扩容与可见性。</li>
+<li><code>libf/phy_common/mod_phys_lmdz_para.F90</code>：在 MESOSCALE 构建中跳过 Test_transfert 并行传输自检，其他构建仍保留该初始化检查。</li>
+<li><code>libf/phy_common/mod_phys_lmdz_transfert_para.F90</code>：更新源码文件 <code>mod_phys_lmdz_transfert_para.F90</code>：新增 <code>bcast_i5</code>、<code>bcast_i6</code>、<code>bcast_r5</code>、<code>bcast_r6</code>。</li>
+<li><code>libf/phy_common/print_control_mod.F90</code>：更新源码文件 <code>print_control_mod.F90</code>中的 <code>print_control_mod</code>、<code>set_print_control</code>：外部模块、例程、调用和 getin 键集合保持不变，差异集中在局部声明、维度或类型约束。</li>
+</ul>
+<h2 id="受影响路径">受影响路径</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>5.3 路径</th>
+<th>6.3 路径</th>
+<th>类型</th>
+<th>SHA-256 核验</th>
+<th>改动概述</th>
+<th>官方记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>C-0102</code></td>
+<td><code>libf/phy_common/abort_physic.F90</code></td>
+<td><code>libf/phy_common/abort_physic.F90</code></td>
+<td>修改</td>
+<td><code>ff341a89be6e→6a7db5e6392a</code>（已核验）</td>
+<td>调整物理侧终止诊断的标点和错误码文字，不改变 MPI_ABORT 与串行停止分支。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0103</code></td>
+<td><code>libf/phy_common/geometry_mod.F90</code></td>
+<td><code>libf/phy_common/geometry_mod.F90</code></td>
+<td>修改</td>
+<td><code>5940a0da8cf5→5a21e2c7c272</code>（已核验）</td>
+<td>新增线程私有 cell_area_for_lonlat_outputs，并提供初始化入口保存含复制极点的经纬网输出面积，避免改变物理 cell_area。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0104</code></td>
+<td><code>libf/phy_common/init_print_control_mod.F90</code></td>
+<td><code>libf/phy_common/init_print_control_mod.F90</code></td>
+<td>修改</td>
+<td><code>678b4d859305→40af8eacbb6c</code>（已核验）</td>
+<td>把 lunout、prt_level 和 debug 改为初始化例程内的局部默认值，再通过 getin_p 读取覆盖值，避免依赖模块中的预置状态。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0105</code></td>
+<td><code>libf/phy_common/ioipsl_getin_p_mod.F90</code></td>
+<td><code>libf/phy_common/ioipsl_getin_p_mod.F90</code></td>
+<td>修改</td>
+<td><code>c056c4ac4f6d→4db436d1a969</code>（已核验）</td>
+<td>统一 getin_p 的主控判断：所有标量/数组读取从 MPI-root 与 OMP-root 联合条件迁到 mod_phys_lmdz_para:is_master。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0106</code></td>
+<td><code>libf/phy_common/mod_phys_lmdz_mpi_transfert.F90</code></td>
+<td><code>libf/phy_common/mod_phys_lmdz_mpi_transfert.F90</code></td>
+<td>修改</td>
+<td><code>f8d971ea6aa2→2ef4a09be235</code>（已核验）</td>
+<td>更新源码文件 <code>mod_phys_lmdz_mpi_transfert.F90</code>：新增 <code>bcast_mpi_i5</code>、<code>bcast_mpi_i6</code>、<code>bcast_mpi_r5</code>、<code>bcast_mpi_r6</code>；移除 <code>grid2dTo1d_mpi_r3</code>、<code>grid2dTo1d_mpi_l</code>、<code>grid2dTo1d_mpi_l1</code>、<code>grid2dTo1d_mpi_l2</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0107</code></td>
+<td><code>libf/phy_common/mod_phys_lmdz_omp_transfert.F90</code></td>
+<td><code>libf/phy_common/mod_phys_lmdz_omp_transfert.F90</code></td>
+<td>修改</td>
+<td><code>600d317b91f0→055f24f2b8dc</code>（已核验）</td>
+<td>新增 5/6 维 OMP 广播，并把缓冲增长因子改为实数、分配区改用 SINGLE 同步，修正并行缓冲扩容与可见性。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0108</code></td>
+<td><code>libf/phy_common/mod_phys_lmdz_para.F90</code></td>
+<td><code>libf/phy_common/mod_phys_lmdz_para.F90</code></td>
+<td>修改</td>
+<td><code>a36f2bd76011→899ac7f01974</code>（已核验）</td>
+<td>在 MESOSCALE 构建中跳过 Test_transfert 并行传输自检，其他构建仍保留该初始化检查。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0109</code></td>
+<td><code>libf/phy_common/mod_phys_lmdz_transfert_para.F90</code></td>
+<td><code>libf/phy_common/mod_phys_lmdz_transfert_para.F90</code></td>
+<td>修改</td>
+<td><code>3c4349ffa521→6b817dc7f9a5</code>（已核验）</td>
+<td>更新源码文件 <code>mod_phys_lmdz_transfert_para.F90</code>：新增 <code>bcast_i5</code>、<code>bcast_i6</code>、<code>bcast_r5</code>、<code>bcast_r6</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0110</code></td>
+<td><code>libf/phy_common/print_control_mod.F90</code></td>
+<td><code>libf/phy_common/print_control_mod.F90</code></td>
+<td>修改</td>
+<td><code>fb880d9ac1a7→c5f3a728d246</code>（已核验）</td>
+<td>更新源码文件 <code>print_control_mod.F90</code>中的 <code>print_control_mod</code>、<code>set_print_control</code>：外部模块、例程、调用和 getin 键集合保持不变，差异集中在局部声明、维度或类型约束。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+</tbody>
+</table>
+<h2 id="证据边界">证据边界</h2>
+<ul>
+<li>路径状态和哈希关系来自两棵本地快照的机械比较。</li>
+<li>官方记录来自 MARS Changelog 增量；COMMON 命中仅表示间接记录。</li>
+<li>未找到 Changelog 条目不等于改动无意义，只表示没有可直接关联的官方文字记录。</li>
+<li>本页不把未运行的数值或性能影响写成既定事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../version-delta-index.html">全量变更索引</a></li>
+<li><a href="../../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

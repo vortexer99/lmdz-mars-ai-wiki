@@ -195,7 +195,7 @@ physiq
 <p><code>simpleclouds</code> 是瞬时饱和调整：先用 <code>pq + pdq*dt</code> 和 <code>pt + pdt*dt</code> 得到局地状态，调用 <code>watersat</code>，若水汽超过 <code>zqsat</code> 就把超量全部转成水冰；若不饱和，就让现有水冰升华但不超过冰量。潜热用温度二次式：</p>
 <pre class="text"><code>lw = (2834.3 - 0.28*(T-To) - 0.004*(T-To)^2) * 1000</code></pre>
 <p><code>improvedclouds</code> 是完整微物理：先计算 <code>zqsat</code> 和可凝结量，再在每个格点/层内做子步循环。若 <code>satu &gt;= 1</code>，用 <code>updaterccn</code>、尘埃 log-normal bin、<code>nuclea</code> 把可用尘埃激活为 CCN；若 CCN 数量足够，用 <code>updaterice_micro</code>、<code>sig_h2o</code>、<code>growthrate</code> 和隐式 <code>dMice</code> 公式处理冰增长/升华；冰耗尽时释放 CCN 回尘埃。<code>cloud_adapt_ts</code> 为真时，<code>adapt_imicro</code> 会按可凝结量和经验幂律更新子步数。</p>
-<p>待确认：<code>improvedclouds</code> 中 <code>seq</code> 的单位匹配、<code>nuice_sed</code> 同时用于成核分布方差和沉降的物理含义仍以子页的待确认项为准；本页不把它们写成已确认事实。</p>
+<p>待确认：<code>improvedclouds</code> 中 <code>seq</code> 的单位匹配、<code>nuice_sed</code> 同时用于成核分布方差和沉降的物理含义仍以子页的待确认项为准；这里仍按待确认项处理。</p>
 <h3 id="5-饱和与凝结温度公式">5. 饱和与凝结温度公式</h3>
 <p><code>watersat</code> 给定温度 <code>T</code> 和压力 <code>P</code>，使用硬编码分子量比：</p>
 <pre class="text"><code>epsi = 18 / 44
@@ -612,7 +612,7 @@ zdqsdif_surf = rho * dryness * zcd * (zq1temp - qsat)</code></pre>
 <li><code>soilwater.F90</code> 中 <code>choice_ads</code> 用浮点等值比较，并且注释与实际“无吸附”取值存在不一致；地下水复现应记录实际配置和编译器。</li>
 <li><code>soilwater</code> 的非收敛路径会 <code>stop</code>，长积分极端条件下可能直接中止模型。</li>
 <li><code>waterice_tifeedback</code> 两个反馈机制用 <code>IF ... ELSE IF</code> 互斥；若两个开关都为真，实际走 <code>surfaceice_tifeedback</code>，不应写成二者叠加。</li>
-<li><code>calchim</code> 接收 <code>zdqcloud</code>/<code>zdqscloud</code> 的具体化学用途未在本任务核验，需化学模块页确认。</li>
+<li><code>calchim</code> 接收 <code>zdqcloud</code>/<code>zdqscloud</code> 的具体化学用途尚未核验，需化学模块页确认。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>

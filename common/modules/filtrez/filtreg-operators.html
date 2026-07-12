@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,7 +34,6 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="filtreg-operators-滤波施加与特征基构造">filtreg operators 滤波施加与特征基构造</h1>
-<h2 id="页面状态">页面状态</h2>
 <p>源码范围：</p>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\filtreg.F
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\inifgn.F
@@ -79,7 +79,7 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\acc.F</code></pre>
 </tr>
 </tbody>
 </table>
-<h2 id="数据契约">数据契约</h2>
+<h2 id="数据约定">数据约定</h2>
 <h3 id="filtreg-输入参数"><code>filtreg</code> 输入参数</h3>
 <div class="sourceCode" id="cb2"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SUBROUTINE</span> filtreg(champ, nlat, nbniv, ifiltre, iaire, griscal, iter)</span></code></pre></div>
 <table>
@@ -136,13 +136,13 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\filtrez\acc.F</code></pre>
 </tr>
 </tbody>
 </table>
-<p>源码注释仍保留 <code>ifiltre=±1</code> 的 transform 说明，但当前 6.3 代码遇到 <code>ifiltre==1</code> 或 <code>-1</code> 会 <code>STOP 'Pas de transformee simple dans cette version'</code>。因此当前可复现路径只应使用 <code>2/-2</code>。</p>
+<p>源码注释仍保留 <code>ifiltre=±1</code> 的 transform 说明，但当前 代码遇到 <code>ifiltre==1</code> 或 <code>-1</code> 会 <code>STOP 'Pas de transformee simple dans cette version'</code>。因此当前可复现路径只应使用 <code>2/-2</code>。</p>
 <h3 id="共享状态">共享状态</h3>
 <p><code>filtreg</code> include <code>coefils.h</code>，读取：</p>
 <ul>
 <li><code>jfiltnu/jfiltsu/jfiltnv/jfiltsv</code>：北/南半球滤波纬带边界；</li>
 <li><code>sddu/sddv/unsddu/unsddv</code>：经向尺度缩放及其倒数；</li>
-<li><code>coefil*</code>, <code>modfrst*</code>, <code>eignfn*</code>：主要由初始化与 helper 使用，<code>filtreg</code> 本身直接消费纬带和缩放。</li>
+<li><code>coefil*</code>, <code>modfrst*</code>, <code>eignfn*</code>：主要由初始化与 helper 使用，<code>filtreg</code> 本身直接使用纬带和缩放。</li>
 </ul>
 <p><code>filtreg</code> 同时从 <a href="filtreg_mod.html">filtreg_mod</a> 读取：</p>
 <ul>
@@ -319,7 +319,7 @@ vec(i,j) = vec(i,j) / sum</code></pre>
 </tr>
 </tbody>
 </table>
-<p>源码中还有一些注释掉的 <code>CALL filtreg</code>，例如 <code>leapfrog.F</code>、<code>integrd.F</code>、<code>advtrac.F90</code> 和并行对应文件内的历史路径；这些不应算作当前活动调用链。</p>
+<p>源码中还有一些注释掉的 <code>CALL filtreg</code>，例如 <a href="../dyn3d/leapfrog.html"><code>leapfrog.F</code></a>、<a href="../../routines/integrd-serial-parallel.html"><code>integrd.F</code></a>、<a href="../dyn3d/advtrac.html"><code>advtrac.F90</code></a> 和并行对应文件内的历史路径；这些不应算作当前活动调用链。</p>
 <h2 id="复现要点">复现要点</h2>
 <ol type="1">
 <li>必须先调用 <code>inigeom</code> 之类的几何初始化，使 <code>xprimu/xprimv</code> 和 <code>comgeom.h</code> 中的数组有效。</li>
@@ -332,7 +332,7 @@ vec(i,j) = vec(i,j) / sum</code></pre>
 <ul>
 <li><code>filtreg</code> 缓存 <code>sdd12</code> 只在第一次调用时填充；同一进程内若更换水平网格并重复初始化，缩放缓存不会自动更新。</li>
 <li><code>jacobi</code> 50 sweep 不收敛会直接 <code>STOP</code>。没有错误码向上层传播。</li>
-<li>待确认：<code>eigen.F</code> 旧 helper 仍在 <code>filter-helpers.md</code> 中列出，但本次源码核对的主路径未发现活动调用点。</li>
+<li>待确认：<code>eigen.F</code> 旧 helper 仍在 <code>filter-helpers.md</code> 中列出，但本次源码确认的主路径未发现活动调用点。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>

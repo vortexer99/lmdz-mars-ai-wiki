@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -39,7 +40,7 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\ioipsl_stringop.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc\ioipsl_errioipsl.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\ioipsl_getin_p_mod.F90</code></pre>
 <h2 id="文件定位">文件定位</h2>
-<p><code>ioipsl_getincom.F90</code> 是无 IOIPSL 或本地 fallback 的 <code>getin</code> 实现，负责读取 <code>.def</code> 风格键值文件、保存 key 表、解析标量和数组。<code>ioipsl_getin_p_mod.F90</code> 位于 <code>phy_common</code>，把 <code>getin</code> 包装成并行安全的 <code>getin_p</code>：root 读取后广播到所有 MPI/OMP 参与者。</p>
+<p><a href="./ioipsl_getincom.html"><code>ioipsl_getincom.F90</code></a> 是无 IOIPSL 或本地 fallback 的 <code>getin</code> 实现，负责读取 <code>.def</code> 风格键值文件、保存 key 表、解析标量和数组。<a href="../phy_common/ioipsl_getin_p_mod.html"><code>ioipsl_getin_p_mod.F90</code></a> 位于 <code>phy_common</code>，把 <code>getin</code> 包装成并行安全的 <code>getin_p</code>：root 读取后广播到所有 MPI/OMP 参与者。</p>
 <p>Mars 运行参与度：<code>必经/条件经过</code>。Mars 物理配置大量调用 <code>getin_p</code>；Mars 1D 和部分初始化工具直接调用 <code>getin</code>。<code>datareadnc.F</code> 也直接用 <code>getin("datadir")</code> 定位 <code>surface.nc</code>；该输入链见 <a href="../../routines/mars-utility-netcdf-helper-use.html">Mars utility NetCDF 和 COMMON helper 边界</a>。当编译使用 IOIPSL 时，<code>getin_p</code> 调 IOIPSL 的 <code>getin</code>；否则调本页的 <code>ioipsl_getincom:getin</code>。</p>
 <h2 id="主要接口">主要接口</h2>
 <table>
@@ -53,10 +54,10 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\ioipsl_getin_p_mod.F90</code></pre>
 </thead>
 <tbody>
 <tr>
-<td><code>ioipsl_getincom.F90</code></td>
+<td><a href="./ioipsl_getincom.html"><code>ioipsl_getincom.F90</code></a></td>
 <td>1980</td>
 <td><code>getin</code>, <code>getin_dump</code></td>
-<td>标量/1D/2D integer/real/character/logical 配置读取和 dump；父文件页见 <a href="ioipsl_getincom.html">ioipsl_getincom</a>。</td>
+<td>标量/1D/2D integer/real/character/logical 配置读取和 dump；主文件页见 <a href="ioipsl_getincom.html">ioipsl_getincom</a>。</td>
 </tr>
 <tr>
 <td><code>ioipsl_stringop.F90</code></td>
@@ -87,14 +88,14 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\ioipsl_getin_p_mod.F90</code></pre>
 <li>各 <code>getin*</code> specific procedure 按调用方变量类型和维度回填；找不到 key 时保持调用方默认值。</li>
 <li><code>getin_dump</code> 可输出已读数据库，用于 abort 时或调试时复现配置来源。</li>
 </ol>
-<h2 id="getin_p-并行契约"><code>getin_p</code> 并行契约</h2>
+<h2 id="getin_p-并行约定"><code>getin_p</code> 并行约定</h2>
 <ul>
 <li>每个 specific procedure 先执行 <code>!$OMP BARRIER</code>。</li>
 <li>只有 <code>is_mpi_root .AND. is_omp_root</code> 的线程调用 <code>getin</code>。</li>
 <li>标量直接 <code>bcast(VarOut)</code>；character 1D 逐元素广播；integer/real/logical 数组调用对应 <code>bcast</code>。</li>
 <li>因此 Mars 并行物理配置读取必须保证 <code>mod_phys_lmdz_mpi_data</code>、<code>mod_phys_lmdz_omp_data</code> 和 transfer/bcast 已初始化。</li>
 </ul>
-<h2 id="mars-侧典型消费者">Mars 侧典型消费者</h2>
+<h2 id="mars-侧典型使用位置">Mars 侧典型使用位置</h2>
 <ul>
 <li><code>phymars/conf_phys.F</code> 读取 <code>ecritphy</code>、<code>outputs_per_sol</code>、<code>iphysiq</code>、<code>tauvis</code>、<code>callrad</code>、<code>water</code>、<code>co2clouds</code> 等大量物理配置。</li>
 <li><code>dynphy_lonlat/phymars/datareadnc.F</code> 读取 <code>datadir</code>，决定 <code>surface.nc</code> 的输入目录；NetCDF 读取本身仍走 Mars 侧直接 <code>NF_*</code> API。</li>
@@ -103,7 +104,7 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\ioipsl_getin_p_mod.F90</code></pre>
 </ul>
 <h2 id="待确认">待确认</h2>
 <ul>
-<li><code>ioipsl_getincom.F90</code> 的文件来源、key 表、typed memory、<code>getin_dump</code> 和错误边界已由 <a href="ioipsl_getincom.html">ioipsl_getincom</a> 展开。</li>
+<li><a href="./ioipsl_getincom.html"><code>ioipsl_getincom.F90</code></a> 的文件来源、key 表、typed memory、<code>getin_dump</code> 和错误边界已由 <a href="ioipsl_getincom.html">ioipsl_getincom</a> 展开。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>
@@ -112,7 +113,7 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\ioipsl_getin_p_mod.F90</code></pre>
 <li><a href="../phy_common/index.html">phy_common 总览</a></li>
 <li><a href="../phy_common/print-control-abort.html">打印控制和 abort</a></li>
 <li><a href="../../routines/getin-fallback-file-precedence.html">fallback getin 文件来源和 key 表</a></li>
-<li><a href="../../routines/getin-typed-parser.html">typed getin 解析契约</a></li>
+<li><a href="../../routines/getin-typed-parser.html">typed getin 解析约定</a></li>
 <li><a href="../../routines/mars-utility-netcdf-helper-use.html">Mars utility NetCDF 和 COMMON helper 边界</a></li>
 </ul>
 

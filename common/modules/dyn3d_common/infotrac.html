@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,11 +34,11 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="infotracf90">infotrac.F90</h1>
-<p>页面状态：TASK-0051 完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\infotrac.F90</code>。</p>
+<p>源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\infotrac.F90</code>。</p>
 <p>Mars 运行参与度：必经 + 接口兼容。Mars 3D 主运行、Mars <code>newstart/start2archive</code> 工具链和 1D/testphys 路径都依赖 <code>infotrac</code> 给出的 tracer 数量、名称、advection 标识和父子关系。3D GCM 入口调用 <code>infotrac_init</code>；1D/testphys 路径通过 MARS <code>dyn1d</code> 转发文件使用同一模块状态，但局部读取并写入 <code>nqtot/tname/nqperes/nqfils</code>。</p>
 <h2 id="文件定位">文件定位</h2>
 <p><code>infotrac</code> 是 COMMON 动力侧 tracer 元数据模块，不做实际输送。它的核心作用是把运行目录中的 <code>traceur.def</code> 解析成全局 <code>SAVE</code> 状态，供动力数组分配、Mars physics 接口、restart/archive 变量名、history 输出和输送调度共同使用。</p>
-<p>6.3 另有 <a href="../misc/readTracFiles_mod.html">readTracFiles_mod</a> 这个新 tracer parser；但源码核对显示 <code>infotrac.F90</code> 本身没有 <code>USE readTracFiles_mod</code>，仍在 <code>infotrac_init</code> 内直接解析 <code>traceur.def</code>。因此本页按 <code>infotrac.F90</code> 现有主链说明，<code>readTracFiles_mod</code> 作为相邻 parser 页面处理。</p>
+<p>另有 <a href="../misc/readTracFiles_mod.html">readTracFiles_mod</a> 这个新 tracer parser；但源码确认显示 <code>infotrac.F90</code> 本身没有 <code>USE readTracFiles_mod</code>，仍在 <code>infotrac_init</code> 内直接解析 <code>traceur.def</code>。因此本页按 <code>infotrac.F90</code> 现有主链说明，<code>readTracFiles_mod</code> 作为相邻 parser 页面处理。</p>
 <h2 id="公开状态">公开状态</h2>
 <table>
 <thead>
@@ -45,7 +46,7 @@
 <th>状态</th>
 <th>维度/类型</th>
 <th>含义</th>
-<th>主要消费者</th>
+<th>主要使用位置</th>
 </tr>
 </thead>
 <tbody>
@@ -215,7 +216,7 @@
 </tr>
 </tbody>
 </table>
-<p>6.3 随后又执行白名单检查，只允许 <code>iadv=10</code>、<code>iadv=14</code> 和 <code>iadv=0</code>，并要求 <code>iadv=14</code> 只用于第 1 个 tracer。因此 PPM/Prather/moments 分支在代码中保留为 contract 和历史兼容，但 Mars 当前可运行配置若触发它们会在初始化阶段被挡住。</p>
+<p>随后又执行白名单检查，只允许 <code>iadv=10</code>、<code>iadv=14</code> 和 <code>iadv=0</code>，并要求 <code>iadv=14</code> 只用于第 1 个 tracer。因此 PPM/Prather/moments 分支在代码中保留为 contract 和历史兼容，但 Mars 当前可运行配置若触发它们会在初始化阶段被挡住。</p>
 <h2 id="family-和-isotope">Family 和 isotope</h2>
 <p><code>tnom_transp(iq)</code> 是父子关系的来源：</p>
 <table>
@@ -242,11 +243,11 @@
 </table>
 <p>直接子表构造完成后，源码沿父链回溯，累计 <code>nqdesc</code> 和 <code>nqdesc_tot</code>，让 Van Leer family transport 能找到全部后代。随后强制子 tracer 使用 <code>iadv=10</code>，有子 tracer 的父 tracer只能使用 <code>10</code> 或 <code>14</code>。</p>
 <p><code>infotrac_isoinit</code> 只按字符串规则识别水 isotope：<code>eau</code>、<code>HDO</code>、<code>O18</code>、<code>O17</code>、<code>HTO</code>。Mars 若没有符合命名的水同位素 family，相关表会保持空/零状态；若存在，则会检查各 phase 的 isotope 和子 tracer 数量一致，并读取 <code>ok_iso_verif</code>、<code>ok_init_iso</code>。</p>
-<h2 id="mars-消费链">Mars 消费链</h2>
+<h2 id="mars-使用链路">Mars 使用链路</h2>
 <table>
 <thead>
 <tr>
-<th>消费方</th>
+<th>使用方</th>
 <th>使用内容</th>
 <th>复现影响</th>
 </tr>
@@ -294,18 +295,18 @@
 <li>保留运行时 <code>traceur.def</code>，不要只记录 <code>nqtot</code>。<code>tname</code> 和 family 关系来自文件内容。</li>
 <li>Mars/planetary 缺 <code>traceur.def</code> 会 abort；这和 Earth 默认 <code>nqtrue=4</code> 不同。</li>
 <li><code>nbtr</code>、<code>nqtrue</code> 和 <code>nqtot</code> 不能混用。<code>q</code> 的维度必须用 <code>nqtot</code>。</li>
-<li><code>tname(:)</code> 是 restart/archive 变量名契约。旧 restart 中缺少当前 tracer 名时，可能读入零场。</li>
+<li><code>tname(:)</code> 是 restart/archive 变量名约定。旧 restart 中缺少当前 tracer 名时，可能读入零场。</li>
 <li>当前初始化白名单会阻止很多 <code>advtrac</code> 中仍保留的历史 scheme；排查 PPM/Prather 是否可达时，先看 <code>infotrac_init</code> 是否允许对应 <code>iadv</code>。</li>
 <li>如果使用父子 tracer，父 tracer 必须先于子 tracer 出现在 <code>traceur.def</code>，且子 tracer 只能走 <code>iadv=10</code>。</li>
 <li>isotope 检查不是只靠命名自动启用；<code>ok_iso_verif</code> 还要由 <code>getin</code> 控制。</li>
 </ol>
 <h2 id="相关页面">相关页面</h2>
 <ul>
-<li><a href="../../routines/infotrac-state-contract.html">infotrac 状态契约</a></li>
+<li><a href="../../routines/infotrac-state-contract.html">infotrac 状态约定</a></li>
 <li><a href="../../routines/infotrac-traceur-def.html">traceur.def 读取逻辑</a></li>
 <li><a href="../../routines/infotrac-advection-schemes.html">infotrac advection scheme</a></li>
 <li><a href="../../routines/infotrac-family-isotopes.html">父子 tracer 与 isotope</a></li>
-<li><a href="../../routines/infotrac-mars-consumers.html">MARS/COMMON 消费方</a></li>
+<li><a href="../../routines/infotrac-mars-consumers.html">MARS/COMMON 使用关系</a></li>
 <li><a href="../../routines/mars-dyn1d-common-forwarding.html">Mars dyn1d COMMON 转发</a></li>
 <li><a href="../../routines/advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
 <li><a href="../../routines/vlsplt-serial-family-tracers.html">vlsplt 串行父子 tracer</a></li>

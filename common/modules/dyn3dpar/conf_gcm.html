@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -37,9 +38,8 @@
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\conf_gcm.F90</code></pre>
 <h2 id="所属目录模块">所属目录/模块</h2>
 <pre class="text"><code>LMDZ.COMMON\libf\dyn3dpar</code></pre>
-<p>页面状态：TASK-0038 hard 父文件页。源码行数：1036。</p>
 <h2 id="文件定位">文件定位</h2>
-<p><code>conf_gcm.F90</code> 定义 <code>SUBROUTINE conf_gcm(tapedef, etatinit)</code>，是并行动力入口的运行配置读取中心。它通过 <code>getin</code> 从 <code>run.def</code> 等配置源读取日期、时间步、physics/tracer、restart、输出、耗散、sponge、zoom 和并行专用开关，然后直接写入 <code>control_mod</code>、<code>logic_mod</code>、<code>comconst_mod</code>、<code>serre_mod</code>、<code>sponge_mod_p</code>、<code>mod_filtre_fft</code>、<code>mod_hallo</code> 等模块全局状态。</p>
+<p><a href="../dyn3d/conf_gcm.html"><code>conf_gcm.F90</code></a> 定义 <code>SUBROUTINE conf_gcm(tapedef, etatinit)</code>，是并行动力入口的运行配置读取中心。它通过 <code>getin</code> 从 <code>run.def</code> 等配置源读取日期、时间步、physics/tracer、restart、输出、耗散、sponge、zoom 和并行专用开关，然后直接写入 <code>control_mod</code>、<code>logic_mod</code>、<code>comconst_mod</code>、<code>serre_mod</code>、<code>sponge_mod_p</code>、<code>mod_filtre_fft</code>、<code>mod_hallo</code> 等模块全局状态。</p>
 <p>与串行 <a href="../dyn3d/conf_gcm.html">dyn3d/conf_gcm</a> 相比，本文件主体同构，但额外处理 OpenMP <code>adjust</code> 限制、并行 FFT filter 开关、MPI 全局 buffer allocation 开关，并使用并行 sponge 模块 <code>sponge_mod_p</code>。串并行差异的横向对照见 <a href="../../routines/conf-gcm-serial-parallel-delta.html">conf_gcm 串并行配置差异</a>。</p>
 <h2 id="mars-运行参与度">Mars 运行参与度</h2>
 <pre class="text"><code>条件经过：Mars 并行动力构建或并行入口测试经过 `dyn3dpar/gcm.F -&gt; conf_gcm(99,.TRUE.)`。串行 Mars 3D 正常入口使用 `dyn3d/conf_gcm.F90`；MARS dyn1d 不是本文件直接入口。</code></pre>
@@ -237,7 +237,7 @@
 <td>网格/zoom</td>
 <td><code>ngroup</code>, <code>clon</code>, <code>clat</code>, <code>grossismx</code>, <code>grossismy</code>, <code>fxyhypb</code>, <code>dzoomx</code>, <code>dzoomy</code>, <code>taux</code>, <code>tauy</code>, <code>ysinus</code></td>
 <td><code>comconst_mod</code>, <code>serre_mod</code>, <code>logic_mod</code></td>
-<td><code>etatinit</code> 决定初始化或一致性校验，后续 <code>inigeom</code> 消费。</td>
+<td><code>etatinit</code> 决定初始化或一致性校验，后续 <code>inigeom</code> 使用。</td>
 </tr>
 <tr>
 <td>物理/guide/start</td>
@@ -281,7 +281,7 @@
 <tr>
 <td><code>use_mpi_alloc</code></td>
 <td>607-615</td>
-<td>写入 <code>mod_hallo:use_mpi_alloc</code>，由 halo 通信 buffer allocation 消费；细节见 <a href="mod_hallo.html">mod_hallo</a>。</td>
+<td>写入 <code>mod_hallo:use_mpi_alloc</code>，由 halo 通信 buffer allocation 使用；细节见 <a href="mod_hallo.html">mod_hallo</a>。</td>
 </tr>
 <tr>
 <td><code>sponge_mod_p</code></td>
@@ -290,7 +290,7 @@
 </tr>
 </tbody>
 </table>
-<p><code>conf_gcm</code> 自身不建立 MPI decomposition。并行分布链在 <a href="gcm.html">dyn3dpar/gcm</a> 中发生：<code>conf_gcm</code> 之后才调用 <code>init_const_mpi -&gt; init_parallel -&gt; Read_Distrib -&gt; set_bands -&gt; SetDistrib -&gt; Init_Mod_hallo</code>。因此排查并行配置时要先看本页的 <code>getin</code> 写入，再看 <code>gcm.F</code> 的 MPI/bands/halo 初始化。</p>
+<p><code>conf_gcm</code> 自身不建立 MPI decomposition。并行分布链在 <a href="gcm.html">dyn3dpar/gcm</a> 中发生：<code>conf_gcm</code> 之后才调用 <code>init_const_mpi -&gt; init_parallel -&gt; Read_Distrib -&gt; set_bands -&gt; SetDistrib -&gt; Init_Mod_hallo</code>。因此排查并行配置时要先看本页的 <code>getin</code> 写入，再看 <a href="../dyn3d/gcm.html"><code>gcm.F</code></a> 的 MPI/bands/halo 初始化。</p>
 <h2 id="zoom-分支">Zoom 分支</h2>
 <p><code>etatinit</code> 控制 zoom 处理方式：</p>
 <table>
@@ -314,7 +314,7 @@
 </tr>
 </tbody>
 </table>
-<p>Mars utility 的 <code>defrun_new</code> 另有 Mars 专用门控，特别是 <code>ysinus=.false.</code>、无 zoom 强制 <code>fxyhypb=.false.</code>、有 zoom 要求双曲映射；几何消费链见 <a href="../../routines/inigeom-zoom-map-contract.html">inigeom zoom/map 几何契约</a>。本页只记录 COMMON 并行 <code>conf_gcm.F90</code> 的源码行为，不把 Mars <code>defrun_new</code> 的默认值混入本文件。</p>
+<p>Mars utility 的 <code>defrun_new</code> 另有 Mars 专用门控，特别是 <code>ysinus=.false.</code>、无 zoom 强制 <code>fxyhypb=.false.</code>、有 zoom 要求双曲映射；几何使用链路见 <a href="../../routines/inigeom-zoom-map-contract.html">inigeom zoom/map 几何约定</a>。本页只记录 COMMON 并行 <a href="../dyn3d/conf_gcm.html"><code>conf_gcm.F90</code></a> 的源码行为，不把 Mars <code>defrun_new</code> 的默认值混入本文件。</p>
 <h2 id="核心流程">核心流程</h2>
 <pre class="text"><code>open lmdz.out if lunout is not 5/6
 read adjust and validate OpenMP compatibility
@@ -328,7 +328,7 @@ if etatinit:
 else:
     compare run.def zoom keys against already-loaded state
 print effective configuration summary</code></pre>
-<h2 id="调用方和消费方">调用方和消费方</h2>
+<h2 id="调用方和使用方">调用方和使用方</h2>
 <table>
 <thead>
 <tr>
@@ -346,7 +346,7 @@ print effective configuration summary</code></pre>
 <tr>
 <td>时间推进</td>
 <td><a href="../../routines/dynamics-control-logic-gates.html">dynamics-control-logic-gates</a>, <a href="../../routines/leapfrog-p-time-scheduler.html">leapfrog-p-time-scheduler</a></td>
-<td>消费 <code>day_step/iperiod/iphysiq/forward/leapf/apphys/apdiss</code> 等门控。</td>
+<td>使用 <code>day_step/iperiod/iphysiq/forward/leapf/apphys/apdiss</code> 等门控。</td>
 </tr>
 <tr>
 <td>并行分布</td>
@@ -355,13 +355,13 @@ print effective configuration summary</code></pre>
 </tr>
 <tr>
 <td>几何和滤波</td>
-<td><a href="../dyn3d_common/inigeom.html">dyn3d_common/inigeom</a>, <a href="../../routines/inigeom-zoom-map-contract.html">inigeom zoom/map 几何契约</a>, <a href="../filtrez/index.html">filtrez 总览</a></td>
-<td>zoom 状态由 <code>inigeom</code> 消费；<code>use_filtre_fft</code> 影响后续滤波路径。</td>
+<td><a href="../dyn3d_common/inigeom.html">dyn3d_common/inigeom</a>, <a href="../../routines/inigeom-zoom-map-contract.html">inigeom zoom/map 几何约定</a>, <a href="../filtrez/index.html">filtrez 总览</a></td>
+<td>zoom 状态由 <code>inigeom</code> 使用；<code>use_filtre_fft</code> 影响后续滤波路径。</td>
 </tr>
 <tr>
 <td>耗散和 sponge</td>
 <td><a href="../dyn3d_common/inidissip.html">dyn3d_common/inidissip</a>, <a href="../../routines/common-dissip-mars-chain.html">common-dissip-mars-chain</a></td>
-<td>耗散周期、迭代次数、垂直剖面和 sponge/top-bound 参数在后续初始化和时间推进中消费。</td>
+<td>耗散周期、迭代次数、垂直剖面和 sponge/top-bound 参数在后续初始化和时间推进中使用。</td>
 </tr>
 <tr>
 <td>输出/restart</td>
@@ -373,9 +373,9 @@ print effective configuration summary</code></pre>
 <h2 id="串并行差异要点">串并行差异要点</h2>
 <ul>
 <li>串行页 <a href="../dyn3d/conf_gcm.html">dyn3d/conf_gcm</a> 记录相同主配置管线；并行页额外覆盖 <code>adjust</code>、<code>use_filtre_fft</code>、<code>use_mpi_alloc</code> 和 <code>sponge_mod_p</code>。</li>
-<li>串行版会拒绝 <code>use_filtre_fft=.true.</code>；并行版只读取该开关，留给并行滤波链消费。</li>
+<li>串行版会拒绝 <code>use_filtre_fft=.true.</code>；并行版只读取该开关，留给并行滤波链使用。</li>
 <li><code>adjust</code> 在串行版不是关键路径；并行版在 OpenMP 多线程时直接 abort。</li>
-<li>history 初始化不是本文件完成的：并行入口 <code>gcm.F</code> 后续只在 <code>mpi_rank==0</code> 建立 history/dynav 文件。</li>
+<li>history 初始化不是本文件完成的：并行入口 <a href="../dyn3d/gcm.html"><code>gcm.F</code></a> 后续只在 <code>mpi_rank==0</code> 建立 history/dynav 文件。</li>
 <li><code>ngroup</code> 是共享配置，不是并行专属；它约束极区经度分组，要求 <code>iim</code> 与 <code>2**ngroup</code> 兼容。</li>
 </ul>
 <h2 id="风险和待确认">风险和待确认</h2>

@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -32,7 +33,7 @@
       <span>routines/inigeom-zoom-map-contract.md</span>
     </nav>
     <article class="content" data-pagefind-body>
-<h1 id="inigeom-zoommap-几何契约">inigeom zoom/map 几何契约</h1>
+<h1 id="inigeom-zoommap-几何约定">inigeom zoom/map 几何约定</h1>
 <h2 id="范围">范围</h2>
 <p>COMMON 源码：</p>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\inigeom.F
@@ -43,13 +44,13 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\comgeom.h
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\comgeom2.h
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\grid\fxy_new.h
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\grid\fxy_sin.h</code></pre>
-<p>Mars 侧消费证据：</p>
+<p>Mars 侧使用依据：</p>
 <pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\defrun_new.F
 LMDZ.MARS\libf\dynphy_lonlat\phymars\newstart.F
 LMDZ.MARS\libf\dynphy_lonlat\phymars\start2archive.F
 LMDZ.MARS\libf\dynphy_lonlat\phymars\ini_archive.F
 LMDZ.MARS\libf\dynphy_lonlat\phymars\datareadnc.F</code></pre>
-<p>本页不是 <code>inigeom.F</code> 的单文件页。单文件 inventory、数组清单和逐步面积计算见 <a href="../modules/dyn3d_common/inigeom.html">dyn3d_common/inigeom</a>。这里记录从 Mars 配置、zoom 参数、水平映射到 archive/header/physics 消费之间的契约。</p>
+<p>本页不是 <code>inigeom.F</code> 的单文件页。单文件 inventory、数组清单和逐步面积计算见 <a href="../modules/dyn3d_common/inigeom.html">dyn3d_common/inigeom</a>。这里记录从 Mars 配置、zoom 参数、水平映射到 archive/header/physics 使用之间的约定。</p>
 <h2 id="总体链路">总体链路</h2>
 <pre class="text"><code>run.def 或 start/archive control
   -&gt; Mars defrun_new
@@ -155,13 +156,13 @@ fxprim = 2*pi/iim * (1 + alphax*cos(ripx + transx - pxo))
 fy = (bigy + transy + alphay*sin(bigy + transy - pyo))/2 - pi/2
 fyprim = pi/jjm * (1 + alphay*cos(bigy + transy - pyo))</code></pre>
 <p><code>fxy_sin.h</code> 的纬度分支使用 <code>fy=asin(1+2*((1-rj)/jjm))</code> 和相应导数。该 include 位于 <code>libf/grid</code>，不是 <code>dyn3d_common</code> 本目录；复核构建或 include path 时要按源码树实际位置确认。</p>
-<h2 id="几何输出契约">几何输出契约</h2>
+<h2 id="几何输出约定">几何输出约定</h2>
 <table>
 <thead>
 <tr>
 <th>输出</th>
 <th>维度/网格</th>
-<th>消费方</th>
+<th>使用方</th>
 <th>复现要点</th>
 </tr>
 </thead>
@@ -241,7 +242,7 @@ fyprim = pi/jjm * (1 + alphay*cos(bigy + transy - pyo))</code></pre>
 4. 汇总 scalar、U、V、Z 网格面积。
 5. 派生 alpha 权重、逆面积、耗散 gamma 权重和 metric 比值。
 6. 两极特殊处理，最后计算 fext 和 constang。</code></pre>
-<h2 id="mars-archiveheader-消费">Mars archive/header 消费</h2>
+<h2 id="mars-archiveheader-使用">Mars archive/header 使用</h2>
 <p><code>ini_archive.F</code> 把 zoom 与几何写入 <code>start_archive.nc</code> header：</p>
 <table>
 <thead>
@@ -285,12 +286,12 @@ fyprim = pi/jjm * (1 + alphay*cos(bigy + transy - pyo))</code></pre>
 </tr>
 </tbody>
 </table>
-<p>同一例程还定义并写出 <code>rlonu/rlatu/rlonv/rlatv</code>，再写面向显示的 <code>latitude=rlatu/pi*180</code>、<code>longitude=rlonv/pi*180</code>，以及 <code>cu/cv/aire</code> 等 metric 字段。读取或复现 <code>start_archive.nc</code> 时，不能只看 <code>controle</code> 表；坐标和 metric 数组本身也是几何契约的一部分。</p>
-<h2 id="mars-工具链消费点">Mars 工具链消费点</h2>
+<p>同一例程还定义并写出 <code>rlonu/rlatu/rlonv/rlatv</code>，再写面向显示的 <code>latitude=rlatu/pi*180</code>、<code>longitude=rlonv/pi*180</code>，以及 <code>cu/cv/aire</code> 等 metric 字段。读取或复现 <code>start_archive.nc</code> 时，不能只看 <code>controle</code> 表；坐标和 metric 数组本身也是几何约定的一部分。</p>
+<h2 id="mars-工具链使用点">Mars 工具链使用点</h2>
 <table>
 <thead>
 <tr>
-<th>消费点</th>
+<th>使用点</th>
 <th>调用/字段</th>
 <th>关系</th>
 </tr>
@@ -304,7 +305,7 @@ fyprim = pi/jjm * (1 + alphay*cos(bigy + transy - pyo))</code></pre>
 <tr>
 <td>COMMON 并行 <code>gcm.F</code></td>
 <td>同样在 <code>inigeom</code> 后把几何传给 <code>iniphysiq</code></td>
-<td>并行入口共享同一 COMMON 几何契约。</td>
+<td>并行入口共享同一 COMMON 几何约定。</td>
 </tr>
 <tr>
 <td>Mars <code>newstart.F</code></td>
@@ -339,13 +340,13 @@ fyprim = pi/jjm * (1 + alphay*cos(bigy + transy - pyo))</code></pre>
 <li>从 <code>run.def</code> 或 archive/start 控制恢复 <code>clon/clat/grossismx/grossismy/dzoomx/dzoomy/taux/tauy/fxyhypb</code>。</li>
 <li>按 Mars <code>defrun_new</code> 门控修正：无 zoom 时 <code>fxyhypb=.false.</code>；有 zoom 时要求 <code>fxyhypb=.true.</code>；<code>ysinus=.false.</code>。</li>
 <li>执行 <code>iniconst</code> 后再执行 <code>inigeom</code>，因为 <code>rad/g/omeg/pi</code> 等常量参与面积和 Coriolis 计算。</li>
-<li>核对 <code>rlonu/rlonv</code> 周期端点、<code>rlatu</code> 两极、<code>aire/cu/cv</code> 与 archive 或 restart 中保存的值。</li>
+<li>确认 <code>rlonu/rlonv</code> 周期端点、<code>rlatu</code> 两极、<code>aire/cu/cv</code> 与 archive 或 restart 中保存的值。</li>
 <li>跨网格重建时，把 <code>datareadnc/lect_start_archive</code> 的水平插值结果视为依赖当前 <code>rlonu/rlatv/rlonv/rlatu</code> 的派生结果，不应与旧网格逐点比较。</li>
 </ol>
 <h2 id="风险和待确认">风险和待确认</h2>
 <ul>
 <li><code>fxy.F</code> 和 <code>fxysinus.F</code> 的 include 文件位于 <code>libf/grid</code>，构建系统如何传递 include path 需由构建页或实际编译命令确认。</li>
-<li><code>fext</code> 和 <code>constang</code> 的物理单位没有在 <code>inigeom.F</code> 内完整说明；本页只记录源码公式，具体动力方程含义需结合消费算子解释。</li>
+<li><code>fext</code> 和 <code>constang</code> 的物理单位没有在 <code>inigeom.F</code> 内完整说明；本页只记录源码公式，具体动力方程含义需结合使用算子解释。</li>
 <li>Mars <code>defrun_new</code> 在非初始化校验分支使用局部/历史变量名和 <code>fxyhypbb</code> 拼写，本文只把它作为“run.def 与 start/control 必须一致”的校验路径，不把变量名等同于最终 <code>logic_mod%fxyhypb</code>。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
@@ -353,7 +354,7 @@ fyprim = pi/jjm * (1 + alphay*cos(bigy + transy - pyo))</code></pre>
 <li><a href="../modules/dyn3d_common/inigeom.html">dyn3d_common/inigeom</a></li>
 <li><a href="../modules/dyn3d_common/index.html">dyn3d_common 总览</a></li>
 <li><a href="horizontal-map-functions.html">水平映射函数组</a></li>
-<li><a href="mars-utility-common-state-consumers.html">Mars utility COMMON 状态消费链</a></li>
+<li><a href="mars-utility-common-state-consumers.html">Mars utility COMMON 状态使用链路</a></li>
 <li><a href="mars-start-restart-archive-boundary.html">Mars start/restart/archive 文件职责边界</a></li>
 <li><a href="../modules/dyn3d/interp_horiz.html">dyn3d 水平面积交叠插值</a></li>
 <li><a href="../modules/phy_common/geometry-grid-layers.html">物理侧几何、regular lon-lat、垂直层和网格互转</a></li>

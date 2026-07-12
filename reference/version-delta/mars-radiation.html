@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mars-radiation - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a href="../../modules/libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../file-index.html">文件索引</a>
+        <a href="../source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta/mars-radiation.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-辐射">MARS 辐射</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>覆盖短波、长波、气溶胶光学、轨道/太阳输入和辐射调度。</p>
+<p>兼容性关注：影响辐射通量、加热率、气溶胶光学及其接口。</p>
+<p>本页是 5.3 到 6.3 版本差异详情页，只解释改动职责与影响，不展开逐行代码差异。</p>
+<h2 id="变化统计">变化统计</h2>
+<p>本主题覆盖 31 个路径事件：新增 0、删除 3、修改 28。</p>
+<h2 id="主要变化">主要变化</h2>
+<ul>
+<li><code>libf/phymars/aerave.F</code>：更新源码文件 <code>aerave.F</code>：新增 <code>aerave_mod</code>、<code>blackl</code>。</li>
+<li><code>libf/phymars/aeropacity_mod.F</code>：扩展同化尘埃场到 MY36/MY37 并兼容 cdodext 输入；在未缩放且 tau_pref_gcm 异常偏大时中止，配置读取迁入 callkeys_mod。</li>
+<li><code>libf/phymars/aeroptproperties.F</code>：更新源码文件 <code>aeroptproperties.F</code>：新增 <code>aeroptproperties_mod</code>；新增模块依赖 <code>write_output_mod</code>。</li>
+<li><code>libf/phymars/blackl.F</code>：移除独立 blackl 文件并将同名黑体谱辐射计算并入 aerave_mod；调用能力在 6.3 中继续保留。</li>
+<li><code>libf/phymars/blendrad.F</code>：更新源码文件 <code>blendrad.F</code>：新增 <code>blendrad_mod</code>；新增模块依赖 <code>nlteparams_h</code>。</li>
+<li><code>libf/phymars/call_dayperi.F</code>：更新源码文件 <code>call_dayperi.F</code>：新增 <code>call_dayperi_mod</code>。</li>
+<li><code>libf/phymars/callradite_mod.F</code>：更新源码文件 <code>callradite_mod.F</code>：新增模块依赖 <code>aeroptproperties_mod</code>、<code>suaer_mod</code>、<code>callkeys_mod</code>；移除调用 <code>exit</code>。</li>
+<li><code>libf/phymars/dimradmars_mod.F90</code>：把辐射地表反照率和净/天空辐射通量扩展到 nslope 维，并增加坡面数组初始化入口。</li>
+<li><code>libf/phymars/flusv.F</code>：将红外两流通量求解封装为 flusv_mod，依据层内线性源函数计算各界面上行/下行通量，供 lwdiff 调用。</li>
+<li><code>libf/phymars/iniorbit.F</code>：移除独立 iniorbit.F；轨道初始化例程已并入 planete_h.F90。</li>
+<li><code>libf/phymars/lwb.F</code>：将 Planck 源函数计算封装为 lwb_mod，以温度多项式生成地表、顶层、各层及层界的长波源项与梯度。</li>
+<li><code>libf/phymars/lwdiff.F</code>：更新源码文件 <code>lwdiff.F</code>：新增 <code>lwdiff_mod</code>；新增模块依赖 <code>flusv_mod</code>。</li>
+<li>其余 19 项见下表和全量索引。</li>
+</ul>
+<h2 id="受影响路径">受影响路径</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>5.3 路径</th>
+<th>6.3 路径</th>
+<th>类型</th>
+<th>SHA-256 核验</th>
+<th>改动概述</th>
+<th>官方记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>M-0103</code></td>
+<td><code>libf/phymars/aerave.F</code></td>
+<td><code>libf/phymars/aerave.F</code></td>
+<td>修改</td>
+<td><code>a293e74aa349→06b02b4e0c2a</code>（已核验）</td>
+<td>更新源码文件 <code>aerave.F</code>：新增 <code>aerave_mod</code>、<code>blackl</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">07/05/2025，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0104</code></td>
+<td><code>libf/phymars/aeropacity_mod.F</code></td>
+<td><code>libf/phymars/aeropacity_mod.F</code></td>
+<td>修改</td>
+<td><code>7d7fc2786ed5→c2e703a478f3</code>（已核验）</td>
+<td>扩展同化尘埃场到 MY36/MY37 并兼容 cdodext 输入；在未缩放且 tau_pref_gcm 异常偏大时中止，配置读取迁入 callkeys_mod。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">25/03/2023，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/11/2023，AB</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/01/2026，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0105</code></td>
+<td><code>libf/phymars/aeroptproperties.F</code></td>
+<td><code>libf/phymars/aeroptproperties.F</code></td>
+<td>修改</td>
+<td><code>d345fb7365b0→2b650a0e511c</code>（已核验）</td>
+<td>更新源码文件 <code>aeroptproperties.F</code>：新增 <code>aeroptproperties_mod</code>；新增模块依赖 <code>write_output_mod</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">20/08/2025，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0107</code></td>
+<td><code>libf/phymars/blackl.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>9fe9e01cab67→—</code>（已核验）</td>
+<td>移除独立 blackl 文件并将同名黑体谱辐射计算并入 aerave_mod；调用能力在 6.3 中继续保留。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">07/05/2025，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0108</code></td>
+<td><code>libf/phymars/blendrad.F</code></td>
+<td><code>libf/phymars/blendrad.F</code></td>
+<td>修改</td>
+<td><code>89882de5c7b0→a5a01eb73ab7</code>（已核验）</td>
+<td>更新源码文件 <code>blendrad.F</code>：新增 <code>blendrad_mod</code>；新增模块依赖 <code>nlteparams_h</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">26/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0109</code></td>
+<td><code>libf/phymars/call_dayperi.F</code></td>
+<td><code>libf/phymars/call_dayperi.F</code></td>
+<td>修改</td>
+<td><code>2f5ff1694f1a→8333139faf8e</code>（已核验）</td>
+<td>更新源码文件 <code>call_dayperi.F</code>：新增 <code>call_dayperi_mod</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0113</code></td>
+<td><code>libf/phymars/callradite_mod.F</code></td>
+<td><code>libf/phymars/callradite_mod.F</code></td>
+<td>修改</td>
+<td><code>d9c16c89cce8→314d7e83e01f</code>（已核验）</td>
+<td>更新源码文件 <code>callradite_mod.F</code>：新增模块依赖 <code>aeroptproperties_mod</code>、<code>suaer_mod</code>、<code>callkeys_mod</code>；移除调用 <code>exit</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">15/05/2026，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0132</code></td>
+<td><code>libf/phymars/dimradmars_mod.F90</code></td>
+<td><code>libf/phymars/dimradmars_mod.F90</code></td>
+<td>修改</td>
+<td><code>d2b9d4dfe2b2→a88a36a83744</code>（已核验）</td>
+<td>把辐射地表反照率和净/天空辐射通量扩展到 nslope 维，并增加坡面数组初始化入口。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/02/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/02/2023，RV</a></td>
+</tr>
+<tr>
+<td><code>M-0161</code></td>
+<td><code>libf/phymars/flusv.F</code></td>
+<td><code>libf/phymars/flusv.F</code></td>
+<td>修改</td>
+<td><code>1d652076f575→ce0025840414</code>（已核验）</td>
+<td>将红外两流通量求解封装为 flusv_mod，依据层内线性源函数计算各界面上行/下行通量，供 lwdiff 调用。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0169</code></td>
+<td><code>libf/phymars/iniorbit.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>3c8bcb1d217d→—</code>（已核验）</td>
+<td>移除独立 iniorbit.F；轨道初始化例程已并入 planete_h.F90。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/09/2023，JBC</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/11/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0178</code></td>
+<td><code>libf/phymars/lwb.F</code></td>
+<td><code>libf/phymars/lwb.F</code></td>
+<td>修改</td>
+<td><code>b50ed1e4ff95→82b4d0f8e122</code>（已核验）</td>
+<td>将 Planck 源函数计算封装为 lwb_mod，以温度多项式生成地表、顶层、各层及层界的长波源项与梯度。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0179</code></td>
+<td><code>libf/phymars/lwdiff.F</code></td>
+<td><code>libf/phymars/lwdiff.F</code></td>
+<td>修改</td>
+<td><code>ab3e427df693→ea19e67d52e2</code>（已核验）</td>
+<td>更新源码文件 <code>lwdiff.F</code>：新增 <code>lwdiff_mod</code>；新增模块依赖 <code>flusv_mod</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0180</code></td>
+<td><code>libf/phymars/lwflux.F</code></td>
+<td><code>libf/phymars/lwflux.F</code></td>
+<td>修改</td>
+<td><code>4007f6d00d3f→82649e25c40d</code>（已核验）</td>
+<td>更新源码文件 <code>lwflux.F</code>：新增 <code>lwflux_mod</code>；新增模块依赖 <code>lwdiff_mod</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0181</code></td>
+<td><code>libf/phymars/lwi.F</code></td>
+<td><code>libf/phymars/lwi.F</code></td>
+<td>修改</td>
+<td><code>430ef806c50c→4571cb6a70a9</code>（已核验）</td>
+<td>更新源码文件 <code>lwi.F</code>：新增 <code>lwi_mod</code>；新增模块依赖 <code>callkeys_mod</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0182</code></td>
+<td><code>libf/phymars/lwmain_mod.F</code></td>
+<td><code>libf/phymars/lwmain_mod.F</code></td>
+<td>修改</td>
+<td><code>ae6a6896b53c→03f95e95722d</code>（已核验）</td>
+<td>将长波主调度改为显式模块调用，统一接入 lwi、lwb、lwu、lwxd、lwxn、lwxb 和 lwflux，并从 callkeys_mod 读取长波方案选择。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0183</code></td>
+<td><code>libf/phymars/lwtt.F</code></td>
+<td><code>libf/phymars/lwtt.F</code></td>
+<td>修改</td>
+<td><code>07f2eeb6d8cc→75f4f9a923a9</code>（已核验）</td>
+<td>将长波透过率计算封装为 lwtt_mod，依据吸收量和压强缩放量，用 Padé 近似与 Horner 算法求各谱段 transmission。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0184</code></td>
+<td><code>libf/phymars/lwu.F</code></td>
+<td><code>libf/phymars/lwu.F</code></td>
+<td>修改</td>
+<td><code>a480fd393c61→557323c1522d</code>（已核验）</td>
+<td>将长波吸收量准备封装为 lwu_mod，计算含压温修正的 CO2 有效吸收量，并汇总气溶胶各谱带的光学厚度、单次散射反照率和不对称因子。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0185</code></td>
+<td><code>libf/phymars/lwxb.F</code></td>
+<td><code>libf/phymars/lwxb.F</code></td>
+<td>修改</td>
+<td><code>f87acb716be9→0257204778cb</code>（已核验）</td>
+<td>将长波边界交换计算封装为 lwxb_mod，调用 lwtt 生成 CO2/气溶胶边界透过率及顶层、地表和层间交换系数。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0186</code></td>
+<td><code>libf/phymars/lwxd.F</code></td>
+<td><code>libf/phymars/lwxd.F</code></td>
+<td>修改</td>
+<td><code>5c2fbb0297b4→19c8bb25fbe7</code>（已核验）</td>
+<td>将远距离层间长波交换封装为 lwxd_mod，调用 lwtt 计算 CO2/气溶胶非相邻层透过率及交换系数，并按 callemis 处理发射率。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0187</code></td>
+<td><code>libf/phymars/lwxn.F</code></td>
+<td><code>libf/phymars/lwxn.F</code></td>
+<td>修改</td>
+<td><code>47e3e78d2041→d7c9bb22a312</code>（已核验）</td>
+<td>将长波子层控制项重命名为 lwxn_linear/lwxn_alphan/lwxn_ncouche，移入 lwxn_mod 并设为线程私有，同时模块化 lwtt 调用。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">10/02/2026，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0192</code></td>
+<td><code>libf/phymars/mufract.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>dafd8ffd8d49→—</code>（已核验）</td>
+<td>删除已不再使用的 mufract.F；等效太阳角和日照分数计算由 mucorr.F 承接。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/04/2025，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0195</code></td>
+<td><code>libf/phymars/nirco2abs.F</code></td>
+<td><code>libf/phymars/nirco2abs.F</code></td>
+<td>修改</td>
+<td><code>5ac50a31ff9d→1d5c51ec3451</code>（已核验）</td>
+<td>更新源码文件 <code>nirco2abs.F</code>：新增 <code>nirco2abs_mod</code>；新增模块依赖 <code>solang_mod</code>、<code>nirdata_mod</code>、<code>callkeys_mod</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0216</code></td>
+<td><code>libf/phymars/orbite.F</code></td>
+<td><code>libf/phymars/orbite.F</code></td>
+<td>修改</td>
+<td><code>5f908f9a0214→74b254c714f7</code>（已核验）</td>
+<td>将轨道距离和赤纬计算模块化，并以近日点太阳经度 lsperi 直接计算 cos(pls-lsperi)，替代旧 timeperi 相位。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/08/2025，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0229</code></td>
+<td><code>libf/phymars/planete_h.F90</code></td>
+<td><code>libf/phymars/planete_h.F90</code></td>
+<td>修改</td>
+<td><code>7075c695c978→cf62813ac76a</code>（已核验）</td>
+<td>重构轨道状态模块：将 timeperi 改为可直接使用的近日点太阳经度 lsperi，把行星参数设为线程私有，并集中 iniorbit/lsp2solp 初始化与换算。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/09/2023，JBC</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">22/10/2023，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/11/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0243</code></td>
+<td><code>libf/phymars/solang.F</code></td>
+<td><code>libf/phymars/solang.F</code></td>
+<td>修改</td>
+<td><code>46d768fdcf23→e2641819a608</code>（已核验）</td>
+<td>更新源码文件 <code>solang.F</code>：新增 <code>solang_mod</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0244</code></td>
+<td><code>libf/phymars/solarlong.F</code></td>
+<td><code>libf/phymars/solarlong.F</code></td>
+<td>修改</td>
+<td><code>05f6e3bfd032→2dd86e1a19bf</code>（已核验）</td>
+<td>更新源码文件 <code>solarlong.F</code>：新增 <code>solarlong_mod</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">22/10/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0250</code></td>
+<td><code>libf/phymars/swmain_mod.F</code></td>
+<td><code>libf/phymars/swmain_mod.F</code></td>
+<td>修改</td>
+<td><code>2d59cd936c1a→83f1e86ca122</code>（已核验）</td>
+<td>重构短波主调度：按 swrtype 选择 Fouquart 或 Toon 两流求解器，输出各谱带上下行太阳通量和低层加热率。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0251</code></td>
+<td><code>libf/phymars/swr_fouquart.F</code></td>
+<td><code>libf/phymars/swr_fouquart.F</code></td>
+<td>修改</td>
+<td><code>2ae3f569c20b→e9ebdf48ce01</code>（已核验）</td>
+<td>模块化 Fouquart 短波两流方案，组合 Rayleigh 与气溶胶光学性质，计算层内及地表太阳通量。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0252</code></td>
+<td><code>libf/phymars/swr_toon.F</code></td>
+<td><code>libf/phymars/swr_toon.F</code></td>
+<td>修改</td>
+<td><code>f5513091b4d2→7d595f444194</code>（已核验）</td>
+<td>模块化 Toon 短波两流方案，组合 Rayleigh 与气溶胶散射参数，求取各谱带上下行太阳通量和加热输入。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0253</code></td>
+<td><code>libf/phymars/swrayleigh.F</code></td>
+<td><code>libf/phymars/swrayleigh.F</code></td>
+<td>修改</td>
+<td><code>766588fcb243→a0a057006768</code>（已核验）</td>
+<td>将短波 Rayleigh 散射计算封装为 swrayleigh_mod，依据地表压强和太阳入射角为各谱带生成 prayl，供 Fouquart/Toon 两流方案调用。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0264</code></td>
+<td><code>libf/phymars/updatereffrad_mod.F</code></td>
+<td><code>libf/phymars/updatereffrad_mod.F</code></td>
+<td>修改</td>
+<td><code>15a70ee98e22→5beeffebb53f</code>（已核验）</td>
+<td>解除 activice 与 microphys 的不兼容限制，并在未启用微物理时以典型 tau=0.2 估算云凝结核数量。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">05/09/2025，JBC</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="证据边界">证据边界</h2>
+<ul>
+<li>路径状态和哈希关系来自两棵本地快照的机械比较。</li>
+<li>官方记录来自 MARS Changelog 增量；COMMON 命中仅表示间接记录。</li>
+<li>未找到 Changelog 条目不等于改动无意义，只表示没有可直接关联的官方文字记录。</li>
+<li>本页不把未运行的数值或性能影响写成既定事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../version-delta-index.html">全量变更索引</a></li>
+<li><a href="../../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

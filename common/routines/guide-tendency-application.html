@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,10 +34,10 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="guide-forcing-叠加到动力状态">guide forcing 叠加到动力状态</h1>
-<p>页面状态：TASK-0134 完成。 源码范围：</p>
+<p>源码范围：</p>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\guide_mod.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\guide_p_mod.F90</code></pre>
-<p>Mars 运行参与度：接口兼容 + 条件边界。只有由 <code>leapfrog/leapfrog_p</code> 调用 <code>guide_main</code> 时经过；6.3 源码中该调用受 <code>CPP_IOIPSL</code> + <code>planet_type=="earth"</code> 条件包围。Mars/generic <code>ok_guide</code> 初始化路径调用 <code>relaxetat0("relax.nc")</code>，不经过本页状态叠加链。</p>
+<p>Mars 运行参与度：接口兼容 + 条件边界。只有由 <code>leapfrog/leapfrog_p</code> 调用 <code>guide_main</code> 时经过；当前源码中该调用受 <code>CPP_IOIPSL</code> + <code>planet_type=="earth"</code> 条件包围。Mars/generic <code>ok_guide</code> 初始化路径调用 <code>relaxetat0("relax.nc")</code>，不经过本页状态叠加链。</p>
 <h2 id="guide_main-职责">guide_main 职责</h2>
 <p><code>guide_main(itau,ucov,vcov,teta,q,masse,ps)</code> 直接修改动力预报变量。它不是返回一个独立 tendency，而是把 guide 目标场与当前状态的差值经 <code>guide_addfield</code> 加权后写回：</p>
 <pre class="text"><code>target = (1-tau) * Xgui1 + tau * Xgui2
@@ -130,7 +131,7 @@ current_state = current_state + f_add</code></pre>
 <ul>
 <li>U、T、Q、P 分别写 <code>ugui2/tgui2/qgui2/psgui2</code>。</li>
 <li>P 分支写 <code>ps</code> 后立即调用 <code>pression/massdair</code> 或 <code>_p</code> 版本刷新 <code>masse</code>。</li>
-<li>V 分支源码写的是 <code>vcov=ugui2</code>（并行版为 <code>vcov(ijb_v:ije_v,:)=ugui2(...)</code>），不是 <code>vgui2</code>；本页按 6.3 源码记录，设计意图待确认。</li>
+<li>V 分支源码写的是 <code>vcov=ugui2</code>（并行版为 <code>vcov(ijb_v:ije_v,:)=ugui2(...)</code>），不是 <code>vgui2</code>；本页按 当前源码记录，设计意图待确认。</li>
 </ul>
 <h2 id="串并行差异">串并行差异</h2>
 <table>
@@ -185,7 +186,7 @@ current_state = current_state + f_add</code></pre>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>
-<li><a href="guide-config-contract.html">guide 配置与初始化契约</a></li>
+<li><a href="guide-config-contract.html">guide 配置与初始化约定</a></li>
 <li><a href="guide-input-fields.html">guide 输入场读取</a></li>
 <li><a href="guide-interpolation-pressure.html">guide 压力层插值和 nudging 系数</a></li>
 <li><a href="guide-serial-parallel-delta.html">guide 串并行差异</a></li>

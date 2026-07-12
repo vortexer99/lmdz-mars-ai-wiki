@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mars-dyn1d - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a href="../../modules/libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../file-index.html">文件索引</a>
+        <a href="../source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta/mars-dyn1d.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-1d-与-nogcm">MARS 1D 与 nogcm</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>覆盖 testphys1d、剖面读取、COMMON 转发、并行兼容和文本 restart。</p>
+<p>兼容性关注：影响 1D 初始化、输入文件命名、配置复用和 XIOS/MPI 组合。</p>
+<p>本页是 5.3 到 6.3 版本差异详情页，只解释改动职责与影响，不展开逐行代码差异。</p>
+<h2 id="变化统计">变化统计</h2>
+<p>本主题覆盖 24 个路径事件：新增 20、删除 3、修改 1。</p>
+<h2 id="主要变化">主要变化</h2>
+<ul>
+<li>旧 <code>dyn1d/profile.F</code> 的温度剖面读取职责由 <code>profile_temp_mod.F90</code> 承接；nogcm 驱动则从 COMMON 下沉到 MARS 动力—物理目录。</li>
+<li><code>libf/dynphy_lonlat/phymars/leapfrog_nogcm.F</code>：在 MARS 动力—物理接口下承接 nogcm 时间推进驱动及 globaverage2d 全局平均辅助，替代 COMMON 中移除的火星专用实现。</li>
+<li><code>libf/dynphy_lonlat/phymars/nogcm.F90</code>：在 MARS 动力—物理接口下新增 nogcm 主驱动，组织初始化、物理时间推进和状态写出，承接 COMMON 中移除的火星专用实现。</li>
+<li><code>libf/phymars/comg1d.h</code>：移除旧 1D 公共块 include；6.3 的 1D 状态改由 dyn1d 模块与转发文件组织。</li>
+<li><code>libf/phymars/dyn1d/abort_gcm.F</code>：新增转发文件 <code>abort_gcm.F</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d/abort_gcm.F</code>；该路径用于复用 COMMON 实现并进入 6.3。</li>
+<li><code>libf/phymars/dyn1d/comconst_mod.F90</code>：新增转发文件 <code>comconst_mod.F90</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d_common/comconst_mod.F90</code>；该路径用于复用 COMMON 实现并进入 6.3。</li>
+<li><code>libf/phymars/dyn1d/comgeom.h</code>：新增转发文件 <code>comgeom.h</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d_common/comgeom.h</code>；该路径用于复用 COMMON 实现并进入 6.3。</li>
+<li><code>libf/phymars/dyn1d/comvert_mod.F90</code>：新增转发文件 <code>comvert_mod.F90</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d_common/comvert_mod.F90</code>；该路径用于复用 COMMON 实现并进入 6.3。</li>
+<li><code>libf/phymars/dyn1d/control_mod.F90</code>：新增转发文件 <code>control_mod.F90</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d_common/control_mod.F90</code>；该路径用于复用 COMMON 实现并进入 6.3。</li>
+<li><code>libf/phymars/dyn1d/disvert_noterre.F</code>：新增转发文件 <code>disvert_noterre.F</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d_common/disvert_noterre.F</code>；该路径用于复用 COMMON 实现并进入 6.3。</li>
+<li><code>libf/phymars/dyn1d/ener_mod.F90</code>：新增转发文件 <code>ener_mod.F90</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d_common/ener_mod.F90</code>；该路径用于复用 COMMON 实现并进入 6.3。</li>
+<li><code>libf/phymars/dyn1d/infotrac.F90</code>：新增转发文件 <code>infotrac.F90</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d_common/infotrac.F90</code>；该路径用于复用 COMMON 实现并进入 6.3。</li>
+<li><code>libf/phymars/dyn1d/init_testphys1d_mod.F90</code>：新增 1D 集中初始化模块，统一选择 start1D/startfi/restart 输入并建立网格、时间、tracer、动力状态及水汽/水冰松弛场。</li>
+<li>其余 12 项见下表和全量索引。</li>
+</ul>
+<h2 id="受影响路径">受影响路径</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>5.3 路径</th>
+<th>6.3 路径</th>
+<th>类型</th>
+<th>SHA-256 核验</th>
+<th>改动概述</th>
+<th>官方记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>M-0094</code></td>
+<td>—</td>
+<td><code>libf/dynphy_lonlat/phymars/leapfrog_nogcm.F</code></td>
+<td>新增</td>
+<td><code>—→f8dd53d41f3f</code>（已核验）</td>
+<td>在 MARS 动力—物理接口下承接 nogcm 时间推进驱动及 globaverage2d 全局平均辅助，替代 COMMON 中移除的火星专用实现。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">13/02/2024，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">16/02/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0097</code></td>
+<td>—</td>
+<td><code>libf/dynphy_lonlat/phymars/nogcm.F90</code></td>
+<td>新增</td>
+<td><code>—→91a96ddceac9</code>（已核验）</td>
+<td>在 MARS 动力—物理接口下新增 nogcm 主驱动，组织初始化、物理时间推进和状态写出，承接 COMMON 中移除的火星专用实现。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">13/02/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0123</code></td>
+<td><code>libf/phymars/comg1d.h</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>890f47409b59→—</code>（已核验）</td>
+<td>移除旧 1D 公共块 include；6.3 的 1D 状态改由 dyn1d 模块与转发文件组织。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0139</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/abort_gcm.F</code></td>
+<td>新增</td>
+<td><code>—→c0eceea7e2d7</code>（已核验）</td>
+<td>新增转发文件 <code>abort_gcm.F</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d/abort_gcm.F</code>；该路径用于复用 COMMON 实现并进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0140</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/comconst_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→0d09ed9ebafe</code>（已核验）</td>
+<td>新增转发文件 <code>comconst_mod.F90</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d_common/comconst_mod.F90</code>；该路径用于复用 COMMON 实现并进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0141</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/comgeom.h</code></td>
+<td>新增</td>
+<td><code>—→254ed7ac2aa0</code>（已核验）</td>
+<td>新增转发文件 <code>comgeom.h</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d_common/comgeom.h</code>；该路径用于复用 COMMON 实现并进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0142</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/comvert_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→1042b83a2e16</code>（已核验）</td>
+<td>新增转发文件 <code>comvert_mod.F90</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d_common/comvert_mod.F90</code>；该路径用于复用 COMMON 实现并进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0143</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/control_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→cff8ca295d90</code>（已核验）</td>
+<td>新增转发文件 <code>control_mod.F90</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d_common/control_mod.F90</code>；该路径用于复用 COMMON 实现并进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0144</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/disvert_noterre.F</code></td>
+<td>新增</td>
+<td><code>—→aec4be29f703</code>（已核验）</td>
+<td>新增转发文件 <code>disvert_noterre.F</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d_common/disvert_noterre.F</code>；该路径用于复用 COMMON 实现并进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0145</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/ener_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→abd5a5023328</code>（已核验）</td>
+<td>新增转发文件 <code>ener_mod.F90</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d_common/ener_mod.F90</code>；该路径用于复用 COMMON 实现并进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0146</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/infotrac.F90</code></td>
+<td>新增</td>
+<td><code>—→8c97cde1866f</code>（已核验）</td>
+<td>新增转发文件 <code>infotrac.F90</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d_common/infotrac.F90</code>；该路径用于复用 COMMON 实现并进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0147</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/init_testphys1d_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→afeeda307512</code>（已核验）</td>
+<td>新增 1D 集中初始化模块，统一选择 start1D/startfi/restart 输入并建立网格、时间、tracer、动力状态及水汽/水冰松弛场。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/09/2023，JBC</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">17/11/2023，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0148</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/logic_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→486eb0660242</code>（已核验）</td>
+<td>新增转发文件 <code>logic_mod.F90</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d/logic_mod.F90</code>；该路径用于复用 COMMON 实现并进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0149</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/mod_const_mpi.F90</code></td>
+<td>新增</td>
+<td><code>—→afe2f96b38b0</code>（已核验）</td>
+<td>新增转发文件 <code>mod_const_mpi.F90</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3dpar/mod_const_mpi.F90</code>；该路径用于复用 COMMON 实现并进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0150</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/mod_interface_dyn_phys.F90</code></td>
+<td>新增</td>
+<td><code>—→bd8a7b579012</code>（已核验）</td>
+<td>更新动力—物理索引映射，并加入单物理列并行特例。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0151</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/parallel_lmdz.F90</code></td>
+<td>新增</td>
+<td><code>—→1c66e4291f1c</code>（已核验）</td>
+<td>新增 1D 转发文件，指向 COMMON 的 parallel_lmdz.F90 以复用公共并行实现。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0152</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/paramet.h</code></td>
+<td>新增</td>
+<td><code>—→2276785a011c</code>（已核验）</td>
+<td>新增转发文件 <code>paramet.h</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d_common/paramet.h</code>；该路径用于复用 COMMON 实现并进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0153</code></td>
+<td><code>libf/phymars/dyn1d/profile.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>8f0f30b6c11c→—</code>（已核验）</td>
+<td>移除旧 1D 温度剖面读取例程；6.3 由 profile_temp_mod 承接温度剖面职责。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">19/09/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0154</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/profile_temp_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→7819459ba8af</code>（已核验）</td>
+<td>新增模块化 1D 温度剖面读取接口，替代旧 profile.F 路径。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">19/09/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0155</code></td>
+<td><code>libf/phymars/dyn1d/read_profile_mod.F90</code></td>
+<td><code>libf/phymars/dyn1d/read_profile_mod.F90</code></td>
+<td>修改</td>
+<td><code>116730012027→f35620a8bab5</code>（已核验）</td>
+<td>扩展 1D 剖面初始化：接收压力层，在缺少输入剖面时按 Conrath 分布初始化 dust_mass/dust_number，并继续处理 CO2/HDO 等 tracer。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">15/07/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0156</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/serre_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→5cee8ae0aff4</code>（已核验）</td>
+<td>新增转发文件 <code>serre_mod.F90</code>，其内容指向 <code>../../../../LMDZ.COMMON/libf/dyn3d_common/serre_mod.F90</code>；该路径用于复用 COMMON 实现并进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0157</code></td>
+<td><code>libf/phymars/dyn1d/testphys1d.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>45d20eeb721b→—</code>（已核验）</td>
+<td>移除旧固定格式 testphys1d.F；6.3 由同目录 testphys1d.F90 的自由格式 1D 主程序承接。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">07/07/2023，JBC</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/09/2023，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0158</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/testphys1d.F90</code></td>
+<td>新增</td>
+<td><code>—→46554b760600</code>（已核验）</td>
+<td>新增承接旧 testphys1d.F 的自由格式 1D 主程序，并重组初始化、剖面与重启模块。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/09/2023，JBC</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">18/10/2023，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0159</code></td>
+<td>—</td>
+<td><code>libf/phymars/dyn1d/writerestart1D_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→3673401a6086</code>（已核验）</td>
+<td>将 writerestart1D 转为模块化实现，负责写出 1D 文本 restart 状态。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">06/10/2023，JBC</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="证据边界">证据边界</h2>
+<ul>
+<li>路径状态和哈希关系来自两棵本地快照的机械比较。</li>
+<li>官方记录来自 MARS Changelog 增量；COMMON 命中仅表示间接记录。</li>
+<li>未找到 Changelog 条目不等于改动无意义，只表示没有可直接关联的官方文字记录。</li>
+<li>本页不把未运行的数值或性能影响写成既定事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../version-delta-index.html">全量变更索引</a></li>
+<li><a href="../../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

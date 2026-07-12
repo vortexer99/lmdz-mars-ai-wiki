@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,8 +34,8 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="guide_modf90">guide_mod.F90</h1>
-<p>页面状态：TASK-0022 完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\guide_mod.F90</code>。</p>
-<p>Mars 运行参与度：接口兼容 + 条件边界。6.3 源码中 <code>leapfrog.F</code> 对 <code>guide_mod:guide_main</code> 的活动调用位于 <code>#ifdef CPP_IOIPSL</code> 且 <code>planet_type=="earth"</code> 的分支内；Mars/generic 初始化阶段的 <code>ok_guide</code> 读取 <code>relax.nc</code> 并调用 <code>relaxetat0</code>，不经过本模块。因此本页把 <code>guide_mod</code> 作为 COMMON 串行 nudging 实现和 Mars 配置边界来记录，不写成 Mars 标准 3D 主线必经路径。</p>
+<p>源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\guide_mod.F90</code>。</p>
+<p>Mars 运行参与度：接口兼容 + 条件边界。当前源码中 <a href="./leapfrog.html"><code>leapfrog.F</code></a> 对 <code>guide_mod:guide_main</code> 的活动调用位于 <code>#ifdef CPP_IOIPSL</code> 且 <code>planet_type=="earth"</code> 的分支内；Mars/generic 初始化阶段的 <code>ok_guide</code> 读取 <code>relax.nc</code> 并调用 <code>relaxetat0</code>，不经过本模块。因此本页把 <code>guide_mod</code> 作为 COMMON 串行 nudging 实现和 Mars 配置边界来记录，不写成 Mars 标准 3D 主线必经路径。</p>
 <h2 id="文件定位">文件定位</h2>
 <p><code>guide_mod</code> 是串行 nudging/guide 模块。它只有一个外部入口 <code>guide_main(itau,ucov,vcov,teta,q,masse,ps)</code>，其余配置读取、NetCDF 输入、垂直插值、松弛系数构造、状态叠加和诊断输出都封装在模块内部。</p>
 <p>并行对应实现是 <code>dyn3dpar/guide_p_mod.F90</code>。两者数值职责相同，但并行版额外处理局部分布、halo、<code>guide_plevs</code> 和 root-only 输出，见 <a href="../../routines/guide-serial-parallel-delta.html">guide 串并行差异</a>。</p>
@@ -52,7 +53,7 @@
 <tr>
 <td><code>guide_main</code></td>
 <td>subroutine</td>
-<td><code>leapfrog.F</code> 的 Earth/IOIPSL <code>ok_guide</code> 分支</td>
+<td><a href="./leapfrog.html"><code>leapfrog.F</code></a> 的 Earth/IOIPSL <code>ok_guide</code> 分支</td>
 <td>首次初始化 guide 系统，按时间读取/插值输入场，把 guide forcing 叠加到 U/V/T/P/Q 动力状态。</td>
 </tr>
 </tbody>
@@ -176,7 +177,7 @@
       write back to state</code></pre>
 <p><code>guide_main</code> 修改传入的动力状态数组，不返回单独 tendency。<code>guide_add=.FALSE.</code> 时 forcing 是目标场减当前状态；<code>guide_add=.TRUE.</code> 时输入被解释为外部增量。</p>
 <h2 id="配置和输入文件">配置和输入文件</h2>
-<p><code>guide_init</code> 通过 <code>getparam</code> 读取 guide 参数。参数组和输入场细节见 <a href="../../routines/guide-config-contract.html">guide 配置与初始化契约</a> 与 <a href="../../routines/guide-input-fields.html">guide 输入场读取</a>。核心文件名如下：</p>
+<p><code>guide_init</code> 通过 <code>getparam</code> 读取 guide 参数。参数组和输入场细节见 <a href="../../routines/guide-config-contract.html">guide 配置与初始化约定</a> 与 <a href="../../routines/guide-input-fields.html">guide 输入场读取</a>。核心文件名如下：</p>
 <table>
 <thead>
 <tr>
@@ -245,24 +246,24 @@
 <thead>
 <tr>
 <th>路径</th>
-<th>6.3 源码行为</th>
+<th>当前源码行为</th>
 <th>是否经过本模块</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Earth + IOIPSL + <code>ok_guide</code></td>
-<td><code>leapfrog.F</code> 调 <code>guide_main</code></td>
+<td><a href="./leapfrog.html"><code>leapfrog.F</code></a> 调 <code>guide_main</code></td>
 <td>是</td>
 </tr>
 <tr>
 <td>Mars <code>planet_type=="mars"</code></td>
-<td><code>leapfrog.F</code> 不调 <code>guide_main</code></td>
+<td><a href="./leapfrog.html"><code>leapfrog.F</code></a> 不调 <code>guide_main</code></td>
 <td>否</td>
 </tr>
 <tr>
 <td>Generic + <code>ok_guide</code></td>
-<td><code>gcm.F90</code> 读 <code>relax.nc</code> 并调 <code>relaxetat0</code></td>
+<td><a href="./gcm.html"><code>gcm.F90</code></a> 读 <code>relax.nc</code> 并调 <code>relaxetat0</code></td>
 <td>否</td>
 </tr>
 </tbody>
@@ -270,16 +271,16 @@
 <p>因此 Mars 运行排错时，看到 <code>ok_guide</code> 不应直接跳到 <code>guide_mod</code>。先确认 <code>planet_type</code>、编译宏和入口调用点，再判断是 COMMON guide 还是 <code>relax.nc</code> 简单松弛边界。</p>
 <h2 id="风险和待确认">风险和待确认</h2>
 <ul>
-<li><code>ini_anal</code> 分支中 V 风写 <code>vcov=ugui2</code>，不是 <code>vgui2</code>；这是 6.3 源码事实，设计意图待确认。</li>
+<li><code>ini_anal</code> 分支中 V 风写 <code>vcov=ugui2</code>，不是 <code>vgui2</code>；这是 当前源码事实，设计意图待确认。</li>
 <li><code>correctbid</code> 保留但无活动调用，不应作为主流程依赖。</li>
-<li><code>guide_mod</code> 的主入口在 6.3 串行 <code>leapfrog</code> 中受 Earth/IOIPSL 条件包围；Mars 是否有旧版或本地补丁直接调用该模块，需要运行分支另行核对。</li>
+<li><code>guide_mod</code> 的主入口在 串行 <code>leapfrog</code> 中受 Earth/IOIPSL 条件包围；Mars 是否有旧版或本地补丁直接调用该模块，需要运行分支另行确认。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>
 <li><a href="index.html">dyn3d 总览</a></li>
 <li><a href="leapfrog.html">leapfrog</a></li>
 <li><a href="conf_gcm.html">conf_gcm</a></li>
-<li><a href="../../routines/guide-config-contract.html">guide 配置与初始化契约</a></li>
+<li><a href="../../routines/guide-config-contract.html">guide 配置与初始化约定</a></li>
 <li><a href="../../routines/guide-input-fields.html">guide 输入场读取</a></li>
 <li><a href="../../routines/guide-interpolation-pressure.html">guide 压力层插值和 nudging 系数</a></li>
 <li><a href="../../routines/guide-tendency-application.html">guide forcing 叠加到动力状态</a></li>

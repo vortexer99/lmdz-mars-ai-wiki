@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -45,10 +46,10 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\gcm.F
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\leapfrog_p.F
 LMDZ.MARS\libf\dynphy_lonlat\phymars\nogcm.F90
 LMDZ.MARS\libf\dynphy_lonlat\phymars\leapfrog_nogcm.F</code></pre>
-<p>页面状态：TASK-0187 完成。 Mars 运行参与度：<code>条件经过</code>。只有同时满足运行配置 <code>ok_dyn_ins</code> 或 <code>ok_dyn_ave</code>、编译包含 <code>CPP_IOIPSL</code>、并经过对应 GCM/nogcm 输出门时，COMMON 动力 history/dynav 输出才会初始化和写出。Mars physics 的 <code>diagfi/stats/XIOS</code> 是另一条输出链，不由这些例程写出。</p>
+<p>Mars 运行参与度：<code>条件经过</code>。只有同时满足运行配置 <code>ok_dyn_ins</code> 或 <code>ok_dyn_ave</code>、编译包含 <code>CPP_IOIPSL</code>、并经过对应 GCM/nogcm 输出门时，COMMON 动力 history/dynav 输出才会初始化和写出。Mars physics 的 <code>diagfi/stats/XIOS</code> 是另一条输出链，不由这些例程写出。</p>
 <h2 id="例程定位">例程定位</h2>
 <p><code>inithist</code> 和 <code>initdynav</code> 定义 IOIPSL history 文件、垂直轴和变量清单；<code>writehist</code> 和 <code>writedynav</code> 在时间推进中按门控写变量。四个 COMMON 串行例程都被 <code>#ifdef CPP_IOIPSL</code> 包住；未定义该宏时只向 <code>lunout</code> 打 warning，不会创建或写 NetCDF history 文件。</p>
-<p>当前 6.3 COMMON 串行入口 <code>dyn3d/gcm.F90</code> 直接调用 <code>inithist/initdynav</code>。并行入口 <code>dyn3dpar/gcm.F</code> 在 root 分支也调用这两个串行初始化例程，当前源码中的 <code>inithist_p/initdynav_p</code> 调用处是注释保留路径。因此本页以当前可达的 COMMON 串行 history id 和 root 写出链为准；<code>*_p</code> 支撑实现见串并行对照页。</p>
+<p>当前 COMMON 串行入口 <code>dyn3d/gcm.F90</code> 直接调用 <code>inithist/initdynav</code>。并行入口 <code>dyn3dpar/gcm.F</code> 在 root 分支也调用这两个串行初始化例程，当前源码中的 <code>inithist_p/initdynav_p</code> 调用处是注释保留路径。因此本页以当前可达的 COMMON 串行 history id 和 root 写出链为准；<code>*_p</code> 支撑实现见串并行对照页。</p>
 <h2 id="文件名和-id-持有者">文件名和 id 持有者</h2>
 <p><code>com_io_dyn_mod.F90</code> 保存文件名常量和 IOIPSL file id。初始化例程写入这些 id，写出例程随后复用；这些 id 与 <code>temps_mod:itau_dyn</code> 的生命周期见 <a href="dynamic-output-state-holders.html">动力输出状态持有者</a>。</p>
 <table>
@@ -162,7 +163,7 @@ if ok_dyn_ave:
   t_wrt = periodav * daysec
   initdynav(day_ref, annee_ref, time_step, t_ops, t_wrt)
   dtav = iperiod * dtvr / daysec</code></pre>
-<p>MARS <code>phymars/nogcm.F90</code> 也在 <code>ok_dyn_ins/ok_dyn_ave</code> 下初始化同一组 COMMON history/dynav 例程，然后进入 <code>phymars/leapfrog_nogcm.F</code>。这说明 Mars nogcm 路径可以消费 COMMON 动力 history 机制；它仍然不同于 Mars physics 自己的 <code>diagfi.nc</code>、<code>stats.nc</code> 或 XIOS 输出。</p>
+<p>MARS <code>phymars/nogcm.F90</code> 也在 <code>ok_dyn_ins/ok_dyn_ave</code> 下初始化同一组 COMMON history/dynav 例程，然后进入 <code>phymars/leapfrog_nogcm.F</code>。这说明 Mars nogcm 路径可以使用 COMMON 动力 history 机制；它仍然不同于 Mars physics 自己的 <code>diagfi.nc</code>、<code>stats.nc</code> 或 XIOS 输出。</p>
 <h2 id="inithist-字段注册"><code>inithist</code> 字段注册</h2>
 <p><code>inithist.F</code> 创建 U/V/scalar 三个 instant 文件。经纬度来自 <code>comgeom.h</code> 的 <code>rlong/rlat</code>，垂直轴使用 <code>comvert_mod:presnivs/100.</code>，单位标注为 <code>mb</code>。</p>
 <table>
@@ -397,7 +398,7 @@ if MOD(itau, iecri) == 0:
 <li><a href="history-output-serial-parallel.html">history/dynav 输出串并行对照</a></li>
 <li><a href="leapfrog-output-restart.html">串行 leapfrog 输出/restart</a></li>
 <li><a href="leapfrog-p-output-restart.html">并行 leapfrog_p 输出/restart</a></li>
-<li><a href="common-state-control-contract.html">COMMON 状态/控制模块契约</a></li>
+<li><a href="common-state-control-contract.html">COMMON 状态/控制模块约定</a></li>
 <li><a href="dynamic-output-state-holders.html">动力输出状态持有者</a></li>
 </ul>
 

@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>version-5.3-to-6.3 - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a class="active" href="index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>themes/version-5.3-to-6.3.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="lmdz-common--mars-53-到-63-版本差异">LMDZ COMMON / MARS 5.3 到 6.3 版本差异</h1>
+<blockquote>
+<p><strong>全量入口：</strong> <a href="../reference/version-delta-index.html">5.3→6.3 全量变更矩阵</a>逐项登记 419 个变化路径，并链接到 21 个逻辑主题详情页；<a href="../reference/version-delta-provenance.html">来源与方法</a>记录哈希、官方 Changelog 边界与证据等级。</p>
+</blockquote>
+<h2 id="页面定位与比较边界">页面定位与比较边界</h2>
+<p>本页比较两组由使用者指定的源码快照：一组作为 <strong>5.3 基线</strong>，另一组作为 <strong>6.3 当前版</strong>。每组都同时包含 <code>LMDZ.COMMON</code> 与 <code>LMDZ.MARS</code>。这里的“5.3”“6.3”是这两组目录的使用者版本标识；快照内没有可独立核验的统一 release tag，因此本页不把比较结果外推到所有同名发行包。</p>
+<p>比较在 2026-07-12 完成，分两层：</p>
+<ol type="1">
+<li>对源码树建立“相对路径 + SHA-256”清单，统计新增、删除、同路径修改和字节不变文件。</li>
+<li>对关键差异继续核验模块、调用点、配置读取和输出路径；只有经过源码调用链核验的内容才写成行为变化。</li>
+</ol>
+<p>清单排除了任一路径段为 <code>.git</code>、<code>build</code>、<code>bin</code>、<code>obj</code>、<code>__pycache__</code> 的文件，也排除了 <code>.DS_Store</code> 以及常见编译产物（<code>.o</code>、<code>.obj</code>、<code>.mod</code>、<code>.a</code>、<code>.so</code>、<code>.dll</code>、<code>.exe</code>、<code>.pyc</code>、<code>.pdb</code>）。重命名在机械统计中表现为“一项删除 + 一项新增”，后文会单独指出已核验的重命名或迁移。</p>
+<h2 id="一页结论">一页结论</h2>
+<p>从 5.3 到 6.3，COMMON 仍以动力核心和公共运行时为主，文件总量变化不大；主要变化集中在动力—物理接口、并行边界、tracer 文件基础设施、FCM 构建和机器配置。MARS 的变化更广：物理配置从 include 状态转向模块化，tracer 初始化改为物理侧解析，<code>write_output</code> 统一桥接 diagfi 与 XIOS，1D 驱动重构，水云、尘埃、热层和质量守恒路径均有实质更新。</p>
+<p>因此，5.3 运行目录不能只替换可执行文件后直接用于 6.3。至少要成组迁移构建选项、<code>callphys.def</code>、tracer 定义、XIOS XML、初始/重启文件与诊断变量名，并重新做一次短积分守恒检查。</p>
+<h2 id="量化总览">量化总览</h2>
+<table>
+<thead>
+<tr>
+<th>源码树</th>
+<th style="text-align: right;">5.3 文件数</th>
+<th style="text-align: right;">6.3 文件数</th>
+<th style="text-align: right;">6.3 新增</th>
+<th style="text-align: right;">6.3 删除</th>
+<th style="text-align: right;">同路径修改</th>
+<th style="text-align: right;">字节不变</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>COMMON</td>
+<td style="text-align: right;">472</td>
+<td style="text-align: right;">483</td>
+<td style="text-align: right;">33</td>
+<td style="text-align: right;">22</td>
+<td style="text-align: right;">57</td>
+<td style="text-align: right;">393</td>
+</tr>
+<tr>
+<td>MARS</td>
+<td style="text-align: right;">324</td>
+<td style="text-align: right;">362</td>
+<td style="text-align: right;">93</td>
+<td style="text-align: right;">55</td>
+<td style="text-align: right;">159</td>
+<td style="text-align: right;">110</td>
+</tr>
+</tbody>
+</table>
+<p>COMMON 的新增文件主要落在 <code>arch</code>（23）、<code>ioipsl</code>（6）和 <code>libf</code>（4）；同路径修改主要落在 <code>libf</code>（35）。MARS 的新增文件主要落在 <code>libf</code>（59）与 <code>deftank</code>（22），同路径修改则以 <code>libf</code>（125）为主。文件计数说明 MARS 的升级不是局部补丁，但不能单独证明物理行为变化；行为结论以以下源码证据为准。</p>
+<h2 id="common公共动力与构建层">COMMON：公共动力与构建层</h2>
+<h3 id="1-tracer-基础设施进入公共层">1. tracer 基础设施进入公共层</h3>
+<p>6.3 COMMON 新增：</p>
+<ul>
+<li><code>libf/misc/readTracFiles_mod.f90</code></li>
+<li><code>libf/misc/strings_mod.f90</code></li>
+<li><code>libf/misc/program_options.F90</code></li>
+<li><code>libf/misc/job.F90</code></li>
+</ul>
+<p>MARS 6.3 的 <code>libf/phymars/parse_tracer_file.F90</code> 直接使用 <code>strings_mod</code> 和 <code>readTracFiles_mod::{tracers,readTracersFiles}</code>，并在 master rank 解析后广播。因此这不只是文件存在性变化，而是 MARS 新式 <code>tracer.def</code> 解析链的 COMMON 依赖。</p>
+<p>边界需要说清：5.3 COMMON 的 <code>dyn3d_common/infotrac.F90</code> 已能识别旧式和 <code>#ModernTrac-v1</code> 格式。本次升级的关键不是“6.3 才首次支持现代 tracer”，而是 MARS 物理侧开始通过新的公共解析设施自行取得 tracer 信息，减少动力侧向物理侧传递 tracer 元数据的耦合。</p>
+<h3 id="2-动力物理接口与-1d-并行特例">2. 动力—物理接口与 1D 并行特例</h3>
+<p><code>libf/dynphy_lonlat/inigeomphy_mod.F90</code> 调用 <code>mod_interface_dyn_phys::init_interface_dyn_phys</code>。6.3 的接口对 <code>klon_mpi == 1</code> 增加物理列索引重置，这是源码注释明确标出的 1D parallel 特例。</p>
+<p>同一接口链上的 <code>calfis.F</code>、<code>calfis_p.F</code> 和 <code>inigeomphy_mod.F90</code> 都发生修改：</p>
+<ul>
+<li><code>calfis.F</code> 继续通过 <code>call_physiq(...)</code> 进入 MARS 物理。</li>
+<li><code>calfis_p.F</code> 把 Venus 移出原先与 Titan 共用的 AllGather 分支；新分支只对 <code>planet_type == 'titan'</code> 执行。</li>
+<li><code>calfis_p.F</code> 在网格转换前由 OMP master 清零 <code>zphi/zphis</code>，用于避免 debug 条件下对未定义值的操作。</li>
+<li><code>inigeomphy_mod.F90</code> 新增 <code>aire_glo/airefi_for_outputs</code>，用 <code>gr_dyn_fi</code> 保存适合输出的极点面积，并调用 <code>geometry_mod::init_geometry_cell_area_for_outputs</code>。这使计算几何面积与经纬网诊断输出面积有了显式边界。</li>
+</ul>
+<p>现有 COMMON 依赖入口和接口图见 <a href="../architecture/common-dependencies.html">COMMON dependency boundary</a>。</p>
+<h3 id="3-并行运行时修复">3. 并行运行时修复</h3>
+<p>6.3 修改了 <code>libf/dyn3dpar/parallel_lmdz.F90</code> 以及 <code>libf/phy_common/mod_phys_lmdz_mpi.F90</code>、<code>mod_phys_lmdz_omp.F90</code>、<code>mod_phys_lmdz_para.F90</code>、<code>mod_phys_lmdz_transfert_para.F90</code>。</p>
+<p>其中 <code>parallel_lmdz.F90</code> 新增 <code>omp_chunk</code> 收缩循环。源码注释说明：某些 <code>llm/omp_size</code> 组合会让空闲线程未发出 send/recv 就进入 <code>MPI_Waitall</code>，从而触发 request error；6.3 通过缩小 chunk 避免这种组合，并在 chunk 过小时告警。升级后的 MPI × OpenMP 结果应至少覆盖一种非整除垂直层分配，而不能只测纯 MPI。</p>
+<h3 id="4-构建系统与机器配置">4. 构建系统与机器配置</h3>
+<p>COMMON 根目录的旧 <code>makegcm</code> 被删除；<code>build_gcm</code>、<code>makelmdz_fcm</code> 和 <code>bld.cfg</code> 有修改，并新增多组 ADASTRA、BAO_YGG、MESOIPSL、MESU 的 <code>arch.path/.env/.fcm</code> 配置。</p>
+<p><code>makelmdz_fcm</code> 的 6.3 行为包括：</p>
+<ul>
+<li><code>-io</code> 接受 <code>ioipsl</code>、<code>mix</code>、<code>xios</code>。</li>
+<li><code>mix</code> 与 <code>xios</code> 定义 <code>CPP_XIOS</code>；纯 <code>xios</code> 还定义 <code>CPP_IOIPSL_NO_OUTPUT</code>。</li>
+<li>1D + XIOS 组合强制使用 MPI。</li>
+<li><code>bld.cfg</code> 对 XIOS 模块采用专门的依赖扫描排除规则。</li>
+</ul>
+<p>这意味着旧 <code>makegcm</code> 命令行和新 FCM 构建不能视为同一接口的简单别名。迁移时要保存完整编译命令、<code>-io</code> 模式、MPI/OpenMP 组合和所用 arch 三件套。</p>
+<h3 id="5-目录职责调整">5. 目录职责调整</h3>
+<p>5.3 COMMON 的 <code>libf/evolution/</code> 在 6.3 快照中整体删除，其中包括 <code>pem.F90</code> 与 <code>compute_tendencies_mod*.F90</code> 等 15 个文件。另一个已核验的迁移是旧 COMMON <code>libf/dyn3d/nogcm.F90</code>、<code>leapfrog_nogcm.F</code> 被删除，而 MARS 6.3 在 <code>libf/dynphy_lonlat/phymars/</code> 下提供同名驱动；新 <code>nogcm.F90</code> 仍调用 COMMON <code>infotrac_init</code>，随后调用 MARS <code>iniphysiq</code>。这是无完整 GCM 驱动的职责下沉到行星包，不应把它误写成算法凭空新增。</p>
+<h2 id="mars物理配置与输出层">MARS：物理、配置与输出层</h2>
+<h3 id="1-配置状态模块化">1. 配置状态模块化</h3>
+<p>5.3 的 <code>libf/phymars/callkeys.h</code> 被 6.3 的 <code>callkeys_mod.F90</code> 取代。配置主链为：</p>
+<pre class="text"><code>iniphysiq
+  -&gt; conf_phys(klon_omp, nlayer, nqtot)
+       -&gt; getin_p 读取 callphys.def
+       -&gt; callkeys_mod 保存跨物理过程开关
+  -&gt; physiq 按开关调度各过程</code></pre>
+<p><code>conf_phys.F</code> 从 <code>callkeys_mod</code> 导入状态并读取配置；<code>physiq_mod.F</code> 再导入这些开关。已核验的新路径包括：</p>
+<ul>
+<li><code>callatke</code> 的读取及与 <code>callyamada4</code> 的互斥检查；</li>
+<li><code>dust_coagulation</code> 的读取与参数检查；</li>
+<li><code>call_mass_fixer_dyn</code> 的读取；</li>
+<li><code>physiq</code> 初始化 ATKE、调用 <code>dust_coagulation_main</code> 和 <code>tracer_mass_fixer_dyn</code>。</li>
+</ul>
+<p>1D 也调用同一个 <code>conf_phys(1,llm,nq)</code>，所以 3D 与 1D 的配置语义更一致，但旧 1D 配置文件中的已弃用键也会更直接地触发新校验。配置模块详见 <a href="../modules/phymars/callkeys_mod.html">callkeys_mod</a> 与 <a href="../architecture/config-system.html">config system</a>。</p>
+<h3 id="2-tracer-初始化边界重构">2. tracer 初始化边界重构</h3>
+<p>5.3 的 <code>initracer.F</code> 被模块化的 6.3 <code>initracer.F90</code> 取代，并新增：</p>
+<ul>
+<li><code>parse_traceur_file.F90</code>：解析旧式 <code>traceur.def</code>；</li>
+<li><code>parse_tracer_file.F90</code>：解析新式 <code>tracer.def</code>；</li>
+<li><code>tracer_mass_fixer_dyn_mod.F90</code>：修正指定化学 tracer 的动力质量不守恒。</li>
+</ul>
+<p><code>tracer_mod.F90</code> 同时导入两个 parser。新式 parser 调 COMMON 的 <code>readTracFiles_mod</code>，两个 parser 都由 master rank 读取后广播。与 5.3 相比，6.3 的物理初始化不再依赖动力把完整 tracer 元数据作为实参传入，而是优先在物理侧解析配置文件。</p>
+<p>迁移规则：</p>
+<ol type="1">
+<li>不要只复制 tracer 名称；要保留父子/输运关系和目标 section。</li>
+<li>若同时存在 <code>traceur.def</code> 与 <code>tracer.def</code>，必须记录实际被选中的文件与 section；经纬网默认 section 是 <code>lmdz</code>，非结构网格默认是 <code>dynamico</code>。</li>
+<li>旧字段 <code>nqperes/nqfils/qperemin</code> 在 6.3 后期命名为 <code>nqparents/nqchildren/qparentmin</code>；自有补丁和外部接口需要同步。</li>
+<li>启用 <code>call_mass_fixer_dyn</code> 时，应保存第一步之前的 tracer 柱质量；初始 <code>mass_predyn &lt;= 0</code> 时首个物理步会跳过修正。</li>
+</ol>
+<p>详见 <a href="../modules/phymars/tracer_mod.html">tracer_mod</a>。</p>
+<h3 id="3-输出由一个-api-桥接-diagfi-与-xios">3. 输出由一个 API 桥接 diagfi 与 XIOS</h3>
+<p>6.3 新增 <a href="../modules/phymars/write_output_mod.html">write_output_mod</a>。<code>physiq_mod.F</code> 导入 <code>write_output</code>，各类重载执行：</p>
+<pre class="text"><code>write_output(field)
+  |-- output_diagfi = true  -&gt; writediagfi
+  `-- CPP_XIOS             -&gt; send_xios_field</code></pre>
+<p>与此对应，旧 <code>writeg1d.F</code>、<code>eofdump_mod.F90</code> 及 <code>calleofdump</code> 被删除，<code>output_diagfi</code> 成为是否生成 <code>diagfi.nc</code> 的显式开关。XIOS XML 从 <code>deftank</code> 根目录的旧文件布局迁到：</p>
+<pre class="text"><code>deftank/xios/
+  context_pcm_physics.xml
+  field_def_physics.xml
+  file_def_physics.xml
+  iodef.xml</code></pre>
+<p>风险点：当前 <code>write_output_mod.F90</code> 把 <code>xios_is_active_field</code> 查询注释掉并把 <code>is_active</code> 强制设为真。功能上仍由统一 API 发送字段，但大量未被目标文件引用的调用可能带来额外组合、通信或性能开销。XIOS 文件布局和输出选择见 <a href="../architecture/xios-config.html">xios config</a>。</p>
+<h3 id="4-1d-驱动成为独立模块群">4. 1D 驱动成为独立模块群</h3>
+<p>6.3 在 <code>libf/phymars/dyn1d/</code> 下形成完整支撑模块群，并新增 <code>startfiles/start1D.txt</code>。旧 <code>dyn1d/testphys1d.F</code> 与 <code>profile.F</code> 被模块化/重写后的 <code>testphys1d.F90</code>、<code>init_testphys1d_mod.F90</code>、<code>profile_temp_mod.F90</code> 等替代。</p>
+<p>已核验的主链为：</p>
+<pre class="text"><code>init_testphys1d
+  -&gt; conf_phys(1, llm, nq)
+  -&gt; initracer
+  -&gt; read_profile_mod 读取 profile_&lt;tracer&gt;
+testphys1d 时间循环
+  -&gt; physiq
+  -&gt; writerestart1D 生成 restart1D.txt</code></pre>
+<p>因此 5.3 的 1D 输入不能只按文件名复制。<code>profile</code> 已改名为 <code>profile_temp</code>，水汽/水冰可使用独立 profile 与松弛时间，<code>start1D.txt</code> 位置也移到 <code>startfiles/</code>。详见 <a href="../architecture/testphys1d-config.html">testphys1d config</a> 和 <a href="../modules/phymars/dyn1d/index.html">dyn1d 目录页</a>。</p>
+<h3 id="5-物理过程的代表性变化">5. 物理过程的代表性变化</h3>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>5.3 -&gt; 6.3 的已核验变化</th>
+<th>主要入口</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>水云</td>
+<td><code>watercloud_mod</code> 在 improved/simple 两方案间分派；improved 方案引入自适应微时间步并修正 tendency 注入；水冰 profile、地表/地下冰与热惯量反馈继续扩展</td>
+<td><a href="water-cycle.html">water cycle</a>、<a href="../modules/phymars/watercloud_mod.html">watercloud_mod</a></td>
+</tr>
+<tr>
+<td>CO2 云</td>
+<td><code>co2cloud.F90</code> 模块化为 <code>co2cloud_mod.F90</code>，由 <code>physiq</code> 调用；地表 CO2 冰最大反照率改为配置项</td>
+<td><a href="co2-cycle.html">CO2 cycle</a>、<a href="../modules/phymars/co2cloud_mod.html">co2cloud_mod</a></td>
+</tr>
+<tr>
+<td>尘埃</td>
+<td>新增凝并 <code>dust_coagulation_mod.F90</code>；抬升和尘卷风例程模块化；加入可配置抬升尘埃有效半径</td>
+<td><a href="dust-cycle.html">dust cycle</a>、<a href="../modules/phymars/dust_coagulation_mod.html">dust coagulation</a></td>
+</tr>
+<tr>
+<td>边界层</td>
+<td>新增 ATKE 模块群与 <code>vdif_cd_mod.F90</code>、<code>pbl_parameters_mod.F90</code>；配置校验禁止 ATKE 与 Yamada4 同时启用</td>
+<td><code>conf_phys.F</code>、<code>physiq_mod.F</code></td>
+</tr>
+<tr>
+<td>热层/分子扩散</td>
+<td><code>physiq -&gt; thermosphere_mod::thermosphere -&gt; moldiff_MPF</code>；6.3 修正前序 tendency 传递，并可启用分子扩散质量修正</td>
+<td><code>thermosphere_mod.F</code>、<code>moldiff_MPF.F90</code></td>
+</tr>
+<tr>
+<td>光化学</td>
+<td><code>calchim_mod -&gt; photochemistry_mod::photochemistry</code>，旧非模块化文件被替换</td>
+<td><code>calchim_mod.F90</code>、<code>photochemistry_mod.F90</code></td>
+</tr>
+<tr>
+<td>动力质量守恒</td>
+<td>新增 <code>tracer_mass_fixer_dyn_mod</code>，对选定非 CO2 tracer 的动力质量误差作修正，并以 CO2 补偿</td>
+<td><code>physiq_mod.F</code>、<code>tracer_mass_fixer_dyn_mod.F90</code></td>
+</tr>
+</tbody>
+</table>
+<p>这些条目同时包含“模块化重构”和“新行为”。迁移测试应针对输出或守恒量验证，不能用文件名变化代替数值验证。</p>
+<p>光化学还有一项构建契约：<code>photochemistry_mod.F90</code> 调用 LAPACK <code>dgesv</code>，缺少对应实现时会明确中止。启用光化学的 6.3 构建必须把 LAPACK 链接测试纳入冒烟检查。</p>
+<h3 id="6-gcm6-样例配置不是-gcm5-配置的原样延续">6. GCM6 样例配置不是 GCM5 配置的原样延续</h3>
+<p>6.3 <code>deftank/callphys.def.GCM6</code> 的代表性变化包括：</p>
+<ul>
+<li><code>datadir</code> 使用可移植的 <code>./datadir</code>；</li>
+<li>新增 <code>outputs_per_sol</code>；</li>
+<li>新增非地形重力波参数组；</li>
+<li>新增 <code>reff_lift_dust</code>、<code>cloud_adapt_ts</code>、<code>call_mass_fixer_dyn</code>；</li>
+<li><code>temp_dependant_m</code> 更名为 <code>temp_dependent_m</code>；</li>
+<li><code>nuice_sed</code>、<code>albedo_h2o_cap</code>、<code>albedo_h2o_frost</code> 等默认或样例值发生变化。</li>
+</ul>
+<p>此外，<code>max_icecap_albedo</code>、<code>output_diagfi</code>、<code>slow_diagfi</code>、1D 水汽/水冰 profile 控制和 XIOS 文件布局都需要在旧运行目录中显式处理。6.3 新增 <code>callphys.def.MCD6</code>、<code>traceur.def.MCD6</code>、<code>run.def.64x48x73.MCD6</code>、<code>z2sig.def.MCD6</code>；其中旧 <code>z2sig.def</code> 与新 <code>z2sig.def.MCD6</code> 在本快照中哈希相同，属于命名/样例组织变化，不能据此声称垂直坐标算法改变。</p>
+<h2 id="迁移与复现实验清单">迁移与复现实验清单</h2>
+<h3 id="a-构建">A. 构建</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />用 6.3 <code>makelmdz_fcm/build_gcm</code> 重建，不复用 5.3 <code>.o/.mod</code>。</label></li>
+<li><label><input type="checkbox" />记录 <code>-io ioipsl|mix|xios</code>、MPI/OpenMP 进程线程组合和 arch 三件套。</label></li>
+<li><label><input type="checkbox" />混合并行至少测试一种 <code>llm</code> 不能被线程数整除的组合。</label></li>
+<li><label><input type="checkbox" />1D + XIOS 使用 MPI 构建，并确认 XML 在运行目录可见。</label></li>
+<li><label><input type="checkbox" />启用光化学时确认 LAPACK <code>dgesv</code> 可链接并完成一次实际调用。</label></li>
+<li><label><input type="checkbox" />检查 <code>dyn1d</code> 中指向 COMMON 的相对链接/占位文件在复制或打包后仍能解析。</label></li>
+</ul>
+<h3 id="b-配置与-tracer">B. 配置与 tracer</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />以 6.3 样例为底稿逐项移植旧 <code>callphys.def</code>，不要整文件覆盖。</label></li>
+<li><label><input type="checkbox" />替换已弃用或改名键，特别是 <code>temp_dependent_m</code>、<code>albedo_h2o_cap</code> 和输出相关开关。</label></li>
+<li><label><input type="checkbox" />明确使用 <code>traceur.def</code> 还是 <code>tracer.def</code>，核对 section、顺序、父子关系与 advection 信息。</label></li>
+<li><label><input type="checkbox" />将物理开关与 tracer 成组检查：水云、CO2 云、化学、尘埃凝并和质量修正各自需要相应 tracer。</label></li>
+<li><label><input type="checkbox" />比较 <code>z2sig.def</code> 的内容而不是只比较文件名，并确保层数与编译维度一致。</label></li>
+</ul>
+<h3 id="c-初始场重启与-1d">C. 初始场、重启与 1D</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />用 6.3 <code>newstart/start2archive</code> 转换或至少读取检查旧 start 文件。</label></li>
+<li><label><input type="checkbox" />检查 <code>mass_predyn_&lt;tracer&gt;</code>、<code>totcloudfrac</code>、<code>watercaptag</code>、坡面和地下水冰相关字段的缺失回退。</label></li>
+<li><label><input type="checkbox" />1D 更新 <code>start1D.txt</code> 位置、<code>profile_temp</code> 名称、<code>profile_&lt;tracer&gt;</code> 与松弛时间配置。</label></li>
+<li><label><input type="checkbox" />做一次 restart 连续性测试，比较跨重启前后的表压、总水、总 CO2 冰和 tracer 柱质量。</label></li>
+</ul>
+<h3 id="d-输出与科学回归">D. 输出与科学回归</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />把旧 XIOS XML 映射到 <code>deftank/xios/</code> 新布局，核对 field 定义与 file 引用两层。</label></li>
+<li><label><input type="checkbox" />明确 <code>output_diagfi</code>，并检查下游脚本依赖的是 diagfi、XIOS 还是两者。</label></li>
+<li><label><input type="checkbox" />核对变量重命名（例如 <code>phisfi</code>/<code>phisinit</code>）和新增/删除诊断字段。</label></li>
+<li><label><input type="checkbox" />用相同初始场做短积分，对比全球平均表压、TOA 能量、总水、总 CO2 冰、尘埃光学厚度及选定 tracer 柱质量。</label></li>
+<li><label><input type="checkbox" />对新启用过程分别做开/关成对试验；不要把多个新开关一次性全部打开后再定位偏差。</label></li>
+</ul>
+<h2 id="证据等级与仍待确认项">证据等级与仍待确认项</h2>
+<table>
+<thead>
+<tr>
+<th>结论类型</th>
+<th>本页处理方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SHA-256 相同/不同、文件新增/删除</td>
+<td>已核验的快照事实</td>
+</tr>
+<tr>
+<td><code>use</code>、<code>call</code>、<code>getin_p</code>、条件分支</td>
+<td>已核验的源码行为</td>
+</tr>
+<tr>
+<td>删除 + 新增且调用链连续</td>
+<td>可写为迁移或模块化重构</td>
+</tr>
+<tr>
+<td>只有新文件名、尚未追到调用点</td>
+<td>只写“存在性变化”，不声称运行时启用</td>
+</tr>
+<tr>
+<td>对气候统计量、性能或科学偏差的影响</td>
+<td>必须经编译和数值试验确认</td>
+</tr>
+</tbody>
+</table>
+<p>仍需运行验证的问题：</p>
+<ul>
+<li>两个快照缺少统一可核验的 release tag；本页结论严格绑定到所比较目录。</li>
+<li>本次没有编译两版，也没有做 bit-identical 或气候统计回归。</li>
+<li><code>write_output</code> 强制把 XIOS 字段视为 active 的实际性能代价依赖运行配置。</li>
+<li>tracer 质量修正、分子扩散修正、尘埃凝并和新水云时间步对守恒量与气候均值的净影响需要成对实验。</li>
+<li>COMMON <code>libf/evolution/</code> 的删除只证明当前 6.3 快照不再携带该目录；其功能是否迁到外部仓库需结合项目发布记录确认。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../architecture/project-structure.html">项目结构</a></li>
+<li><a href="../architecture/common-dependencies.html">COMMON dependency boundary</a></li>
+<li><a href="../architecture/config-system.html">配置体系</a></li>
+<li><a href="../architecture/xios-config.html">XIOS 配置</a></li>
+<li><a href="../architecture/run-scripts.html">运行脚本</a></li>
+<li><a href="../architecture/testphys1d-config.html">1D 配置</a></li>
+<li><a href="water-cycle.html">水循环</a></li>
+<li><a href="co2-cycle.html">CO2 循环</a></li>
+<li><a href="dust-cycle.html">尘埃循环</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,10 +34,10 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="leapfrog_pf">leapfrog_p.F</h1>
-<p>页面状态：6.3 返工完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\leapfrog_p.F</code>。 Mars 运行参与度：条件经过；Mars 并行动力 GCM 主循环经过，串行动力不经过。</p>
+<p>源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\leapfrog_p.F</code>。 Mars 运行参与度：条件经过；Mars 并行动力 GCM 主循环经过，串行动力不经过。</p>
 <h2 id="文件定位">文件定位</h2>
 <p><code>leapfrog_p</code> 是并行版时间推进主循环。它复用串行时间调度思想，但额外负责 <code>parallel_lmdz</code> band 切换、halo/swap request、physics band 重分布、gather 后 root 写输出和 restart。</p>
-<h2 id="63-restart-时间">6.3 restart 时间</h2>
+<h2 id="restart-时间">restart 时间</h2>
 <table>
 <thead>
 <tr>
@@ -68,7 +69,7 @@
 </tr>
 </tbody>
 </table>
-<p>传入 <a href="../../routines/dynredem-restart.html">dynredem-restart</a> 的 <code>time</code> 最终写入 NetCDF time coordinate 和 <code>tab_cntrl(32)</code>。当前 6.3 页面不再把 <code>start_time</code> 写 restart 作为主线；Mars 分支还会使用 <code>time_0</code> 的小数部分修正中途 restart 时间。</p>
+<p>传入 <a href="../../routines/dynredem-restart.html">dynredem-restart</a> 的 <code>time</code> 最终写入 NetCDF time coordinate 和 <code>tab_cntrl(32)</code>。当前 页面不再把 <code>start_time</code> 写 restart 作为主线；Mars 分支还会使用 <code>time_0</code> 的小数部分修正中途 restart 时间。</p>
 <h2 id="并行调度">并行调度</h2>
 <pre class="text"><code>SetDistrib(jj_Nb_Caldyn)
   -&gt; caldyn_p / advtrac_p / integrd_p
@@ -85,7 +86,7 @@
 <li><a href="mod_hallo.html">mod_hallo</a>：<code>Register_Hallo</code>、<code>Register_SwapField</code>、<code>SendRequest</code>、<code>WaitRequest</code>。</li>
 <li><a href="../dynphy_lonlat/calfis_p.html">calfis_p</a>：并行动力-物理接口。</li>
 </ul>
-<h2 id="与-63-并行修复的接口核验">与 6.3 并行修复的接口核验</h2>
+<h2 id="与-并行修复的接口确认">与 并行修复的接口确认</h2>
 <ul>
 <li><code>parallel_lmdz</code> 的 <code>omp_chunk</code> 下调逻辑避免某些 hybrid run 中线程无工作却进入 <code>MPI_Waitall</code>。</li>
 <li>physics 配置读取通过 <code>ioipsl_getin_p_mod:is_master</code> 集中 master 判断。</li>
@@ -96,7 +97,7 @@
 <ul>
 <li>Mars 标准并行 GCM 关注 <code>calfis_p -&gt; addfi_p</code>、restart/history、halo/swap。</li>
 <li>Earth/generic/Titan/giant 分支不在本页展开。</li>
-<li>COMMON 6.3 已删除 <code>nogcm</code>，不再做 COMMON nogcm 对照。</li>
+<li>当前 COMMON 源码已删除 <code>nogcm</code>，不再做 COMMON nogcm 对照。</li>
 </ul>
 <h2 id="复现检查">复现检查</h2>
 <ol type="1">

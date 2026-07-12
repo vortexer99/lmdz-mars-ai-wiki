@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,8 +34,8 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="ppm3df">ppm3d.F</h1>
-<p>页面状态：TASK-0019 完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\ppm3d.F</code>。</p>
-<p>Mars 运行参与度：条件经过 + 历史兼容。<code>ppm3d</code> 是串行 <code>advtrac.F90</code> 中 <code>iadv=11/16/17/18</code> 的 PPM 三维 tracer 输送内核；但 6.3 <code>infotrac_init</code> 的最终白名单只允许 <code>iadv=10/14/0</code>，Mars 标准配置通常无法到达 PPM 分支。并行 <code>advtrac_p.F90</code> 在 <code>vlspltgen_p</code> 后 <code>GOTO 1234</code>，跳过 PPM/Prather/advn 等旧分支。因此本页主要用于理解保留源码、历史配置或本地补丁下的串行 PPM 路径。</p>
+<p>源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\ppm3d.F</code>。</p>
+<p>Mars 运行参与度：条件经过 + 历史兼容。<code>ppm3d</code> 是串行 <a href="../dyn3d/advtrac.html"><code>advtrac.F90</code></a> 中 <code>iadv=11/16/17/18</code> 的 PPM 三维 tracer 输送内核；但 <code>infotrac_init</code> 的最终白名单只允许 <code>iadv=10/14/0</code>，Mars 标准配置通常无法到达 PPM 分支。并行 <a href="../dyn3d/advtrac.html"><code>advtrac_p.F90</code></a> 在 <code>vlspltgen_p</code> 后 <code>GOTO 1234</code>，跳过 PPM/Prather/advn 等旧分支。因此本页主要用于理解保留源码、历史配置或本地补丁下的串行 PPM 路径。</p>
 <h2 id="文件定位">文件定位</h2>
 <p><code>ppm3d.F</code> 是 NASA/GSFC Transport Core Version 4.5 的 fixed-form Fortran 77 代码，核心算法来自 Lin and Rood 的多维 flux-form semi-Lagrangian transport。它不是 LMDZ 原生网格上的直接例程：串行 <code>advtrac</code> 先通过 <code>interpre</code> 把 LMDZ 层序、风和质量通量变成 PPM core 需要的格式，调用 <code>ppm3d</code> 后再由 <code>interpost</code> 写回。</p>
 <h2 id="公开入口和内部例程">公开入口和内部例程</h2>
@@ -100,7 +101,7 @@
 </tbody>
 </table>
 <h2 id="lmdz-调用边界">LMDZ 调用边界</h2>
-<p>串行 <code>advtrac.F90</code> 的 PPM 分支：</p>
+<p>串行 <a href="../dyn3d/advtrac.html"><code>advtrac.F90</code></a> 的 PPM 分支：</p>
 <pre class="text"><code>adaptdt(iadv, dtbon, n, ...)
   -&gt; vertical CFL warning check
   -&gt; interpre(q -&gt; qppm, winds/pressure/flux)
@@ -217,7 +218,7 @@ W(NLAY) = 0</code></pre>
 <thead>
 <tr>
 <th>路径</th>
-<th>6.3 行为</th>
+<th>当前行为</th>
 <th>是否到达 <code>ppm3d</code></th>
 </tr>
 </thead>
@@ -244,7 +245,7 @@ W(NLAY) = 0</code></pre>
 </tr>
 </tbody>
 </table>
-<p>这意味着 <code>ppm3d</code> 对 Mars wiki 的价值主要是解释保留源码和历史/本地补丁风险，而不是标准 6.3 Mars 主线的常规执行路径。</p>
+<p>这意味着 <code>ppm3d</code> 对 Mars wiki 的价值主要是解释保留源码和历史/本地补丁风险，而不是标准 Mars 主线的常规执行路径。</p>
 <h2 id="复现检查点">复现检查点</h2>
 <ol type="1">
 <li>先确认 <code>traceur.def</code> 能否产生 <code>iadv=11/16/17/18</code>，再确认是否绕过了 <code>infotrac_init</code> 白名单。</li>
@@ -256,7 +257,7 @@ W(NLAY) = 0</code></pre>
 </ol>
 <h2 id="相关页面">相关页面</h2>
 <ul>
-<li><a href="../../routines/ppm3d-entry-contract.html">ppm3d 入口契约与串并行可达性</a></li>
+<li><a href="../../routines/ppm3d-entry-contract.html">ppm3d 入口约定与串并行可达性</a></li>
 <li><a href="../../routines/ppm3d-horizontal-transport.html">ppm3d 水平输送</a></li>
 <li><a href="../../routines/ppm3d-vertical-transport.html">ppm3d 垂直输送</a></li>
 <li><a href="../../routines/ppm3d-limiters-filters.html">ppm3d limiter 和滤波</a></li>

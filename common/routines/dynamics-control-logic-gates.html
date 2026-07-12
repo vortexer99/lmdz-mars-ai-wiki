@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,7 +34,7 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="动力控制和逻辑门控链">动力控制和逻辑门控链</h1>
-<p>页面状态：TASK-0196 完成。 源码范围：</p>
+<p>源码范围：</p>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\conf_gcm.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\gcm.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\gcm.F
@@ -44,7 +45,7 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\logic_mod.F90</code></pre>
 <p>Mars 边界上下文：</p>
 <pre class="text"><code>LMDZ.MARS\libf\dynphy_lonlat\phymars\nogcm.F90
 LMDZ.MARS\libf\dynphy_lonlat\phymars\leapfrog_nogcm.F</code></pre>
-<p>Mars 运行参与度：必经到条件经过。COMMON 6.3 串行/并行 <code>gcm</code> 主入口经过本页的 <code>conf_gcm -&gt; control_mod/logic_mod -&gt; leapfrog*</code> 链；MARS <code>phymars/nogcm.F90</code> 也消费这些 COMMON 状态模块，但它不是 COMMON 6.3 源文件。后续 wiki 任务不得把 MARS <code>phymars/nogcm.F90</code> 或 <code>leapfrog_nogcm.F</code> 当成 COMMON 6.3 的文件页目标。</p>
+<p>Mars 运行参与度：必经到条件经过。COMMON 串行/并行 <code>gcm</code> 主入口经过本页的 <code>conf_gcm -&gt; control_mod/logic_mod -&gt; leapfrog*</code> 链；MARS <code>phymars/nogcm.F90</code> 也使用这些 COMMON 状态模块，但它不是 COMMON 源文件。后续维护不应把 MARS <code>phymars/nogcm.F90</code> 或 <code>leapfrog_nogcm.F</code> 当成 COMMON 当前文件页目标。</p>
 <h2 id="这个页面回答什么">这个页面回答什么</h2>
 <p><a href="common-state-control-contract.html">common-state-control-contract</a> 已经说明 <code>control_mod</code>、<code>logic_mod</code>、<code>temps_mod</code>、<code>comconst_mod</code> 各自保存什么状态。本页补充调用链问题：一个 <code>run.def/getin</code> 开关如何先被 <code>conf_gcm</code> 写入模块，再由 <code>gcm/gcm_p/nogcm</code> 做入口约束，最后在 <code>leapfrog*</code> 的每个时间步变成 <code>forward/leapf/apphys/apdiss</code> 等逻辑门控。</p>
 <h2 id="状态容器">状态容器</h2>
@@ -214,13 +215,13 @@ LMDZ.MARS\libf\dynphy_lonlat\phymars\leapfrog_nogcm.F</code></pre>
 <tr>
 <td>MARS <code>phymars/nogcm.F90</code></td>
 <td><code>CALL conf_gcm(99,.TRUE.)</code>，源码 155 行</td>
-<td>同样消费 <code>read_start</code>，但入口属于 MARS 树</td>
+<td>同样使用 <code>read_start</code>，但入口属于 MARS 树</td>
 <td>调用 COMMON 常量/几何初始化和 MARS physics 初始化</td>
 <td><code>CALL leapfrog_nogcm(...)</code>，源码 518 行。</td>
 </tr>
 </tbody>
 </table>
-<p><code>nogcm</code> 行只用于说明 MARS 边界：COMMON 6.3 已删除 <code>dyn3d/nogcm.F90</code> 和 <code>dyn3d/leapfrog_nogcm.F</code>，当前 COMMON wiki 不为它们创建文件页。</p>
+<p><code>nogcm</code> 行只用于说明 MARS 边界：当前 COMMON 源码已删除 <code>dyn3d/nogcm.F90</code> 和 <code>dyn3d/leapfrog_nogcm.F</code>，当前 COMMON wiki 不为它们创建文件页。</p>
 <h2 id="时间循环内的逻辑门">时间循环内的逻辑门</h2>
 <p><code>leapfrog.F</code> 和 <code>leapfrog_p.F</code> 使用相同的基础门控，后者再叠加 <code>SetDistrib</code>、halo/swap、gather 输出等并行调度。核心阶段如下：</p>
 <table>
@@ -230,7 +231,7 @@ LMDZ.MARS\libf\dynphy_lonlat\phymars\leapfrog_nogcm.F</code></pre>
 <th style="text-align: right;">串行行号</th>
 <th style="text-align: right;">并行行号</th>
 <th>生成逻辑</th>
-<th>主要消费者</th>
+<th>主要使用位置</th>
 </tr>
 </thead>
 <tbody>
@@ -356,21 +357,21 @@ LMDZ.MARS\libf\dynphy_lonlat\phymars\leapfrog_nogcm.F</code></pre>
 </table>
 <h2 id="待确认">待确认</h2>
 <ul>
-<li>MARS 标准生产脚本中完整串行 <code>gcm</code>、并行 <code>gcm</code> 和 MARS <code>nogcm</code> 的使用比例，需要结合具体实验脚本确认；源码只能证明这些入口都消费同一状态层。</li>
+<li>MARS 标准生产脚本中完整串行 <code>gcm</code>、并行 <code>gcm</code> 和 MARS <code>nogcm</code> 的使用比例，需要结合具体实验脚本确认；源码只能证明这些入口都使用同一状态层。</li>
 <li>MARS <code>nogcm.F90</code> 注释掉 <code>day_step/iphysiq</code> 整除检查的运行学原因未在源码附近说明，本页只记录事实。</li>
 <li><code>purmats</code> 在当前 Mars 配置中的实际启用场景需要运行配置样例确认。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>
-<li><a href="common-state-control-contract.html">COMMON 状态/控制契约</a></li>
+<li><a href="common-state-control-contract.html">COMMON 状态/控制约定</a></li>
 <li><a href="../modules/dyn3d/gcm.html">gcm 入口</a></li>
 <li><a href="../modules/dyn3dpar/gcm.html">并行 gcm 入口</a></li>
 <li><a href="../modules/dyn3d/conf_gcm.html">conf_gcm 配置</a></li>
-<li><a href="leapfrog-state-contract.html">leapfrog 状态契约</a></li>
+<li><a href="leapfrog-state-contract.html">leapfrog 状态约定</a></li>
 <li><a href="leapfrog-time-scheduler.html">leapfrog 时间调度</a></li>
 <li><a href="leapfrog-physics-coupling.html">leapfrog physics 耦合</a></li>
 <li><a href="leapfrog-output-restart.html">leapfrog 输出和 restart</a></li>
-<li><a href="guide-config-contract.html">guide 配置与初始化契约</a></li>
+<li><a href="guide-config-contract.html">guide 配置与初始化约定</a></li>
 <li><a href="guide-input-fields.html">guide 输入场读取</a></li>
 <li><a href="../themes/dynamics-time-integration.html">动力时间推进主题</a></li>
 </ul>

@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mars-thermosphere-chemistry - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a href="../../modules/libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../file-index.html">文件索引</a>
+        <a href="../source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta/mars-thermosphere-chemistry.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-热层与光化学">MARS 热层与光化学</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>覆盖 aeronomars、热层调度、分子扩散、光解和化学求解。</p>
+<p>兼容性关注：影响高层大气 tendency、化学物种、外部数据和 LAPACK 依赖。</p>
+<p>本页是 5.3 到 6.3 版本差异详情页，只解释改动职责与影响，不展开逐行代码差异。</p>
+<h2 id="变化统计">变化统计</h2>
+<p>本主题覆盖 55 个路径事件：新增 11、删除 16、修改 28。</p>
+<h2 id="主要变化">主要变化</h2>
+<ul>
+<li><code>chimiedata.h</code> 转为 <code>chemistrydata.F90</code>；<code>nirdata.h</code> 与 <code>nir_leedat.F</code> 合并到 <code>nirdata.F90</code>，多组 NLTE include 也转为 <code>_h.F90</code> 模块。</li>
+<li><code>libf/aeronomars/calchim_mod.F90</code>：把热层化学、光化学和沉降等调用改为显式模块接口，并将化学诊断从 WRITEDIAGFI 迁到统一 write_output。</li>
+<li><code>libf/aeronomars/chemistrydata.F90</code>：新增模块化化学数据容器，替代旧 chimiedata.h include。</li>
+<li><code>libf/aeronomars/chemthermos.F90</code>：更新源码文件 <code>chemthermos.F90</code>：新增 <code>chemthermos_mod</code>；新增模块依赖 <code>jthermcalc_e107_mod</code>、<code>paramfoto_compact_mod</code>。</li>
+<li><code>libf/aeronomars/chemthermos_readini.F</code>：更新源码文件 <code>chemthermos_readini.F</code>：新增 <code>chemthermos_readini_mod</code>；新增调用 <code>abort_physic</code>。</li>
+<li><code>libf/aeronomars/chimiedata.h</code>：移除旧化学数据 include；6.3 由 chemistrydata 模块承接共享化学状态。</li>
+<li><code>libf/aeronomars/concentrations.F</code>：删除旧 concentrations.F；r、cp、平均摩尔质量和热导率状态更新已由 conc_mod 的 init_r_cp_mu/update_r_cp_mu_ak 承接。</li>
+<li><code>libf/aeronomars/conduction.F</code>：更新源码文件 <code>conduction.F</code>：新增 <code>conduction_mod</code>。</li>
+<li><code>libf/aeronomars/deposition.F</code>：更新源码文件 <code>deposition.F</code>：新增 <code>deposition_mod</code>。</li>
+<li><code>libf/aeronomars/diffusion.h</code>：移除热层分子扩散使用的旧共享 include，相关状态改由模块化接口管理。</li>
+<li><code>libf/aeronomars/dtridgl.F</code>：移除 aeronomars 中重复的 DTRIDGL 实现；6.3 继续使用 phymars/swr_toon.F 内保留的同名三对角求解例程。</li>
+<li><code>libf/aeronomars/euvheat.F90</code>：模块化 EUV 加热，移除未使用的 ptime 接口参数，并通过 hrtherm_mod 与统一物理状态计算 EUV 温度 tendency。</li>
+<li><code>libf/aeronomars/hrtherm.F</code>：更新源码文件 <code>hrtherm.F</code>：新增 <code>hrtherm_mod</code>；新增模块依赖 <code>jthermcalc_e107_mod</code>。</li>
+<li>其余 43 项见下表和全量索引。</li>
+</ul>
+<h2 id="受影响路径">受影响路径</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>5.3 路径</th>
+<th>6.3 路径</th>
+<th>类型</th>
+<th>SHA-256 核验</th>
+<th>改动概述</th>
+<th>官方记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>M-0050</code></td>
+<td><code>libf/aeronomars/calchim_mod.F90</code></td>
+<td><code>libf/aeronomars/calchim_mod.F90</code></td>
+<td>修改</td>
+<td><code>7d5a21251116→0c18538638ec</code>（已核验）</td>
+<td>把热层化学、光化学和沉降等调用改为显式模块接口，并将化学诊断从 WRITEDIAGFI 迁到统一 write_output。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">03/04/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">10/02/2026，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0051</code></td>
+<td>—</td>
+<td><code>libf/aeronomars/chemistrydata.F90</code></td>
+<td>新增</td>
+<td><code>—→3d106a9e98cb</code>（已核验）</td>
+<td>新增模块化化学数据容器，替代旧 chimiedata.h include。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">24/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0052</code></td>
+<td><code>libf/aeronomars/chemthermos.F90</code></td>
+<td><code>libf/aeronomars/chemthermos.F90</code></td>
+<td>修改</td>
+<td><code>9161b947b5d9→34d059c0a1ef</code>（已核验）</td>
+<td>更新源码文件 <code>chemthermos.F90</code>：新增 <code>chemthermos_mod</code>；新增模块依赖 <code>jthermcalc_e107_mod</code>、<code>paramfoto_compact_mod</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">18/10/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0053</code></td>
+<td><code>libf/aeronomars/chemthermos_readini.F</code></td>
+<td><code>libf/aeronomars/chemthermos_readini.F</code></td>
+<td>修改</td>
+<td><code>f28e50a6c08e→bdb6327c2ff5</code>（已核验）</td>
+<td>更新源码文件 <code>chemthermos_readini.F</code>：新增 <code>chemthermos_readini_mod</code>；新增调用 <code>abort_physic</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0054</code></td>
+<td><code>libf/aeronomars/chimiedata.h</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>60e59dbd56c8→—</code>（已核验）</td>
+<td>移除旧化学数据 include；6.3 由 chemistrydata 模块承接共享化学状态。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">24/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0055</code></td>
+<td><code>libf/aeronomars/concentrations.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>642fa82c4f68→—</code>（已核验）</td>
+<td>删除旧 concentrations.F；r、cp、平均摩尔质量和热导率状态更新已由 conc_mod 的 init_r_cp_mu/update_r_cp_mu_ak 承接。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/12/2023，CS</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">26/01/2024，CS</a></td>
+</tr>
+<tr>
+<td><code>M-0056</code></td>
+<td><code>libf/aeronomars/conduction.F</code></td>
+<td><code>libf/aeronomars/conduction.F</code></td>
+<td>修改</td>
+<td><code>59bc9434fc95→eeb791477243</code>（已核验）</td>
+<td>更新源码文件 <code>conduction.F</code>：新增 <code>conduction_mod</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">13/12/2023，CS</a></td>
+</tr>
+<tr>
+<td><code>M-0057</code></td>
+<td><code>libf/aeronomars/deposition.F</code></td>
+<td><code>libf/aeronomars/deposition.F</code></td>
+<td>修改</td>
+<td><code>2454fbd30da1→e6364d49ba6a</code>（已核验）</td>
+<td>更新源码文件 <code>deposition.F</code>：新增 <code>deposition_mod</code>。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/10/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0058</code></td>
+<td><code>libf/aeronomars/diffusion.h</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>1173fbfe3cd0→—</code>（已核验）</td>
+<td>移除热层分子扩散使用的旧共享 include，相关状态改由模块化接口管理。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">25/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0059</code></td>
+<td><code>libf/aeronomars/dtridgl.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>02cdd1e956f9→—</code>（已核验）</td>
+<td>移除 aeronomars 中重复的 DTRIDGL 实现；6.3 继续使用 phymars/swr_toon.F 内保留的同名三对角求解例程。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/10/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0060</code></td>
+<td><code>libf/aeronomars/euvheat.F90</code></td>
+<td><code>libf/aeronomars/euvheat.F90</code></td>
+<td>修改</td>
+<td><code>e10fb58513ae→3de27980a933</code>（已核验）</td>
+<td>模块化 EUV 加热，移除未使用的 ptime 接口参数，并通过 hrtherm_mod 与统一物理状态计算 EUV 温度 tendency。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">13/12/2023，CS</a></td>
+</tr>
+<tr>
+<td><code>M-0061</code></td>
+<td><code>libf/aeronomars/hrtherm.F</code></td>
+<td><code>libf/aeronomars/hrtherm.F</code></td>
+<td>修改</td>
+<td><code>7dac4b6e337b→dfb1abf8d23a</code>（已核验）</td>
+<td>更新源码文件 <code>hrtherm.F</code>：新增 <code>hrtherm_mod</code>；新增模块依赖 <code>jthermcalc_e107_mod</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">18/10/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0062</code></td>
+<td><code>libf/aeronomars/inichim_newstart.F90</code></td>
+<td><code>libf/aeronomars/inichim_newstart.F90</code></td>
+<td>修改</td>
+<td><code>3943a206b40c→c25687a10056</code>（已核验）</td>
+<td>更新源码文件 <code>inichim_newstart.F90</code>：新增模块依赖 <code>intrplf_mod</code>、<code>callkeys_mod</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0063</code></td>
+<td><code>libf/aeronomars/intrplf.F</code></td>
+<td><code>libf/aeronomars/intrplf.F</code></td>
+<td>修改</td>
+<td><code>9e99cfcc3c46→7b76762e4b3f</code>（已核验）</td>
+<td>将一维查表插值封装为 intrplf_mod，并为 x/xd/yd/y 增加显式输入输出契约。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0064</code></td>
+<td><code>libf/aeronomars/inv.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>402a50227e9e→—</code>（已核验）</td>
+<td>移除源码文件 <code>inv.F</code>，其中定义 <code>inv</code>；该实现不再随 6.3 分发。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/10/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0065</code></td>
+<td><code>libf/aeronomars/jthermcalc.F</code></td>
+<td><code>libf/aeronomars/jthermcalc.F</code></td>
+<td>修改</td>
+<td><code>088cf89c33a4→9c79130aca6d</code>（已核验）</td>
+<td>将 column、interfast、espesor_optico_A 和 flujo 辅助例程拆到 jthermcalc_util.F，jthermcalc_mod 继续调用这些热层辐射工具。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">18/10/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0066</code></td>
+<td><code>libf/aeronomars/jthermcalc_e107.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>e8dfcedb8af4→—</code>（已核验）</td>
+<td>移除旧 jthermcalc_e107.F；6.3 由 jthermcalc_e107_mod.F 模块承接同名热层辐射计算。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">18/10/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0067</code></td>
+<td>—</td>
+<td><code>libf/aeronomars/jthermcalc_e107_mod.F</code></td>
+<td>新增</td>
+<td><code>—→3cb900a38162</code>（已核验）</td>
+<td>新增模块化 jthermcalc_e107 热层辐射计算，结合柱含量、光学厚度和 E10.7 输入求取高层加热率。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">18/10/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0068</code></td>
+<td>—</td>
+<td><code>libf/aeronomars/jthermcalc_util.F</code></td>
+<td>新增</td>
+<td><code>—→c276dac6eb54</code>（已核验）</td>
+<td>新增热层辐射辅助模块，集中提供柱含量、快速插值和光学厚度计算，供 jthermcalc_e107 模块调用。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">18/10/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0069</code></td>
+<td><code>libf/aeronomars/moldiff.F</code></td>
+<td><code>libf/aeronomars/moldiff.F</code></td>
+<td>修改</td>
+<td><code>6650c1883929→14cf737c85f5</code>（已核验）</td>
+<td>更新源码文件 <code>moldiff.F</code>：新增 <code>moldiff_mod</code>；新增模块依赖 <code>moldiffcoeff_mod</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">13/12/2023，CS</a></td>
+</tr>
+<tr>
+<td><code>M-0070</code></td>
+<td>—</td>
+<td><code>libf/aeronomars/moldiff_MPF.F90</code></td>
+<td>新增</td>
+<td><code>—→ba6d25baec22</code>（已核验）</td>
+<td>新增多组分分子扩散实现及可选质量修正。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/09/2024，JYC+EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/03/2026，YCL</a></td>
+</tr>
+<tr>
+<td><code>M-0071</code></td>
+<td><code>libf/aeronomars/moldiff_red.F90</code></td>
+<td><code>libf/aeronomars/moldiff_red.F90</code></td>
+<td>修改</td>
+<td><code>fa55a383cc5b→1bce352bb510</code>（已核验）</td>
+<td>模块化简化分子扩散并收窄接口：移除外传高度及 EUV/传导 tendency，只返回 tracer 分子扩散增量 pdqdiff。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">25/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0072</code></td>
+<td><code>libf/aeronomars/moldiffcoeff.F</code></td>
+<td><code>libf/aeronomars/moldiffcoeff.F</code></td>
+<td>修改</td>
+<td><code>9b90bc303826→719f4a48c59e</code>（已核验）</td>
+<td>更新源码文件 <code>moldiffcoeff.F</code>：新增 <code>moldiffcoeff_mod</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0073</code></td>
+<td><code>libf/aeronomars/moldiffcoeff_red.F</code></td>
+<td><code>libf/aeronomars/moldiffcoeff_red.F</code></td>
+<td>修改</td>
+<td><code>83d291e3e5d4→c78c09cfa3b9</code>（已核验）</td>
+<td>更新源码文件 <code>moldiffcoeff_red.F</code>：新增 <code>moldiffcoeff_red_mod</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">25/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0074</code></td>
+<td><code>libf/aeronomars/molvis.F</code></td>
+<td><code>libf/aeronomars/molvis.F</code></td>
+<td>修改</td>
+<td><code>0ef82c3b34b0→e4a381ab31f4</code>（已核验）</td>
+<td>模块化分子黏性计算，并将分离的 EUV/传导温度增量合并为统一 pdt 输入，继续利用公共层高场计算黏性 tendency。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">13/12/2023，CS</a></td>
+</tr>
+<tr>
+<td><code>M-0075</code></td>
+<td><code>libf/aeronomars/param_read.F</code></td>
+<td><code>libf/aeronomars/param_read.F</code></td>
+<td>修改</td>
+<td><code>66a84efe7b48→63de20f8045a</code>（已核验）</td>
+<td>更新源码文件 <code>param_read.F</code>：新增 <code>param_read_mod</code>。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/10/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0076</code></td>
+<td><code>libf/aeronomars/param_read_e107.F</code></td>
+<td><code>libf/aeronomars/param_read_e107.F</code></td>
+<td>修改</td>
+<td><code>1737bbc44d34→006d16513a56</code>（已核验）</td>
+<td>模块化 E10.7 太阳输入读取，并把可选火星年范围扩展到 MY36/MY37，错误提示同步更新为 24–37。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">25/03/2023，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/01/2026，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0077</code></td>
+<td><code>libf/aeronomars/paramfoto_compact.F</code></td>
+<td><code>libf/aeronomars/paramfoto_compact.F</code></td>
+<td>修改</td>
+<td><code>be75f4059192→370e384ff8e8</code>（已核验）</td>
+<td>更新源码文件 <code>paramfoto_compact.F</code>：新增 <code>paramfoto_compact_mod</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">18/10/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0078</code></td>
+<td><code>libf/aeronomars/perosat.F</code></td>
+<td><code>libf/aeronomars/perosat.F</code></td>
+<td>修改</td>
+<td><code>590b6ef0634e→f020701883c1</code>（已核验）</td>
+<td>更新源码文件 <code>perosat.F</code>：新增 <code>perosat_mod</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0079</code></td>
+<td><code>libf/aeronomars/photochemistry.F90</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>6aff4e622c04→—</code>（已核验）</td>
+<td>移除旧 photochemistry.F90；6.3 由 photochemistry_mod.F90 的模块化接口承接光化学矩阵求解。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">18/10/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0080</code></td>
+<td>—</td>
+<td><code>libf/aeronomars/photochemistry_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→faa98165fefb</code>（已核验）</td>
+<td>新增模块化光化学求解接口，并明确依赖 LAPACK dgesv。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">18/10/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0081</code></td>
+<td><code>libf/aeronomars/photolysis.F90</code></td>
+<td><code>libf/aeronomars/photolysis.F90</code></td>
+<td>修改</td>
+<td><code>9581ddb614f4→7108491667b4</code>（已核验）</td>
+<td>模块化光解率插值计算，改用 chemistrydata_mod 管理太阳天顶角、光学厚度和柱含量查找表，并显式约束输入输出接口。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0082</code></td>
+<td><code>libf/aeronomars/photolysis_mod.F90</code></td>
+<td><code>libf/aeronomars/photolysis_mod.F90</code></td>
+<td>修改</td>
+<td><code>f18f9d40ef04→c3c69b1ad082</code>（已核验）</td>
+<td>增加 HCl、Cl2、ClO 和 HOCl 光解吸收截面的 datadir 读取、波长网格化与模块状态管理。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0083</code></td>
+<td><code>libf/aeronomars/photolysis_online.F</code></td>
+<td><code>libf/aeronomars/photolysis_online.F</code></td>
+<td>修改</td>
+<td><code>6a768b47431c→f7a949c43d6a</code>（已核验）</td>
+<td>将在线光解封装为 photolysis_online_mod，并把 UV 辐射、气溶胶和云光学计算扩展到含顶层边界的 nlayer+1 垂直层。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/10/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0084</code></td>
+<td><code>libf/aeronomars/read_phototable.F90</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>e0de5ca1b5db→—</code>（已核验）</td>
+<td>移除独立 read_phototable.F90；光解表读取职责已并入 chemistrydata.F90。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">24/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0085</code></td>
+<td><code>libf/aeronomars/surfacearea.F</code></td>
+<td><code>libf/aeronomars/surfacearea.F</code></td>
+<td>修改</td>
+<td><code>556be0267b65→88a23aa429f2</code>（已核验）</td>
+<td>更新源码文件 <code>surfacearea.F</code>：新增 <code>surfacearea_mod</code>；新增模块依赖 <code>write_output_mod</code>、<code>callkeys_mod</code>。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/10/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0086</code></td>
+<td><code>libf/aeronomars/thermosphere.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>0617b7f90d52→—</code>（已核验）</td>
+<td>移除旧独立 thermosphere.F；6.3 由 thermosphere_mod.F 模块承接热层物理调度。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">25/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0087</code></td>
+<td>—</td>
+<td><code>libf/aeronomars/thermosphere_mod.F</code></td>
+<td>新增</td>
+<td><code>—→849322cd36d6</code>（已核验）</td>
+<td>新增源码文件 <code>thermosphere_mod.F</code>，其中定义 <code>thermosphere_mod</code>、<code>thermosphere</code>；该实现进入 6.3。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">25/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0194</code></td>
+<td><code>libf/phymars/nir_leedat.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>a046c34fdea7→—</code>（已核验）</td>
+<td>移除独立近红外数据读取例程；6.3 由 nirdata 模块统一承接。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0196</code></td>
+<td>—</td>
+<td><code>libf/phymars/nirdata.F90</code></td>
+<td>新增</td>
+<td><code>—→68498b62c12f</code>（已核验）</td>
+<td>新增近红外数据模块，合并旧 nirdata.h 状态和 nir_leedat.F 读取职责。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0197</code></td>
+<td><code>libf/phymars/nirdata.h</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>b0f6d0fcfcf1→—</code>（已核验）</td>
+<td>移除旧近红外数据 include；相关数据与读取职责并入 nirdata 模块。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0198</code></td>
+<td><code>libf/phymars/nlte_aux.F</code></td>
+<td><code>libf/phymars/nlte_aux.F</code></td>
+<td>修改</td>
+<td><code>f1101130c943→3c86ff79df5a</code>（已核验）</td>
+<td>更新源码文件 <code>nlte_aux.F</code>：新增模块依赖 <code>nlte_paramdef_h</code>、<code>nlte_commons_h</code>；新增条件编译边界 <code>MESOSCALE</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0199</code></td>
+<td><code>libf/phymars/nlte_calc.F</code></td>
+<td><code>libf/phymars/nlte_calc.F</code></td>
+<td>修改</td>
+<td><code>0a4c6fda9267→c8b784a421a7</code>（已核验）</td>
+<td>更新源码文件 <code>nlte_calc.F</code>：新增模块依赖 <code>nlte_tcool_mod</code>、<code>nlte_paramdef_h</code>、<code>nlte_commons_h</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0200</code></td>
+<td><code>libf/phymars/nlte_commons.h</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>1e16c261bdcf→—</code>（已核验）</td>
+<td>移除旧 NLTE 公共状态 include；6.3 由 nlte_commons_h 模块承接。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0201</code></td>
+<td>—</td>
+<td><code>libf/phymars/nlte_commons_h.F90</code></td>
+<td>新增</td>
+<td><code>—→9e9a3b84f3ab</code>（已核验）</td>
+<td>新增源码文件 <code>nlte_commons_h.F90</code>，其中定义 <code>nlte_commons_h</code>；该实现进入 6.3。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0202</code></td>
+<td><code>libf/phymars/nlte_paramdef.h</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>1a650312c106→—</code>（已核验）</td>
+<td>移除旧 NLTE 参数定义 include；6.3 由 nlte_paramdef_h 模块承接。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0203</code></td>
+<td>—</td>
+<td><code>libf/phymars/nlte_paramdef_h.F90</code></td>
+<td>新增</td>
+<td><code>—→2e98086f27ce</code>（已核验）</td>
+<td>新增源码文件 <code>nlte_paramdef_h.F90</code>，其中定义 <code>nlte_paramdef_h</code>；该实现进入 6.3。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0204</code></td>
+<td><code>libf/phymars/nlte_setup.F</code></td>
+<td><code>libf/phymars/nlte_setup.F</code></td>
+<td>修改</td>
+<td><code>ebe07989a387→48bf3ccf6d72</code>（已核验）</td>
+<td>更新源码文件 <code>nlte_setup.F</code>：新增模块依赖 <code>nlte_paramdef_h</code>、<code>nlte_commons_h</code>；新增条件编译边界 <code>MESOSCALE</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0205</code></td>
+<td><code>libf/phymars/nlte_tcool.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>f94b31a3a257→—</code>（已核验）</td>
+<td>移除旧 nlte_tcool.F；6.3 由 nlte_tcool_mod.F 模块承接 NLTE 冷却率插值职责。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">24/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0206</code></td>
+<td>—</td>
+<td><code>libf/phymars/nlte_tcool_mod.F</code></td>
+<td>新增</td>
+<td><code>—→e76651a2216a</code>（已核验）</td>
+<td>新增承接 nlte_tcool.F 的模块化实现，保留 NLTE 冷却率插值职责。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">24/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0207</code></td>
+<td><code>libf/phymars/nltecool.F</code></td>
+<td><code>libf/phymars/nltecool.F</code></td>
+<td>修改</td>
+<td><code>598f8c7a811d→9a06b0e1be1e</code>（已核验）</td>
+<td>更新源码文件 <code>nltecool.F</code>：新增 <code>nltecool_mod</code>；新增模块依赖 <code>callkeys_mod</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">24/07/2023，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">26/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0208</code></td>
+<td><code>libf/phymars/nltedata.h</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>e3fb850dd194→—</code>（已核验）</td>
+<td>移除旧 NLTE 数据公共块，相关数据访问并入模块化 NLTE 接口。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">26/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0209</code></td>
+<td><code>libf/phymars/nlteparams.h</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>ea2e7f3f7135→—</code>（已核验）</td>
+<td>移除旧 LTE/NLTE 参数 include；6.3 由 nlteparams_h 模块承接。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">26/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0210</code></td>
+<td>—</td>
+<td><code>libf/phymars/nlteparams_h.F90</code></td>
+<td>新增</td>
+<td><code>—→39c299fdecd5</code>（已核验）</td>
+<td>新增源码文件 <code>nlteparams_h.F90</code>，其中定义 <code>nlteparams_h</code>；该实现进入 6.3。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">26/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0211</code></td>
+<td><code>libf/phymars/nlthermeq.F</code></td>
+<td><code>libf/phymars/nlthermeq.F</code></td>
+<td>修改</td>
+<td><code>b1577f4124de→62ae3a71f805</code>（已核验）</td>
+<td>更新源码文件 <code>nlthermeq.F</code>：新增 <code>nlthermeq_mod</code>；新增模块依赖 <code>nlteparams_h</code>、<code>callkeys_mod</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">26/07/2023，EM</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="证据边界">证据边界</h2>
+<ul>
+<li>路径状态和哈希关系来自两棵本地快照的机械比较。</li>
+<li>官方记录来自 MARS Changelog 增量；COMMON 命中仅表示间接记录。</li>
+<li>未找到 Changelog 条目不等于改动无意义，只表示没有可直接关联的官方文字记录。</li>
+<li>本页不把未运行的数值或性能影响写成既定事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../version-delta-index.html">全量变更索引</a></li>
+<li><a href="../../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

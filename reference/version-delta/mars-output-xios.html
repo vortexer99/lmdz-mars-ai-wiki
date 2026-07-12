@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mars-output-xios - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a href="../../modules/libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../file-index.html">文件索引</a>
+        <a href="../source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta/mars-output-xios.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-xiosdiagfi-与统一输出">MARS XIOS、diagfi 与统一输出</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>覆盖 write_output、XIOS 封装、XML 配置和旧输出路径清理。</p>
+<p>兼容性关注：影响诊断字段注册、输出后端、文件名和性能。</p>
+<p>本页是 5.3 到 6.3 版本差异详情页，只解释改动职责与影响，不展开逐行代码差异。</p>
+<h2 id="变化统计">变化统计</h2>
+<p>本主题覆盖 16 个路径事件：新增 5、删除 5、修改 6。</p>
+<h2 id="主要变化">主要变化</h2>
+<ul>
+<li><code>deftank/context_lmdz_physics.xml</code>：移除 deftank 根目录旧 XIOS context；6.3 在 deftank/xios/ 下集中组织 XML。</li>
+<li><code>deftank/field_def_physics_mars.xml</code>：移除 deftank 根目录中的旧 MARS XIOS 字段定义；6.3 由 deftank/xios/ 下的新字段配置承接。</li>
+<li><code>deftank/iodef.xml</code>：移除 deftank 根目录旧 XIOS 入口；6.3 迁入 deftank/xios/。</li>
+<li><code>deftank/xios/context_pcm_physics.xml</code>：在 deftank/xios/ 新增 PCM 物理 context，承接旧根目录 XIOS context 职责。</li>
+<li><code>deftank/xios/field_def_physics.xml</code>：将 XIOS 字段定义集中到 deftank/xios/ 子目录。</li>
+<li><code>deftank/xios/file_def_physics.xml</code>：将 XIOS 文件定义集中到 deftank/xios/ 子目录。</li>
+<li><code>deftank/xios/iodef.xml</code>：将 XIOS 主入口集中到 deftank/xios/ 子目录。</li>
+<li><code>libf/phymars/eofdump_mod.F90</code>：删除废弃的 EOF 诊断输出模块；对应 calleofdump 配置开关也从当前物理配置中移除。</li>
+<li><code>libf/phymars/time_phylmdz_mod.F90</code>：用 steps_per_sol 和 outputs_per_sol 替代 day_step/ecritphy，新增 slow_diagfi，并由 daysec/dtphys 统一计算每 sol 的物理步数与诊断采样节奏。</li>
+<li><code>libf/phymars/write_output_mod.F90</code>：新增统一诊断输出接口，同时桥接传统 diagfi 与 XIOS。</li>
+<li><code>libf/phymars/writediagfi.F</code>：改用 steps_per_sol、outputs_per_sol 和 isample 采样，增加 slow_diagfi 的 1D 单次开关文件、收尾状态与日期换算分支。</li>
+<li><code>libf/phymars/writediagmicrofi.F</code>：将诊断采样节奏统一到 steps_per_sol、outputs_per_sol 和 isample，并相应调整 diagfi 文件的打开、关闭与日期换算。</li>
+<li>其余 4 项见下表和全量索引。</li>
+</ul>
+<h2 id="受影响路径">受影响路径</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>5.3 路径</th>
+<th>6.3 路径</th>
+<th>类型</th>
+<th>SHA-256 核验</th>
+<th>改动概述</th>
+<th>官方记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>M-0018</code></td>
+<td><code>deftank/context_lmdz_physics.xml</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>a679316e3487→—</code>（已核验）</td>
+<td>移除 deftank 根目录旧 XIOS context；6.3 在 deftank/xios/ 下集中组织 XML。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/02/2026，JBC</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">18/05/2026，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0019</code></td>
+<td><code>deftank/field_def_physics_mars.xml</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>429161b78aaf→—</code>（已核验）</td>
+<td>移除 deftank 根目录中的旧 MARS XIOS 字段定义；6.3 由 deftank/xios/ 下的新字段配置承接。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">17/05/2023，AB</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/02/2026，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0020</code></td>
+<td><code>deftank/iodef.xml</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>82ca1f7ec1de→—</code>（已核验）</td>
+<td>移除 deftank 根目录旧 XIOS 入口；6.3 迁入 deftank/xios/。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/02/2026，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0044</code></td>
+<td>—</td>
+<td><code>deftank/xios/context_pcm_physics.xml</code></td>
+<td>新增</td>
+<td><code>—→661b897a425e</code>（已核验）</td>
+<td>在 deftank/xios/ 新增 PCM 物理 context，承接旧根目录 XIOS context 职责。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/02/2026，JBC</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">18/05/2026，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0045</code></td>
+<td>—</td>
+<td><code>deftank/xios/field_def_physics.xml</code></td>
+<td>新增</td>
+<td><code>—→48231a3bfa64</code>（已核验）</td>
+<td>将 XIOS 字段定义集中到 deftank/xios/ 子目录。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">02/04/2026，JBC</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/02/2026，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0046</code></td>
+<td>—</td>
+<td><code>deftank/xios/file_def_physics.xml</code></td>
+<td>新增</td>
+<td><code>—→d8c1d877c1e9</code>（已核验）</td>
+<td>将 XIOS 文件定义集中到 deftank/xios/ 子目录。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">04/06/2026，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/02/2026，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0047</code></td>
+<td>—</td>
+<td><code>deftank/xios/iodef.xml</code></td>
+<td>新增</td>
+<td><code>—→6f2ffa6d9f17</code>（已核验）</td>
+<td>将 XIOS 主入口集中到 deftank/xios/ 子目录。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/02/2026，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0160</code></td>
+<td><code>libf/phymars/eofdump_mod.F90</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>cb53aa84c28a→—</code>（已核验）</td>
+<td>删除废弃的 EOF 诊断输出模块；对应 calleofdump 配置开关也从当前物理配置中移除。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">10/02/2026，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0259</code></td>
+<td><code>libf/phymars/time_phylmdz_mod.F90</code></td>
+<td><code>libf/phymars/time_phylmdz_mod.F90</code></td>
+<td>修改</td>
+<td><code>9892417247ca→15388382515f</code>（已核验）</td>
+<td>用 steps_per_sol 和 outputs_per_sol 替代 day_step/ecritphy，新增 slow_diagfi，并由 daysec/dtphys 统一计算每 sol 的物理步数与诊断采样节奏。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">8/09/2023，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0274</code></td>
+<td>—</td>
+<td><code>libf/phymars/write_output_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→00959666fdab</code>（已核验）</td>
+<td>新增统一诊断输出接口，同时桥接传统 diagfi 与 XIOS。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">18/10/2023，JBC</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">03/01/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0275</code></td>
+<td><code>libf/phymars/writediagfi.F</code></td>
+<td><code>libf/phymars/writediagfi.F</code></td>
+<td>修改</td>
+<td><code>4f86bfe10739→6bef08b4e330</code>（已核验）</td>
+<td>改用 steps_per_sol、outputs_per_sol 和 isample 采样，增加 slow_diagfi 的 1D 单次开关文件、收尾状态与日期换算分支。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">18/10/2023，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0276</code></td>
+<td><code>libf/phymars/writediagmicrofi.F</code></td>
+<td><code>libf/phymars/writediagmicrofi.F</code></td>
+<td>修改</td>
+<td><code>2f18375295d1→5e3147fc8092</code>（已核验）</td>
+<td>将诊断采样节奏统一到 steps_per_sol、outputs_per_sol 和 isample，并相应调整 diagfi 文件的打开、关闭与日期换算。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/06/2024，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/11/2025，JM</a></td>
+</tr>
+<tr>
+<td><code>M-0277</code></td>
+<td><code>libf/phymars/writediagsoil.F90</code></td>
+<td><code>libf/phymars/writediagsoil.F90</code></td>
+<td>修改</td>
+<td><code>15a86a7e1a3e→1b1671ae3deb</code>（已核验）</td>
+<td>修正 1D 并行模式的土壤诊断收集，避免 diagsoil 写入无意义数据，并同步模块依赖。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/02/2024，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0278</code></td>
+<td><code>libf/phymars/writeg1d.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>854b605273b7→—</code>（已核验）</td>
+<td>移除源码文件 <code>writeg1d.F</code>，其中定义 <code>writeg1d</code>、<code>endg1d</code>；该实现不再随 6.3 分发。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0279</code></td>
+<td><code>libf/phymars/wstats_mod.F90</code></td>
+<td><code>libf/phymars/wstats_mod.F90</code></td>
+<td>修改</td>
+<td><code>e4bf79991707→83ff3c201185</code>（已核验）</td>
+<td>改为由 master 读取 stats.def 后广播配置，并修正 1D gather 与首个统计变量选择，使 stats.nc 输出兼容并行和单列模式。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/03/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0280</code></td>
+<td><code>libf/phymars/xios_output_mod.F90</code></td>
+<td><code>libf/phymars/xios_output_mod.F90</code></td>
+<td>修改</td>
+<td><code>f149c417013c→2eb8977742ca</code>（已核验）</td>
+<td>为 XIOS 输出增加 subslope 轴及带字段名/维度的错误上下文；因混合 MPI/OpenMP 兼容问题停用交互式 active-field 检查。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/03/2023，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">03/01/2024，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">19/02/2024，EM</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="证据边界">证据边界</h2>
+<ul>
+<li>路径状态和哈希关系来自两棵本地快照的机械比较。</li>
+<li>官方记录来自 MARS Changelog 增量；COMMON 命中仅表示间接记录。</li>
+<li>未找到 Changelog 条目不等于改动无意义，只表示没有可直接关联的官方文字记录。</li>
+<li>本页不把未运行的数值或性能影响写成既定事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../version-delta-index.html">全量变更索引</a></li>
+<li><a href="../../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

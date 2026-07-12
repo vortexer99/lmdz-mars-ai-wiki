@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -32,11 +33,11 @@
       <span>routines/leapfrog-p-state-contract.md</span>
     </nav>
     <article class="content" data-pagefind-body>
-<h1 id="leapfrog_p-状态契约">leapfrog_p 状态契约</h1>
-<p>页面状态：TASK-0126 完成。 源码范围：</p>
+<h1 id="leapfrog_p-状态约定">leapfrog_p 状态约定</h1>
+<p>源码范围：</p>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\gcm.F
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\leapfrog_p.F</code></pre>
-<p>Mars 运行参与度：条件经过。Mars 并行 GCM 构建经过 <code>dyn3dpar/gcm.F -&gt; leapfrog_p</code>；串行 Mars GCM 和 MARS <code>phymars/nogcm.F90</code> 不经过本并行主循环。COMMON 6.3 已删除 COMMON <code>nogcm</code>，本页只讨论 <code>dyn3dpar</code> 并行入口。</p>
+<p>Mars 运行参与度：条件经过。Mars 并行 GCM 构建经过 <code>dyn3dpar/gcm.F -&gt; leapfrog_p</code>；串行 Mars GCM 和 MARS <code>phymars/nogcm.F90</code> 不经过本并行主循环。当前 COMMON 源码已删除 COMMON <code>nogcm</code>，本页只讨论 <code>dyn3dpar</code> 并行入口。</p>
 <h2 id="入口调用点">入口调用点</h2>
 <p><code>dyn3dpar/gcm.F</code> 在完成 <code>conf_gcm</code>、MPI/OMP 初始化、band/halo 初始化、tracer 分配、<code>dynetat0</code> 或 <code>iniacademic</code>、<code>iniconst/inigeom/inidissip</code>、<code>iniphysiq</code>、history/restart 初始化后进入 OpenMP parallel 区：</p>
 <pre class="text"><code>gcm.F 556: c$OMP PARALLEL DEFAULT(SHARED)
@@ -238,7 +239,7 @@ gcm.F 569: c$OMP END PARALLEL</code></pre>
 </tbody>
 </table>
 <p><code>dq</code>, <code>dqfi</code>, <code>dqfi_tmp</code> 在 262-272 行只由 OpenMP master 在线程第一次调用时分配，然后 barrier 同步。它们的第三维固定为当前 <code>nqtot</code>，因此 <code>infotrac_init</code> 必须在 <code>gcm.F</code> 调用 <code>leapfrog_p</code> 前完成。</p>
-<h2 id="初始化契约">初始化契约</h2>
+<h2 id="初始化约定">初始化约定</h2>
 <p>进入主循环前，<code>leapfrog_p</code> 先建立运行终止步和初始 thermodynamic state：</p>
 <ol type="1">
 <li>237-250 行由 <code>nday/day_step/less1day/fractday/ndynstep</code> 计算 <code>itaufin</code> 和 <code>itaufinp1</code>。</li>
@@ -256,7 +257,7 @@ gcm.F 569: c$OMP END PARALLEL</code></pre>
 <li>输出和 restart 前会 <code>Gather_Field</code>，如 1691-1701、1764-1773 行，把字段收集到 root/rank 0 写出。</li>
 <li>physics tendency 在 <code>calfis_p</code> 后通过 <code>Register_Hallo</code>/<code>SendRequest</code>/<code>WaitRequest</code> 合并边界，再用 <code>_tmp</code> 数组叠加回本 rank 切片。</li>
 </ul>
-<p>因此 <code>leapfrog_p</code> 的状态契约不是“全局数组直接全局写”，而是“全局形状数组 + 当前 band/halo 约定 + root gather 写出”。</p>
+<p>因此 <code>leapfrog_p</code> 的状态约定不是“全局数组直接全局写”，而是“全局形状数组 + 当前 band/halo 约定 + root gather 写出”。</p>
 <h2 id="mars-边界">Mars 边界</h2>
 <p>Mars 并行 GCM 经过本页路径时，关注点是 <code>planet_type=="mars"</code> 下的日期和 restart 时间：</p>
 <ul>
@@ -289,9 +290,9 @@ gcm.F 569: c$OMP END PARALLEL</code></pre>
 <li><a href="../modules/dyn3dpar/mod_hallo.html">mod_hallo</a></li>
 <li><a href="../modules/dyn3dpar/bands.html">bands</a></li>
 <li><a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p</a></li>
-<li><a href="leapfrog-state-contract.html">leapfrog 状态契约</a></li>
+<li><a href="leapfrog-state-contract.html">leapfrog 状态约定</a></li>
 <li><a href="dynamics-control-logic-gates.html">动力控制和逻辑门控链</a></li>
-<li><a href="guide-config-contract.html">guide 配置与初始化契约</a></li>
+<li><a href="guide-config-contract.html">guide 配置与初始化约定</a></li>
 <li><a href="guide-input-fields.html">guide 输入场读取</a></li>
 </ul>
 

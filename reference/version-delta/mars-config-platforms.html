@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mars-config-platforms - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a href="../../modules/libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../file-index.html">文件索引</a>
+        <a href="../source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta/mars-config-platforms.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-顶层结构配置与平台">MARS 顶层结构、配置与平台</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>覆盖 deftank、datadir、startfiles、平台脚本、样例配置和顶层文档。</p>
+<p>兼容性关注：影响运行目录组织、配置键、样例默认值和集群作业启动。</p>
+<p>本页是 5.3 到 6.3 版本差异详情页，只解释改动职责与影响，不展开逐行代码差异。</p>
+<h2 id="变化统计">变化统计</h2>
+<p>本主题覆盖 50 个路径事件：新增 22、删除 8、修改 20。</p>
+<h2 id="主要变化">主要变化</h2>
+<ul>
+<li>顶层 <code>README</code> 的历史记录职责拆分到 <code>changelog.txt</code>；<code>deftank/z2sig.def</code> 的等内容样例在 6.3 以 <code>z2sig.def.MCD6</code> 命名。</li>
+<li>XIOS XML 从 <code>deftank/</code> 根目录集中到 <code>deftank/xios/</code>，context 文件同时采用 <code>context_pcm_physics.xml</code> 名称。</li>
+<li><code>changelog.txt</code>：新增独立 Changelog 文件；其前缀继承 5.3 README 中的历史记录。</li>
+<li><code>datadir/README</code>：新增 datadir 获取说明，指向官方在线火星运行数据归档，而不在源码树内复制整套数据。</li>
+<li><code>deftank/adastra/adastra_cpu_binding.sh</code>：新增 Slurm CPU/GPU 亲和性包装脚本，按本地 rank 与 MPI/OpenMP 组合选择 NUMA CPU 集合，并在需要时绑定 GPU。</li>
+<li><code>deftank/adastra/README</code>：新增 Adastra 运行目录说明，描述 GCM 作业脚本、逐月续跑方式及需要按账户和队列调整的参数。</li>
+<li><code>deftank/adastra/run0</code>：新增运行脚本 <code>run0</code>，用于 <code>deftank/adastra</code> 下的环境准备、作业提交或续跑流程；该脚本进入 6.3。</li>
+<li><code>deftank/adastra/run_month1</code>：新增运行脚本 <code>run_month1</code>，用于 <code>deftank/adastra</code> 下的环境准备、作业提交或续跑流程；该脚本进入 6.3。</li>
+<li><code>deftank/adastra/run_year1</code>：新增运行脚本 <code>run_year1</code>，用于 <code>deftank/adastra</code> 下的环境准备、作业提交或续跑流程；该脚本进入 6.3。</li>
+<li><code>deftank/callphys.def.co2clouds.GCM5</code>：更新运行配置或作业样例 <code>callphys.def.co2clouds.GCM5</code>：新增配置项 <code>outputs_per_sol</code>、<code>max_icecap_albedo</code>、<code>reff_lift_dust</code>、<code>albedo_h2o_cap</code>、<code>call_mass_fixer_dyn</code>；移除配置项 <code>tracer</code>、<code>lwrite</code>、<code>albedo_h2o_ice</code>、<code>thermoswater</code>。</li>
+<li><code>deftank/callphys.def.GCM5</code>：由旧 callphys.def.watercycle 重命名为 GCM5 配置模板，明确其对应 CO2、尘埃和水循环组合。</li>
+<li><code>deftank/callphys.def.GCM6</code>：更新运行配置或作业样例 <code>callphys.def.GCM6</code>：新增配置项 <code>outputs_per_sol</code>、<code>calllott_nonoro</code>、<code>nonoro_gwd_epflux_max</code>、<code>nonoro_gwd_sat</code>、<code>nonoro_gwd_rdiss</code>、<code>nonoro_gwd_kmax</code>、<code>nonoro_gwd_kmin</code>、<code>nonoro_gwd_xlaunch</code>、<code>max_icecap_albedo</code>、<code>reff_lift_dust</code>、<code>temp_dependent_m</code>、<code>cloud_adapt_ts</code>、<code>albedo_h2o_cap</code>、<code>call_mass_fixer_dyn</code>；移除配置项 <code>tracer</code>、<code>lwrite</code>、<code>temp_dependant_m</code>、<code>albedo_h2o_ice</code>、<code>thermoswater</code>。</li>
+<li><code>deftank/callphys.def.hdo.GCM5</code>：更新运行配置或作业样例 <code>callphys.def.hdo.GCM5</code>：新增配置项 <code>outputs_per_sol</code>、<code>max_icecap_albedo</code>、<code>reff_lift_dust</code>、<code>albedo_h2o_cap</code>、<code>call_mass_fixer_dyn</code>；移除配置项 <code>tracer</code>、<code>lwrite</code>、<code>albedo_h2o_ice</code>、<code>thermoswater</code>。</li>
+<li><code>deftank/callphys.def.MCD5</code>：更新运行配置或作业样例 <code>callphys.def.MCD5</code>：新增配置项 <code>outputs_per_sol</code>、<code>max_icecap_albedo</code>、<code>reff_lift_dust</code>、<code>albedo_h2o_cap</code>、<code>call_mass_fixer_dyn</code>；移除配置项 <code>tracer</code>、<code>lwrite</code>、<code>albedo_h2o_ice</code>、<code>thermoswater</code>。</li>
+<li>其余 38 项见下表和全量索引。</li>
+</ul>
+<h2 id="受影响路径">受影响路径</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>5.3 路径</th>
+<th>6.3 路径</th>
+<th>类型</th>
+<th>SHA-256 核验</th>
+<th>改动概述</th>
+<th>官方记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>M-0001</code></td>
+<td>—</td>
+<td><code>changelog.txt</code></td>
+<td>新增</td>
+<td><code>—→8bcb67808eaa</code>（已核验）</td>
+<td>新增独立 Changelog 文件；其前缀继承 5.3 README 中的历史记录。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0002</code></td>
+<td>—</td>
+<td><code>datadir/README</code></td>
+<td>新增</td>
+<td><code>—→53948ff11298</code>（已核验）</td>
+<td>新增 datadir 获取说明，指向官方在线火星运行数据归档，而不在源码树内复制整套数据。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0003</code></td>
+<td>—</td>
+<td><code>deftank/adastra/adastra_cpu_binding.sh</code></td>
+<td>新增</td>
+<td><code>—→97e8bc551304</code>（已核验）</td>
+<td>新增 Slurm CPU/GPU 亲和性包装脚本，按本地 rank 与 MPI/OpenMP 组合选择 NUMA CPU 集合，并在需要时绑定 GPU。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/06/2025，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0004</code></td>
+<td>—</td>
+<td><code>deftank/adastra/README</code></td>
+<td>新增</td>
+<td><code>—→cd03dbcaa982</code>（已核验）</td>
+<td>新增 Adastra 运行目录说明，描述 GCM 作业脚本、逐月续跑方式及需要按账户和队列调整的参数。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/06/2025，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0005</code></td>
+<td>—</td>
+<td><code>deftank/adastra/run0</code></td>
+<td>新增</td>
+<td><code>—→9c1af3917a8e</code>（已核验）</td>
+<td>新增运行脚本 <code>run0</code>，用于 <code>deftank/adastra</code> 下的环境准备、作业提交或续跑流程；该脚本进入 6.3。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/06/2025，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0006</code></td>
+<td>—</td>
+<td><code>deftank/adastra/run_month1</code></td>
+<td>新增</td>
+<td><code>—→3838d2696757</code>（已核验）</td>
+<td>新增运行脚本 <code>run_month1</code>，用于 <code>deftank/adastra</code> 下的环境准备、作业提交或续跑流程；该脚本进入 6.3。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/06/2025，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0007</code></td>
+<td>—</td>
+<td><code>deftank/adastra/run_year1</code></td>
+<td>新增</td>
+<td><code>—→e8a9dcf213fe</code>（已核验）</td>
+<td>新增运行脚本 <code>run_year1</code>，用于 <code>deftank/adastra</code> 下的环境准备、作业提交或续跑流程；该脚本进入 6.3。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">17/07/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0008</code></td>
+<td><code>deftank/callphys.def.co2clouds.GCM5</code></td>
+<td><code>deftank/callphys.def.co2clouds.GCM5</code></td>
+<td>修改</td>
+<td><code>e3c7d0125bc3→c90c4be4ae15</code>（已核验）</td>
+<td>更新运行配置或作业样例 <code>callphys.def.co2clouds.GCM5</code>：新增配置项 <code>outputs_per_sol</code>、<code>max_icecap_albedo</code>、<code>reff_lift_dust</code>、<code>albedo_h2o_cap</code>、<code>call_mass_fixer_dyn</code>；移除配置项 <code>tracer</code>、<code>lwrite</code>、<code>albedo_h2o_ice</code>、<code>thermoswater</code>。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">24/10/2024，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">29/01/2026，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">06/02/2026，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">10/02/2026，JM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">25/03/2026，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">26/03/2026，YCL</a></td>
+</tr>
+<tr>
+<td><code>M-0009</code></td>
+<td>—</td>
+<td><code>deftank/callphys.def.GCM5</code></td>
+<td>新增</td>
+<td><code>—→c94b1eef02e8</code>（已核验）</td>
+<td>由旧 callphys.def.watercycle 重命名为 GCM5 配置模板，明确其对应 CO2、尘埃和水循环组合。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">16/01/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0010</code></td>
+<td><code>deftank/callphys.def.GCM6</code></td>
+<td><code>deftank/callphys.def.GCM6</code></td>
+<td>修改</td>
+<td><code>5ae21ce36114→06adbb485a9c</code>（已核验）</td>
+<td>更新运行配置或作业样例 <code>callphys.def.GCM6</code>：新增配置项 <code>outputs_per_sol</code>、<code>calllott_nonoro</code>、<code>nonoro_gwd_epflux_max</code>、<code>nonoro_gwd_sat</code>、<code>nonoro_gwd_rdiss</code>、<code>nonoro_gwd_kmax</code>、<code>nonoro_gwd_kmin</code>、<code>nonoro_gwd_xlaunch</code>、<code>max_icecap_albedo</code>、<code>reff_lift_dust</code>、<code>temp_dependent_m</code>、<code>cloud_adapt_ts</code>、<code>albedo_h2o_cap</code>、<code>call_mass_fixer_dyn</code>；移除配置项 <code>tracer</code>、<code>lwrite</code>、<code>temp_dependant_m</code>、<code>albedo_h2o_ice</code>、<code>thermoswater</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/09/2023，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">30/09/2023，AB</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">24/10/2024，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">29/01/2026，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">06/02/2026，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">10/02/2026，JM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">25/03/2026，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">26/03/2026，YCL</a></td>
+</tr>
+<tr>
+<td><code>M-0011</code></td>
+<td><code>deftank/callphys.def.hdo.GCM5</code></td>
+<td><code>deftank/callphys.def.hdo.GCM5</code></td>
+<td>修改</td>
+<td><code>2804efbd0528→fa39eb5dfed0</code>（已核验）</td>
+<td>更新运行配置或作业样例 <code>callphys.def.hdo.GCM5</code>：新增配置项 <code>outputs_per_sol</code>、<code>max_icecap_albedo</code>、<code>reff_lift_dust</code>、<code>albedo_h2o_cap</code>、<code>call_mass_fixer_dyn</code>；移除配置项 <code>tracer</code>、<code>lwrite</code>、<code>albedo_h2o_ice</code>、<code>thermoswater</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">20/09/2024，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">24/10/2024，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">29/01/2026，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">06/02/2026，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">10/02/2026，JM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">25/03/2026，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">26/03/2026，YCL</a></td>
+</tr>
+<tr>
+<td><code>M-0012</code></td>
+<td><code>deftank/callphys.def.MCD5</code></td>
+<td><code>deftank/callphys.def.MCD5</code></td>
+<td>修改</td>
+<td><code>461a3f17c5b6→b9d5e92fdb12</code>（已核验）</td>
+<td>更新运行配置或作业样例 <code>callphys.def.MCD5</code>：新增配置项 <code>outputs_per_sol</code>、<code>max_icecap_albedo</code>、<code>reff_lift_dust</code>、<code>albedo_h2o_cap</code>、<code>call_mass_fixer_dyn</code>；移除配置项 <code>tracer</code>、<code>lwrite</code>、<code>albedo_h2o_ice</code>、<code>thermoswater</code>。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">24/10/2024，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">29/01/2026，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">06/02/2026，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">10/02/2026，JM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">25/03/2026，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">26/03/2026，YCL</a></td>
+</tr>
+<tr>
+<td><code>M-0013</code></td>
+<td>—</td>
+<td><code>deftank/callphys.def.MCD6</code></td>
+<td>新增</td>
+<td><code>—→521ff1d569b7</code>（已核验）</td>
+<td>新增运行配置或作业样例 <code>callphys.def.MCD6</code>，包含 <code>datadir</code>、<code>outputs_per_sol</code>、<code>diurnal</code>、<code>season</code> 等配置项；该配置进入 6.3。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/09/2023，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">30/01/2024，CS</a></td>
+</tr>
+<tr>
+<td><code>M-0014</code></td>
+<td><code>deftank/callphys.def.notracers</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>18a1ea0ecd4c→—</code>（已核验）</td>
+<td>移除运行配置或作业样例 <code>callphys.def.notracers</code>，包含 <code>tracer</code>、<code>diurnal</code>、<code>season</code>、<code>lwrite</code> 等配置项；该配置不再随 6.3 分发。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/09/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0015</code></td>
+<td><code>deftank/callphys.def.watercycle</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>30078461a755→—</code>（已核验）</td>
+<td>移除旧 watercycle 命名的物理配置模板；同一内容体系在 6.3 以 callphys.def.GCM5 名称承接。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">16/01/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0016</code></td>
+<td><code>deftank/ciclad/run0</code></td>
+<td><code>deftank/ciclad/run0</code></td>
+<td>修改</td>
+<td><code>1122feb0f1bf→7fbfa6fddb58</code>（已核验）</td>
+<td>增强续跑脚本的 GCM 可执行文件和 start 输入检查、失败退出及崩溃报告，同时规范 num_run/numnew 推进。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/05/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0017</code></td>
+<td><code>deftank/ciclad/run_month1</code></td>
+<td><code>deftank/ciclad/run_month1</code></td>
+<td>修改</td>
+<td><code>0f3a47861048→b4d34adfcf63</code>（已核验）</td>
+<td>增强月度续跑脚本的 run.def.ref、run0 和 run_monthN 前置检查、ERR 陷阱与失败退出，并规范月份编号推进。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/05/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0021</code></td>
+<td><code>deftank/irene/run0</code></td>
+<td><code>deftank/irene/run0</code></td>
+<td>修改</td>
+<td><code>281e34f24418→0be4e51e2574</code>（已核验）</td>
+<td>增强续跑脚本的 GCM 可执行文件和 start 输入检查、失败退出及崩溃报告，同时规范 num_run/numnew 的推进。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/05/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0022</code></td>
+<td><code>deftank/irene/run_month1</code></td>
+<td><code>deftank/irene/run_month1</code></td>
+<td>修改</td>
+<td><code>8ba69ef461a7→ab2920cc28af</code>（已核验）</td>
+<td>增强月度续跑脚本的 run.def.ref、run0 和 run_monthN 前置检查、ERR 陷阱与失败退出，并规范月份编号推进。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/05/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0023</code></td>
+<td>—</td>
+<td><code>deftank/launch_1Dchained.sh</code></td>
+<td>新增</td>
+<td><code>—→6b29c82e0b84</code>（已核验）</td>
+<td>新增运行脚本 <code>launch_1Dchained.sh</code>，用于 <code>deftank</code> 下的环境准备、作业提交或续跑流程；该脚本进入 6.3。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">09/02/2024，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0024</code></td>
+<td>—</td>
+<td><code>deftank/launch_orb_1Dchained.sh</code></td>
+<td>新增</td>
+<td><code>—→79dbb1aae199</code>（已核验）</td>
+<td>新增运行脚本 <code>launch_orb_1Dchained.sh</code>，用于 <code>deftank</code> 下的环境准备、作业提交或续跑流程；该脚本进入 6.3。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">09/02/2024，JBC</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">31/05/2024，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0025</code></td>
+<td>—</td>
+<td><code>deftank/mesu/README</code></td>
+<td>新增</td>
+<td><code>—→c3347b5321bf</code>（已核验）</td>
+<td>新增 MESU 集群逐月续跑说明，说明 run_month1→run_monthN 链及 run0/run.def.ref 的适配要求。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0026</code></td>
+<td>—</td>
+<td><code>deftank/mesu/run0</code></td>
+<td>新增</td>
+<td><code>—→8264f88c084b</code>（已核验）</td>
+<td>新增运行脚本 <code>run0</code>，用于 <code>deftank/mesu</code> 下的环境准备、作业提交或续跑流程；该脚本进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0027</code></td>
+<td>—</td>
+<td><code>deftank/mesu/run_month1</code></td>
+<td>新增</td>
+<td><code>—→306504050bdf</code>（已核验）</td>
+<td>新增运行脚本 <code>run_month1</code>，用于 <code>deftank/mesu</code> 下的环境准备、作业提交或续跑流程；该脚本进入 6.3。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">09/03/2026，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0028</code></td>
+<td><code>deftank/occigen/run0</code></td>
+<td><code>deftank/occigen/run0</code></td>
+<td>修改</td>
+<td><code>7142623e8421→dc0fb1cc52da</code>（已核验）</td>
+<td>增强续跑脚本的 GCM 可执行文件和 start 输入检查、失败退出及崩溃报告，同时规范 num_run/numnew 的推进。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/05/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0029</code></td>
+<td><code>deftank/occigen/run_month1</code></td>
+<td><code>deftank/occigen/run_month1</code></td>
+<td>修改</td>
+<td><code>d673657e14f5→ab6b763dcc5e</code>（已核验）</td>
+<td>增强月度续跑脚本的 run.def.ref、run0 和 run_monthN 前置检查、ERR 陷阱与失败退出，并规范月份编号推进。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/05/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0030</code></td>
+<td><code>deftank/README</code></td>
+<td><code>deftank/README</code></td>
+<td>修改</td>
+<td><code>d154d204b3ee→3ddbe34b97f8</code>（已核验）</td>
+<td>更新标准配置说明：样例命名转向 GCM5/GCM6/MCD5/MCD6，并将 MCD6 标准垂直网格说明更新到约 250 km。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0031</code></td>
+<td><code>deftank/run.def.1d</code></td>
+<td><code>deftank/run.def.1d</code></td>
+<td>修改</td>
+<td><code>25f8db257b50→5d60fcac6a79</code>（已核验）</td>
+<td>更新运行配置或作业样例 <code>run.def.1d</code>：新增配置项 <code>startfiles_1D</code>、<code>diagsoil</code>、<code>slow_diagfi</code>、<code>ctrl_h2ovap</code>、<code>relaxtime_h2ovap</code>、<code>ctrl_h2oice</code>、<code>relaxtime_h2oice</code>；调整配置项 <code>time</code>、<code>ndt</code>、<code>psurf</code>、<code>co2ice</code>、<code>slope_inclination</code>、<code>slope_orientation</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">19/06/2024，JBC</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">30/10/2025，JM</a></td>
+</tr>
+<tr>
+<td><code>M-0032</code></td>
+<td><code>deftank/run.def.32x24x25.GCM5</code></td>
+<td><code>deftank/run.def.32x24x25.GCM5</code></td>
+<td>修改</td>
+<td><code>942484928612→4be5c26aae97</code>（已核验）</td>
+<td>移除已废弃的 ecritphy；输出频率改由 outputs_per_sol 统一控制。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/06/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0033</code></td>
+<td><code>deftank/run.def.32x24x32.GCM5</code></td>
+<td><code>deftank/run.def.32x24x32.GCM5</code></td>
+<td>修改</td>
+<td><code>942484928612→4be5c26aae97</code>（已核验）</td>
+<td>移除已废弃的 ecritphy；输出频率改由 outputs_per_sol 统一控制。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/06/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0034</code></td>
+<td><code>deftank/run.def.64x48x32.GCM5</code></td>
+<td><code>deftank/run.def.64x48x32.GCM5</code></td>
+<td>修改</td>
+<td><code>0e12b2150dfb→1669ef36bc61</code>（已核验）</td>
+<td>移除已废弃的 ecritphy；输出频率改由 outputs_per_sol 统一控制。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/06/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0035</code></td>
+<td><code>deftank/run.def.64x48x49.MCD5</code></td>
+<td><code>deftank/run.def.64x48x49.MCD5</code></td>
+<td>修改</td>
+<td><code>c7b6a9bda724→9e51debdb068</code>（已核验）</td>
+<td>移除已废弃的 ecritphy；输出频率改由 outputs_per_sol 统一控制。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/06/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0036</code></td>
+<td><code>deftank/run.def.64x48x54.GCM6</code></td>
+<td><code>deftank/run.def.64x48x54.GCM6</code></td>
+<td>修改</td>
+<td><code>b69aee9fc8ee→6db9933ee23c</code>（已核验）</td>
+<td>移除已废弃的 ecritphy；输出频率改由 outputs_per_sol 统一控制。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/06/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0037</code></td>
+<td>—</td>
+<td><code>deftank/run.def.64x48x73.MCD6</code></td>
+<td>新增</td>
+<td><code>—→be948e99e717</code>（已核验）</td>
+<td>新增运行配置或作业样例 <code>run.def.64x48x73.MCD6</code>，包含 <code>planet_type</code>、<code>nday</code>、<code>day_step</code>、<code>iperiod</code> 等配置项；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0038</code></td>
+<td><code>deftank/run0</code></td>
+<td><code>deftank/run0</code></td>
+<td>修改</td>
+<td><code>adcc36a0ac66→243a0eacf13a</code>（已核验）</td>
+<td>增强顶层续跑脚本的 GCM 可执行文件和 start 输入检查、失败退出及崩溃报告，同时规范 gcm/numnew 推进。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/05/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0039</code></td>
+<td>—</td>
+<td><code>deftank/spirit/README</code></td>
+<td>新增</td>
+<td><code>—→15acaafaba94</code>（已核验）</td>
+<td>新增 SPIRIT/MESOIPSL 集群逐月续跑说明，说明 run_month1→run_monthN 链及配套脚本适配。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0040</code></td>
+<td>—</td>
+<td><code>deftank/spirit/run0</code></td>
+<td>新增</td>
+<td><code>—→14975ec012b6</code>（已核验）</td>
+<td>新增运行脚本 <code>run0</code>，用于 <code>deftank/spirit</code> 下的环境准备、作业提交或续跑流程；该脚本进入 6.3。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">30/03/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0041</code></td>
+<td>—</td>
+<td><code>deftank/spirit/run_month1</code></td>
+<td>新增</td>
+<td><code>—→229338eb2930</code>（已核验）</td>
+<td>新增运行脚本 <code>run_month1</code>，用于 <code>deftank/spirit</code> 下的环境准备、作业提交或续跑流程；该脚本进入 6.3。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">30/03/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0042</code></td>
+<td><code>deftank/traceur.def.MCD5</code></td>
+<td><code>deftank/traceur.def.MCD5</code></td>
+<td>修改</td>
+<td><code>86e87545ff91→ac86c8445ae2</code>（已核验）</td>
+<td>更新配置 <code>traceur.def.MCD5</code> 的默认值、条目组织或平台参数。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">16/01/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0043</code></td>
+<td>—</td>
+<td><code>deftank/traceur.def.MCD6</code></td>
+<td>新增</td>
+<td><code>—→dd78963cae16</code>（已核验）</td>
+<td>新增运行配置或作业样例 <code>traceur.def.MCD6</code>，列出 <code>co2</code>、<code>co</code>、<code>o</code>、<code>o1d</code> 等条目；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0048</code></td>
+<td><code>deftank/z2sig.def</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>0f97272dcf6f→—</code>（已核验）</td>
+<td>旧通用垂直坐标样例在 6.3 中以 MCD6 名称组织；内容与 z2sig.def.MCD6 相同。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/09/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0049</code></td>
+<td>—</td>
+<td><code>deftank/z2sig.def.MCD6</code></td>
+<td>新增</td>
+<td><code>—→0f97272dcf6f</code>（已核验）</td>
+<td>新增 MCD6 命名的垂直坐标样例；与 5.3 z2sig.def 哈希相同。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/09/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0088</code></td>
+<td><code>libf/callphys.def</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>d22a033ea78e→—</code>（已核验）</td>
+<td>移除文件 <code>callphys.def</code>，包含 <code>tracer</code>、<code>diurnal</code>、<code>season</code>、<code>callstats</code> 等配置项；该配置不再随 6.3 分发。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0089</code></td>
+<td><code>libf/callphys_conrath.def</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>6bcf57df28b1→—</code>（已核验）</td>
+<td>移除文件 <code>callphys_conrath.def</code>，包含 <code>tracer</code>、<code>diurnal</code>、<code>season</code>、<code>callstats</code> 等配置项；该配置不再随 6.3 分发。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0090</code></td>
+<td><code>libf/callphys_nowater.def</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>6893ac5d15a2→—</code>（已核验）</td>
+<td>移除文件 <code>callphys_nowater.def</code>，包含 <code>tracer</code>、<code>diurnal</code>、<code>season</code>、<code>callstats</code> 等配置项；该配置不再随 6.3 分发。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0091</code></td>
+<td><code>libf/callphys_nowater_conrath.def</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>42757ffaf696→—</code>（已核验）</td>
+<td>移除文件 <code>callphys_nowater_conrath.def</code>，包含 <code>tracer</code>、<code>diurnal</code>、<code>season</code>、<code>callstats</code> 等配置项；该配置不再随 6.3 分发。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0282</code></td>
+<td><code>README</code></td>
+<td><code>README</code></td>
+<td>修改</td>
+<td><code>a2e01420bd66→5911da2385df</code>（已核验）</td>
+<td>把根 README 从历史日志改为简短目录概览，并将连续版本历史拆分到 changelog.txt。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0283</code></td>
+<td>—</td>
+<td><code>startfiles/README</code></td>
+<td>新增</td>
+<td><code>—→184ef7a6dadd</code>（已核验）</td>
+<td>新增 start 文件获取与 1D 输入说明，区分 MCD5.3/MCD6.1 归档并说明 start1D.txt 的层数和 tracer 顺序。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0284</code></td>
+<td>—</td>
+<td><code>startfiles/start1D.txt</code></td>
+<td>新增</td>
+<td><code>—→39b0159ac8f8</code>（已核验）</td>
+<td>新增 1D 八层初始状态样例，给出地表压强、CO2/水/尘 tracer、风和位温剖面。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">26/09/2023，JBC</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">04/03/2026，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0285</code></td>
+<td><code>user_manual.pdf</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>ab677fc00697→—</code>（已核验）</td>
+<td>源码树不再附带旧 PDF 手册，文档入口转向官方在线 Wiki。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">05/02/2026，EM</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="证据边界">证据边界</h2>
+<ul>
+<li>路径状态和哈希关系来自两棵本地快照的机械比较。</li>
+<li>官方记录来自 MARS Changelog 增量；COMMON 命中仅表示间接记录。</li>
+<li>未找到 Changelog 条目不等于改动无意义，只表示没有可直接关联的官方文字记录。</li>
+<li>本页不把未运行的数值或性能影响写成既定事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../version-delta-index.html">全量变更索引</a></li>
+<li><a href="../../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

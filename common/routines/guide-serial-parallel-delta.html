@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,12 +34,12 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="guide-串并行差异">guide 串并行差异</h1>
-<p>页面状态：TASK-0135 完成。 源码范围：</p>
+<p>源码范围：</p>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\guide_mod.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\guide_p_mod.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\leapfrog.F
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\leapfrog_p.F</code></pre>
-<p>Mars 运行参与度：接口兼容 + 条件边界。6.3 <code>leapfrog</code> 和 <code>leapfrog_p</code> 对 <code>guide_main</code> 的活动调用受 <code>CPP_IOIPSL</code> + <code>planet_type=="earth"</code> 条件包围；Mars <code>phymars/nogcm.F90</code> 中的 <code>ok_guide</code> 分支加载 <code>relax.nc</code> 给独立 <code>relaxetat0</code> 路径，不经过本页两个 COMMON guide 模块。</p>
+<p>Mars 运行参与度：接口兼容 + 条件边界。<code>leapfrog</code> 和 <code>leapfrog_p</code> 对 <code>guide_main</code> 的活动调用受 <code>CPP_IOIPSL</code> + <code>planet_type=="earth"</code> 条件包围；Mars <code>phymars/nogcm.F90</code> 中的 <code>ok_guide</code> 分支加载 <code>relax.nc</code> 给独立 <code>relaxetat0</code> 路径，不经过本页两个 COMMON guide 模块。</p>
 <h2 id="对照结论">对照结论</h2>
 <p>串行 <code>guide_mod</code> 和并行 <code>guide_p_mod</code> 的数值职责相同：读取 nudging 输入场、插值到 LMDZ 动力层、把 U/V/T/P/Q forcing 叠加到动力状态，并可选写 <code>guide_ins.nc</code>。差异集中在三点：</p>
 <ol type="1">
@@ -169,7 +170,7 @@ pres2lev(field(:,jjb:jje,:), ...)</code></pre>
 <li>首次进入 <code>guide_main</code> 时传给 <code>tau2alpha</code>，把天数单位的 <code>tau_min/tau_max</code> 转成每步松弛系数。</li>
 <li>输出诊断时，调用方先把 forcing 增量写成 <code>f_add/factt</code>，表示按天分数归一化后的 forcing。</li>
 </ol>
-<p>串行 <code>guide_out(varname,hsize,vsize,field)</code> 不接收 <code>factt</code>，所有归一化都在调用点完成。并行 <code>guide_out(varname,hsize,vsize,field,factt)</code> 多了一个 <code>factt</code> 实参，但 6.3 源码体内没有使用该参数；实际缩放仍来自调用点的 <code>f_add/factt</code>。因此排查并行 <code>guide_ins.nc</code> 中的 <code>ucov/teta/ps/q/vcov</code> forcing 量时，应先看调用点是否传入了已除以 <code>factt</code> 的 field，而不是期待 <code>guide_out</code> 内部缩放。</p>
+<p>串行 <code>guide_out(varname,hsize,vsize,field)</code> 不接收 <code>factt</code>，所有归一化都在调用点完成。并行 <code>guide_out(varname,hsize,vsize,field,factt)</code> 多了一个 <code>factt</code> 实参，但 当前源码体内没有使用该参数；实际缩放仍来自调用点的 <code>f_add/factt</code>。因此排查并行 <code>guide_ins.nc</code> 中的 <code>ucov/teta/ps/q/vcov</code> forcing 量时，应先看调用点是否传入了已除以 <code>factt</code> 的 field，而不是期待 <code>guide_out</code> 内部缩放。</p>
 <p>输出还有一个重要串并行差异：</p>
 <ul>
 <li>串行版 <code>SP</code> 直接写表面压力 <code>ps</code>，维度是 <code>(LONV,LATU,TIME)</code>。</li>
@@ -180,7 +181,7 @@ pres2lev(field(:,jjb:jje,:), ...)</code></pre>
 if (mpi_rank /= 0) return</code></pre>
 <p>所以只有 root 创建和写 <code>guide_ins.nc</code>。源码中 <code>ps</code> 变量被定义为 3D <code>(lon,lat,time)</code>，但写入分支和 <code>SP</code> 共用 <code>count=(iip1,jjp1,llm,1)</code>；这与 <code>ps</code> 定义维度不完全一致，属于需要运行验证的诊断输出风险。本页只记录源码行为，不修改 COMMON 源码。</p>
 <h2 id="mars-条件经过">Mars 条件经过</h2>
-<p>COMMON <code>guide_mod/guide_p_mod</code> 的直接入口是 <code>guide_main(itau,ucov,vcov,teta,q,masse,ps)</code>。6.3 串行和并行 <code>leapfrog*</code> 只有在 <code>CPP_IOIPSL</code>、<code>planet_type=="earth"</code> 且 <code>logic_mod:ok_guide=.TRUE.</code> 时才调用它。进入后还要受以下开关控制：</p>
+<p>COMMON <code>guide_mod/guide_p_mod</code> 的直接入口是 <code>guide_main(itau,ucov,vcov,teta,q,masse,ps)</code>。串行和并行 <code>leapfrog*</code> 只有在 <code>CPP_IOIPSL</code>、<code>planet_type=="earth"</code> 且 <code>logic_mod:ok_guide=.TRUE.</code> 时才调用它。进入后还要受以下开关控制：</p>
 <table>
 <thead>
 <tr>
@@ -228,11 +229,11 @@ if (mpi_rank /= 0) return</code></pre>
 <li>U/T/Q/Ps 差异查 <code>ijb_u:ije_u</code>，V 差异查 <code>ijb_v:ije_v</code>。</li>
 <li>插值差异查 <code>pext/psnat/pnat</code> halo，特别是 V 网格和 <code>guide_plevs=1/2</code>。</li>
 <li>输出文件缺失先查 <code>guide_sav</code> 和 root rank；输出量级问题先查调用点的 <code>f_add/factt</code>。</li>
-<li>若 <code>SP</code> 或 <code>ps</code> 输出维度异常，优先按并行 <code>guide_out</code> 中 <code>SP/ps</code> 分支核验运行时 NetCDF 行为。</li>
+<li>若 <code>SP</code> 或 <code>ps</code> 输出维度异常，优先按并行 <code>guide_out</code> 中 <code>SP/ps</code> 分支确认运行时 NetCDF 行为。</li>
 </ol>
 <h2 id="相关页面">相关页面</h2>
 <ul>
-<li><a href="guide-config-contract.html">guide 配置与初始化契约</a></li>
+<li><a href="guide-config-contract.html">guide 配置与初始化约定</a></li>
 <li><a href="guide-input-fields.html">guide 输入场读取</a></li>
 <li><a href="guide-interpolation-pressure.html">guide 压力层插值和 nudging 系数</a></li>
 <li><a href="guide-tendency-application.html">guide forcing 叠加到动力状态</a></li>

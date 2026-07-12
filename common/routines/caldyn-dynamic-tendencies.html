@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -192,7 +193,7 @@ E. 垂直平流：         ang 构造 → advect/advect_new_p → 周期性修�
 <div class="sourceCode" id="cb4"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">CALL covcont[_p]  (llm, ucov, vcov, ucont, vcont)</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co">CALL pression[_p] (ip1jmp1, ap, bp, ps, p)</span></span></code></pre></div>
 <p><code>covcont</code> 把协变风转为逆变风，供后续 <code>flumass</code> 使用。<code>pression</code> 从 <code>ap/bp/ps</code> 构造层界压力 <code>p</code>。</p>
-<p>串行额外调用 <code>psextbar(ps, psexbarxy)</code> 计算地表压力 XY 面积加权平均。并行版本此调用被注释掉（L84 <code>cym</code>），因为 <code>psexbarxy</code> 在并行 caldyn_p 中未被后续消费。</p>
+<p>串行额外调用 <code>psextbar(ps, psexbarxy)</code> 计算地表压力 XY 面积加权平均。并行版本此调用被注释掉（L84 <code>cym</code>），因为 <code>psexbarxy</code> 在并行 caldyn_p 中未被后续使用。</p>
 <p>Include 依赖：<code>dimensions.h</code>, <code>paramet.h</code>, <code>comgeom.h</code>（<code>airesurg</code> 等在后续段使用）。USE 依赖：<code>comvert_mod</code>（<code>ap, bp</code>）。</p>
 <p>详细签名和公式参见 <a href="common-pressure-mass-operators.html">压力与质量算子 family</a> 和 <a href="common-wind-massflux-operators.html">风场转换与质量通量算子组</a>。</p>
 <h2 id="段-b质量初始化">段 B：质量初始化</h2>
@@ -201,7 +202,7 @@ E. 垂直平流：         ang 构造 → advect/advect_new_p → 周期性修�
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co">CALL massbarxy[_p] (masse, massebxy)</span></span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co">CALL flumass[_p]   (massebx, masseby, vcont, ucont, pbaru, pbarv)</span></span></code></pre></div>
 <p>四步从层界压力 <code>p</code> 构造出每层空气质量 <code>masse</code>、U/V/Z 点质量平均 <code>massebx/masseby/massebxy</code>，再与逆变风相乘得到质量通量 <code>pbaru/pbarv</code>。</p>
-<p><code>massebxy</code> 在 Z 点（角点）上计算，被段 D 的 <code>tourpot</code> 消费。<code>pbaru/pbarv</code> 同时被段 C 和段 D 消费。</p>
+<p><code>massebxy</code> 在 Z 点（角点）上计算，被段 D 的 <code>tourpot</code> 使用。<code>pbaru/pbarv</code> 同时被段 C 和段 D 使用。</p>
 <h2 id="段-c位温通量和-dp">段 C：位温通量和 dp</h2>
 <div class="sourceCode" id="cb6"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">CALL dteta1[_p]  (teta, pbaru, pbarv, dteta)</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co">CALL convmas[_p/1_p+2_p] (pbaru, pbarv, convm)</span></span></code></pre></div>
@@ -214,7 +215,7 @@ E. 垂直平流：         ang 构造 → advect/advect_new_p → 周期性修�
 <p>地表压力 tendency 等于第一层质量散度除以地表面积。并行版本在 <code>OMP MASTER</code> 区内执行，用 <code>ij_begin:ij_end</code> 子域范围。</p>
 <p><strong>垂直速度</strong>：</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">CALL vitvert[_p] (convm, w)</span></span></code></pre></div>
-<p>从质量散度垂直积分得到 sigma 坐标垂直速度 <code>w</code>，被段 E 的 <code>advect</code> 消费。</p>
+<p>从质量散度垂直积分得到 sigma 坐标垂直速度 <code>w</code>，被段 E 的 <code>advect</code> 使用。</p>
 <h2 id="段-d涡度和能量">段 D：涡度和能量</h2>
 <div class="sourceCode" id="cb9"><pre class="sourceCode fortran"><code class="sourceCode fortranfixed"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co">CALL tourpot[_p]  (vcov, ucov, massebxy, vorpot)</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co">CALL dudv1[_p]    (vorpot, pbaru, pbarv, du, dv)</span></span>
@@ -263,7 +264,7 @@ E. 垂直平流：         ang 构造 → advect/advect_new_p → 周期性修�
   caladvtrac                             ← tracer advection
   addfi                                  ← 物理 tendency 加和
   integrd                                ← 状态积分写回</code></pre>
-<p><code>phi</code> 在 <code>caldyn</code> 之前由 <code>geopot</code> 计算并作为 IN 参数传入。<code>caldyn</code> 输出的 tendency 随后被 <code>integrd</code> 消费，更新 prognostic state <code>ucov/vcov/teta/ps</code>。</p>
+<p><code>phi</code> 在 <code>caldyn</code> 之前由 <code>geopot</code> 计算并作为 IN 参数传入。<code>caldyn</code> 输出的 tendency 随后被 <code>integrd</code> 使用，更新 prognostic state <code>ucov/vcov/teta/ps</code>。</p>
 <h2 id="串并行差异">串并行差异</h2>
 <table>
 <thead>
@@ -364,7 +365,7 @@ E. 垂直平流：         ang 构造 → advect/advect_new_p → 周期性修�
 <ul>
 <li><code>caldyn</code> 不是时间积分器，只计算 tendency。实际状态更新由 <code>integrd</code> 完成。</li>
 <li><code>phi</code> 必须是 <code>caldyn</code> 调用前由 <code>geopot</code> 刷新过的值——过时的 <code>phi</code> 会导致 Bernoulli 项错误。</li>
-<li>段 A 的 <code>covcont</code> 输出 <code>ucont/vcont</code> 同时被段 B 的 <code>flumass</code> 和段 D 的 <code>enercin</code> 消费，不能省略。</li>
+<li>段 A 的 <code>covcont</code> 输出 <code>ucont/vcont</code> 同时被段 B 的 <code>flumass</code> 和段 D 的 <code>enercin</code> 使用，不能省略。</li>
 <li>段 C 的 <code>dp</code> 计算在并行版本中由 <code>OMP MASTER</code> 独占执行，其余线程在后续 BARRIER 等待。</li>
 <li>并行版本 <code>convmas</code> 拆分不可合并：两步之间的 BARRIER 是正确性保证。</li>
 <li><code>advect_new_p</code> 替代了旧 <code>advect_p</code>；如果复现代码仍使用 <code>advect_p</code>，结果可能不同。</li>
@@ -374,9 +375,9 @@ E. 垂直平流：         ang 构造 → advect/advect_new_p → 周期性修�
 <h2 id="待确认">待确认</h2>
 <ul>
 <li><code>psexbarxy</code> 在并行版本中被注释掉后，是否有其他地方（如 <code>leapfrog_p</code> 初始化段）等价计算。</li>
-<li><code>dteta1_p</code> 的滤波参数 <code>(jjp1, llm, 2, 2, .true., 1)</code> 与串行的 <code>(jjp1, llm, 2, 2, .true., 1)</code> 是否完全一致——需在 <code>dteta1_p.F</code> 中核对。</li>
+<li><code>dteta1_p</code> 的滤波参数 <code>(jjp1, llm, 2, 2, .true., 1)</code> 与串行的 <code>(jjp1, llm, 2, 2, .true., 1)</code> 是否完全一致——需在 <code>dteta1_p.F</code> 中确认。</li>
 <li><code>advect_new_p</code> 和 <code>advect_p</code> 的具体算法差异需在 advect 页面深入对比。</li>
-<li><code>conser</code> 逻辑量在 <code>leapfrog</code> 中的设置条件需由 leapfrog hard task 确认。</li>
+<li><code>conser</code> 逻辑量在 <code>leapfrog</code> 中的设置条件需由 leapfrog 重点页 确认。</li>
 <li><code>Write_Field_p</code> 的 <code>#ifdef DEBUG_IO</code> 默认是否编译开启。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
@@ -392,7 +393,7 @@ E. 垂直平流：         ang 构造 → advect/advect_new_p → 周期性修�
 <li><a href="differential-operators-overview.html">差分算子总览</a> — 所有算子的分类索引。</li>
 <li><a href="common-dissip-mars-chain.html">Mars 水平耗散链路</a> — caldyn 之后的耗散段。</li>
 <li><a href="leapfrog-dynamics-transport.html">leapfrog 动力与输送</a> — caldyn 在时间推进中的调度位置。</li>
-<li><a href="../modules/dyn3d/bilan_dyn.html">bilan_dyn</a> — 消费 caldyn 输出的诊断例程。</li>
+<li><a href="../modules/dyn3d/bilan_dyn.html">bilan_dyn</a> — 使用 caldyn 输出的诊断例程。</li>
 </ul>
 
     </article>

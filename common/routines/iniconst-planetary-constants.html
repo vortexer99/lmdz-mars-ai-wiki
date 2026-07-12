@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -39,9 +40,9 @@
 <li><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\conf_planete.F90</code></li>
 <li><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\comconst_mod.F90</code></li>
 </ul>
-<p>状态：TASK-0183 完成。本文只覆盖 COMMON 6.3 的行星常数、时间步和垂直离散入口；Mars <code>nogcm.F90/newstart.F/tabfi.F</code> 只作为 MARS 侧消费者和边界上下文，不视为 COMMON 6.3 源文件。</p>
+<p>本文只覆盖 COMMON 当前行星常数、时间步和垂直离散入口；Mars <code>nogcm.F90/newstart.F/tabfi.F</code> 只作为 MARS 侧使用位置和边界上下文，不视为 COMMON 源文件。</p>
 <h2 id="结论">结论</h2>
-<p>COMMON 6.3 有两条行星常数进入动力核的路径：</p>
+<p>COMMON 有两条行星常数进入动力核的路径：</p>
 <ol type="1">
 <li>有 <code>start.nc</code> 的主流程：<code>dynetat0("start.nc")</code> 从 <code>controle/tab_cntrl</code> 读取 <code>rad/omeg/g/cpp/kappa/daysec/dtvr/pa/preff</code>，写入 <code>comconst_mod</code> 和 <code>comvert_mod</code>；随后 <code>gcm</code> 用 <code>daysec/day_step</code> 重算 <code>dtvr</code>，再调用 <code>iniconst</code> 派生 <code>dtphys/r/pi/unsim</code> 并建立垂直坐标。</li>
 <li>无 <code>start.nc</code> 或理想化场路径：<code>iniacademic</code> 调 <code>conf_planete</code>，后者用 <code>getin</code> 读取行星半径、重力、气体常数、热容、自转和日长等常数；随后 <code>iniacademic</code> 计算 <code>dtvr=daysec/day_step</code> 并调用 <code>iniconst</code>。</li>
@@ -54,7 +55,7 @@
 <th>符号或文件</th>
 <th>职责</th>
 <th>写入状态</th>
-<th>主要消费者</th>
+<th>主要使用位置</th>
 </tr>
 </thead>
 <tbody>
@@ -227,7 +228,7 @@ tab_cntrl(idecal+14) -&gt; preff</code></pre>
 <li>调用 <code>inidissip</code>，耗散时间步 <code>dtdiss</code> 后续由 <code>dissip_period*dtvr</code> 得到。</li>
 <li>若 physics 开启，<code>iniphysiq(... daysec, day_ini, dtphys/nsplit_phys, ..., rad,g,r,cpp,iflag_phys)</code> 把 COMMON 常数传给 MARS physics 初始化入口。</li>
 </ol>
-<p>Mars 侧 <code>LMDZ.MARS\libf\dynphy_lonlat\phymars\nogcm.F90</code> 也复用同一套 COMMON 初始化接口：它计算 <code>zdtvr=daysec/REAL(day_step)</code>，在 <code>iflag_phys==1</code> 时调用 <code>iniconst/inigeom/inifilr</code>，然后把 <code>daysec</code>, <code>dtphys/nsplit_phys</code>, <code>rad</code>, <code>g</code>, <code>r</code>, <code>cpp</code> 传给 <code>iniphysiq</code>。这说明 Mars <code>nogcm</code> 是 COMMON 状态的消费者，不是 COMMON 6.3 的源文件。</p>
+<p>Mars 侧 <code>LMDZ.MARS\libf\dynphy_lonlat\phymars\nogcm.F90</code> 也复用同一套 COMMON 初始化接口：它计算 <code>zdtvr=daysec/REAL(day_step)</code>，在 <code>iflag_phys==1</code> 时调用 <code>iniconst/inigeom/inifilr</code>，然后把 <code>daysec</code>, <code>dtphys/nsplit_phys</code>, <code>rad</code>, <code>g</code>, <code>r</code>, <code>cpp</code> 传给 <code>iniphysiq</code>。这说明 Mars <code>nogcm</code> 是 COMMON 状态的使用位置，不是 COMMON 当前源文件。</p>
 <h2 id="mars-utility-边界">Mars utility 边界</h2>
 <p>Mars <code>newstart.F</code> 和 <code>tabfi.F</code> 说明了另一个方向的常数同步：</p>
 <ul>
@@ -237,7 +238,7 @@ tab_cntrl(idecal+14) -&gt; preff</code></pre>
 <li><code>tabfi.F</code> 在读取文件时将 <code>tab_cntrl(tab0+5..11)</code> 映射为 <code>rad/omeg/g/mugaz/rcp/daysec/dtphys</code>，并把 <code>p_omeg/p_g/p_mugaz/p_daysec/p_rad</code> 作为输出参数返回。</li>
 </ul>
 <p>因此 Mars utility 和 physics 的 <code>mugaz/rcp</code> 状态属于 MARS physics 层；COMMON 动力层对应的是 <code>cpp/kappa/r</code>。两者数值要通过 start/startfi/archive 文件和初始化调用保持一致，但模块名和职责不同。</p>
-<h2 id="消费点">消费点</h2>
+<h2 id="使用点">使用点</h2>
 <table>
 <thead>
 <tr>
@@ -297,25 +298,25 @@ tab_cntrl(idecal+14) -&gt; preff</code></pre>
 <li>若无 start，检查 <code>conf_planete</code> 支持的 <code>getin</code> 键，尤其 <code>radius/g/molmass/kappa/cpp/daysec/daylen/year_day/omeg</code>。</li>
 <li>确认 <code>gcm</code> 或 Mars <code>nogcm</code> 是否把 <code>dtvr</code> 重设为 <code>daysec/day_step</code>。</li>
 <li>确认 <code>iniconst</code> 后 <code>dtphys=iphysiq*dtvr</code>，而 <code>iniphysiq</code> 收到的是 <code>dtphys/nsplit_phys</code>。</li>
-<li>对 Mars utility，另查 <code>startfi.nc/start_archive.nc:controle</code> 和 <code>tabfi</code> 的 <code>rad/omeg/g/mugaz/rcp/daysec/dtphys</code>。</li>
+<li>对 Mars utility，确认 <code>startfi.nc/start_archive.nc:controle</code> 和 <code>tabfi</code> 的 <code>rad/omeg/g/mugaz/rcp/daysec/dtphys</code>。</li>
 </ol>
 <h2 id="风险和待确认">风险和待确认</h2>
 <ul>
 <li><code>molmass</code> 在 COMMON 注释中写作 molar mass，<code>comconst_mod</code> 注释标为 <code>(g/mol)</code>，而 <code>conf_planete</code> 的 <code>cpp=8.3145/molmass/kappa*1000.</code> 体现了单位换算。本文只记录源码行为，不替源码统一单位命名。</li>
 <li><code>conf_planete</code> 的默认值是 Earth-like；Mars production 运行不应仅凭这些默认值判断火星常数。</li>
-<li>具体算例若同时修改 <code>run.def</code>、<code>start.nc</code> 和 <code>startfi.nc</code>，需要以实际运行文件核对动力层 <code>cpp/kappa/r</code> 与 Mars physics 层 <code>mugaz/rcp</code> 是否一致。</li>
+<li>具体算例若同时修改 <code>run.def</code>、<code>start.nc</code> 和 <code>startfi.nc</code>，需要以实际运行文件确认动力层 <code>cpp/kappa/r</code> 与 Mars physics 层 <code>mugaz/rcp</code> 是否一致。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>
-<li><a href="common-state-control-contract.html">COMMON 状态/控制模块契约</a></li>
+<li><a href="common-state-control-contract.html">COMMON 状态/控制模块约定</a></li>
 <li><a href="dynamics-initializers.html">动力初始化辅助例程组</a></li>
 <li><a href="vertical-discretization.html">垂直离散构造</a></li>
 <li><a href="common-gcm-mars-run-entry.html">Mars 3D gcm 主入口链</a></li>
-<li><a href="mars-utility-common-state-consumers.html">Mars utility 对 COMMON 状态的消费链</a></li>
-<li><a href="mars-utility-constants-vertical.html">Mars utility 常量和垂直坐标消费链</a></li>
+<li><a href="mars-utility-common-state-consumers.html">Mars utility 对 COMMON 状态的使用链路</a></li>
+<li><a href="mars-utility-constants-vertical.html">Mars utility 常量和垂直坐标使用链路</a></li>
 <li><a href="../modules/dyn3d_common/dynetat0.html">dynetat0.F90 文件页</a></li>
 <li><a href="dynredem-restart.html">dynredem restart 读写</a></li>
-<li><a href="vertical-coordinate-mars-contract.html">Mars 垂直坐标与动力-物理共享状态契约</a></li>
+<li><a href="vertical-coordinate-mars-contract.html">Mars 垂直坐标与动力-物理共享状态约定</a></li>
 </ul>
 
     </article>

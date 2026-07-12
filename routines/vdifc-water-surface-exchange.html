@@ -264,9 +264,9 @@
 <h2 id="待确认">待确认</h2>
 <ul>
 <li><strong>行 901–902 逻辑疑点</strong>：<code>if ((.not. water).or.(.not. iq.eq.igcm_h2o_vap).or.(.not. iq.eq.igcm_hdo_vap))</code> 用 <code>.or.</code> 连接三个否定条件，对任意 <code>iq</code> 恒为真（<code>iq</code> 不可能同时等于 <code>h2o_vap</code> 和 <code>hdo_vap</code>，故 <code>(.not. iq==h2o_vap)</code> 与 <code>(.not. iq==hdo_vap)</code> 至少一真）。<strong>复现风险</strong>：该守卫看似想「排除 h2o_vap/hdo_vap」，但实际不排除任何示踪物；不过 <code>h2o_vap</code> 的真正处理在行 965 专段，普通段对 <code>h2o_vap</code> 的计算结果随后被专段覆盖，推断无净效果。需对照上游版本确认是否为已知冗余/笔误（应为 <code>.and.</code> 串联）。</li>
-<li><code>soilwater</code> 的吸附/解吸内部解法、<code>pore_icefraction</code> 的更新细节超出本段范围，见 <a href="../modules/phymars/soilwater.html">soilwater</a>（TASK-0036）。</li>
-<li><code>compute_Tice</code>（行 1484）线性插值地下冰温的有效性，依赖 <code>mlayer</code> 土壤网格定义，本页不展开。</li>
-<li>HDO 段（行 1317+）依赖本段输出的 <code>saved_h2o_vap</code>/<code>qsat_tmp</code>，调用 <code>hdo_surfex</code>；属同位素分馏，不在本任务范围。</li>
+<li><code>soilwater</code> 的吸附/解吸内部解法、<code>pore_icefraction</code> 的更新细节超出本段范围，见 <a href="../modules/phymars/soilwater.html">soilwater</a>。</li>
+<li><code>compute_Tice</code>（行 1484）线性插值地下冰温的有效性，依赖 <code>mlayer</code> 土壤网格定义，细节见对应页面。</li>
+<li>HDO 段（行 1317+）依赖本段输出的 <code>saved_h2o_vap</code>/<code>qsat_tmp</code>，调用 <code>hdo_surfex</code>；属同位素分馏，超出本页范围。</li>
 </ul>
 
     </article>

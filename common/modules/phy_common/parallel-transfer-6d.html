@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -32,13 +33,13 @@
       <span>modules/phy_common/parallel-transfer-6d.md</span>
     </nav>
     <article class="content" data-pagefind-body>
-<h1 id="63-parallel-transfer-5d6d-support">6.3 parallel transfer 5D/6D support</h1>
-<p>页面状态：6.3 返工完成。 源码基线：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code>。 Mars 运行参与度：条件经过；Mars 并行物理初始化和配置广播可经过这些 transfer 泛型。</p>
+<h1 id="parallel-transfer-5d6d-support">parallel transfer 5D/6D support</h1>
+<p>源码基线：<code>LMDZ.COMMON-6.3\LMDZ.COMMON</code>。 Mars 运行参与度：条件经过；Mars 并行物理初始化和配置广播可经过这些 transfer 泛型。</p>
 <h2 id="输入范围">输入范围</h2>
 <pre class="text"><code>libf/phy_common/mod_phys_lmdz_mpi_transfert.F90
 libf/phy_common/mod_phys_lmdz_omp_transfert.F90
 libf/phy_common/mod_phys_lmdz_transfert_para.F90</code></pre>
-<h2 id="63-新能力">6.3 新能力</h2>
+<h2 id="高维支持">高维支持</h2>
 <p>MPI 层 <code>bcast_mpi</code> 泛型在接口中包含：</p>
 <ul>
 <li>integer: <code>bcast_mpi_i</code> 到 <code>bcast_mpi_i6</code></li>
@@ -55,7 +56,7 @@ libf/phy_common/mod_phys_lmdz_transfert_para.F90</code></pre>
   -&gt; 所有 MPI ranks / OMP threads 得到同一配置或数组</code></pre>
 <p>因此 <code>ioipsl_getin_p_mod</code> 的模式是：master 调 <code>getin</code>，再 <code>CALL bcast(VarOut)</code>。</p>
 <h2 id="openmp-修复">OpenMP 修复</h2>
-<p>6.3 还修复了 OMP transfer 中几个竞态风险：</p>
+<p>还修复了 OMP transfer 中几个竞态风险：</p>
 <ul>
 <li><code>grow_factor</code> 从 integer 改为 real，避免扩容比例被整数截断。</li>
 <li>logical buffer allocation 使用 <code>OMP SINGLE</code> 语义，避免部分线程看到未分配 buffer。</li>
@@ -64,7 +65,7 @@ libf/phy_common/mod_phys_lmdz_transfert_para.F90</code></pre>
 <p>这些变更对 Mars 并行物理参数、诊断数组和高维场广播有直接影响，尤其是 hybrid MPI/OMP 运行。</p>
 <h2 id="复现检查">复现检查</h2>
 <ol type="1">
-<li>如果配置数组 rank 大于 4，确认 6.3 的 <code>bcast_*5/*6</code> 已被编译。</li>
+<li>如果配置数组 rank 大于 4，确认 当前 <code>bcast_*5/*6</code> 已被编译。</li>
 <li>物理 getin 差异先查 <code>ioipsl_getin_p_mod</code> 的 <code>is_master -&gt; bcast</code>。</li>
 <li>hybrid 运行的线程不一致问题要同时查 OMP buffer 分配和 <code>parallel_lmdz:omp_chunk</code>。</li>
 <li>不要把 MPI 泛型和 OMP 泛型混成一个过程；它们在 <code>transfert_para</code> 层组合。</li>

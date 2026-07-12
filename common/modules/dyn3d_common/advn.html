@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,9 +34,8 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="dyn3d_commonadvnf">dyn3d_common/advn.F</h1>
-<p>页面状态：TASK-0063 完成。</p>
 <p>源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\advn.F</code></p>
-<p>Mars 运行参与度：条件经过 + 历史兼容。<code>advn</code> 是 F. Hourdin 的 pseudo amont tracer advection 内核，串行 <code>dyn3d/advtrac.F90</code> 在 <code>iadv=12</code> 和 <code>iadv=13</code> 时调用；但 6.3 <code>infotrac_init</code> 最终只放行 <code>iadv=10/14/0</code>，Mars 标准配置通常在初始化阶段阻断 <code>12/13</code>。并行 <code>dyn3dpar/advtrac_p.F90</code> 中保留的 advn 分支位于 <code>GOTO 1234</code> 之后，不可达。</p>
+<p>Mars 运行参与度：条件经过 + 历史兼容。<code>advn</code> 是 F. Hourdin 的 pseudo amont tracer advection 内核，串行 <code>dyn3d/advtrac.F90</code> 在 <code>iadv=12</code> 和 <code>iadv=13</code> 时调用；但 <code>infotrac_init</code> 最终只放行 <code>iadv=10/14/0</code>，Mars 标准配置通常在初始化阶段阻断 <code>12/13</code>。并行 <code>dyn3dpar/advtrac_p.F90</code> 中保留的 advn 分支位于 <code>GOTO 1234</code> 之后，不可达。</p>
 <h2 id="文件角色">文件角色</h2>
 <p><code>advn.F</code> 是一个 977 行 Fortran 77 文件，包含主例程 <code>advn</code> 和六个方向子例程。它与 <code>vlsplt</code> 同样采用 x-y-z-y-x 的 directional split，但不是外部调用短小 <code>advx/advy/advz</code> 内核；它在文件内完成：</p>
 <ul>
@@ -77,7 +77,7 @@
 <tr>
 <td><code>advnx</code></td>
 <td style="text-align: right;">470</td>
-<td>E-W 通量计算和质量/tracer 更新；唯一消费主例程 <code>mode</code> 参数。</td>
+<td>E-W 通量计算和质量/tracer 更新；唯一使用主例程 <code>mode</code> 参数。</td>
 </tr>
 <tr>
 <td><code>advny</code></td>
@@ -92,7 +92,7 @@
 </tbody>
 </table>
 <h2 id="调用入口和-mode">调用入口和 mode</h2>
-<p>串行 <code>advtrac.F90</code> 对每个 tracer 的 <code>iadv(iq)</code> 分支如下：</p>
+<p>串行 <a href="../dyn3d/advtrac.html"><code>advtrac.F90</code></a> 对每个 tracer 的 <code>iadv(iq)</code> 分支如下：</p>
 <table>
 <thead>
 <tr>
@@ -118,7 +118,7 @@
 </tbody>
 </table>
 <p><code>mode=1</code> 和 <code>mode=2</code> 的区别只在 <code>advnx</code> 的 E-W 通量公式中直接生效。三个重构子例程内部各自有 <code>save mode</code> 和 <code>data mode/1/</code>，不读取主例程实参；<code>advny</code> 和 <code>advnz</code> 也没有 mode 分支，始终使用抛物线式通量公式。</p>
-<p>并行 <code>advtrac_p.F90</code> 先调用 <code>vlspltgen_p(q,iadv,2.,...)</code>，随后 <code>GOTO 1234</code>，因此后续 <code>iadv=12/13</code> 分支虽然有 <code>stop 'advtrac : schema non parallelise'</code> 和 <code>call advn(...)</code> 文本，但当前源码控制流不会到达。</p>
+<p>并行 <a href="../dyn3d/advtrac.html"><code>advtrac_p.F90</code></a> 先调用 <code>vlspltgen_p(q,iadv,2.,...)</code>，随后 <code>GOTO 1234</code>，因此后续 <code>iadv=12/13</code> 分支虽然有 <code>stop 'advtrac : schema non parallelise'</code> 和 <code>call advn(...)</code> 文本，但当前源码控制流不会到达。</p>
 <h2 id="主例程数据流">主例程数据流</h2>
 <p><code>advn(q,masse,w,pbaru,pbarv,pdt,mode)</code> 的实参含义：</p>
 <table>
@@ -230,7 +230,7 @@ advnqx -&gt; advnx</code></pre>
 <p><code>advnx/advny/advnz</code> 都先把中心值相对上下游界面值的位置转成 sigma 参数，再用 <code>|flux_mass|/cell_mass</code> 决定通量积分长度。</p>
 <h3 id="e-w-advnx">E-W: advnx</h3>
 <p><code>advnx</code> 使用 <code>qg/qd</code> 和 <code>u_m</code>。当 <code>mode=1</code> 时，通量公式是分段线性；当 <code>mode</code> 不是 1 时，源码进入抛物线修正公式。若 <code>|u_m| &gt; masse</code>，<code>ladvplus</code> 标记该界面为 CFL&gt;1，常规通量先置零，再在 <code>n0 &gt; 1</code> 时进入 semi-Lagrangian 累加：沿经向逐格点扣减 <code>masse</code>，完整跨越的格点直接累计 <code>q*masse</code>，最后一个未完整跨越的格点按同一 sigma 公式补足。</p>
-<p>注意：源码条件是 <code>if(n0.gt.1)</code>，不是 <code>n0.gt.0</code>。因此只有一个 CFL&gt;1 点时不会进入特殊累加，支撑页将其列为复现风险。</p>
+<p>注意：源码条件是 <code>if(n0.gt.1)</code>，不是 <code>n0.gt.0</code>。因此只有一个 CFL&gt;1 点时不会进入特殊累加，细节页将其列为复现风险。</p>
 <h3 id="n-s-advny">N-S: advny</h3>
 <p><code>advny</code> 使用 <code>qs/qn</code> 和 <code>v_m</code>，没有 <code>mode</code> 分支。普通格点按 <code>masse + v_m(ij) - v_m(ij-iip1)</code> 更新。北极和南极行单独处理：</p>
 <ul>
@@ -313,10 +313,10 @@ w_mq(:,llm+1) = 0</code></pre>
 </tr>
 </tbody>
 </table>
-<p>因此本页主要用于理解保留的历史输送格式、读懂旧配置或本地补丁下的串行路径。不要从 <code>advn.F</code> 存在推断 6.3 Mars 默认会执行该格式。</p>
+<p>因此本页主要用于理解保留的历史输送格式、读懂旧配置或本地补丁下的串行路径。不要从 <code>advn.F</code> 存在推断 Mars 默认会执行该格式。</p>
 <h2 id="复现检查点">复现检查点</h2>
 <ol type="1">
-<li>先确认 tracer 初始化是否允许 <code>iadv=12/13</code>；标准 6.3 <code>infotrac_init</code> 会拒绝它们。</li>
+<li>先确认 tracer 初始化是否允许 <code>iadv=12/13</code>；标准 <code>infotrac_init</code> 会拒绝它们。</li>
 <li>若只复现 <code>advn.F</code> 单元测试，需要传入与 LMDZ 一致的 <code>ip1jmp1/ip1jm/iip1/iim/llm</code> 维度和 <code>comgeom</code> 极点面积。</li>
 <li>水平质量通量进入 <code>advn</code> 后会乘 <code>0.5*pdt</code>，垂直通量乘 <code>pdt</code>。</li>
 <li><code>masse</code> 实参不会被主例程最终写回；内部工作质量 <code>zm</code> 只用于本次 split。</li>

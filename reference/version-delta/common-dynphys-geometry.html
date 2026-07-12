@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>common-dynphys-geometry - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a href="../../modules/libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../file-index.html">文件索引</a>
+        <a href="../source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta/common-dynphys-geometry.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="common-动力与物理接口及几何">COMMON 动力与物理接口及几何</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>覆盖动力网格到物理列的映射、calfis 接口和输出面积状态。</p>
+<p>兼容性关注：影响动力—物理耦合、1D 特例、并行列映射和面积诊断。</p>
+<p>本页是 5.3 到 6.3 版本差异详情页，只解释改动职责与影响，不展开逐行代码差异。</p>
+<h2 id="变化统计">变化统计</h2>
+<p>本主题覆盖 10 个路径事件：新增 0、删除 0、修改 10。</p>
+<h2 id="主要变化">主要变化</h2>
+<ul>
+<li><code>libf/dynphy_lonlat/calfis.F</code>：将全局平均分支从 Titan/Venus 共用缩为仅 Titan，Venus 不再走该 AllGather 路径。</li>
+<li><code>libf/dynphy_lonlat/calfis_p.F</code>：移除 Venus 的 AllGather 分支，并在网格转换前显式清零 zphi/zphis，避免并行调试条件下使用未初始化值。</li>
+<li><code>libf/dynphy_lonlat/inigeomphy_mod.F90</code>：更新物理几何初始化，并单独保存适合经纬网输出的极点面积。</li>
+<li><code>libf/dynphy_lonlat/mod_interface_dyn_phys.F90</code>：更新动力—物理索引映射，并加入单物理列并行特例。</li>
+<li><code>libf/dynphy_lonlat/phyvenus/grid_noro.F</code>：更新源码文件 <code>grid_noro.F</code>：新增模块依赖 <code>YOMCST_mod</code>。</li>
+<li><code>libf/dynphy_lonlat/phyvenus/iniphysiq_mod.F90</code>：更新源码文件 <code>iniphysiq_mod.F90</code>：新增模块依赖 <code>YOMCST_mod</code>、<code>suphec_mod</code>。</li>
+<li><code>libf/dynphy_lonlat/phyvenus/newstart.F</code>：更新源码文件 <code>newstart.F</code>：新增模块依赖 <code>soil_mod</code>。</li>
+<li><code>libf/dynphy_lonlat/phyvenus/readstartphy.F</code>：更新源码文件 <code>readstartphy.F</code>：新增模块依赖 <code>soil_mod</code>。</li>
+<li><code>libf/dynphy_lonlat/phyvenus/start2archive.F</code>：更新源码文件 <code>start2archive.F</code>：新增模块依赖 <code>soil_mod</code>。</li>
+<li><code>libf/dynphy_lonlat/phyvenus/writerestartphy.F</code>：更新源码文件 <code>writerestartphy.F</code>：新增模块依赖 <code>soil_mod</code>。</li>
+</ul>
+<h2 id="受影响路径">受影响路径</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>5.3 路径</th>
+<th>6.3 路径</th>
+<th>类型</th>
+<th>SHA-256 核验</th>
+<th>改动概述</th>
+<th>官方记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>C-0072</code></td>
+<td><code>libf/dynphy_lonlat/calfis.F</code></td>
+<td><code>libf/dynphy_lonlat/calfis.F</code></td>
+<td>修改</td>
+<td><code>564d80fed150→09f720946e83</code>（已核验）</td>
+<td>将全局平均分支从 Titan/Venus 共用缩为仅 Titan，Venus 不再走该 AllGather 路径。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0073</code></td>
+<td><code>libf/dynphy_lonlat/calfis_p.F</code></td>
+<td><code>libf/dynphy_lonlat/calfis_p.F</code></td>
+<td>修改</td>
+<td><code>a20b3d6f1a63→88956a6a4d07</code>（已核验）</td>
+<td>移除 Venus 的 AllGather 分支，并在网格转换前显式清零 zphi/zphis，避免并行调试条件下使用未初始化值。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0074</code></td>
+<td><code>libf/dynphy_lonlat/inigeomphy_mod.F90</code></td>
+<td><code>libf/dynphy_lonlat/inigeomphy_mod.F90</code></td>
+<td>修改</td>
+<td><code>033031ddea0a→704c54b58daa</code>（已核验）</td>
+<td>更新物理几何初始化，并单独保存适合经纬网输出的极点面积。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0075</code></td>
+<td><code>libf/dynphy_lonlat/mod_interface_dyn_phys.F90</code></td>
+<td><code>libf/dynphy_lonlat/mod_interface_dyn_phys.F90</code></td>
+<td>修改</td>
+<td><code>cc19dc0ab006→f577631d087c</code>（已核验）</td>
+<td>更新动力—物理索引映射，并加入单物理列并行特例。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0076</code></td>
+<td><code>libf/dynphy_lonlat/phyvenus/grid_noro.F</code></td>
+<td><code>libf/dynphy_lonlat/phyvenus/grid_noro.F</code></td>
+<td>修改</td>
+<td><code>1bbda7d5457b→b4758d39c84b</code>（已核验）</td>
+<td>更新源码文件 <code>grid_noro.F</code>：新增模块依赖 <code>YOMCST_mod</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0077</code></td>
+<td><code>libf/dynphy_lonlat/phyvenus/iniphysiq_mod.F90</code></td>
+<td><code>libf/dynphy_lonlat/phyvenus/iniphysiq_mod.F90</code></td>
+<td>修改</td>
+<td><code>5f7ee6c8501f→ac2029b231e3</code>（已核验）</td>
+<td>更新源码文件 <code>iniphysiq_mod.F90</code>：新增模块依赖 <code>YOMCST_mod</code>、<code>suphec_mod</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0078</code></td>
+<td><code>libf/dynphy_lonlat/phyvenus/newstart.F</code></td>
+<td><code>libf/dynphy_lonlat/phyvenus/newstart.F</code></td>
+<td>修改</td>
+<td><code>e9255b7f180d→de85cd870385</code>（已核验）</td>
+<td>更新源码文件 <code>newstart.F</code>：新增模块依赖 <code>soil_mod</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0079</code></td>
+<td><code>libf/dynphy_lonlat/phyvenus/readstartphy.F</code></td>
+<td><code>libf/dynphy_lonlat/phyvenus/readstartphy.F</code></td>
+<td>修改</td>
+<td><code>5243cc6dda9e→0dfd316e0299</code>（已核验）</td>
+<td>更新源码文件 <code>readstartphy.F</code>：新增模块依赖 <code>soil_mod</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0080</code></td>
+<td><code>libf/dynphy_lonlat/phyvenus/start2archive.F</code></td>
+<td><code>libf/dynphy_lonlat/phyvenus/start2archive.F</code></td>
+<td>修改</td>
+<td><code>02b6c60833c6→4aa2c1b602d8</code>（已核验）</td>
+<td>更新源码文件 <code>start2archive.F</code>：新增模块依赖 <code>soil_mod</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0081</code></td>
+<td><code>libf/dynphy_lonlat/phyvenus/writerestartphy.F</code></td>
+<td><code>libf/dynphy_lonlat/phyvenus/writerestartphy.F</code></td>
+<td>修改</td>
+<td><code>521ed4c27b94→85d631242e28</code>（已核验）</td>
+<td>更新源码文件 <code>writerestartphy.F</code>：新增模块依赖 <code>soil_mod</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+</tbody>
+</table>
+<h2 id="证据边界">证据边界</h2>
+<ul>
+<li>路径状态和哈希关系来自两棵本地快照的机械比较。</li>
+<li>官方记录来自 MARS Changelog 增量；COMMON 命中仅表示间接记录。</li>
+<li>未找到 Changelog 条目不等于改动无意义，只表示没有可直接关联的官方文字记录。</li>
+<li>本页不把未运行的数值或性能影响写成既定事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../version-delta-index.html">全量变更索引</a></li>
+<li><a href="../../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

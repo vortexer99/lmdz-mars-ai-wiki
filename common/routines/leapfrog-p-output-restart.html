@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,7 +34,7 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="leapfrog_p-输出诊断和-restart">leapfrog_p 输出、诊断和 restart</h1>
-<p>页面状态：TASK-0130 完成。 源码范围：</p>
+<p>源码范围：</p>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\leapfrog_p.F
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\dynredem_p.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\inithist_p.F
@@ -83,7 +84,7 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\bilan_dyn_p.F</code></pre>
 <pre class="text"><code>bilan_dyn_p(2, dtvr*iperiod, dtvr*day_step*periodav,
             ps, masse, pk, pbaru, pbarv, teta, phi, ucov, vcov, q)</code></pre>
 <p><code>bilan_dyn_p</code> 自己在并行子域上建 <code>dynzon</code> history domain，内部通过 halo request 补齐 <code>ucov/vcov/q/flux_u/flux_v</code> 等边界，按 <code>dt_cum/dt_app</code> 累积到周期后由 <code>OMP MASTER</code> 写出。因此 <code>bilan_dyn_p</code> 不是简单 root-only dump，它保留并行局部纬向切片语义。</p>
-<p><code>ok_dyn_ave</code> 的 dynav 路径不同：<code>leapfrog_p</code> 在 master 段内先对 <code>vcov/ucov/teta/pk/phi/q/masse/ps/phis</code> 调 <code>Gather_Field(...,0)</code>，再由 <code>mpi_rank==0</code> 调 <code>writedynav(itau,...)</code>。当前 6.3 源码没有实际调用 <code>writedynav_p</code>；并行主循环选择 gather 到 root 后复用串行写例程。</p>
+<p><code>ok_dyn_ave</code> 的 dynav 路径不同：<code>leapfrog_p</code> 在 master 段内先对 <code>vcov/ucov/teta/pk/phi/q/masse/ps/phis</code> 调 <code>Gather_Field(...,0)</code>，再由 <code>mpi_rank==0</code> 调 <code>writedynav(itau,...)</code>。当前源码没有实际调用 <code>writedynav_p</code>；并行主循环选择 gather 到 root 后复用串行写例程。</p>
 <h2 id="instant-history-和-grads">instant history 和 Grads</h2>
 <p>instant history 的 <code>iecri</code> 门打开后，先把位温转换为温度相关的 <code>tsurpk</code>，再调用 <code>geopot_p</code> 重算 <code>phi</code>，并由 <code>ucov/cu</code>、<code>vcov/cv</code> 构造 <code>unat/vnat</code>。随后：</p>
 <ul>
@@ -130,12 +131,12 @@ else if (ecritstart &gt; 0 .and. MOD(itau,ecritstart) == 0) lrestart = .true.</c
 </tr>
 </tbody>
 </table>
-<p><code>purmats</code> Mars 分支没有加 <code>time_0-floor(time_0)</code>，而非 <code>purmats</code> Mars 分支会加；这是 6.3 源码事实，设计意图需要维护者确认。</p>
+<p><code>purmats</code> Mars 分支没有加 <code>time_0-floor(time_0)</code>，而非 <code>purmats</code> Mars 分支会加；这是 当前源码事实，设计意图需要维护者确认。</p>
 <h2 id="初始化边界">初始化边界</h2>
 <p>本页的写出段依赖 <code>gcm.F</code> 早先完成输出文件初始化：</p>
 <ul>
 <li><code>dynredem0_p("restart.nc",...)</code> 创建 restart skeleton，Mars/generic 使用 planeto <code>Time</code> 坐标，Earth 使用 <code>temps</code>。</li>
-<li>6.3 的 <code>dyn3dpar/gcm.F</code> 在 <code>mpi_rank==0</code> 条件内调用 <code>inithist</code> 和 <code>initdynav</code>，与后续 gather 后 root 调 <code>writehist/writedynav</code> 的路径一致。</li>
+<li>当前 <code>dyn3dpar/gcm.F</code> 在 <code>mpi_rank==0</code> 条件内调用 <code>inithist</code> 和 <code>initdynav</code>，与后续 gather 后 root 调 <code>writehist/writedynav</code> 的路径一致。</li>
 <li><code>inithist_p</code> 和 <code>initdynav_p</code> 是并行 domain 初始化例程，源码中用 <code>flio_dom_set</code> 为本 rank 的 U/V/scalar grid 建 IOIPSL domain；但当前 <code>gcm.F</code> 主路径没有实际调用 <code>inithist_p/initdynav_p</code>。</li>
 </ul>
 <p>因此 <code>leapfrog_p</code> 负责“何时写”和“写前如何 gather/root”，<code>gcm.F</code> 的 rank-0 初始化和 <code>dynredem0_p</code> 负责“文件结构是否已经定义”。若改回 <code>_p</code> 初始化例程，需要同步检查后续是否仍 gather 后复用串行写例程。</p>

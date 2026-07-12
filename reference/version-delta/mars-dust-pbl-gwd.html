@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mars-dust-pbl-gwd - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a href="../../modules/libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../file-index.html">文件索引</a>
+        <a href="../source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta/mars-dust-pbl-gwd.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-尘埃边界层与重力波">MARS 尘埃、边界层与重力波</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>覆盖尘埃抬升/凝并/注入、PBL 交换、ATKE 和重力波参数化。</p>
+<p>兼容性关注：影响沙尘源汇、湍流扩散、近地层交换和动量拖曳。</p>
+<p>本页是 5.3 到 6.3 版本差异详情页，只解释改动职责与影响，不展开逐行代码差异。</p>
+<h2 id="变化统计">变化统计</h2>
+<p>本主题覆盖 29 个路径事件：新增 10、删除 5、修改 14。</p>
+<h2 id="主要变化">主要变化</h2>
+<ul>
+<li>旧 <code>dustlift.F</code> 的风应力抬尘职责由 <code>dust_windstress_lift.F90</code> 承接；<code>dustdevil.F</code> 同步转为自由格式模块化源码。</li>
+<li><code>libf/phymars/calldrag_noro_mod.F90</code>：更新源码文件 <code>calldrag_noro_mod.F90</code>：新增模块依赖 <code>sugwd_mod</code>。</li>
+<li><code>libf/phymars/calltherm_interface.F90</code>：移除旧 calltherm_interface.F90；6.3 由 calltherm_interface_mod.F90 保留同名热羽流/PBL 接口。</li>
+<li><code>libf/phymars/calltherm_interface_mod.F90</code>：新增火星热羽流主接口，按内部子时间步推进热泡动力、动量/温度与 tracer tendency，并向物理总调度返回累计结果。</li>
+<li><code>libf/phymars/convadj.F</code>：更新源码文件 <code>convadj.F</code>：新增 <code>convadj_mod</code>；新增模块依赖 <code>callkeys_mod</code>。</li>
+<li><code>libf/phymars/drag_noro_mod.F90</code>：将 drag_noro 的 pgam 参数从只读改为可原位更新，调用方需按 intent(inout) 接口传入可写数组。</li>
+<li><code>libf/phymars/dust_coagulation_mod.F90</code>：新增尘埃凝并微物理，并加入 OpenMP 兼容修正。</li>
+<li><code>libf/phymars/dust_windstress_lift.F90</code>：新增模块化风应力抬尘接口，替代旧 dustlift.F 路径。</li>
+<li><code>libf/phymars/dustdevil.F</code>：移除旧 dustdevil.F；6.3 以 dustdevil.F90 的模块化自由格式实现承接尘卷风抬尘职责。</li>
+<li><code>libf/phymars/dustdevil.F90</code>：新增源码文件 <code>dustdevil.F90</code>，其中定义 <code>dustdevil_mod</code>、<code>dustdevil</code>；该实现进入 6.3。</li>
+<li><code>libf/phymars/dustlift.F</code>：移除旧风应力抬尘例程；6.3 由 dust_windstress_lift 明确承接该机制。</li>
+<li><code>libf/phymars/lmdz_atke_exchange_coeff.F90</code>：新增 ATKE 交换系数模块，依据风切变、稳定度和 TKE 计算 Km/Kh，并求解 TKE 的垂直扩散更新。</li>
+<li><code>libf/phymars/lmdz_atke_turbulence_ini.F90</code>：新增 ATKE 湍流初始化模块，集中读取数值方案、混合长度及稳定度参数，并校验不兼容或越界配置。</li>
+<li>其余 17 项见下表和全量索引。</li>
+</ul>
+<h2 id="受影响路径">受影响路径</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>5.3 路径</th>
+<th>6.3 路径</th>
+<th>类型</th>
+<th>SHA-256 核验</th>
+<th>改动概述</th>
+<th>官方记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>M-0110</code></td>
+<td><code>libf/phymars/calldrag_noro_mod.F90</code></td>
+<td><code>libf/phymars/calldrag_noro_mod.F90</code></td>
+<td>修改</td>
+<td><code>9e7052c9b936→975fcf4cdebc</code>（已核验）</td>
+<td>更新源码文件 <code>calldrag_noro_mod.F90</code>：新增模块依赖 <code>sugwd_mod</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0115</code></td>
+<td><code>libf/phymars/calltherm_interface.F90</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>13a9d2842030→—</code>（已核验）</td>
+<td>移除旧 calltherm_interface.F90；6.3 由 calltherm_interface_mod.F90 保留同名热羽流/PBL 接口。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0116</code></td>
+<td>—</td>
+<td><code>libf/phymars/calltherm_interface_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→5a49da47038b</code>（已核验）</td>
+<td>新增火星热羽流主接口，按内部子时间步推进热泡动力、动量/温度与 tracer tendency，并向物理总调度返回累计结果。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0129</code></td>
+<td><code>libf/phymars/convadj.F</code></td>
+<td><code>libf/phymars/convadj.F</code></td>
+<td>修改</td>
+<td><code>400fe19046d6→71d82046c9a6</code>（已核验）</td>
+<td>更新源码文件 <code>convadj.F</code>：新增 <code>convadj_mod</code>；新增模块依赖 <code>callkeys_mod</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">20/08/2025，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0133</code></td>
+<td><code>libf/phymars/drag_noro_mod.F90</code></td>
+<td><code>libf/phymars/drag_noro_mod.F90</code></td>
+<td>修改</td>
+<td><code>370b7833dcfa→1cd3bb34304f</code>（已核验）</td>
+<td>将 drag_noro 的 pgam 参数从只读改为可原位更新，调用方需按 intent(inout) 接口传入可写数组。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0134</code></td>
+<td>—</td>
+<td><code>libf/phymars/dust_coagulation_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→c25a8c66a526</code>（已核验）</td>
+<td>新增尘埃凝并微物理，并加入 OpenMP 兼容修正。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">06/02/2026，TB</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">09/02/2026，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0135</code></td>
+<td>—</td>
+<td><code>libf/phymars/dust_windstress_lift.F90</code></td>
+<td>新增</td>
+<td><code>—→f07a8680c33d</code>（已核验）</td>
+<td>新增模块化风应力抬尘接口，替代旧 dustlift.F 路径。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">05/04/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0136</code></td>
+<td><code>libf/phymars/dustdevil.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>5f493cb0b8ff→—</code>（已核验）</td>
+<td>移除旧 dustdevil.F；6.3 以 dustdevil.F90 的模块化自由格式实现承接尘卷风抬尘职责。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">05/04/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0137</code></td>
+<td>—</td>
+<td><code>libf/phymars/dustdevil.F90</code></td>
+<td>新增</td>
+<td><code>—→7a4ab96c6000</code>（已核验）</td>
+<td>新增源码文件 <code>dustdevil.F90</code>，其中定义 <code>dustdevil_mod</code>、<code>dustdevil</code>；该实现进入 6.3。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">05/04/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0138</code></td>
+<td><code>libf/phymars/dustlift.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>c3e510ab89e5→—</code>（已核验）</td>
+<td>移除旧风应力抬尘例程；6.3 由 dust_windstress_lift 明确承接该机制。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">05/04/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0175</code></td>
+<td>—</td>
+<td><code>libf/phymars/lmdz_atke_exchange_coeff.F90</code></td>
+<td>新增</td>
+<td><code>—→1a90b342e4ff</code>（已核验）</td>
+<td>新增 ATKE 交换系数模块，依据风切变、稳定度和 TKE 计算 Km/Kh，并求解 TKE 的垂直扩散更新。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">16/02/2024，LL</a></td>
+</tr>
+<tr>
+<td><code>M-0176</code></td>
+<td>—</td>
+<td><code>libf/phymars/lmdz_atke_turbulence_ini.F90</code></td>
+<td>新增</td>
+<td><code>—→19f3c21f24cb</code>（已核验）</td>
+<td>新增 ATKE 湍流初始化模块，集中读取数值方案、混合长度及稳定度参数，并校验不兼容或越界配置。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">16/02/2024，LL</a></td>
+</tr>
+<tr>
+<td><code>M-0177</code></td>
+<td>—</td>
+<td><code>libf/phymars/lmdz_call_atke.F90</code></td>
+<td>新增</td>
+<td><code>—→9334668885e6</code>（已核验）</td>
+<td>封装 ATKE 的 Km/Kh 与 TKE 计算；iflag_num_atke=1 时先显式预测风切变，再二次计算交换系数。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">16/02/2024，LL</a></td>
+</tr>
+<tr>
+<td><code>M-0212</code></td>
+<td>—</td>
+<td><code>libf/phymars/nonoro_gwd_mix_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→2772911cf3e5</code>（已核验）</td>
+<td>新增非地形重力波混合方案及初始化/释放接口，并提供开关与参数控制其动量混合。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">29/11/2023，JL</a></td>
+</tr>
+<tr>
+<td><code>M-0213</code></td>
+<td><code>libf/phymars/nonoro_gwd_ran_mod.F90</code></td>
+<td><code>libf/phymars/nonoro_gwd_ran_mod.F90</code></td>
+<td>修改</td>
+<td><code>c83424ef2844→c913b60190e9</code>（已核验）</td>
+<td>同步非地形重力波默认通量、饱和、耗散、波数和发射高度参数，并把诊断迁到统一 write_output。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">03/04/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/03/2024，Jliu</a></td>
+</tr>
+<tr>
+<td><code>M-0217</code></td>
+<td><code>libf/phymars/orodrag_mod.F90</code></td>
+<td><code>libf/phymars/orodrag_mod.F90</code></td>
+<td>修改</td>
+<td><code>a737247c980d→c1a557bb4fcb</code>（已核验）</td>
+<td>接入模块化 orosetup，并将亚网格各向异性 pgam 改为可原位更新的 intent(inout) 接口。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0218</code></td>
+<td><code>libf/phymars/orosetup.F90</code></td>
+<td><code>libf/phymars/orosetup.F90</code></td>
+<td>修改</td>
+<td><code>3ff66ec48ed8→661590cdda86</code>（已核验）</td>
+<td>更新源码文件 <code>orosetup.F90</code>：新增 <code>orosetup_mod</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0223</code></td>
+<td><code>libf/phymars/pbl_parameters.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>e86ac17fa4ed→—</code>（已核验）</td>
+<td>移除旧 pbl_parameters.F；6.3 由 pbl_parameters_mod.F90 模块承接边界层参数状态。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">07/12/2023，LL</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">13/05/2024，LL</a></td>
+</tr>
+<tr>
+<td><code>M-0224</code></td>
+<td>—</td>
+<td><code>libf/phymars/pbl_parameters_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→f7b1c6cb3958</code>（已核验）</td>
+<td>将旧 pbl_parameters.F 转为 pbl_parameters_mod.F90 模块，并整理边界层参数状态及 ustar/thetastar 更新。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">07/12/2023，LL</a></td>
+</tr>
+<tr>
+<td><code>M-0231</code></td>
+<td><code>libf/phymars/read_dust_scenario_mod.F90</code></td>
+<td><code>libf/phymars/read_dust_scenario_mod.F90</code></td>
+<td>修改</td>
+<td><code>6876a2050940→2bb80bad6dfb</code>（已核验）</td>
+<td>扩展尘埃情景读取到 MY36/MY37，支持以 cdodext 标识 9.3 μm 红外消光输入，并隔离 MESOSCALE 不适用的 NetCDF 路径。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">25/03/2023，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/01/2026，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0232</code></td>
+<td><code>libf/phymars/rocketduststorm_mod.F90</code></td>
+<td><code>libf/phymars/rocketduststorm_mod.F90</code></td>
+<td>修改</td>
+<td><code>17a82fd492e1→fe918e16ac17</code>（已核验）</td>
+<td>把反照率、发射率和 CO2 地表冰改为显式输入以适配坡面状态，并将风暴诊断迁到统一 write_output。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">03/04/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/04/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">10/02/2026，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0246</code></td>
+<td><code>libf/phymars/sugwd.F90</code></td>
+<td><code>libf/phymars/sugwd.F90</code></td>
+<td>修改</td>
+<td><code>239949728d32→69e5c7244427</code>（已核验）</td>
+<td>更新源码文件 <code>sugwd.F90</code>：新增 <code>sugwd_mod</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0257</code></td>
+<td><code>libf/phymars/thermcell_dqup.F90</code></td>
+<td><code>libf/phymars/thermcell_dqup.F90</code></td>
+<td>修改</td>
+<td><code>fd7f4e87fda6→0e46e18bd2e6</code>（已核验）</td>
+<td>将热羽流 tracer 上升输送封装为 thermcell_dqup_mod，在内部子时间步中依据上升、卷入和脱离质量通量累计 dq_therm。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0258</code></td>
+<td><code>libf/phymars/thermcell_main_mars.F90</code></td>
+<td><code>libf/phymars/thermcell_main_mars.F90</code></td>
+<td>修改</td>
+<td><code>8def8022e2e5→5d7f281612fe</code>（已核验）</td>
+<td>更新源码文件 <code>thermcell_main_mars.F90</code>：新增 <code>thermcell_main_mars_mod</code>；新增模块依赖 <code>thermcell_dqup_mod</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0260</code></td>
+<td><code>libf/phymars/topmons_mod.F90</code></td>
+<td><code>libf/phymars/topmons_mod.F90</code></td>
+<td>修改</td>
+<td><code>9ddf97ed4498→0581c708602c</code>（已核验）</td>
+<td>扩展山地顶端尘埃方案的网格识别和健壮性：兼容笛卡尔/二十面体网格，在无地形或山体已解析时关闭对应 topflow，并迁移统一诊断输出。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">02/04/2023，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/04/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">23/02/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0265</code></td>
+<td><code>libf/phymars/vdif_cd.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>2c052450978e→—</code>（已核验）</td>
+<td>移除旧 vdif_cd.F；6.3 由 vdif_cd_mod.F90 的模块化自由格式实现承接交换系数计算。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">06/12/2023，LL</a></td>
+</tr>
+<tr>
+<td><code>M-0266</code></td>
+<td>—</td>
+<td><code>libf/phymars/vdif_cd_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→e61fd00abef7</code>（已核验）</td>
+<td>新增模块化近地层交换系数计算，迭代求取动量/热量 Cd、Ch，并处理稳定度、粗糙度和阵风修正。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">06/12/2023，LL</a></td>
+</tr>
+<tr>
+<td><code>M-0267</code></td>
+<td><code>libf/phymars/vdif_kc.F</code></td>
+<td><code>libf/phymars/vdif_kc.F</code></td>
+<td>修改</td>
+<td><code>415db9c35593→1b62181d5183</code>（已核验）</td>
+<td>将 KC/Yamada 垂直扩散封装为 vdif_kc_mod，计算 q2、Km/Kn 与风温 tracer 的垂直湍流增量，并清理旧 include 和诊断残留。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0268</code></td>
+<td><code>libf/phymars/vdifc_mod.F</code></td>
+<td><code>libf/phymars/vdifc_mod.F</code></td>
+<td>修改</td>
+<td><code>151e9533bf01→d2a596bc873a</code>（已核验）</td>
+<td>扩展多坡面 PBL 与垂直扩散，模块化风应力起沙，并加入 qsoil/吸附、地下水冰交换、HDO 坡面平均及诊断，同时修正 watercap 和 vdifcd 交换更新。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/04/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">23/10/2023，EV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">03/11/2023，LL</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">09/11/2023，JBC + EV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">19/12/2023，CS</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">05/03/2024，LL</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">05/04/2024，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">13/05/2024，LL</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/05/2024，JN</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">29/05/2024，JN</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="证据边界">证据边界</h2>
+<ul>
+<li>路径状态和哈希关系来自两棵本地快照的机械比较。</li>
+<li>官方记录来自 MARS Changelog 增量；COMMON 命中仅表示间接记录。</li>
+<li>未找到 Changelog 条目不等于改动无意义，只表示没有可直接关联的官方文字记录。</li>
+<li>本页不把未运行的数值或性能影响写成既定事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../version-delta-index.html">全量变更索引</a></li>
+<li><a href="../../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

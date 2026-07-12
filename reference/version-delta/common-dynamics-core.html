@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>common-dynamics-core - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a href="../../modules/libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../file-index.html">文件索引</a>
+        <a href="../source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta/common-dynamics-core.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="common-动力核心">COMMON 动力核心</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>覆盖串行动力、公共动力状态、输送、滤波和数值辅助例程。</p>
+<p>兼容性关注：影响动力时间推进、tracer 输送、耗散、restart 和数值兼容性。</p>
+<p>本页是 5.3 到 6.3 版本差异详情页，只解释改动职责与影响，不展开逐行代码差异。</p>
+<h2 id="变化统计">变化统计</h2>
+<p>本主题覆盖 9 个路径事件：新增 0、删除 0、修改 9。</p>
+<h2 id="主要变化">主要变化</h2>
+<ul>
+<li><code>libf/dyn3d/abort_gcm.F</code>：调整串行动力终止诊断的标点和错误码文字，不改变 abort_gcm 的分支与退出码。</li>
+<li><code>libf/dyn3d/conf_gcm.F90</code>：仅在 raz_date 非零时读取 starttime，使起始时刻覆盖与日期重置开关联动。</li>
+<li><code>libf/dyn3d/gcm.F90</code>：接入 program_options 命令行解析，并简化起始时刻处理：仅在 raz_date=1 时用 run.def 的 starttime 重置日历。</li>
+<li><code>libf/dyn3d/interp_horiz.F</code>：扩大水平插值工作数组上限，使 kllm 从 400×200×10 增至 1400×200×10，以容纳更大插值映射。</li>
+<li><code>libf/dyn3d/leapfrog.F</code>：把两处 restart 写出时刻参数从 start_time 改为 JH_cur，使串行动力重启文件记录当前积分时刻。</li>
+<li><code>libf/dyn3d_common/disvert_noterre.F</code>：强化无地表垂直坐标读取：逐层检查 z2sig.def 的 iostat，在文件过短或格式错误时报告层号并调用 abort_gcm。</li>
+<li><code>libf/dyn3d_common/dynredem.F90</code>：扩展串行动力 restart 元数据：为 controle 写入逐项 controle_descriptor，并补充当前积分时刻，使控制数组可解释。</li>
+<li><code>libf/dyn3d_common/dynredem_mod.F90</code>：更新源码文件 <code>dynredem_mod.F90</code>：新增 <code>put_char1</code>、<code>int2fmtstr</code>。</li>
+<li><code>libf/dyn3d_common/iniconst.F90</code>：清理 iniconst.F90 的空白与行尾格式，不改变常数初始化计算或调用接口。</li>
+</ul>
+<h2 id="受影响路径">受影响路径</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>5.3 路径</th>
+<th>6.3 路径</th>
+<th>类型</th>
+<th>SHA-256 核验</th>
+<th>改动概述</th>
+<th>官方记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>C-0055</code></td>
+<td><code>libf/dyn3d/abort_gcm.F</code></td>
+<td><code>libf/dyn3d/abort_gcm.F</code></td>
+<td>修改</td>
+<td><code>50805d8e2069→ab09b0001223</code>（已核验）</td>
+<td>调整串行动力终止诊断的标点和错误码文字，不改变 abort_gcm 的分支与退出码。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0056</code></td>
+<td><code>libf/dyn3d/conf_gcm.F90</code></td>
+<td><code>libf/dyn3d/conf_gcm.F90</code></td>
+<td>修改</td>
+<td><code>b90a01e8c1eb→b646c87202e6</code>（已核验）</td>
+<td>仅在 raz_date 非零时读取 starttime，使起始时刻覆盖与日期重置开关联动。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0057</code></td>
+<td><code>libf/dyn3d/gcm.F90</code></td>
+<td><code>libf/dyn3d/gcm.F90</code></td>
+<td>修改</td>
+<td><code>5752f7d99ef6→7dc09d9a6ec4</code>（已核验）</td>
+<td>接入 program_options 命令行解析，并简化起始时刻处理：仅在 raz_date=1 时用 run.def 的 starttime 重置日历。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0058</code></td>
+<td><code>libf/dyn3d/interp_horiz.F</code></td>
+<td><code>libf/dyn3d/interp_horiz.F</code></td>
+<td>修改</td>
+<td><code>0f5633f0d040→1f61a90d275a</code>（已核验）</td>
+<td>扩大水平插值工作数组上限，使 kllm 从 400×200×10 增至 1400×200×10，以容纳更大插值映射。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0059</code></td>
+<td><code>libf/dyn3d/leapfrog.F</code></td>
+<td><code>libf/dyn3d/leapfrog.F</code></td>
+<td>修改</td>
+<td><code>092fa61d7772→52ddb3dfb244</code>（已核验）</td>
+<td>把两处 restart 写出时刻参数从 start_time 改为 JH_cur，使串行动力重启文件记录当前积分时刻。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0062</code></td>
+<td><code>libf/dyn3d_common/disvert_noterre.F</code></td>
+<td><code>libf/dyn3d_common/disvert_noterre.F</code></td>
+<td>修改</td>
+<td><code>fa30819ad5f1→0994822f7e65</code>（已核验）</td>
+<td>强化无地表垂直坐标读取：逐层检查 z2sig.def 的 iostat，在文件过短或格式错误时报告层号并调用 abort_gcm。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0063</code></td>
+<td><code>libf/dyn3d_common/dynredem.F90</code></td>
+<td><code>libf/dyn3d_common/dynredem.F90</code></td>
+<td>修改</td>
+<td><code>ca2a2824eb4e→75b06264e615</code>（已核验）</td>
+<td>扩展串行动力 restart 元数据：为 controle 写入逐项 controle_descriptor，并补充当前积分时刻，使控制数组可解释。</td>
+<td>间接记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">08/11/2024，JBC</a></td>
+</tr>
+<tr>
+<td><code>C-0064</code></td>
+<td><code>libf/dyn3d_common/dynredem_mod.F90</code></td>
+<td><code>libf/dyn3d_common/dynredem_mod.F90</code></td>
+<td>修改</td>
+<td><code>243af61b7258→b61f15e0d98c</code>（已核验）</td>
+<td>更新源码文件 <code>dynredem_mod.F90</code>：新增 <code>put_char1</code>、<code>int2fmtstr</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0065</code></td>
+<td><code>libf/dyn3d_common/iniconst.F90</code></td>
+<td><code>libf/dyn3d_common/iniconst.F90</code></td>
+<td>修改</td>
+<td><code>7f943703d6c6→dc4a53f12dca</code>（已核验）</td>
+<td>清理 iniconst.F90 的空白与行尾格式，不改变常数初始化计算或调用接口。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+</tbody>
+</table>
+<h2 id="证据边界">证据边界</h2>
+<ul>
+<li>路径状态和哈希关系来自两棵本地快照的机械比较。</li>
+<li>官方记录来自 MARS Changelog 增量；COMMON 命中仅表示间接记录。</li>
+<li>未找到 Changelog 条目不等于改动无意义，只表示没有可直接关联的官方文字记录。</li>
+<li>本页不把未运行的数值或性能影响写成既定事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../version-delta-index.html">全量变更索引</a></li>
+<li><a href="../../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

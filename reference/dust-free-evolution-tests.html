@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dust-free-evolution-tests - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="file-index.html">文件索引</a>
+        <a href="source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/dust-free-evolution-tests.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="dust-free-evolution-tests">Dust free evolution tests</h1>
+<h2 id="页面定位">页面定位</h2>
+<p><strong>版本提示：本页试验基于 LMDZ.MARS 5.3 版本进行，可能与 wiki 主文档记载的源码版本或分支行为有所不同。</strong></p>
+<p>本页记录一组尘埃自由演化配置试验，用于补充 <a href="../themes/dust-cycle.html">dust-cycle 主题</a> 中无法仅由源码确认的运行行为。它不是通用推荐配置页，也不引用任何本机运行目录、用户名、绝对路径或派生 <code>.def</code> 文件作为证据；只记录配置键、源码分支含义、诊断量和试验结论。</p>
+<p>试验日期：2026-07-02。</p>
+<p>目标是关闭尘埃光学厚度 scaling，让模式尽量依靠自身尘埃源项演化，同时保持运行稳定，并尽量避免按目标光学厚度注入沙尘。</p>
+<p>判据：</p>
+<ul>
+<li><code>dustscaling_mode = 0</code>，且输出 <code>tauscaling = 1</code>。</li>
+<li>沙尘 tracer 真实输送：<code>tracer = .true.</code>, <code>dustbin = 2</code>, <code>doubleq = .true.</code>。</li>
+<li>沙尘对辐射生效：<code>active = .true.</code>。</li>
+<li>尽量不用 <code>dustinjection = 1</code> 这类按 <code>tau_pref_target - tau_pref_gcm</code> 计算的目标 tau 注入。</li>
+<li>先以 10 天短试验检验稳定性，必要时再做长积分。</li>
+</ul>
+<h2 id="源码边界">源码边界</h2>
+<p>这些结论来自 <code>conf_phys.F</code>、<code>vdifc_mod.F</code>、<code>compute_dtau_mod.F90</code>、<code>dust_scaling_mod.F90</code>、<code>dustdevil.F90</code> 与 <code>dust_windstress_lift.F90</code> 的源码阅读。</p>
+<table>
+<thead>
+<tr>
+<th>配置或路径</th>
+<th>源码行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dustscaling_mode = 0</code></td>
+<td><code>compute_dustscaling</code> 中 <code>tauscaling=1</code>，不按 <code>tau_pref_scenario</code> 重缩放辐射用 <code>aerosol</code>。</td>
+</tr>
+<tr>
+<td><code>freedust = .true.</code></td>
+<td><code>conf_phys.F</code> 中默认令 <code>dustscaling_mode=0</code>，并要求 <code>doubleq=.true.</code>。</td>
+</tr>
+<tr>
+<td><code>freedust=.true.</code>, <code>lifting=.true.</code>, <code>dustinjection=0</code></td>
+<td>GCM 编译分支在 <code>conf_phys.F</code> 中中止：free dust 且无 injection 时不允许 <code>lifting</code>。</td>
+</tr>
+<tr>
+<td><code>dustinjection = 1</code></td>
+<td>要求 <code>freedust=.true.</code> 且 <code>lifting=.true.</code>；<code>compute_dtau</code> 用目标 tau 与 GCM tau 的差计算 <code>dustliftday</code>。</td>
+</tr>
+<tr>
+<td><code>doubleq=.true.</code>, <code>lifting=.true.</code>, <code>dustinjection=0</code></td>
+<td><code>vdifc_mod.F</code> 的 GCM 分支走 old injection scheme：对 dust mass/number 给固定 <code>-alpha_lift</code> 源项，不计算摩擦速度阈值。</td>
+</tr>
+<tr>
+<td>非 <code>doubleq</code> 的 <code>lifting</code> 路径</td>
+<td><code>vdifc_mod.F</code> 才调用 <code>dust_windstress_lift()</code>，用 <code>us&gt;ust</code> 的风应力阈值起尘公式。</td>
+</tr>
+<tr>
+<td><code>callddevil=.true.</code></td>
+<td>调用 <code>dustdevil()</code>，可作为不依赖目标 tau 的自然沙尘源。</td>
+</tr>
+</tbody>
+</table>
+<p>关键边界是：当前 GCM two-moment dust mass/number 体系中，<code>lifting=.true.</code> 不能简单理解为“风应力阈值起沙”。在 <code>doubleq=.true.</code> 分支，<code>dustinjection=0</code> 对应 old constant lifting；真正的阈值摩擦速度路径在非 <code>doubleq</code> 分支调用 <code>dust_windstress_lift()</code>。</p>
+<p>因此，若目标是“保留 two-moment dust mass/number，同时使用 GCM surface wind threshold lifting 且无目标 tau injection”，仅改 <code>.def</code> 不够，需要源码改造或新增分支。</p>
+<h2 id="试验配置组">试验配置组</h2>
+<table>
+<thead>
+<tr>
+<th>标签</th>
+<th>主要参数设置</th>
+<th>物理含义</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A. no-scale old lifting 初试</td>
+<td><code>active=.true.</code>, <code>doubleq=.true.</code>, <code>lifting=.true.</code>, <code>freedust=.false.</code>, <code>dustscaling_mode=0</code>, <code>dustinjection=0</code>, <code>callddevil=.false.</code>, <code>iaervar=1</code>, <code>tauvis=0.1</code></td>
+<td>绕过 <code>freedust + lifting + no injection</code> 的硬检查；关闭 scaling；保留 old GCM lifting。</td>
+<td>不稳定。一次未写出正常 <code>diagfi</code> 即在 CO2 condensation 附近中止；后续 1 天短跑可完成到 <code>date=1.0</code>，但 tau 已达几十量级。</td>
+</tr>
+<tr>
+<td>B. no-scale old lifting 复测</td>
+<td>同 A</td>
+<td>验证 old lifting 无 scaling 是否可用。</td>
+<td>1 天内失控。<code>tau(610 Pa)</code> 局地可到 30 以上，后续出现 convective adjustment 报错。说明这一路径不是可接受的 free dust 方案。</td>
+</tr>
+<tr>
+<td>C. no-scale + injection</td>
+<td><code>active=.true.</code>, <code>doubleq=.true.</code>, <code>lifting=.true.</code>, <code>freedust=.true.</code>, <code>dustscaling_mode=0</code>, <code>dustinjection=1</code>, <code>coeff_injection=0.25</code>, <code>callddevil=.false.</code>, <code>iaervar=1</code>, <code>tauvis=0.1</code></td>
+<td>关闭 optical scaling，但用 dust injection 方案补沙尘；注入强度由目标 tau 与 GCM tau 的差决定。</td>
+<td>稳定。90 天长跑完成，<code>date=90.0</code>, <code>Ls~324.8</code>，无 NaN 或 fatal stop；但物理上仍依赖目标 tau 注入，不是纯自由 lifting。</td>
+</tr>
+<tr>
+<td>D. 原始对照</td>
+<td><code>active=.false.</code>, <code>doubleq=.true.</code>, <code>lifting=.true.</code>, <code>freedust=.false.</code>, <code>dustscaling_mode=1</code>, <code>dustinjection=0</code>, <code>callddevil=.false.</code>, <code>iaervar=25</code></td>
+<td>原始 prescribed/scenario dust 对照。沙尘 tracer 可输送，但 radiative dust 主要跟 scenario/scaling 走；dust devil 关，old wind lifting 开。</td>
+<td>10 天稳定。<code>tauscaling</code> 约 <code>0.0012</code>，不是 free dust。与 free dust 试验物理机制不同，只能作动力/热力参考。</td>
+</tr>
+<tr>
+<td>E. no-scale + no injection + dust devil</td>
+<td><code>active=.true.</code>, <code>doubleq=.true.</code>, <code>lifting=.false.</code>, <code>freedust=.true.</code>, <code>dustscaling_mode=0</code>, <code>dustinjection=0</code>, <code>callddevil=.true.</code>, <code>iaervar=1</code>, <code>tauvis=0.1</code></td>
+<td>关闭 scaling 和目标 tau injection；关闭 GCM old lifting 以避开硬检查和常量源爆沙尘；用 dust devil 作为自然沙尘源。</td>
+<td>10 天稳定完成。<code>tauscaling=1</code>，<code>tau_pref_gcm</code> 10 天均值约 0.526，末值约 0.482；和 injection 方案差别很小。当前 def-only 最干净候选。</td>
+</tr>
+<tr>
+<td>F. no-scale + no injection + old lifting 10 天尝试</td>
+<td><code>active=.true.</code>, <code>doubleq=.true.</code>, <code>lifting=.true.</code>, <code>freedust=.false.</code>, <code>dustscaling_mode=0</code>, <code>dustinjection=0</code>, <code>callddevil=.false.</code>, <code>iaervar=1</code>, <code>tauvis=0.1</code></td>
+<td>与 A/B 同物理路径，作为 10 天目标的正式复核；用 <code>freedust=.false.</code> 只是为了绕过硬检查，仍关闭 scaling。</td>
+<td>失败。只正常写到 1 天；面积平均 <code>tau</code> 到约 12，局地最大约 72，随后不再正常推进，作业取消。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="10-天定量对比">10 天定量对比</h2>
+<p>三组完整 10 天结果如下：C 是 no-scale injection，D 是原始对照，E 是 no-scale no-injection dust devil。</p>
+<table>
+<thead>
+<tr>
+<th>量</th>
+<th style="text-align: right;">C: no-scale + injection</th>
+<th style="text-align: right;">D: 原始对照</th>
+<th style="text-align: right;">E: no-scale + dust devil</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tau_pref_gcm</code> 10 天均值</td>
+<td style="text-align: right;">0.509</td>
+<td style="text-align: right;">0.713</td>
+<td style="text-align: right;">0.526</td>
+</tr>
+<tr>
+<td><code>tau_pref_gcm</code> 末值</td>
+<td style="text-align: right;">0.452</td>
+<td style="text-align: right;">0.661</td>
+<td style="text-align: right;">0.482</td>
+</tr>
+<tr>
+<td><code>tau</code> 10 天均值</td>
+<td style="text-align: right;">0.516</td>
+<td style="text-align: right;">0.741</td>
+<td style="text-align: right;">0.531</td>
+</tr>
+<tr>
+<td><code>tau</code> 末值</td>
+<td style="text-align: right;">0.456</td>
+<td style="text-align: right;">0.683</td>
+<td style="text-align: right;">0.484</td>
+</tr>
+<tr>
+<td><code>tauscaling</code> 10 天均值</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">0.00121</td>
+<td style="text-align: right;">1.000</td>
+</tr>
+</tbody>
+</table>
+<p>E 相对 C 的 200-500 Pa 诊断差异很小：</p>
+<table>
+<thead>
+<tr>
+<th>压力层</th>
+<th style="text-align: right;">温度</th>
+<th style="text-align: right;">风速</th>
+<th style="text-align: right;"><code>dustq</code></th>
+<th style="text-align: right;"><code>dustN</code></th>
+<th style="text-align: right;"><code>reffdust</code></th>
+<th style="text-align: right;"><code>dsodust</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>500 Pa</td>
+<td style="text-align: right;">+0.07 K</td>
+<td style="text-align: right;">+0.13 m/s</td>
+<td style="text-align: right;">+2.9%</td>
+<td style="text-align: right;">+0.6%</td>
+<td style="text-align: right;">+0.6%</td>
+<td style="text-align: right;">+2.6%</td>
+</tr>
+<tr>
+<td>250 Pa</td>
+<td style="text-align: right;">+0.31 K</td>
+<td style="text-align: right;">+0.10 m/s</td>
+<td style="text-align: right;">+6.4%</td>
+<td style="text-align: right;">+1.1%</td>
+<td style="text-align: right;">+1.4%</td>
+<td style="text-align: right;">+5.7%</td>
+</tr>
+<tr>
+<td>100 Pa</td>
+<td style="text-align: right;">+0.45 K</td>
+<td style="text-align: right;">+0.47 m/s</td>
+<td style="text-align: right;">+5.3%</td>
+<td style="text-align: right;">+1.0%</td>
+<td style="text-align: right;">+1.1%</td>
+<td style="text-align: right;">+4.8%</td>
+</tr>
+</tbody>
+</table>
+<p>E 相对 D 的主要差异：</p>
+<table>
+<thead>
+<tr>
+<th>压力层</th>
+<th style="text-align: right;">温度</th>
+<th style="text-align: right;">风速</th>
+<th style="text-align: right;"><code>dustq</code></th>
+<th style="text-align: right;"><code>dustN</code></th>
+<th style="text-align: right;"><code>reffdust</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>500 Pa</td>
+<td style="text-align: right;">+1.33 K</td>
+<td style="text-align: right;">-0.14 m/s</td>
+<td style="text-align: right;">-9.7%</td>
+<td style="text-align: right;">+7.9%</td>
+<td style="text-align: right;">-4.8%</td>
+</tr>
+<tr>
+<td>250 Pa</td>
+<td style="text-align: right;">-0.85 K</td>
+<td style="text-align: right;">+0.10 m/s</td>
+<td style="text-align: right;">-11.5%</td>
+<td style="text-align: right;">+5.5%</td>
+<td style="text-align: right;">-2.5%</td>
+</tr>
+<tr>
+<td>100 Pa</td>
+<td style="text-align: right;">-4.73 K</td>
+<td style="text-align: right;">+0.77 m/s</td>
+<td style="text-align: right;">-12.9%</td>
+<td style="text-align: right;">+2.8%</td>
+<td style="text-align: right;">-0.7%</td>
+</tr>
+</tbody>
+</table>
+<p>注意：D 中 <code>active=.false.</code>，因此 <code>dsodust</code> 诊断为 0，不能和 free dust 方案直接按同一物理含义比较。</p>
+<h2 id="诊断输出">诊断输出</h2>
+<p>10 天试验均输出了沙尘相关诊断，包括：</p>
+<ul>
+<li>柱光学厚度：<code>tau_pref_scenario</code>, <code>tau_pref_gcm</code>, <code>tau</code>, <code>tauscaling</code></li>
+<li>沙尘三维量：<code>dustq</code>, <code>dustN</code>, <code>reffdust</code>, <code>dsodust</code></li>
+<li>地表沉降/通量诊断：<code>dqsdust</code>, <code>dqndust</code></li>
+<li>云凝结核相关量：<code>ccnq</code>, <code>ccnN</code>, <code>surfccnq</code>, <code>surfccnN</code></li>
+</ul>
+<p>同时做了压力层插值，包含 500 Pa、250 Pa、100 Pa 等层，便于比较 200-500 Pa 区间。</p>
+<h2 id="当前-def-only-候选">当前 def-only 候选</h2>
+<p>当前只改配置时，最合理的候选是 E：</p>
+<pre class="text"><code>callphys.def:
+  active = .true.
+  doubleq = .true.
+  lifting = .false.
+  dustscaling_mode = 0
+  freedust = .true.
+  dustinjection = 0
+  callddevil = .true.
+
+my.def:
+  iaervar = 1</code></pre>
+<p>这个组合满足无 scaling、无目标 tau injection、沙尘辐射活跃、10 天稳定，并且与 C 的热力和沙尘场差异较小。</p>
+<h2 id="后续源码方向">后续源码方向</h2>
+<p>如果坚持“GCM surface wind lifting + no injection + freedust”，仅靠 <code>.def</code> 参数不够。需要改源码，至少要处理两点：</p>
+<ol type="1">
+<li>放开或重构 <code>freedust=.true.</code>, <code>lifting=.true.</code>, <code>dustinjection=0</code> 的 GCM 硬检查。</li>
+<li>保留 <code>doubleq=.true.</code> 的 dust mass/number 体系，同时让 <code>dustinjection=0</code> 使用风应力阈值 lifting；或者至少把 old constant lifting 的源强参数化并可从 <code>.def</code> 控制。</li>
+</ol>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>E 只完成 10 天稳定性验证，仍需长积分检查季节尺度稳定性、尘埃收支闭合和气候态偏差。</li>
+<li>old constant lifting 在无 scaling 下快速爆沙尘的结论已有短试验证据，但其源强是否可通过 <code>alpha_lift</code> 或 tracer 设置调到可用，需要另做参数敏感性试验。</li>
+<li>two-moment dust mass/number 与风应力阈值 lifting 的源码改造需要单独设计，不能由本页直接视为已实现能力。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../themes/dust-cycle.html">dust-cycle 主题</a></li>
+<li><a href="../modules/phymars/dust_scaling_mod.html">dust_scaling_mod</a></li>
+<li><a href="../modules/phymars/compute_dtau_mod.html">compute_dtau_mod</a></li>
+<li><a href="../modules/phymars/dust_windstress_lift.html">dust_windstress_lift</a></li>
+<li><a href="../modules/phymars/dustdevil.html">dustdevil</a></li>
+<li><a href="../modules/phymars/vdifc_mod.html">vdifc_mod</a></li>
+<li><a href="pending-confirmation-triage.html">pending-confirmation-triage</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

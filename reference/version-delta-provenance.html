@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>version-delta-provenance - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a href="../themes/index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="file-index.html">文件索引</a>
+        <a href="source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta-provenance.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="版本变更矩阵来源与方法">版本变更矩阵来源与方法</h1>
+<h2 id="比较范围">比较范围</h2>
+<ul>
+<li>COMMON 5.3：使用者指定快照，共 472 个纳入文件。</li>
+<li>COMMON 6.3：当前工作区快照，共 483 个纳入文件。</li>
+<li>MARS 5.3：使用者指定快照，共 324 个纳入文件。</li>
+<li>MARS 6.3：当前工作区快照，共 362 个纳入文件。</li>
+</ul>
+<h2 id="文件比较">文件比较</h2>
+<p>对相对路径和 SHA-256 进行比较。排除 <code>.git</code>、<code>build</code>、<code>bin</code>、<code>obj</code>、<code>__pycache__</code>、<code>.DS_Store</code> 及常见编译产物。换行、编码或注释变化也会被计为同路径修改，因此矩阵不会自动把哈希变化解释成科学算法变化。</p>
+<h2 id="changelog-来源">Changelog 来源</h2>
+<ul>
+<li>官方地址：[<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt](https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt)">https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt](https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt)</a></li>
+<li>获取时间：<code>2026-07-12T14:14:43+08:00</code></li>
+<li>HTTP ETag：<code>4326//trunk/LMDZ.MARS/changelog.txt</code>（对应上游文件修订标识 r4326）</li>
+<li>官方下载文件 SHA-256：<code>1dd02b9f8527636d51aed9da9853c23ab9ef01c658e817945f406503c132adda</code></li>
+<li>5.3 Changelog SHA-256：<code>a2e01420bd665c1596bb8e7a0ce761eccc053086ea267a0f3b23ffa0d6ed281b</code></li>
+<li>6.3 本地 Changelog SHA-256：<code>8bcb67808eaa4f9aebaa5ea1084f8e71db703859f3f6f68f64de30e5251786ef</code></li>
+<li>前缀关系：5.3 是本地 6.3 的逐字节前缀，本地 6.3 是官方当前文件的逐字节前缀。</li>
+<li>本矩阵只使用 5.3 字节边界之后、本地 6.3 文件结束之前的记录，即 2022-09-01 之后至 2026-06-05。</li>
+<li>官方文件中 2026-06-11 及以后的记录不属于本次 6.3 快照。</li>
+<li>Changelog 条目给出日期和作者，但未逐条给出 SVN 修订号；矩阵不推测单条修订号，来源文件级修订以 ETag 为准。</li>
+<li>自动关联只接受完整相对路径，或在变化路径中 basename 唯一且不是 README/compile 等通名时的精确边界命中；不使用主题关键词兜底。未满足该条件的条目保守标为“源码差异”。</li>
+</ul>
+<h2 id="证据等级">证据等级</h2>
+<table>
+<thead>
+<tr>
+<th>标记</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>官方记录</td>
+<td>Changelog 明确出现该文件名或符号名。</td>
+</tr>
+<tr>
+<td>官方分组记录</td>
+<td>仅用于人工确认同一条官方记录明确覆盖的一组路径；自动生成器不按主题猜测。</td>
+</tr>
+<tr>
+<td>间接记录</td>
+<td>COMMON 路径在 MARS Changelog 中被直接或按主题提及。</td>
+</tr>
+<tr>
+<td>间接记录（分组）</td>
+<td>MARS Changelog 间接描述 COMMON 相关主题，但没有逐一列出该路径。</td>
+</tr>
+<tr>
+<td>源码差异</td>
+<td>哈希或路径变化已确认，但未找到对应 Changelog 条目。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="version-delta-index.html">全量变更索引</a></li>
+<li><a href="../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

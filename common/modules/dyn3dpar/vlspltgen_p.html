@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -36,7 +37,7 @@
 <h2 id="路径">路径</h2>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\vlspltgen_p.F</code></pre>
 <h2 id="文件定位">文件定位</h2>
-<p><code>vlspltgen_p.F</code> 是并行动力中的通用 tracer Van Leer split 输送调度器。它遍历 tracer，按 <code>iadv</code> 和 tracer 父子关系选择普通 <code>vlx_p/vly_p/vlz_p</code>、饱和 <code>vlxqs_p/vlyqs_p</code> 或其他兼容分支，并在 x/z 两段后通过 <code>mod_hallo</code> 交换 <code>zq</code>、<code>zm</code>。相比 <code>vlspltqs_p.F</code>，本文件覆盖多 tracer、多 advection scheme 和 isotope 检查。</p>
+<p><code>vlspltgen_p.F</code> 是并行动力中的通用 tracer Van Leer split 输送调度器。它遍历 tracer，按 <code>iadv</code> 和 tracer 父子关系选择普通 <code>vlx_p/vly_p/vlz_p</code>、饱和 <code>vlxqs_p/vlyqs_p</code> 或其他兼容分支，并在 x/z 两段后通过 <code>mod_hallo</code> 交换 <code>zq</code>、<code>zm</code>。相比 <a href="./vlspltqs_p.html"><code>vlspltqs_p.F</code></a>，本文件覆盖多 tracer、多 advection scheme 和 isotope 检查。</p>
 <h2 id="mars-运行参与度">Mars 运行参与度</h2>
 <pre class="text"><code>条件经过：Mars 并行动力 tracer advection 的通用入口之一；是否经过取决于并行 leapfrog/advtrac_p 选择的 split transport 路径和 tracer `iadv`。</code></pre>
 <h2 id="定义的符号">定义的符号</h2>
@@ -189,17 +190,17 @@ check isotope consistency at guarded points</code></pre>
 <ul>
 <li><code>nqperes/nqfils/iqfils</code> 决定父 tracer 与子 tracer 的同步方式；复现时不能只按 <code>iq=1:nqtot</code> 独立处理。</li>
 <li><code>firstcall</code> 是 <code>THREADPRIVATE</code>，多线程下每个线程都可能执行自己的首次分配。</li>
-<li>本文件把饱和分支嵌入通用 tracer 调度；独立 <code>vlspltqs_p.F</code> 更像特化入口。</li>
+<li>本文件把饱和分支嵌入通用 tracer 调度；独立 <a href="./vlspltqs_p.html"><code>vlspltqs_p.F</code></a> 更像特化入口。</li>
 </ul>
 <h2 id="待确认">待确认</h2>
 <ul>
-<li>各 <code>iadv</code> 数值到具体 scheme 的完整映射需要结合 <code>advtrac_p.F90</code>、<code>infotrac.F90</code> 和 traceur 配置。</li>
+<li>各 <code>iadv</code> 数值到具体 scheme 的完整映射需要结合 <a href="../dyn3d/advtrac.html"><code>advtrac_p.F90</code></a>、<a href="../dyn3d_common/infotrac.html"><code>infotrac.F90</code></a> 和 traceur 配置。</li>
 <li><code>Write_Field_p</code> 调试输出是否在 Mars 默认编译启用需由并行构建页确认。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>
 <li><a href="vlspltqs_p.html">vlspltqs_p</a></li>
-<li>待写：<code>modules/dyn3dpar/vlsplt_p.md</code>（TASK-0027）</li>
+<li>后续阅读：<code>modules/dyn3dpar/vlsplt_p.md</code></li>
 <li><a href="../../routines/advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
 <li><a href="../../routines/vlsplt-p-halo-split.html">vlsplt_p 并行 halo 与 split 内核</a></li>
 </ul>

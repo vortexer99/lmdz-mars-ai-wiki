@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -32,22 +33,22 @@
       <span>routines/restart-variable-sorting.md</span>
     </nav>
     <article class="content" data-pagefind-body>
-<h1 id="restart-变量读写和控制量重置契约">restart 变量读写和控制量重置契约</h1>
-<p>页面状态：TASK-0186 完成。 源码范围：</p>
+<h1 id="restart-变量读写和控制量重置约定">restart 变量读写和控制量重置约定</h1>
+<p>源码范围：</p>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\dynetat0.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\dynredem.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\sortvarc.F
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\sortvarc0.F</code></pre>
 <p>Mars 运行参与度：必经到条件经过。Mars 3D 从 <code>start.nc</code> 继续运行时经过 <code>dynetat0</code>，动力 restart 写出时经过 <code>dynredem0/1</code>；<code>sortvarc</code> 只在 <code>caldyn/caldyn_p</code> 的守恒诊断门打开时条件经过。</p>
 <h2 id="命名澄清">命名澄清</h2>
-<p>本任务标题中的 “变量排序” 容易误读。源码里的 <code>sortvarc</code> 注释是 “sortie des variables de controle”，实际作用是输出/重置质量、能量、涡度、角动量等控制量诊断，不是 restart 变量重排算法。真正的 restart 变量匹配发生在：</p>
+<p>原标题中的 “变量排序” 容易误读。源码里的 <code>sortvarc</code> 注释是 “sortie des variables de controle”，实际作用是输出/重置质量、能量、涡度、角动量等控制量诊断，不是 restart 变量重排算法。真正的 restart 变量匹配发生在：</p>
 <ul>
 <li><code>dynetat0.F90</code>：按固定变量名从 <code>start.nc/restart.nc</code> 读取 <code>controle</code>, <code>vcov</code>, <code>ucov</code>, <code>teta</code>, tracer, <code>masse</code>, <code>ps</code>。</li>
 <li><code>dynredem.F90</code>：创建同名变量并追加时间记录；tracer 变量名来自 <code>infotrac:tname(iq)</code>。</li>
 <li><code>sortvarc.F</code>：在运行中计算控制量，并可用 <code>resetvarc/read_start</code> 决定是否重设 <code>etot0/ptot0/ztot0/stot0/ang0</code> 基准。</li>
 </ul>
-<p><code>sortvarc0.F</code> 保留了旧式初始控制量计算实现；当前 COMMON 6.3 <code>libf</code> 源码搜索只发现它自身定义，未发现活动调用点。</p>
-<h2 id="restart-变量名契约">restart 变量名契约</h2>
+<p><code>sortvarc0.F</code> 保留了旧式初始控制量计算实现；当前 当前 COMMON <code>libf</code> 源码搜索只发现它自身定义，未发现活动调用点。</p>
+<h2 id="restart-变量名约定">restart 变量名约定</h2>
 <table>
 <thead>
 <tr>
@@ -60,7 +61,7 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\sortvarc0.F</code></pre>
 <tbody>
 <tr>
 <td>控制表</td>
-<td><code>dynredem0</code> 写 <code>controle</code>，6.3 还写 <code>controle_descriptor</code></td>
+<td><code>dynredem0</code> 写 <code>controle</code>，当前源码还写 <code>controle_descriptor</code></td>
 <td><code>dynetat0</code> 先读 <code>controle</code></td>
 <td>读入端依赖数组位置，文件若来自旧格式或错误行星布局会造成常量/日期错位。</td>
 </tr>
@@ -183,7 +184,7 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\sortvarc0.F</code></pre>
 </tr>
 </tbody>
 </table>
-<p>6.3 返工还在 <a href="dynredem-restart.html">dynredem-restart</a> 中记录了 <code>controle_descriptor</code> 和 <code>tab_cntrl(32)=time</code> 的细节。本页关注变量名和 tracer 对齐风险。</p>
+<p><a href="dynredem-restart.html">dynredem-restart</a> 中记录了 <code>controle_descriptor</code> 和 <code>tab_cntrl(32)=time</code> 的细节。本页关注变量名和 tracer 对齐风险。</p>
 <h2 id="sortvarc-控制量基准"><code>sortvarc</code> 控制量基准</h2>
 <p><code>sortvarc</code> 不是 restart 读写器，但它与 restart 控制表有关：<code>dynetat0</code> 会从 <code>controle</code> 恢复 <code>etot0/ptot0/ztot0/stot0/ang0</code>，<code>dynredem0</code> 会把这些基准值写入 <code>controle</code>，而 <code>sortvarc</code> 可以在第一次守恒诊断时重设它们。</p>
 <table>
@@ -231,7 +232,7 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\sortvarc0.F</code></pre>
 <li><code>dynredem0</code> 按当前 <code>tname(:)</code> 创建新 restart 变量。</li>
 <li><code>dynredem1</code> 按当前 <code>tname(:)</code> 写入。</li>
 </ol>
-<p>所以只要 <code>traceur.def</code>、6.3 tracer parser 或 MARS physics tracer 名发生变化，旧 restart 仍可读完，但缺失 tracer 可能悄悄变成零场。复现实验时必须检查 <code>dynetat0: Tracer &lt;...&gt; is missing</code> 日志，而不能只看程序是否继续运行。</p>
+<p>所以只要 <code>traceur.def</code>、当前 tracer parser 或 MARS physics tracer 名发生变化，旧 restart 仍可读完，但缺失 tracer 可能悄悄变成零场。复现实验时必须检查 <code>dynetat0: Tracer &lt;...&gt; is missing</code> 日志，而不能只看程序是否继续运行。</p>
 <h2 id="复现检查表">复现检查表</h2>
 <ol type="1">
 <li>确认 <code>planet_type</code>，决定 <code>controle</code> 解码偏移和时间轴名。</li>
@@ -242,7 +243,7 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\sortvarc0.F</code></pre>
 </ol>
 <h2 id="待确认">待确认</h2>
 <ul>
-<li><code>sortvarc0.F</code> 在 COMMON 6.3 <code>libf</code> 内未找到活动调用点；是否仍被外部或历史构建目标使用，需要构建脚本级证据确认。</li>
+<li><code>sortvarc0.F</code> 在 当前 COMMON <code>libf</code> 内未找到活动调用点；是否仍被外部或历史构建目标使用，需要构建脚本级证据确认。</li>
 <li><code>sortvarc.F</code> 注释说无初始化场时 <code>resetvarc</code> should be set to false，但代码实际设为 <code>.true.</code>；本页按代码行为记录，设计意图待确认。</li>
 <li>MARS 具体实验中哪些 tracer 名变更最常见，需要结合 <code>traceur.def</code> 样例和 physics 配置确认。</li>
 </ul>
@@ -251,9 +252,9 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\sortvarc0.F</code></pre>
 <li><a href="../modules/dyn3d_common/dynetat0.html">dynetat0.F90 文件页</a></li>
 <li><a href="dynredem-restart.html">dynredem restart 写出串并行对照</a></li>
 <li><a href="mars-start-restart-archive-boundary.html">Mars start/restart/archive 边界</a></li>
-<li><a href="infotrac-state-contract.html">infotrac 状态契约</a></li>
+<li><a href="infotrac-state-contract.html">infotrac 状态约定</a></li>
 <li><a href="caldyn-dynamic-tendencies.html">caldyn 动力 tendency</a></li>
-<li><a href="common-state-control-contract.html">COMMON 状态/控制契约</a></li>
+<li><a href="common-state-control-contract.html">COMMON 状态/控制约定</a></li>
 </ul>
 
     </article>

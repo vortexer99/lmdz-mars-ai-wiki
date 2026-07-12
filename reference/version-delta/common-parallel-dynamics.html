@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>common-parallel-dynamics - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a href="../../modules/libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../file-index.html">文件索引</a>
+        <a href="../source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta/common-parallel-dynamics.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="common-并行动力">COMMON 并行动力</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>覆盖 dyn3dpar 的分解、halo、band、时间推进和并行 I/O 支持。</p>
+<p>兼容性关注：影响 MPI/OpenMP 调度、通信请求和并行动力稳定性。</p>
+<p>本页是 5.3 到 6.3 版本差异详情页，只解释改动职责与影响，不展开逐行代码差异。</p>
+<h2 id="变化统计">变化统计</h2>
+<p>本主题覆盖 6 个路径事件：新增 0、删除 0、修改 6。</p>
+<h2 id="主要变化">主要变化</h2>
+<ul>
+<li><code>libf/dyn3dpar/abort_gcm.F</code>：调整并行动力终止诊断的标点和错误码文字，不改变 abort_gcm 的 MPI 终止路径。</li>
+<li><code>libf/dyn3dpar/conf_gcm.F90</code>：仅在 raz_date 非零时读取 starttime，使并行动力的起始时刻覆盖与日期重置开关联动。</li>
+<li><code>libf/dyn3dpar/dynredem_p.F90</code>：扩展并行动力 restart 元数据：为 controle 数组写入逐项 controle_descriptor，并补写当前积分时刻，提升控制参数可读性。</li>
+<li><code>libf/dyn3dpar/gcm.F</code>：接入 program_options 命令行解析，并简化并行动力起始时刻处理：仅在 raz_date=1 时用 run.def 的 starttime 重置日历。</li>
+<li><code>libf/dyn3dpar/leapfrog_p.F</code>：把两处 restart 写出时刻参数从 start_time 改为 JH_cur，使重启文件记录当前积分时刻。</li>
+<li><code>libf/dyn3dpar/parallel_lmdz.F90</code>：修正 MPI/OpenMP 垂直层分块，避免空闲线程触发无效 MPI 请求。</li>
+</ul>
+<h2 id="受影响路径">受影响路径</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>5.3 路径</th>
+<th>6.3 路径</th>
+<th>类型</th>
+<th>SHA-256 核验</th>
+<th>改动概述</th>
+<th>官方记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>C-0066</code></td>
+<td><code>libf/dyn3dpar/abort_gcm.F</code></td>
+<td><code>libf/dyn3dpar/abort_gcm.F</code></td>
+<td>修改</td>
+<td><code>9bf10bdb0749→bddf1e39bd9c</code>（已核验）</td>
+<td>调整并行动力终止诊断的标点和错误码文字，不改变 abort_gcm 的 MPI 终止路径。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0067</code></td>
+<td><code>libf/dyn3dpar/conf_gcm.F90</code></td>
+<td><code>libf/dyn3dpar/conf_gcm.F90</code></td>
+<td>修改</td>
+<td><code>0decdef5fb63→424c56ca2f7e</code>（已核验）</td>
+<td>仅在 raz_date 非零时读取 starttime，使并行动力的起始时刻覆盖与日期重置开关联动。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0068</code></td>
+<td><code>libf/dyn3dpar/dynredem_p.F90</code></td>
+<td><code>libf/dyn3dpar/dynredem_p.F90</code></td>
+<td>修改</td>
+<td><code>d2fc2d3e7bed→2bd5b68d9172</code>（已核验）</td>
+<td>扩展并行动力 restart 元数据：为 controle 数组写入逐项 controle_descriptor，并补写当前积分时刻，提升控制参数可读性。</td>
+<td>间接记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">08/11/2024，JBC</a></td>
+</tr>
+<tr>
+<td><code>C-0069</code></td>
+<td><code>libf/dyn3dpar/gcm.F</code></td>
+<td><code>libf/dyn3dpar/gcm.F</code></td>
+<td>修改</td>
+<td><code>95337c131693→dd3d2a0beb6e</code>（已核验）</td>
+<td>接入 program_options 命令行解析，并简化并行动力起始时刻处理：仅在 raz_date=1 时用 run.def 的 starttime 重置日历。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0070</code></td>
+<td><code>libf/dyn3dpar/leapfrog_p.F</code></td>
+<td><code>libf/dyn3dpar/leapfrog_p.F</code></td>
+<td>修改</td>
+<td><code>db3d6f3e821b→9408bab4a379</code>（已核验）</td>
+<td>把两处 restart 写出时刻参数从 start_time 改为 JH_cur，使重启文件记录当前积分时刻。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0071</code></td>
+<td><code>libf/dyn3dpar/parallel_lmdz.F90</code></td>
+<td><code>libf/dyn3dpar/parallel_lmdz.F90</code></td>
+<td>修改</td>
+<td><code>da411ff6156c→6d720b4d9b97</code>（已核验）</td>
+<td>修正 MPI/OpenMP 垂直层分块，避免空闲线程触发无效 MPI 请求。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+</tbody>
+</table>
+<h2 id="证据边界">证据边界</h2>
+<ul>
+<li>路径状态和哈希关系来自两棵本地快照的机械比较。</li>
+<li>官方记录来自 MARS Changelog 增量；COMMON 命中仅表示间接记录。</li>
+<li>未找到 Changelog 条目不等于改动无意义，只表示没有可直接关联的官方文字记录。</li>
+<li>本页不把未运行的数值或性能影响写成既定事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../version-delta-index.html">全量变更索引</a></li>
+<li><a href="../../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

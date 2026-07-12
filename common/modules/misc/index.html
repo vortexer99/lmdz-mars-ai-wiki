@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -37,7 +38,7 @@
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\misc</code></pre>
 <h2 id="职责">职责</h2>
 <p><code>libf/misc</code> 收纳 COMMON 中跨动力、物理和工具程序复用的辅助代码：NetCDF95 wrapper、IOIPSL/getin 兼容实现、重网格和插值、PCHIP/spline、runtime option、tracer parser、字符串工具、job walltime helper、通用数值 helper、气象/坐标/日期工具、排序和断言基础。Mars archive utility 的 NetCDF 文件读写主要是 Mars 侧直接 <code>NF_*</code> API，不等价于 COMMON <code>netcdf95</code> wrapper 调用。</p>
-<p>Mars 运行参与度：<code>必经</code> 到 <code>条件经过</code> 混合。Mars 物理通过 <code>phy_common/ioipsl_getin_p_mod.F90</code> 调用 <code>getin_p</code>，在无 IOIPSL 时落到本目录 <code>ioipsl_getincom.F90</code>；Mars/COMMON 动力和工具链也会经由 <code>new_unit_m</code>、<code>netcdf95</code>、<code>q_sat</code>、<code>pres2lev</code>、<code>formcoord</code> 等 helper。</p>
+<p>Mars 运行参与度：<code>必经</code> 到 <code>条件经过</code> 混合。Mars 物理通过 <code>phy_common/ioipsl_getin_p_mod.F90</code> 调用 <code>getin_p</code>，在无 IOIPSL 时落到本目录 <a href="./ioipsl_getincom.html"><code>ioipsl_getincom.F90</code></a>；Mars/COMMON 动力和工具链也会经由 <code>new_unit_m</code>、<code>netcdf95</code>、<code>q_sat</code>、<code>pres2lev</code>、<code>formcoord</code> 等 helper。</p>
 <h2 id="目录内容">目录内容</h2>
 <table>
 <thead>
@@ -56,17 +57,17 @@
 <tr>
 <td>IOIPSL/getin</td>
 <td><a href="ioipsl-getin-system.html">ioipsl-getin-system.md</a>, <a href="ioipsl_getincom.html">ioipsl_getincom.md</a>, <a href="ioipsl-local-support.html">ioipsl-local-support.md</a></td>
-<td>提供 <code>getin</code> fallback、字符串解析、错误级别和并行 <code>getin_p</code> 调度说明；<code>ioipsl_getincom.F90</code> 父文件页展开文件来源、key 表和 typed parser。</td>
+<td>提供 <code>getin</code> fallback、字符串解析、错误级别和并行 <code>getin_p</code> 调度说明；<a href="./ioipsl_getincom.html"><code>ioipsl_getincom.F90</code></a> 主文件页展开文件来源、key 表和 typed parser。</td>
 </tr>
 <tr>
 <td>Runtime option</td>
 <td><a href="program-options.html">program-options.md</a>, <a href="job.html">job.md</a></td>
-<td>6.3 命令行 option parser、<code>--version</code>、<code>--auto-exit</code> 和调度系统 walltime 查询。</td>
+<td>命令行 option parser、<code>--version</code>、<code>--auto-exit</code> 和调度系统 walltime 查询。</td>
 </tr>
 <tr>
 <td>Tracer/string parser</td>
 <td><a href="readTracFiles_mod.html">readTracFiles_mod.md</a>, <a href="strings_mod.html">strings_mod.md</a></td>
-<td>6.3 tracer/isotope 文件解析、phase/metadata 数据库和通用字符串工具。</td>
+<td>当前 tracer/isotope 文件解析、phase/metadata 数据库和通用字符串工具。</td>
 </tr>
 <tr>
 <td>重网格/插值</td>
@@ -105,19 +106,19 @@
 <li><code>dyn3d/conf_gcm.F90</code>、<code>dyn3dpar/conf_gcm.F90</code>、Mars <code>phymars/conf_phys.F</code> 和多个物理模块通过 <code>getin</code> 或 <code>getin_p</code> 读取运行参数。</li>
 <li><code>dyn3d/guide_mod.F90</code>、<code>dyn3dpar/guide_p_mod.F90</code> 使用 <code>pres2lev</code>、<code>q_sat</code> 和 <code>netcdf95</code> 处理 nudging/guide 输入、湿度限制和 nudging 系数输出；Mars <code>newstart/start2archive/datareadnc</code> 的 archive/surface NetCDF 读写则主要直接使用 <code>netcdf.inc</code>/<code>NF_*</code>。</li>
 <li><code>dyn3d/wrgrads.F</code> 和 <code>dyn3dpar/wrgrads.F</code> 用 <code>formcoord</code> 写 GrADS ctl 坐标。</li>
-<li><code>write_field.F90</code> 提供旧式 debug dump；<code>phy_common/write_field_phy.F90</code> 可把物理列 gather 到全局 lon-lat 后复用该 dump 底座。</li>
+<li><a href="./write-field-debug.html"><code>write_field.F90</code></a> 提供旧式 debug dump；<code>phy_common/write_field_phy.F90</code> 可把物理列 gather 到全局 lon-lat 后复用该 dump 底座。</li>
 <li><code>dyn3d_common/disvert.F90</code> 使用 <code>new_unit</code> 打开垂直层输出辅助文件。</li>
 </ul>
 <h2 id="复现要点">复现要点</h2>
 <ol type="1">
-<li>6.3 <code>getin_p</code> 由 <code>phy_common/ioipsl_getin_p_mod.F90</code> 使用 <code>is_master</code> 调用 <code>getin</code>，然后广播结果；复现并行配置读取必须保留 master-read/bcast 顺序。</li>
+<li><code>getin_p</code> 由 <code>phy_common/ioipsl_getin_p_mod.F90</code> 使用 <code>is_master</code> 调用 <code>getin</code>，然后广播结果；复现并行配置读取必须保留 master-read/bcast 顺序。</li>
 <li>NetCDF95 wrapper 的模式是：调用 <code>nf90_*</code>，若调用方提供 <code>ncerr</code> 则返回错误码，否则调用 <code>handle_err</code> 终止。</li>
 <li>重网格和 slope helper 假设坐标数组有序；保守重采样还假设源/目标 cell bounds 可逐段推进。</li>
 </ol>
 <h2 id="待确认">待确认</h2>
 <ul>
-<li><code>wxios.F90</code> 在 <code>CPP_XIOS</code> 下支撑 COMMON/Mars XIOS context、domain、axis、file/field 定义，详见 <a href="wxios.html">wxios</a>；<code>write_field.F90</code> 的 debug dump 路径已由 <a href="write-field-debug.html">write-field-debug</a> 覆盖。</li>
-<li>本目录中旧 SLATEC 错误处理 <code>xermsg/xerprn/...</code> 是否仍被 Mars 运行链实际调用，当前未在本批任务中展开。</li>
+<li><a href="./wxios.html"><code>wxios.F90</code></a> 在 <code>CPP_XIOS</code> 下支撑 COMMON/Mars XIOS context、domain、axis、file/field 定义，详见 <a href="wxios.html">wxios</a>；<a href="./write-field-debug.html"><code>write_field.F90</code></a> 的 debug dump 路径已由 <a href="write-field-debug.html">write-field-debug</a> 覆盖。</li>
+<li>本目录中旧 SLATEC 错误处理 <code>xermsg/xerprn/...</code> 是否仍被 Mars 运行链实际调用，当前未在本轮梳理中展开。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>

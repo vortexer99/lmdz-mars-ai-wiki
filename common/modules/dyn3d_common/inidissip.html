@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -37,7 +38,7 @@
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\inidissip.F90</code></pre>
 <h2 id="mars-运行参与度">Mars 运行参与度</h2>
 <p>必经</p>
-<p><code>gcm.F90</code>（串行，line 424）和 <code>gcm.F</code>（并行，line 442）在初始化阶段都调用 <code>inidissip</code>。<code>leapfrog</code>/<code>leapfrog_p</code> 主循环每 <code>dissip_period</code> 个动力步通过 <code>dissip</code>/<code>dissip_p</code> 消费 <code>inidissip</code> 写入 <code>comdissipn</code> 公共块的结果。</p>
+<p><a href="../dyn3d/gcm.html"><code>gcm.F90</code></a>（串行，line 424）和 <a href="../dyn3d/gcm.html"><code>gcm.F</code></a>（并行，line 442）在初始化阶段都调用 <code>inidissip</code>。<code>leapfrog</code>/<code>leapfrog_p</code> 主循环每 <code>dissip_period</code> 个动力步通过 <code>dissip</code>/<code>dissip_p</code> 使用 <code>inidissip</code> 写入 <code>comdissipn</code> 公共块的结果。</p>
 <h2 id="文件定位和职责">文件定位和职责</h2>
 <p><code>inidissip</code> 初始化水平（侧向）耗散的全部参数，包括三个微分算子的特征值、垂直耗散增强剖面和耗散时间尺度。主要工作分为三步：</p>
 <ol type="1">
@@ -269,7 +270,7 @@
 <tr>
 <td><code>cdivh</code></td>
 <td>REAL</td>
-<td><code>divgrad</code> 算子特征值的倒数（star）或幂。由 <code>dissip</code>/<code>dissip_p</code>/<code>top_bound</code>/<code>top_bound_p</code> 消费。</td>
+<td><code>divgrad</code> 算子特征值的倒数（star）或幂。由 <code>dissip</code>/<code>dissip_p</code>/<code>top_bound</code>/<code>top_bound_p</code> 使用。</td>
 </tr>
 <tr>
 <td><code>cdivu</code></td>
@@ -298,7 +299,7 @@
 </tr>
 </tbody>
 </table>
-<p><code>comdissipn.h</code> 消费方清单：<code>dissip.F</code>, <code>dissip_p.F</code>, <code>top_bound.F</code>, <code>top_bound_p.F</code>, <code>divgrad.F/2.F</code>, <code>gradiv.F/2.F</code>, <code>nxgrarot.F/nxgraro2.F</code> 及其 <code>_p</code> 变体。</p>
+<p><code>comdissipn.h</code> 使用方清单：<code>dissip.F</code>, <code>dissip_p.F</code>, <code>top_bound.F</code>, <code>top_bound_p.F</code>, <code>divgrad.F/2.F</code>, <code>gradiv.F/2.F</code>, <code>nxgrarot.F/nxgraro2.F</code> 及其 <code>_p</code> 变体。</p>
 <h2 id="输出状态comconst_mod">输出状态（comconst_mod）</h2>
 <table>
 <thead>
@@ -441,7 +442,7 @@ zvert(l) *= 1 + (fac_up/fac_mid - 1) * (1 - 0.5*(1 + tanh(-6/delta * (scaleheigh
 <li>Mars <code>conf_gcm</code> 设置 <code>vert_prof_dissip</code> 默认 <code>1</code>。</li>
 <li><code>ok_strato</code> 由 <code>logic_mod</code> 控制，开启时 Mars 模式 0 额外叠加高层增强。</li>
 <li><code>nogcm.F90</code> 中调用已被注释（<code>!ED18</code>），Mars nogcm 路径不经过。</li>
-<li><code>leapfrog</code> 每 <code>dissip_period</code> 步调用 <code>dissip</code>/<code>dissip_p</code>，消费 <code>comdissipn</code> 公共块中的 <code>cdivh/cdivu/crot/tetaudiv/tetaurot/tetah</code>。</li>
+<li><code>leapfrog</code> 每 <code>dissip_period</code> 步调用 <code>dissip</code>/<code>dissip_p</code>，使用 <code>comdissipn</code> 公共块中的 <code>cdivh/cdivu/crot/tetaudiv/tetaurot/tetah</code>。</li>
 </ul>
 <h2 id="配置开关">配置开关</h2>
 <table>
@@ -554,11 +555,11 @@ zvert(l) *= 1 + (fac_up/fac_mid - 1) * (1 - 0.5*(1 + tanh(-6/delta * (scaleheigh
 <li><label><input type="checkbox" /><code>ok_strato</code> 为 <code>.TRUE.</code> 时进入高层大气增强耗散分支。</label></li>
 <li><label><input type="checkbox" />检查 <code>lunout</code> 输出中特征值 <code>cdivh/cdivu/crot</code> 和 <code>zvert(l)</code> 垂直剖面数值合理。</label></li>
 <li><label><input type="checkbox" />确认 <code>dtdiss*tetaudiv(l)</code>, <code>dtdiss*tetaurot(l)</code>, <code>dtdiss*tetah(l)</code> 均 &lt; 1.9（否则打印 STOP 警告）。</label></li>
-<li><label><input type="checkbox" /><code>comdissipn</code> 中的 <code>tetaudiv/tetaurot/tetah</code> 和 <code>cdivh/cdivu/crot</code> 被后续 <code>dissip</code>/<code>dissip_p</code> 正确消费。</label></li>
+<li><label><input type="checkbox" /><code>comdissipn</code> 中的 <code>tetaudiv/tetaurot/tetah</code> 和 <code>cdivh/cdivu/crot</code> 被后续 <code>dissip</code>/<code>dissip_p</code> 正确使用。</label></li>
 </ul>
 <h2 id="待确认项">待确认项</h2>
 <ul>
-<li><code>comdissnew.h</code> 声明了 <code>coefdis</code> 变量，但 <code>inidissip</code> 未消费。其用途需由 <code>dissip</code>/<code>dissip_p</code> 页面确认。</li>
+<li><code>comdissnew.h</code> 声明了 <code>coefdis</code> 变量，但 <code>inidissip</code> 未使用。其用途需由 <code>dissip</code>/<code>dissip_p</code> 页面确认。</li>
 <li><code>filtreg</code> 调用中的参数 <code>jjp1,1,2,1,.TRUE.,1</code> 的精确含义参见 <a href="../filtrez/filtreg-system.html">filtreg-system</a>。</li>
 <li><code>ran1</code> 为外部伪随机数函数，非 Fortran 标准库；其种子管理和实现位置需另行确认。</li>
 <li>Mars <code>vert_prof_dissip=1</code> 分支中 <code>startalt=70 km</code>、<code>delta=30 km</code> 等硬编码值仅在首次调用时有效（SAVE 语义），多次调用不会重新初始化。</li>
@@ -568,10 +569,10 @@ zvert(l) *= 1 + (fac_up/fac_mid - 1) * (1 - 0.5*(1 + tanh(-6/delta * (scaleheigh
 <ul>
 <li><a href="index.html">dyn3d_common 总览</a></li>
 <li><a href="../../routines/dynamics-initializers.html">动力初始化辅助例程</a> — 含 <code>inidissip</code> 在初始化链中的位置。</li>
-<li><a href="../../routines/dissip-serial-parallel.html">dissip 串并行对照</a> — 消费 <code>comdissipn</code> 的耗散施加例程。</li>
+<li><a href="../../routines/dissip-serial-parallel.html">dissip 串并行对照</a> — 使用 <code>comdissipn</code> 的耗散施加例程。</li>
 <li><a href="../../routines/differential-operators-overview.html">差分算子总览</a> — <code>divgrad/gradiv/nxgrarot</code> 算子分类。</li>
 <li><a href="../../routines/common-dissipation-stencil-families.html">水平微分/耗散 stencil family 深度页</a> — 叶子算子、Laplacian 复合和耗散复合的签名与串并行对照。</li>
-<li><a href="../../routines/top-bound-serial-parallel.html">top_bound 串并行对照</a> — 顶边界处理也消费 <code>comdissipn</code>。</li>
+<li><a href="../../routines/top-bound-serial-parallel.html">top_bound 串并行对照</a> — 顶边界处理也使用 <code>comdissipn</code>。</li>
 <li><a href="../../routines/leapfrog-dissipation-conservation.html">耗散与守恒</a> — <code>leapfrog</code> 中耗散调度与动能修正。</li>
 <li><a href="../dyn3d/conf_gcm.html">conf_gcm.F90</a> — 耗散参数配置来源。</li>
 <li><a href="../filtrez/filtreg-system.html">filtreg 系统</a> — 滤波例程，幂迭代前置调用。</li>

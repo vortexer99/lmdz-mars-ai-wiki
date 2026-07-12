@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>common-build-arch-ioipsl - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a href="../../modules/libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../file-index.html">文件索引</a>
+        <a href="../source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta/common-build-arch-ioipsl.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="common-构建arch-与-ioipsl">COMMON 构建、arch 与 IOIPSL</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>覆盖 FCM 构建入口、机器配置和 IOIPSL 安装/链接支持。</p>
+<p>兼容性关注：影响编译命令、平台环境、I/O 后端选择和可移植性。</p>
+<p>本页是 5.3 到 6.3 版本差异详情页，只解释改动职责与影响，不展开逐行代码差异。</p>
+<h2 id="变化统计">变化统计</h2>
+<p>本主题覆盖 56 个路径事件：新增 29、删除 5、修改 22。</p>
+<h2 id="主要变化">主要变化</h2>
+<ul>
+<li><code>arch/arch-ADASTRA-gnu.env</code>：新增平台配置 <code>arch-ADASTRA-gnu.env</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</li>
+<li><code>arch/arch-ADASTRA-gnu.fcm</code>：新增平台配置 <code>arch-ADASTRA-gnu.fcm</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</li>
+<li><code>arch/arch-ADASTRA-gnu.path</code>：新增平台配置 <code>arch-ADASTRA-gnu.path</code>，包含 <code>NETCDF_INCDIR</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code>、<code>MPI_INCDIR</code> 等配置项；该配置进入 6.3。</li>
+<li><code>arch/arch-ADASTRA-ifort.env</code>：新增平台配置 <code>arch-ADASTRA-ifort.env</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</li>
+<li><code>arch/arch-ADASTRA-ifort.fcm</code>：新增平台配置 <code>arch-ADASTRA-ifort.fcm</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</li>
+<li><code>arch/arch-ADASTRA-ifort.path</code>：新增平台配置 <code>arch-ADASTRA-ifort.path</code>，包含 <code>NETCDF_INCDIR</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code>、<code>MPI_INCDIR</code> 等配置项；该配置进入 6.3。</li>
+<li><code>arch/arch-BAO_YGG.env</code>：新增平台配置 <code>arch-BAO_YGG.env</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</li>
+<li><code>arch/arch-BAO_YGG.fcm</code>：新增平台配置 <code>arch-BAO_YGG.fcm</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</li>
+<li><code>arch/arch-BAO_YGG.path</code>：新增平台配置 <code>arch-BAO_YGG.path</code>，包含 <code>ROOT</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code>、<code>NETCDF_INCDIR</code> 等配置项；该配置进入 6.3。</li>
+<li><code>arch/arch-gfortran-para.fcm</code>：新增平台配置 <code>arch-gfortran-para.fcm</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</li>
+<li><code>arch/arch-gfortran-para.path</code>：新增平台配置 <code>arch-gfortran-para.path</code>，包含 <code>ROOT</code>、<code>NETCDF_INCDIR</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code> 等配置项；该配置进入 6.3。</li>
+<li><code>arch/arch-gfortran.fcm</code>：调整平台配置 <code>arch-gfortran.fcm</code> 的编译器、编译选项或依赖路径，以更新该平台的构建环境。</li>
+<li>其余 44 项见下表和全量索引。</li>
+</ul>
+<h2 id="受影响路径">受影响路径</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>5.3 路径</th>
+<th>6.3 路径</th>
+<th>类型</th>
+<th>SHA-256 核验</th>
+<th>改动概述</th>
+<th>官方记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>C-0001</code></td>
+<td>—</td>
+<td><code>arch/arch-ADASTRA-gnu.env</code></td>
+<td>新增</td>
+<td><code>—→582ac5ef2cf0</code>（已核验）</td>
+<td>新增平台配置 <code>arch-ADASTRA-gnu.env</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0002</code></td>
+<td>—</td>
+<td><code>arch/arch-ADASTRA-gnu.fcm</code></td>
+<td>新增</td>
+<td><code>—→26cada3c7a42</code>（已核验）</td>
+<td>新增平台配置 <code>arch-ADASTRA-gnu.fcm</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0003</code></td>
+<td>—</td>
+<td><code>arch/arch-ADASTRA-gnu.path</code></td>
+<td>新增</td>
+<td><code>—→0dd17ab2ba7d</code>（已核验）</td>
+<td>新增平台配置 <code>arch-ADASTRA-gnu.path</code>，包含 <code>NETCDF_INCDIR</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code>、<code>MPI_INCDIR</code> 等配置项；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0004</code></td>
+<td>—</td>
+<td><code>arch/arch-ADASTRA-ifort.env</code></td>
+<td>新增</td>
+<td><code>—→809998cf7305</code>（已核验）</td>
+<td>新增平台配置 <code>arch-ADASTRA-ifort.env</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0005</code></td>
+<td>—</td>
+<td><code>arch/arch-ADASTRA-ifort.fcm</code></td>
+<td>新增</td>
+<td><code>—→791ada3f8e5c</code>（已核验）</td>
+<td>新增平台配置 <code>arch-ADASTRA-ifort.fcm</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0006</code></td>
+<td>—</td>
+<td><code>arch/arch-ADASTRA-ifort.path</code></td>
+<td>新增</td>
+<td><code>—→0dd17ab2ba7d</code>（已核验）</td>
+<td>新增平台配置 <code>arch-ADASTRA-ifort.path</code>，包含 <code>NETCDF_INCDIR</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code>、<code>MPI_INCDIR</code> 等配置项；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0007</code></td>
+<td>—</td>
+<td><code>arch/arch-BAO_YGG.env</code></td>
+<td>新增</td>
+<td><code>—→e219cff53acc</code>（已核验）</td>
+<td>新增平台配置 <code>arch-BAO_YGG.env</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0008</code></td>
+<td>—</td>
+<td><code>arch/arch-BAO_YGG.fcm</code></td>
+<td>新增</td>
+<td><code>—→af68c9965dde</code>（已核验）</td>
+<td>新增平台配置 <code>arch-BAO_YGG.fcm</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0009</code></td>
+<td>—</td>
+<td><code>arch/arch-BAO_YGG.path</code></td>
+<td>新增</td>
+<td><code>—→04df3eb6c259</code>（已核验）</td>
+<td>新增平台配置 <code>arch-BAO_YGG.path</code>，包含 <code>ROOT</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code>、<code>NETCDF_INCDIR</code> 等配置项；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0010</code></td>
+<td>—</td>
+<td><code>arch/arch-gfortran-para.fcm</code></td>
+<td>新增</td>
+<td><code>—→d0e6e0509d91</code>（已核验）</td>
+<td>新增平台配置 <code>arch-gfortran-para.fcm</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0011</code></td>
+<td>—</td>
+<td><code>arch/arch-gfortran-para.path</code></td>
+<td>新增</td>
+<td><code>—→5de453947b25</code>（已核验）</td>
+<td>新增平台配置 <code>arch-gfortran-para.path</code>，包含 <code>ROOT</code>、<code>NETCDF_INCDIR</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code> 等配置项；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0012</code></td>
+<td><code>arch/arch-gfortran.fcm</code></td>
+<td><code>arch/arch-gfortran.fcm</code></td>
+<td>修改</td>
+<td><code>95a297642093→d6c59d0e45c2</code>（已核验）</td>
+<td>调整平台配置 <code>arch-gfortran.fcm</code> 的编译器、编译选项或依赖路径，以更新该平台的构建环境。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0013</code></td>
+<td><code>arch/arch-gfortran.path</code></td>
+<td><code>arch/arch-gfortran.path</code></td>
+<td>修改</td>
+<td><code>dbb3cadbdabe→1e75e7ca6598</code>（已核验）</td>
+<td>更新平台配置 <code>arch-gfortran.path</code>：调整配置项 <code>NETCDF_INCDIR</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code>、<code>IOIPSL_INCDIR</code>、<code>IOIPSL_LIBDIR</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0014</code></td>
+<td>—</td>
+<td><code>arch/arch-ifort_MESOIPSL.env</code></td>
+<td>新增</td>
+<td><code>—→09b38b3bc6b1</code>（已核验）</td>
+<td>新增平台配置 <code>arch-ifort_MESOIPSL.env</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0015</code></td>
+<td>—</td>
+<td><code>arch/arch-ifort_MESOIPSL.fcm</code></td>
+<td>新增</td>
+<td><code>—→92dc79c4d11a</code>（已核验）</td>
+<td>新增平台配置 <code>arch-ifort_MESOIPSL.fcm</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0016</code></td>
+<td>—</td>
+<td><code>arch/arch-ifort_MESOIPSL.path</code></td>
+<td>新增</td>
+<td><code>—→4af8b30cb587</code>（已核验）</td>
+<td>新增平台配置 <code>arch-ifort_MESOIPSL.path</code>，包含 <code>ROOT</code>、<code>NETCDF_INCDIR</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code> 等配置项；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0017</code></td>
+<td><code>arch/arch-linux-64bit-para.path</code></td>
+<td><code>arch/arch-linux-64bit-para.path</code></td>
+<td>修改</td>
+<td><code>a02a65739145→6dbc89281091</code>（已核验）</td>
+<td>更新平台配置 <code>arch-linux-64bit-para.path</code>：调整配置项 <code>NETCDF_INCDIR</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code>、<code>IOIPSL_INCDIR</code>、<code>IOIPSL_LIBDIR</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0018</code></td>
+<td><code>arch/arch-linux-64bit.path</code></td>
+<td><code>arch/arch-linux-64bit.path</code></td>
+<td>修改</td>
+<td><code>ddde03edf857→e594cc457b2e</code>（已核验）</td>
+<td>更新平台配置 <code>arch-linux-64bit.path</code>：调整配置项 <code>NETCDF_INCDIR</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code>、<code>IOIPSL_INCDIR</code>、<code>IOIPSL_LIBDIR</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0019</code></td>
+<td><code>arch/arch-linux-ifort-para.path</code></td>
+<td><code>arch/arch-linux-ifort-para.path</code></td>
+<td>修改</td>
+<td><code>677293574b9d→e594cc457b2e</code>（已核验）</td>
+<td>更新平台配置 <code>arch-linux-ifort-para.path</code>：调整配置项 <code>NETCDF_INCDIR</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code>、<code>IOIPSL_INCDIR</code>、<code>IOIPSL_LIBDIR</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0020</code></td>
+<td><code>arch/arch-linux-ifort.path</code></td>
+<td><code>arch/arch-linux-ifort.path</code></td>
+<td>修改</td>
+<td><code>677293574b9d→e594cc457b2e</code>（已核验）</td>
+<td>更新平台配置 <code>arch-linux-ifort.path</code>：调整配置项 <code>NETCDF_INCDIR</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code>、<code>IOIPSL_INCDIR</code>、<code>IOIPSL_LIBDIR</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0021</code></td>
+<td>—</td>
+<td><code>arch/arch-MESOIPSL-gnu.env</code></td>
+<td>新增</td>
+<td><code>—→569e75ca1462</code>（已核验）</td>
+<td>新增平台配置 <code>arch-MESOIPSL-gnu.env</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0022</code></td>
+<td>—</td>
+<td><code>arch/arch-MESOIPSL-gnu.fcm</code></td>
+<td>新增</td>
+<td><code>—→53dbc893dec9</code>（已核验）</td>
+<td>新增平台配置 <code>arch-MESOIPSL-gnu.fcm</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0023</code></td>
+<td>—</td>
+<td><code>arch/arch-MESOIPSL-gnu.path</code></td>
+<td>新增</td>
+<td><code>—→1e75e7ca6598</code>（已核验）</td>
+<td>新增平台配置 <code>arch-MESOIPSL-gnu.path</code>，包含 <code>ROOT</code>、<code>NETCDF_INCDIR</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code> 等配置项；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0024</code></td>
+<td>—</td>
+<td><code>arch/arch-MESU-gnu.env</code></td>
+<td>新增</td>
+<td><code>—→6c3f4cb803d6</code>（已核验）</td>
+<td>新增平台配置 <code>arch-MESU-gnu.env</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0025</code></td>
+<td>—</td>
+<td><code>arch/arch-MESU-gnu.fcm</code></td>
+<td>新增</td>
+<td><code>—→75190d137ab8</code>（已核验）</td>
+<td>新增平台配置 <code>arch-MESU-gnu.fcm</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0026</code></td>
+<td>—</td>
+<td><code>arch/arch-MESU-gnu.path</code></td>
+<td>新增</td>
+<td><code>—→49a9864c07c8</code>（已核验）</td>
+<td>新增平台配置 <code>arch-MESU-gnu.path</code>，包含 <code>NETCDF_INCDIR</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code>、<code>MPI_INCDIR</code> 等配置项；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0027</code></td>
+<td><code>arch/arch-X64_IRENE-AMD.env</code></td>
+<td><code>arch/arch-X64_IRENE-AMD.env</code></td>
+<td>修改</td>
+<td><code>78e7ea451949→9a3f2b7d448a</code>（已核验）</td>
+<td>调整平台配置 <code>arch-X64_IRENE-AMD.env</code> 的编译器、编译选项或依赖路径，以更新该平台的构建环境。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0028</code></td>
+<td><code>arch/arch-X64_IRENE-AMD.fcm</code></td>
+<td><code>arch/arch-X64_IRENE-AMD.fcm</code></td>
+<td>修改</td>
+<td><code>55fb22185e4a→502533bc7d0f</code>（已核验）</td>
+<td>调整平台配置 <code>arch-X64_IRENE-AMD.fcm</code> 的编译器、编译选项或依赖路径，以更新该平台的构建环境。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0029</code></td>
+<td><code>arch/arch-X64_JEANZAY-pgi.fcm</code></td>
+<td><code>arch/arch-X64_JEANZAY-pgi.fcm</code></td>
+<td>修改</td>
+<td><code>8a5e406f63b9→73570f0752b6</code>（已核验）</td>
+<td>调整平台配置 <code>arch-X64_JEANZAY-pgi.fcm</code> 的编译器、编译选项或依赖路径，以更新该平台的构建环境。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0030</code></td>
+<td><code>arch/arch-X64_JEANZAY.fcm</code></td>
+<td><code>arch/arch-X64_JEANZAY.fcm</code></td>
+<td>修改</td>
+<td><code>63082e483099→8974d4e9aff2</code>（已核验）</td>
+<td>调整平台配置 <code>arch-X64_JEANZAY.fcm</code> 的编译器、编译选项或依赖路径，以更新该平台的构建环境。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0031</code></td>
+<td><code>arch/arch-X64_MESU.path</code></td>
+<td><code>arch/arch-X64_MESU.path</code></td>
+<td>修改</td>
+<td><code>f99aead9593f→0029b5eb1b0e</code>（已核验）</td>
+<td>更新平台配置 <code>arch-X64_MESU.path</code>：调整配置项 <code>IOIPSL_INCDIR</code>、<code>IOIPSL_LIBDIR</code>。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0032</code></td>
+<td>—</td>
+<td><code>arch/arch-X64_ROMEO_INTEL.env</code></td>
+<td>新增</td>
+<td><code>—→f173d1e75f7a</code>（已核验）</td>
+<td>新增平台配置 <code>arch-X64_ROMEO_INTEL.env</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0033</code></td>
+<td>—</td>
+<td><code>arch/arch-X64_ROMEO_INTEL.fcm</code></td>
+<td>新增</td>
+<td><code>—→4680a7f433f9</code>（已核验）</td>
+<td>新增平台配置 <code>arch-X64_ROMEO_INTEL.fcm</code>，用于指定对应平台的编译环境、编译选项或依赖路径；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0034</code></td>
+<td>—</td>
+<td><code>arch/arch-X64_ROMEO_INTEL.path</code></td>
+<td>新增</td>
+<td><code>—→68445db32d04</code>（已核验）</td>
+<td>新增平台配置 <code>arch-X64_ROMEO_INTEL.path</code>，包含 <code>ROOT</code>、<code>NETCDF_LIBDIR</code>、<code>NETCDF_LIB</code>、<code>NETCDF_INCDIR</code> 等配置项；该配置进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0035</code></td>
+<td><code>bld.cfg</code></td>
+<td><code>bld.cfg</code></td>
+<td>修改</td>
+<td><code>18dcc11f98b1→6f1dd166a419</code>（已核验）</td>
+<td>更新根目录 FCM 源码组、依赖扫描和目标构建配置。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0036</code></td>
+<td><code>build_gcm</code></td>
+<td><code>build_gcm</code></td>
+<td>修改</td>
+<td><code>50c60f9ac261→910d15c00d72</code>（已核验）</td>
+<td>更新 COMMON 构建入口，调整目标选择、编译选项传递和 FCM 构建调用。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0037</code></td>
+<td>—</td>
+<td><code>ioipsl/install_ioipsl_ADASTRA-gnu.bash</code></td>
+<td>新增</td>
+<td><code>—→d98bcf9bf3c3</code>（已核验）</td>
+<td>新增 IOIPSL 安装脚本 <code>install_ioipsl_ADASTRA-gnu.bash</code>，用于对应平台的源码检出、配置、编译与依赖链接；该脚本进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0038</code></td>
+<td>—</td>
+<td><code>ioipsl/install_ioipsl_ADASTRA-ifort.bash</code></td>
+<td>新增</td>
+<td><code>—→6d4da4c051c0</code>（已核验）</td>
+<td>新增 IOIPSL 安装脚本 <code>install_ioipsl_ADASTRA-ifort.bash</code>，用于对应平台的源码检出、配置、编译与依赖链接；该脚本进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0039</code></td>
+<td>—</td>
+<td><code>ioipsl/install_ioipsl_BAO_YGG.bash</code></td>
+<td>新增</td>
+<td><code>—→4001fa64116a</code>（已核验）</td>
+<td>新增 IOIPSL 安装脚本 <code>install_ioipsl_BAO_YGG.bash</code>，用于对应平台的源码检出、配置、编译与依赖链接；该脚本进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0040</code></td>
+<td><code>ioipsl/install_ioipsl_centos-ifort.bash</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>a9b9297449e4→—</code>（已核验）</td>
+<td>移除 IOIPSL 安装脚本 <code>install_ioipsl_centos-ifort.bash</code>，用于对应平台的源码检出、配置、编译与依赖链接；该脚本不再随 6.3 分发。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0041</code></td>
+<td><code>ioipsl/install_ioipsl_ciclad-ifort.bash</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>82c4e7294bbf→—</code>（已核验）</td>
+<td>移除 IOIPSL 安装脚本 <code>install_ioipsl_ciclad-ifort.bash</code>，用于对应平台的源码检出、配置、编译与依赖链接；该脚本不再随 6.3 分发。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0042</code></td>
+<td><code>ioipsl/install_ioipsl_gfortran.bash</code></td>
+<td><code>ioipsl/install_ioipsl_gfortran.bash</code></td>
+<td>修改</td>
+<td><code>988e101be4df→c5459b926242</code>（已核验）</td>
+<td>更新脚本 <code>install_ioipsl_gfortran.bash</code>：更新外部服务域名或下载地址。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0043</code></td>
+<td><code>ioipsl/install_ioipsl_ifort.bash</code></td>
+<td><code>ioipsl/install_ioipsl_ifort.bash</code></td>
+<td>修改</td>
+<td><code>4ca50b208f24→49f83100110a</code>（已核验）</td>
+<td>更新 IOIPSL SVN 服务地址，并把 ins_m_prec 的脚本解释器从 ksh 转为 bash。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0044</code></td>
+<td>—</td>
+<td><code>ioipsl/install_ioipsl_ifort_MESOIPSL.bash</code></td>
+<td>新增</td>
+<td><code>—→e1172d1dd362</code>（已核验）</td>
+<td>新增 IOIPSL 安装脚本 <code>install_ioipsl_ifort_MESOIPSL.bash</code>，用于对应平台的源码检出、配置、编译与依赖链接；该脚本进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0045</code></td>
+<td><code>ioipsl/install_ioipsl_irene-amd.bash</code></td>
+<td><code>ioipsl/install_ioipsl_irene-amd.bash</code></td>
+<td>修改</td>
+<td><code>338bf4d72754→cc127d9fe4db</code>（已核验）</td>
+<td>更新脚本 <code>install_ioipsl_irene-amd.bash</code>：更新外部服务域名或下载地址。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0046</code></td>
+<td><code>ioipsl/install_ioipsl_jeanzay.bash</code></td>
+<td><code>ioipsl/install_ioipsl_jeanzay.bash</code></td>
+<td>修改</td>
+<td><code>845e3d4b5aba→951020f9ed2b</code>（已核验）</td>
+<td>更新脚本 <code>install_ioipsl_jeanzay.bash</code>：更新外部服务域名或下载地址。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0047</code></td>
+<td><code>ioipsl/install_ioipsl_jeanzay_pgi.bash</code></td>
+<td><code>ioipsl/install_ioipsl_jeanzay_pgi.bash</code></td>
+<td>修改</td>
+<td><code>193e2836ce6e→f4ea0dfa0175</code>（已核验）</td>
+<td>更新脚本 <code>install_ioipsl_jeanzay_pgi.bash</code>：更新外部服务域名或下载地址。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0048</code></td>
+<td>—</td>
+<td><code>ioipsl/install_ioipsl_MESOIPSL-gnu.bash</code></td>
+<td>新增</td>
+<td><code>—→2caa8c2adb60</code>（已核验）</td>
+<td>新增 IOIPSL 安装脚本 <code>install_ioipsl_MESOIPSL-gnu.bash</code>，用于对应平台的源码检出、配置、编译与依赖链接；该脚本进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0049</code></td>
+<td><code>ioipsl/install_ioipsl_MesoPSL.bash</code></td>
+<td><code>ioipsl/install_ioipsl_MesoPSL.bash</code></td>
+<td>修改</td>
+<td><code>8b8946493249→8dfd47a64c26</code>（已核验）</td>
+<td>更新脚本 <code>install_ioipsl_MesoPSL.bash</code>：更新外部服务域名或下载地址。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0050</code></td>
+<td>—</td>
+<td><code>ioipsl/install_ioipsl_MESU-gnu.bash</code></td>
+<td>新增</td>
+<td><code>—→7239f718c326</code>（已核验）</td>
+<td>新增 IOIPSL 安装脚本 <code>install_ioipsl_MESU-gnu.bash</code>，用于对应平台的源码检出、配置、编译与依赖链接；该脚本进入 6.3。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0051</code></td>
+<td><code>ioipsl/install_ioipsl_mesu.bash</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>84fa1d17ebbe→—</code>（已核验）</td>
+<td>移除旧 MESU IOIPSL 安装脚本；6.3 由 install_ioipsl_MESU-gnu.bash 承接 GNU 环境的检出、配置与编译流程。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0052</code></td>
+<td><code>ioipsl/install_ioipsl_occigen.bash</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>18f054cb567d→—</code>（已核验）</td>
+<td>移除 IOIPSL 安装脚本 <code>install_ioipsl_occigen.bash</code>，用于对应平台的源码检出、配置、编译与依赖链接；该脚本不再随 6.3 分发。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0053</code></td>
+<td><code>ioipsl/install_ioipsl_pgf90.bash</code></td>
+<td><code>ioipsl/install_ioipsl_pgf90.bash</code></td>
+<td>修改</td>
+<td><code>7de854cec37d→1321d1d2ee1c</code>（已核验）</td>
+<td>更新脚本 <code>install_ioipsl_pgf90.bash</code>：更新外部服务域名或下载地址。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0054</code></td>
+<td><code>ioipsl/README</code></td>
+<td><code>ioipsl/README</code></td>
+<td>修改</td>
+<td><code>4d12e0bb2ab0→862306697277</code>（已核验）</td>
+<td>调整 IOIPSL 支持文件 <code>README</code> 的安装步骤、平台参数或依赖路径。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0111</code></td>
+<td><code>makegcm</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>cb85a0dc7cd6→—</code>（已核验）</td>
+<td>移除旧 makegcm 构建入口，6.3 以 makelmdz_fcm/build_gcm 为主。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>C-0112</code></td>
+<td><code>makelmdz_fcm</code></td>
+<td><code>makelmdz_fcm</code></td>
+<td>修改</td>
+<td><code>ea1de9ddac5e→3aa5365d2952</code>（已核验）</td>
+<td>更新根目录 FCM 构建驱动，扩展 I/O 后端、平台和 1D/XIOS 组合处理。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+</tbody>
+</table>
+<h2 id="证据边界">证据边界</h2>
+<ul>
+<li>路径状态和哈希关系来自两棵本地快照的机械比较。</li>
+<li>官方记录来自 MARS Changelog 增量；COMMON 命中仅表示间接记录。</li>
+<li>未找到 Changelog 条目不等于改动无意义，只表示没有可直接关联的官方文字记录。</li>
+<li>本页不把未运行的数值或性能影响写成既定事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../version-delta-index.html">全量变更索引</a></li>
+<li><a href="../../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

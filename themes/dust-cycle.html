@@ -513,8 +513,10 @@
 <p><strong>源码依据</strong>：<code>dust_rad_adjust_mod.F90</code> 第 66-119 行；<code>dust_param_mod.F90</code> 第 28 行 <code>t_scenario_sol</code>。</p>
 <h3 id="阶段-4地表抬升与注入">阶段 4：地表抬升与注入</h3>
 <ul>
-<li><p><strong>风应力抬升</strong>（<code>dust_windstress_lift</code>，由 <code>vdifc</code> 在 <code>lifting=T</code> 时调用）：当摩擦速度 <code>us = pcdh/sqrt(pcdh_true)</code> 超过阈值 <code>ust = sqrt(stress_seuil/rho)</code>（<code>stress_seuil=0.0225 N/m²</code>）时，水平通量 <code>fhoriz = 2.61*(rho/g)*(us-ust)*(us+ust)^2</code>（White 1979），垂直注入通量 <code>dqslift(ig,iq) = -alpha_lift(iq)*fhoriz</code>。有 CO₂ 冰覆盖（<code>co2ice&gt;0</code>）的点不抬升。</p>
+<li><p><strong>风应力抬升</strong>（<code>dust_windstress_lift</code>）：在 GCM 非 <code>doubleq</code> 分支中由 <code>vdifc</code> 调用。当摩擦速度 <code>us = pcdh/sqrt(pcdh_true)</code> 超过阈值 <code>ust = sqrt(stress_seuil/rho)</code>（<code>stress_seuil=0.0225 N/m²</code>）时，水平通量 <code>fhoriz = 2.61*(rho/g)*(us-ust)*(us+ust)^2</code>（White 1979），垂直注入通量 <code>dqslift(ig,iq) = -alpha_lift(iq)*fhoriz</code>。有 CO₂ 冰覆盖（<code>co2ice&gt;0</code>）的点不抬升。</p>
 <p><strong>源码依据</strong>：<code>dust_windstress_lift.F90</code> 第 102-162 行；<code>vdifc_mod.F</code> 第 813-883 行。</p></li>
+<li><p><strong>GCM <code>doubleq</code> 分支边界</strong>：<code>vdifc_mod.F</code> 中 <code>lifting</code> 先进入 <code>doubleq</code> 判断。<code>doubleq=.true.</code> 且 <code>dustinjection=0</code> 时使用 old injection scheme，直接给 <code>dust_mass</code>/<code>dust_number</code> 设置 <code>-alpha_lift</code> 源项；<code>dustinjection=1</code> 时用 <code>compute_dtau</code> 产生的 <code>dustliftday</code> 注入。只有落到非 <code>doubleq</code> 的 <code>else</code> 分支时才调用 <code>dust_windstress_lift()</code>。因此在当前 GCM two-moment dust 配置下，<code>lifting=.true.</code> 不能等同于风应力阈值起尘。</p>
+<p><strong>源码依据</strong>：<code>vdifc_mod.F</code> 第 813-883 行；<code>conf_phys.F</code> 第 553-604 行。</p></li>
 <li><p><strong>尘卷风</strong>（<code>dustdevil</code>，<code>callddevil=T</code>）：基于 Renno et al. 1998，尘卷风活动 <code>devila = max(0,(1-b)*Fs - seuil)</code>，其中 <code>Fs</code> 为地表感热通量（用固定风速 15 m/s），抬升通量 <code>pdqs_dev = -alpha_devil*devila</code>，并把尘埃注入到边界层顶。</p>
 <p><strong>源码依据</strong>：<code>dustdevil.F90</code> 第 137-221 行。</p></li>
 <li><p><strong>场景注入</strong>（<code>compute_dtau</code>，<code>dustinjection&gt;0</code>）：在本地 14:00 时计算 GCM 与场景目标光学厚度差 <code>dtau</code>，当 <code>dtau&gt;0</code> 时给出注入率 <code>dustliftday = coeff_injection*(dtau*ps/odpref)/(daysec*(tf-ti))</code>，该率随后在 <code>vdifc</code> 中用于注入。</p>
@@ -661,12 +663,18 @@
 <span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (dustinjection<span class="op">&gt;</span><span class="dv">0</span>) <span class="kw">CALL</span> compute_dtau(... dustliftday)</span>
 <span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="co">! C. 抬升（在 vdifc 内）</span></span>
-<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (lifting) <span class="kw">CALL</span> dust_windstress_lift(... dqslift)</span>
-<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>             <span class="kw">+</span> 用 dustliftday 注入</span>
-<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (callddevil) <span class="kw">CALL</span> dustdevil(... pdqdev,pdqs_dev)</span>
-<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a><span class="co">! D. 沉降</span></span>
-<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a><span class="co">CALL callsedim(...)            ! 尘埃 + 水冰</span></span></code></pre></div>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (lifting) <span class="kw">THEN</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>  <span class="kw">IF</span> (doubleq) <span class="kw">THEN</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>    <span class="kw">IF</span> (dustinjection<span class="op">==</span><span class="dv">0</span>) 使用 old constant lifting 源项</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>    <span class="kw">IF</span> (dustinjection<span class="op">==</span><span class="dv">1</span>) 使用 dustliftday 注入</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ELSE</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CALL</span> dust_windstress_lift(... dqslift)  <span class="co">! 风应力阈值路径</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>  <span class="kw">ENDIF</span></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a><span class="kw">ENDIF</span></span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a><span class="kw">IF</span> (callddevil) <span class="kw">CALL</span> dustdevil(... pdqdev,pdqs_dev)</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a><span class="co">! D. 沉降</span></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a><span class="co">CALL callsedim(...)            ! 尘埃 + 水冰</span></span></code></pre></div>
 <h2 id="复现检查点">复现检查点</h2>
 <h3 id="必须保留的逻辑">必须保留的逻辑</h3>
 <ol type="1">
@@ -674,7 +682,7 @@
 <li><strong>光学厚度公式</strong>：<code>0.75*QREF/(rho_dust*reffrad)*qmass*dp/g</code>，可见光用 <code>QREFvis3d</code>，红外（<code>dsodust</code>）用 <code>QREFir3d</code>。</li>
 <li><strong>参考压力 610 Pa</strong>：所有柱光学厚度换算都用 <code>odpref=610</code>（旧 TES 文件需 700→610 校正）。</li>
 <li><strong>缩放模式选择</strong>：<code>dustscaling_mode</code> 与 <code>freedust</code>/<code>doubleq</code>/<code>iaervar</code> 的互斥约束必须保留，否则运行会中止。</li>
-<li><strong>抬升阈值与公式</strong>：White 1979 水平通量公式与 <code>stress_seuil=0.0225</code>；CO₂ 冰覆盖点不抬升。</li>
+<li><strong>抬升阈值与公式</strong>：White 1979 水平通量公式与 <code>stress_seuil=0.0225</code>；CO₂ 冰覆盖点不抬升。注意该路径在当前 GCM <code>doubleq=.true.</code> 分支中不会被 <code>dustinjection=0</code> 调到。</li>
 <li><strong><code>dust_rad_adjust</code> 跨 sol 插值</strong>：以本地 14:00（<code>t_scenario_sol=14/24</code>）为锚点，上限 5。</li>
 </ol>
 <h3 id="关键公式">关键公式</h3>
@@ -687,9 +695,10 @@
 </ol>
 <h3 id="验证检查点">验证检查点</h3>
 <ol type="1">
-<li><strong>光学厚度合理性</strong>：背景尘埃可见光柱光学厚度典型 0.1-1（晴期），尘暴期可达数倍。<strong>待确认</strong>：未在本任务核验具体量级。</li>
+<li><strong>光学厚度合理性</strong>：背景尘埃可见光柱光学厚度典型 0.1-1（晴期），尘暴期可达数倍。<code>dustscaling_mode=0</code> 的 10 天短试验已见 <a href="../reference/dust-free-evolution-tests.html">dust-free-evolution-tests</a>：dust devil 候选 E 的 <code>tau_pref_gcm</code> 10 天均值约 0.526，末值约 0.482；仍需长积分验证。</li>
 <li><strong>缩放一致性</strong>：mode1 下 <code>tau_pref_gcm</code> 经缩放后应≈<code>tau_pref_scenario</code>。</li>
 <li><strong>质量守恒</strong>：抬升/注入为负趋势（离开地表），沉降为正向地表通量，长期收支应闭合。<strong>待确认</strong>：未核验收支闭合实现。</li>
+<li><strong>自由尘埃配置边界</strong>：当前 def-only 候选为 <code>freedust=.true.</code>, <code>dustscaling_mode=0</code>, <code>lifting=.false.</code>, <code>dustinjection=0</code>, <code>callddevil=.true.</code>；若要 two-moment 风应力阈值起尘，需要源码改造或新增分支。</li>
 </ol>
 <h2 id="相关模块">相关模块</h2>
 <ul>
@@ -704,8 +713,9 @@
 <h2 id="待确认">待确认</h2>
 <ul>
 <li><code>submicron</code>（亚微米尘）分布在抬升/输运中的完整处理（<code>vdifc</code> 第 815 行起 <code>doubleq.AND.submicron</code> 分支）只读到片段。</li>
-<li>各尘埃光学厚度的典型量级与收支闭合未做数值验证。</li>
+<li>各尘埃光学厚度的典型量级已有 10 天 free-dust 试验补充，但长积分稳定性、季节尺度偏差与收支闭合仍未完成数值验证。</li>
 <li><code>physiq</code> 中 <code>rocketduststorm</code>/<code>topmons</code>/<code>compute_dtau</code> 与沉降段的完整控制流分支条件未全部展开（仅按行号顺序判断）。</li>
+<li>GCM <code>doubleq=.true.</code> 分支下接入风应力阈值 lifting 的设计尚未实现；现有 <code>dustinjection=0</code> 是 old constant lifting。</li>
 </ul>
 
     </article>

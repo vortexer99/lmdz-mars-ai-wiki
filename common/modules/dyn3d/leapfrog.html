@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,9 +34,9 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="leapfrogf">leapfrog.F</h1>
-<p>页面状态：6.3 返工完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\leapfrog.F</code>。 Mars 运行参与度：必经；Mars 串行动力 GCM 主循环经过本文件。</p>
+<p>源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\leapfrog.F</code>。 Mars 运行参与度：必经；Mars 串行动力 GCM 主循环经过本文件。</p>
 <h2 id="文件定位">文件定位</h2>
-<p><code>leapfrog</code> 是串行 GCM 的时间推进主循环。它调度 Matsuno/leapfrog 时间层、动力 tendency、tracer 输送、动力-物理耦合、耗散、输出和 restart。COMMON 6.3 已删除 <code>leapfrog_nogcm.F</code>，本页不再做 COMMON nogcm 对照。</p>
+<p><code>leapfrog</code> 是串行 GCM 的时间推进主循环。它调度 Matsuno/leapfrog 时间层、动力 tendency、tracer 输送、动力-物理耦合、耗散、输出和 restart。当前 COMMON 源码已删除 <code>leapfrog_nogcm.F</code>，本页不再做 COMMON nogcm 对照。</p>
 <h2 id="入口状态">入口状态</h2>
 <p>主要 inout 数组包括 <code>ucov/vcov/teta/ps/masse/phis/q</code>。它们由 <code>dyn3d/gcm.F90</code> 完成初始态、tracer、geometry、restart/history 初始化后传入。<code>leapfrog</code> 自身负责时间步内状态推进和周期性写出。</p>
 <h2 id="时间调度">时间调度</h2>
@@ -50,8 +51,8 @@ label 2: 主循环
   -&gt; history/dynav/restart
   -&gt; 根据 iperiod 在 forward/backward/leapfrog 间跳转</code></pre>
 <p>Mars 日期以 <code>jD_ref/jH_ref/day_ini/day_ref/hour_ini/day_step</code> 组合计算，并形成当前物理时间 <code>JH_cur</code>。restart 写出时还要按 <code>planet_type</code> 分支选择传给 <code>dynredem1</code> 的 <code>time</code>。</p>
-<h2 id="63-restart-时间">6.3 restart 时间</h2>
-<p>6.3 的行为重点：</p>
+<h2 id="restart-时间">restart 时间</h2>
+<p>当前行为重点：</p>
 <table>
 <thead>
 <tr>
@@ -83,7 +84,7 @@ label 2: 主循环
 </tr>
 </tbody>
 </table>
-<p>旧版 <code>start_time</code> 不是当前 6.3 主线。<code>dynredem1</code> 会把该 <code>time</code> 写入 time coordinate，并设置 <code>tab_cntrl(32)=time</code>。</p>
+<p>旧版 <code>start_time</code> 不是当前 主线。<code>dynredem1</code> 会把该 <code>time</code> 写入 time coordinate，并设置 <code>tab_cntrl(32)=time</code>。</p>
 <h2 id="主流程">主流程</h2>
 <ol type="1">
 <li>计算 pressure/Exner/geopotential。</li>
@@ -98,7 +99,7 @@ label 2: 主循环
 <ul>
 <li>Mars 主线经过 <code>calfis/addfi</code>，但具体物理过程在 MARS <code>phymars</code> 侧。</li>
 <li>Earth/generic/Titan/giant 分支只作为条件边界记录，不在本 COMMON 页面展开。</li>
-<li>COMMON 6.3 删除 <code>nogcm</code>，Mars 专用 nogcm 若存在属于 MARS 树，不属于当前 COMMON 6.3 页面。</li>
+<li>COMMON 删除 <code>nogcm</code>，Mars 专用 nogcm 若存在属于 MARS 树，不属于当前 COMMON 页面。</li>
 </ul>
 <h2 id="复现检查">复现检查</h2>
 <ol type="1">

@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,8 +34,8 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="transport-and-advection">Transport And Advection</h1>
-<p>页面状态：TASK-0016 完成。 源码范围：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\advtrac.F90</code>、<code>libf\dyn3dpar\advtrac_p.F90</code>、<code>libf\dyn3d_common\infotrac.F90</code> 和 tracer transport 内核组。</p>
-<p>Mars 运行参与度：必经 + 条件经过。Mars 3D 运行必经 <code>infotrac_init</code> 建立 tracer 元数据，并在动力时间步中通过 <code>advtrac</code> 或 <code>advtrac_p</code> 进入输送调度；具体数值格式由 <code>traceur.def</code> 读出的 <code>iadv(:)</code> 和当前 6.3 白名单共同决定。</p>
+<p>源码范围：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\advtrac.F90</code>、<code>libf\dyn3dpar\advtrac_p.F90</code>、<code>libf\dyn3d_common\infotrac.F90</code> 和 tracer transport 内核组。</p>
+<p>Mars 运行参与度：必经 + 条件经过。Mars 3D 运行必经 <code>infotrac_init</code> 建立 tracer 元数据，并在动力时间步中通过 <code>advtrac</code> 或 <code>advtrac_p</code> 进入输送调度；具体数值格式由 <code>traceur.def</code> 读出的 <code>iadv(:)</code> 和当前白名单共同决定。</p>
 <h2 id="阅读顺序">阅读顺序</h2>
 <p>这条主题页面向排查 tracer 输送路径、复现单个 tracer 结果和判断旧格式是否可达的读者。推荐顺序：</p>
 <ol type="1">
@@ -63,14 +64,14 @@
 <li>输送前的 <code>massem/pbarug/pbarvg/wg</code> 是否来自同一次 <code>caladvtrac</code> 调度。</li>
 </ul>
 <h2 id="iadv-到格式">iadv 到格式</h2>
-<p><code>infotrac.F90</code> 源码注释保留了完整历史编号，但 6.3 当前可运行边界更窄：</p>
+<p><code>infotrac.F90</code> 源码注释保留了完整历史编号，但 当前可运行边界更窄：</p>
 <table>
 <thead>
 <tr>
 <th style="text-align: right;"><code>iadv</code></th>
 <th>格式</th>
 <th>主要页面</th>
-<th>6.3 Mars 标准可达性</th>
+<th>当前 Mars 标准可达性</th>
 </tr>
 </thead>
 <tbody>
@@ -206,7 +207,7 @@
 </tr>
 </tbody>
 </table>
-<p>但在当前 6.3：</p>
+<p>但在当前：</p>
 <ul>
 <li><code>infotrac_init</code> 最终白名单会拒绝 <code>11/16/17/18</code>。</li>
 <li>并行 <code>advtrac_p</code> 在 <code>vlspltgen_p</code> 后执行 <code>GOTO 1234</code>，跳过 PPM 分支。</li>
@@ -233,13 +234,13 @@
 </ol>
 <h2 id="复现检查点">复现检查点</h2>
 <ol type="1">
-<li>保存并核对 <code>traceur.def</code>。<code>iadv</code>、<code>tname</code>、父子关系和 <code>nqtot</code> 都从它推导，不应只记录 tracer 数。</li>
+<li>保存并确认 <code>traceur.def</code>。<code>iadv</code>、<code>tname</code>、父子关系和 <code>nqtot</code> 都从它推导，不应只记录 tracer 数。</li>
 <li>先用 <code>infotrac_init</code> 的白名单判断格式能否启动，再看 <code>advtrac</code> 中是否有下游分支。</li>
 <li><code>nqtrue</code>、<code>nqtot</code> 和 <code>niadv</code> 不可混用；moments 扩展会让动力数组维度大于真实 tracer 数。</li>
 <li>Van Leer 水平 split 使用半步通量，垂直使用整步通量；PPM 和 advn 也有自己的子步或通量缩放约定。</li>
 <li>父子 tracer 复现必须带上 <code>nqdesc/nqfils/iqfils/qperemin/masseqmin</code>。</li>
 <li>并行结果排查必须同时看 halo 宽度、band 范围、极点 rank 和 OpenMP barrier。</li>
-<li>PPM、advn、Prather 的源码存在不等于当前 Mars 6.3 标准配置可达。</li>
+<li>PPM、advn、Prather 的源码存在不等于当前 Mars 标准配置可达。</li>
 </ol>
 <h2 id="相关页面">相关页面</h2>
 <ul>

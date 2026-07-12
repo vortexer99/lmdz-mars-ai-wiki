@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -32,7 +33,7 @@
       <span>routines/infotrac-mars-consumers.md</span>
     </nav>
     <article class="content" data-pagefind-body>
-<h1 id="infotrac-的-mars-与-common-消费方">infotrac 的 MARS 与 COMMON 消费方</h1>
+<h1 id="infotrac-的-mars-与-common-使用方">infotrac 的 MARS 与 COMMON 使用方</h1>
 <h2 id="输入范围">输入范围</h2>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\infotrac.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d
@@ -41,12 +42,12 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dynphy_lonlat
 LMDZ.MARS\libf\dynphy_lonlat\phymars
 LMDZ.MARS\libf\phymars\dyn1d</code></pre>
 <p>Mars 运行参与度：<code>必经</code>。Mars 全 GCM、工具程序和 1D/testphys 初始化都把 <code>infotrac</code> 当作 tracer 维度、名称和 family 关系的公共 contract。</p>
-<h2 id="common-入口消费者">COMMON 入口消费者</h2>
+<h2 id="common-入口使用位置">COMMON 入口使用位置</h2>
 <table>
 <thead>
 <tr>
 <th>文件</th>
-<th>消费内容</th>
+<th>使用内容</th>
 <th>影响</th>
 </tr>
 </thead>
@@ -58,8 +59,8 @@ LMDZ.MARS\libf\phymars\dyn1d</code></pre>
 </tr>
 <tr>
 <td>COMMON <code>dyn3d/nogcm.F90</code></td>
-<td>6.3 已删除</td>
-<td>旧版 COMMON nogcm 消费关系后续集中说明</td>
+<td>当前源码已删除</td>
+<td>旧版 COMMON nogcm 使用关系后续集中说明</td>
 </tr>
 <tr>
 <td><code>dyn3dpar/gcm.F</code></td>
@@ -73,12 +74,12 @@ LMDZ.MARS\libf\phymars\dyn1d</code></pre>
 </tr>
 </tbody>
 </table>
-<h2 id="动力和输送消费者">动力和输送消费者</h2>
+<h2 id="动力和输送使用位置">动力和输送使用位置</h2>
 <table>
 <thead>
 <tr>
 <th>文件</th>
-<th>消费内容</th>
+<th>使用内容</th>
 <th>影响</th>
 </tr>
 </thead>
@@ -115,12 +116,12 @@ LMDZ.MARS\libf\phymars\dyn1d</code></pre>
 </tr>
 </tbody>
 </table>
-<h2 id="物理接口和输出消费者">物理接口和输出消费者</h2>
+<h2 id="物理接口和输出使用位置">物理接口和输出使用位置</h2>
 <table>
 <thead>
 <tr>
 <th>文件</th>
-<th>消费内容</th>
+<th>使用内容</th>
 <th>影响</th>
 </tr>
 </thead>
@@ -147,12 +148,12 @@ LMDZ.MARS\libf\phymars\dyn1d</code></pre>
 </tr>
 </tbody>
 </table>
-<h2 id="mars-消费方">MARS 消费方</h2>
+<h2 id="mars-使用关系">Mars 使用关系</h2>
 <table>
 <thead>
 <tr>
 <th>文件</th>
-<th>消费内容</th>
+<th>使用内容</th>
 <th>Mars 影响</th>
 </tr>
 </thead>
@@ -204,36 +205,36 @@ LMDZ.MARS\libf\phymars\dyn1d</code></pre>
 </tr>
 </tbody>
 </table>
-<h2 id="关键契约">关键契约</h2>
+<h2 id="关键约定">关键约定</h2>
 <ol type="1">
 <li><code>infotrac_init</code> 必须早于任何 <code>q(...,nqtot)</code> 分配。</li>
 <li><code>nqtot</code> 是动力维度，Mars archive/physics 不能只看 <code>nbtr</code> 或 <code>nqtrue</code>。</li>
 <li><code>tname</code> 是 restart/archive/physics 的变量名桥梁；<code>newstart</code> 允许交互或 archive 匹配后改写 <code>tname</code>。</li>
 <li><code>ttext</code> 主要服务 history/dynav 输出。</li>
-<li><code>iadv</code> 由 <code>advtrac</code> 消费，决定 tracer 是否走 Van Leer、饱和水汽或其他历史分支。</li>
-<li><code>niadv</code> 由动力-物理接口消费，避免 moments 附加 tracer 被当作普通物理 tracer。</li>
+<li><code>iadv</code> 由 <code>advtrac</code> 使用，决定 tracer 是否走 Van Leer、饱和水汽或其他历史分支。</li>
+<li><code>niadv</code> 由动力-物理接口使用，避免 moments 附加 tracer 被当作普通物理 tracer。</li>
 </ol>
 <h2 id="复现要点">复现要点</h2>
 <ul>
 <li>复现 Mars restart/archive 读写时，必须同时保存 <code>traceur.def</code>、<code>tname</code> 序列和 <code>nqtot</code>；变量名错位会导致 tracer 读不到或被写到错误 species。</li>
 <li>复现 Mars <code>co2</code> 特殊路径时，<code>tname(iq)</code> 必须精确等于 <code>co2</code>。</li>
-<li>1D/testphys 路径不是调用完整 <code>infotrac_init</code>，而是局部设置 <code>nqtot/tname</code> 并复用 family 状态；它是兼容消费者，不是完整初始化消费者。</li>
+<li>1D/testphys 路径不是调用完整 <code>infotrac_init</code>，而是局部设置 <code>nqtot/tname</code> 并复用 family 状态；它是兼容使用位置，不是完整初始化使用位置。</li>
 </ul>
 <h2 id="待确认">待确认</h2>
 <ul>
 <li><code>start2archive</code> 中 CO2 surface/archive 特殊处理与 <code>leapfrog_nogcm</code> CO2 分支的完整耦合应由 Mars restart/archive 主题页继续串联。</li>
-<li><code>newstart</code> 改写 <code>tname</code> 后对 <code>ttext</code> 的影响未在本任务中发现同步逻辑，需后续验证实际输出名是否仍一致。</li>
+<li><code>newstart</code> 改写 <code>tname</code> 后对 <code>ttext</code> 的影响未在本页中发现同步逻辑，需后续验证实际输出名是否仍一致。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>
-<li><a href="infotrac-state-contract.html">infotrac 状态契约</a></li>
+<li><a href="infotrac-state-contract.html">infotrac 状态约定</a></li>
 <li><a href="infotrac-traceur-def.html">traceur.def 读取逻辑</a></li>
 <li><a href="infotrac-advection-schemes.html">infotrac advection scheme</a></li>
 <li><a href="infotrac-family-isotopes.html">父子 tracer 与 isotope</a></li>
 <li><a href="../modules/dyn3d/gcm.html">dyn3d/gcm</a></li>
-<li>COMMON 6.3 已删除 <code>dyn3d/nogcm.F90</code>。</li>
+<li>当前 COMMON 源码已删除 <code>dyn3d/nogcm.F90</code>。</li>
 <li><a href="advtrac-serial-parallel.html">advtrac 串并行对照</a></li>
-<li><a href="calfis-p-physiq-contract.html">calfis_p 与 call_physiq 接口契约</a></li>
+<li><a href="calfis-p-physiq-contract.html">calfis_p 与 call_physiq 接口约定</a></li>
 </ul>
 
     </article>

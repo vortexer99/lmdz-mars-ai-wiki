@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -37,7 +38,6 @@
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\caladvtrac.F
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d\advtrac.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\advtrac_p.F90</code></pre>
-<p>页面状态：TASK-0181 完成。</p>
 <p>Mars 运行参与度：<code>条件经过</code>。Mars 3D 动力步在 <code>forward .OR. leapf</code> 时会进入 tracer 输送；串行链路经过 <code>caladvtrac</code>，并行链路直接从 <code>leapfrog_p</code> 调 <code>advtrac_p</code>。实际是否输送单个 tracer 由 <code>infotrac_init</code> 生成的 <code>iadv(:)</code> 和 <code>iapp_tracvl</code> 累计步门控决定。</p>
 <h2 id="入口位置">入口位置</h2>
 <p>串行 <code>leapfrog.F</code> 在 <code>caldyn</code> 之后、<code>addfi/integrd</code> 之前调用 <code>caladvtrac</code>：</p>
@@ -54,14 +54,14 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\advtrac_p.F90</code></pre>
        advtrac_p(pbaru,pbarv,p,masse,q,iapptrac,teta,flxw,pk)
   -&gt; integrd_p</code></pre>
 <p>因此串行 <code>caladvtrac</code> 的 <code>dq</code> 计算和 Earth 水汽后处理不能直接套用到并行路径；并行版在 <code>advtrac_p</code> 内部处理 <code>qminimum_p</code>、halo 和守恒重标定。</p>
-<h2 id="数据契约">数据契约</h2>
+<h2 id="数据约定">数据约定</h2>
 <table>
 <thead>
 <tr>
 <th>变量</th>
 <th>维度</th>
 <th>来源</th>
-<th>消费</th>
+<th>使用</th>
 </tr>
 </thead>
 <tbody>
@@ -109,7 +109,7 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\advtrac_p.F90</code></pre>
 </tr>
 </tbody>
 </table>
-<p><code>nqtot</code> 来自 <code>infotrac</code>，是动力数组的总 tracer 维度；若 moments 格式扩展存在，它可能大于真实 tracer 数。当前 6.3 标准初始化会把可运行 <code>iadv</code> 限制到 <code>0/10/14</code>，因此 Mars 标准路径通常不会进入 PPM、Prather 或 <code>advn</code> 保留分支。</p>
+<p><code>nqtot</code> 来自 <code>infotrac</code>，是动力数组的总 tracer 维度；若 moments 格式扩展存在，它可能大于真实 tracer 数。当前标准初始化会把可运行 <code>iadv</code> 限制到 <code>0/10/14</code>，因此 Mars 标准路径通常不会进入 PPM、Prather 或 <code>advn</code> 保留分支。</p>
 <h2 id="串行流程">串行流程</h2>
 <h3 id="1-进入-caladvtrac">1. 进入 <code>caladvtrac</code></h3>
 <p><code>caladvtrac</code> 先根据 <code>force_conserv_tracer</code> 可选保存每个 tracer 的全局总量：</p>
@@ -172,7 +172,7 @@ massbar(massem) -&gt; massebx/masseby
 <tr>
 <th style="text-align: right;"><code>iadv(iq)</code></th>
 <th>当前分支</th>
-<th>当前 6.3 标准可达性</th>
+<th>当前标准可达性</th>
 </tr>
 </thead>
 <tbody>
@@ -220,7 +220,7 @@ massbar(massem) -&gt; massebx/masseby
 <li>子 tracer 必须使用 <code>iadv==10</code>。</li>
 <li>子 tracer 的父 tracer 只能使用 <code>10</code> 或 <code>14</code>。</li>
 </ul>
-<p>这解释了为什么 <code>advtrac.F90</code> 内仍有 PPM/Prather/advn 分支，但当前 Mars 6.3 标准运行不会自然进入这些分支。</p>
+<p>这解释了为什么 <code>advtrac.F90</code> 内仍有 PPM/Prather/advn 分支，但当前 Mars 标准运行不会自然进入这些分支。</p>
 <h2 id="并行流程差异">并行流程差异</h2>
 <p><code>advtrac_p</code> 把串行 <code>caladvtrac</code> 的部分职责内联进并行调度：</p>
 <ol type="1">
@@ -242,7 +242,7 @@ massbar(massem) -&gt; massebx/masseby
 <li><code>conf_gcm</code> 会读取 <code>planet_type</code>、<code>iapp_tracvl</code> 和 <code>force_conserv_tracer</code>；Mars 运行通常设置 <code>planet_type=="mars"</code>。</li>
 <li><code>caladvtrac</code> 中 Earth 专用 <code>dq</code>、<code>qminimum</code> 和水汽 tendency 构造不会在 Mars 分支执行。</li>
 <li>Mars tracer 输送仍会使用 COMMON <code>advtrac/advtrac_p</code> 的质量通量累计、<code>iapp_tracvl</code> 门控、Van Leer split 和可选守恒重标定。</li>
-<li><code>flxw</code> 是 tracer 输送轮次产生的垂直质量通量平均值，可被离线/诊断路径消费。</li>
+<li><code>flxw</code> 是 tracer 输送轮次产生的垂直质量通量平均值，可被离线/诊断路径使用。</li>
 <li>若 <code>force_conserv_tracer=.true.</code>，每次实际 tracer advection 后会把每个 tracer 乘以 <code>old_total/new_total</code>；若 <code>new_total</code> 极小或为 0，源码没有在此处显式防护，需由配置和 tracer 物理约束避免。</li>
 </ul>
 <h2 id="复现顺序">复现顺序</h2>
@@ -256,7 +256,7 @@ massbar(massem) -&gt; massebx/masseby
 <li>若并行，必须复现 <code>jj_nb_vanleer</code> halo、band 范围、极点 rank 和返回 <code>jj_nb_caldyn</code> 的 halo。</li>
 <li>若开启 <code>force_conserv_tracer</code>，最后按质量积分总量比值整体重标定 <code>q</code>。</li>
 </ol>
-<h2 id="已核对源码点">已核对源码点</h2>
+<h2 id="已确认源码点">已确认源码点</h2>
 <table>
 <thead>
 <tr>

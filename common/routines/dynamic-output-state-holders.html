@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -44,7 +45,7 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\writedynav.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\dynetat0.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\dynredem.F90
 LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\dynredem_p.F90</code></pre>
-<p>页面状态：TASK-0199 完成。 Mars 运行参与度：<code>必经/条件经过</code>。<code>temps_mod</code> 是 GCM 时间推进和 restart 的共享状态层，Mars 3D 和 Mars nogcm 路径都会消费；<code>com_io_dyn_mod</code> 只在 COMMON 动力 history/dynav 输出开启且 <code>CPP_IOIPSL</code> 编译进入时条件经过。</p>
+<p>Mars 运行参与度：<code>必经/条件经过</code>。<code>temps_mod</code> 是 GCM 时间推进和 restart 的共享状态层，Mars 3D 和 Mars nogcm 路径都会使用；<code>com_io_dyn_mod</code> 只在 COMMON 动力 history/dynav 输出开启且 <code>CPP_IOIPSL</code> 编译进入时条件经过。</p>
 <h2 id="职责边界">职责边界</h2>
 <p>本页只解释状态持有者如何连接 I/O 注册和时间步写出：</p>
 <ul>
@@ -165,7 +166,7 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\dynredem_p.F90</code></pre>
 </tr>
 </tbody>
 </table>
-<p>源码搜索只发现 <code>com_io_dyn_mod</code> 被 <code>inithist.F</code>、<code>writehist.F</code>、<code>initdynav.F90</code>、<code>writedynav.F90</code> 使用。并行 <code>_p</code> history 实现通过实参传递 file id，不直接使用这个模块；当前 6.3 <code>dyn3dpar/gcm.F</code> 的 root 分支仍调用串行 <code>inithist/initdynav</code> 初始化这些模块 id。</p>
+<p>源码搜索只发现 <code>com_io_dyn_mod</code> 被 <code>inithist.F</code>、<code>writehist.F</code>、<code>initdynav.F90</code>、<code>writedynav.F90</code> 使用。并行 <code>_p</code> history 实现通过实参传递 file id，不直接使用这个模块；当前 <code>dyn3dpar/gcm.F</code> 的 root 分支仍调用串行 <code>inithist/initdynav</code> 初始化这些模块 id。</p>
 <h2 id="初始化到写出的状态链">初始化到写出的状态链</h2>
 <pre class="text"><code>gcm / gcm_p / Mars nogcm
   -&gt; 设置 temps_mod: annee_ref, day_ref, day_ini, start_time, itau_dyn
@@ -213,7 +214,7 @@ leapfrog / leapfrog_p / Mars leapfrog_nogcm
 <li>检查是否开启 <code>ok_dyn_ins/ok_dyn_ave</code> 且编译包含 <code>CPP_IOIPSL</code>；否则 <code>com_io_dyn_mod</code> 的 id 不会被有效设置。</li>
 <li>检查初始化是否先于写出发生：<code>histid/hist*aveid</code> 只有 <code>inithist/initdynav</code> 后才有效。</li>
 <li>检查写出时间是否符合预期：<code>histwrite</code> 使用 <code>itau_dyn + itau</code>，不是单独的局部 <code>itau</code>。</li>
-<li>并行运行若时间状态异常，优先核对 <code>temps_mod</code> threadprivate copyin，而不是修改 <code>com_io_dyn_mod</code>。</li>
+<li>并行运行若时间状态异常，优先确认 <code>temps_mod</code> threadprivate copyin，而不是修改 <code>com_io_dyn_mod</code>。</li>
 </ol>
 <h2 id="待确认">待确认</h2>
 <ul>
@@ -222,7 +223,7 @@ leapfrog / leapfrog_p / Mars leapfrog_nogcm
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>
-<li><a href="common-state-control-contract.html">COMMON 状态/控制模块契约</a></li>
+<li><a href="common-state-control-contract.html">COMMON 状态/控制模块约定</a></li>
 <li><a href="history-field-registration.html">history/dynav 字段注册和写出门控</a></li>
 <li><a href="history-xios-getin-boundary.html">history/XIOS/getin 输出配置边界</a></li>
 <li><a href="history-output-serial-parallel.html">history/dynav 输出串并行对照</a></li>

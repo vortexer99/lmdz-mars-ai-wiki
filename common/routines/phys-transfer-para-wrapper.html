@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -109,7 +110,7 @@
 <h3 id="bcast-特殊地位">bcast 特殊地位</h3>
 <ul>
 <li><strong>唯一支持 character</strong> 的泛型（仅 <code>bcast_c</code>，因此 <code>bcast</code> 不是 23 个过程）。</li>
-<li><strong>唯一支持到 6D</strong> 的泛型（<code>bcast_i6</code>/<code>bcast_r6</code>/<code>bcast_l6</code>），这是 6.3 新增的高维广播。</li>
+<li><strong>唯一支持到 6D</strong> 的泛型（<code>bcast_i6</code>/<code>bcast_r6</code>/<code>bcast_l6</code>），用于高维广播。</li>
 <li><strong>无临时数组</strong>：bcast 直接作用于 <code>Var</code>，MPI 和 OMP 操作同一变量。</li>
 </ul>
 <h2 id="执行顺序模式">执行顺序模式</h2>
@@ -271,7 +272,7 @@
 <li><strong>character</strong> 仅 bcast 支持（<code>bcast_c</code>），其他 5 个泛型无 character 变体。</li>
 <li><strong>reduce_sum</strong> 无 LOGICAL 变体（逻辑值求和无物理意义）。</li>
 <li><strong>scatter/gather/scatter2D/gather2D</strong> 最高到 4D（<code>_i3</code> 对应输入 4D、输出 4D）。</li>
-<li><strong>bcast</strong> 最高到 6D（6.3 新增，支持高维 tracer 数组广播）。</li>
+<li><strong>bcast</strong> 最高到 6D，支持高维 tracer 数组广播。</li>
 </ul>
 <h2 id="klon_mpi-依赖"><code>klon_mpi</code> 依赖</h2>
 <p>所有使用临时数组的 specific procedure 都在内部 <code>USE mod_phys_lmdz_mpi_data, ONLY : klon_mpi</code>。<code>klon_mpi</code> 是当前 MPI rank 的格点数，由 <code>mod_phys_lmdz_mpi_data</code> 在物理侧初始化时设定。</p>
@@ -282,7 +283,7 @@
 <li>栈空间需求可能较大：对 4D 数组，<code>Var_tmp</code> 大小为 <code>klon_mpi × d2 × d3 × d4 × sizeof(type)</code>。</li>
 </ul>
 <h2 id="mars-物理并行条件经过">Mars 物理并行条件经过</h2>
-<p>Mars 物理并行通过以下路径消费本模块：</p>
+<p>Mars 物理并行通过以下路径使用本模块：</p>
 <ol type="1">
 <li><strong><code>getin_p</code></strong>（<code>ioipsl_getin_p_mod.F90</code>）：使用 <code>bcast</code> 泛型广播配置参数。</li>
 <li><strong>COMMON 物理公共层</strong>：<code>mod_phys_lmdz_para.F90</code> 自检调用 <code>scatter2D/bcast/reduce_sum</code>；<code>xios_writefield.F90</code> 和 <code>misc/wxios.F90</code> 使用 <code>bcast/gather</code> 建立输出网格信息。</li>

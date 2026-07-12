@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -132,14 +133,14 @@ dyn3d_common\control_mod.F90: L34（planet_type 声明）</code></pre>
   call_physiq(..., lafin_split, ...)</code></pre>
 <p><code>lafin</code> 的物理含义是"本 physics 调用是否为模拟的最后一次"。只有最后一个 split 才收到 <code>lafin_split=.TRUE.</code>，确保物理参数化在最后 split 执行收尾操作（如写诊断、刷新累积量）。</p>
 <p><code>debut</code> 遵循对称逻辑：<code>debut_split = debut .AND. isplit == 1</code>。<code>debut</code> 是 THREADPRIVATE 标志，首次调用时为 <code>.TRUE.</code>，<code>firstcal</code> 变为 <code>.FALSE.</code> 后后续调用 <code>debut</code> 为 <code>.FALSE.</code>。</p>
-<h3 id="物理侧消费">物理侧消费</h3>
+<h3 id="物理侧使用">物理侧使用</h3>
 <p><code>call_physiq</code> 将 <code>debut_split/lafin_split</code> 透传给行星物理参数化。<code>lafin_split=.TRUE.</code> 时物理侧可能执行：</p>
 <ul>
 <li>写最终诊断量</li>
 <li>刷新辐射通量累积</li>
 <li>触发输出或检查</li>
 </ul>
-<p>Mars 物理侧对 <code>lafin_split</code> 的具体消费需在 <code>phymars/</code> 目录确认。</p>
+<p>Mars 物理侧对 <code>lafin_split</code> 的具体使用需在 <code>phymars/</code> 目录确认。</p>
 <h2 id="planet_type-分支结构">planet_type 分支结构</h2>
 <h3 id="活跃分支">活跃分支</h3>
 <p><code>calfis_p</code> 中唯一活跃的 <code>planet_type</code> 分支是首次调用时的 Titan 全局均值计算（L317-376）：</p>
@@ -206,7 +207,7 @@ dyn3d_common\control_mod.F90: L34（planet_type 声明）</code></pre>
 <li><code>zpk</code>（Exner）：Mars 物理原来不需要 Exner，但统一接口需要</li>
 <li><code>zphis</code>（地表位势）：统一接口传入了相对位势计算所需</li>
 <li><code>presnivs</code>（参考层压力）：统一接口需要</li>
-<li><code>zrfi</code>（相对涡度）：Mars 物理原来不消费涡度</li>
+<li><code>zrfi</code>（相对涡度）：Mars 物理原来不使用涡度</li>
 </ul>
 <p>旧式 Mars 多出的参数：</p>
 <ul>
@@ -255,7 +256,7 @@ dyn3d_common\control_mod.F90: L34（planet_type 声明）</code></pre>
 <ul>
 <li><a href="../modules/dynphy_lonlat/calfis_p.html">calfis_p 模块页</a></li>
 <li><a href="calfis-p-grid-mapping.html">calfis_p 格点映射</a></li>
-<li><a href="calfis-p-physiq-contract.html">calfis_p 接口契约</a></li>
+<li><a href="calfis-p-physiq-contract.html">calfis_p 接口约定</a></li>
 <li><a href="calfis-p-parallel-transfer.html">calfis_p 并行 transfer</a></li>
 <li><a href="leapfrog-p-physics-coupling.html">leapfrog-p-physics-coupling</a></li>
 <li><a href="leapfrog-p-time-scheduler.html">leapfrog-p-time-scheduler</a></li>
@@ -265,7 +266,7 @@ dyn3d_common\control_mod.F90: L34（planet_type 声明）</code></pre>
 </ul>
 <h2 id="待确认">待确认</h2>
 <ul>
-<li>Mars 物理侧（<code>phymars/</code>）对 <code>lafin_split</code> 的具体消费路径。</li>
+<li>Mars 物理侧（<code>phymars/</code>）对 <code>lafin_split</code> 的具体使用路径。</li>
 <li>Mars <code>hour_ini</code> 与 generic <code>start_time</code> 的初始化来源是否一致。</li>
 <li><code>control_mod</code> 中 <code>planet_type</code> 的完整允许值列表（目前源码中出现 earth/mars/generic/titan/venus）。</li>
 <li>Mars 是否有 <code>nsplit_phys &gt; 1</code> 的配置，以及 <code>jH_cur_split</code> 溢出在极端情况下的影响。</li>

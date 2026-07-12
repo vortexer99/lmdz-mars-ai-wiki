@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mars-restart-archive - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a href="../../modules/libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../file-index.html">文件索引</a>
+        <a href="../source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta/mars-restart-archive.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-startrestart-与-archive">MARS start、restart 与 archive</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>覆盖 startfi/restartfi、start archive、新建初始场和状态读写。</p>
+<p>兼容性关注：影响跨版本初始场兼容、字段回退和重启连续性。</p>
+<p>本页是 5.3 到 6.3 版本差异详情页，只解释改动职责与影响，不展开逐行代码差异。</p>
+<h2 id="变化统计">变化统计</h2>
+<p>本主题覆盖 9 个路径事件：新增 0、删除 1、修改 8。</p>
+<h2 id="主要变化">主要变化</h2>
+<ul>
+<li><code>libf/dynphy_lonlat/phymars/ini_archive.F</code>：扩展 archive 初始化接口以写入 def_slope、subslope_dist 以及 nslope/nslope_plus_1 维度，使 archive 格式承载坡面状态。</li>
+<li><code>libf/dynphy_lonlat/phymars/lect_start_archive.F</code>：修正 CO2 ice 初始场读取，适配 subslope 数据，并把 lect_start_archive 模块化以提供显式接口。</li>
+<li><code>libf/dynphy_lonlat/phymars/newstart.F</code>：扩展 newstart 的 subslope 初始场处理，支持 1/5/7 坡面和 mola64 数据，并修正 perennial_co2ice 等状态字段兼容问题。</li>
+<li><code>libf/dynphy_lonlat/phymars/start2archive.F</code>：吸收旧 start2archive_SSO 的坡面轨道处理，并新增 --add-sso 参数，同时更新坡面和物理初始化依赖。</li>
+<li><code>libf/dynphy_lonlat/phymars/start2archive_SSO.F</code>：移除独立 start2archive_SSO；其坡面轨道处理已并入 start2archive.F 的 --add-sso 路径。</li>
+<li><code>libf/dynphy_lonlat/phymars/write_archive.F</code>：扩展 archive 写出格式，为土温、土壤热惯量和坡面地表字段加入 nslope 维度，使 start_archive.nc 保留多坡面状态。</li>
+<li><code>libf/phymars/iostart.F90</code>：扩展 restart 格式以写读 nslope/inter_slope、坡面土壤和地表字段及字符 controle 描述符，并处理网格重排和 1D restartfi 重建。</li>
+<li><code>libf/phymars/phyetat0_mod.F90</code>：重构 startfi 状态读取：支持多坡面地表/土壤、qsoil/nqsoil、永久 CO2 冰与古气候、非地形重力波记忆以及 tracer 质量修正状态。</li>
+<li><code>libf/phymars/tabfi.F</code>：将 lsp2solp 从 tabfi 本地实现迁移为 planete_h 模块导入，保留太阳经度到 sol 的转换能力。</li>
+</ul>
+<h2 id="受影响路径">受影响路径</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>5.3 路径</th>
+<th>6.3 路径</th>
+<th>类型</th>
+<th>SHA-256 核验</th>
+<th>改动概述</th>
+<th>官方记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>M-0092</code></td>
+<td><code>libf/dynphy_lonlat/phymars/ini_archive.F</code></td>
+<td><code>libf/dynphy_lonlat/phymars/ini_archive.F</code></td>
+<td>修改</td>
+<td><code>d26db579f721→7ca1f4c0fa7f</code>（已核验）</td>
+<td>扩展 archive 初始化接口以写入 def_slope、subslope_dist 以及 nslope/nslope_plus_1 维度，使 archive 格式承载坡面状态。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/02/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/02/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/02/2023，RV</a></td>
+</tr>
+<tr>
+<td><code>M-0095</code></td>
+<td><code>libf/dynphy_lonlat/phymars/lect_start_archive.F</code></td>
+<td><code>libf/dynphy_lonlat/phymars/lect_start_archive.F</code></td>
+<td>修改</td>
+<td><code>0e9c8732ec7e→5bb1abce62a7</code>（已核验）</td>
+<td>修正 CO2 ice 初始场读取，适配 subslope 数据，并把 lect_start_archive 模块化以提供显式接口。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">26/01/2023，SF+AB</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/04/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">07/08/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0096</code></td>
+<td><code>libf/dynphy_lonlat/phymars/newstart.F</code></td>
+<td><code>libf/dynphy_lonlat/phymars/newstart.F</code></td>
+<td>修改</td>
+<td><code>eac62910ecc1→a6cc6506c75b</code>（已核验）</td>
+<td>扩展 newstart 的 subslope 初始场处理，支持 1/5/7 坡面和 mola64 数据，并修正 perennial_co2ice 等状态字段兼容问题。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">09/03/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">24/11/2023，LL</a></td>
+</tr>
+<tr>
+<td><code>M-0098</code></td>
+<td><code>libf/dynphy_lonlat/phymars/start2archive.F</code></td>
+<td><code>libf/dynphy_lonlat/phymars/start2archive.F</code></td>
+<td>修改</td>
+<td><code>93f632d870b2→816ffe3a3ed8</code>（已核验）</td>
+<td>吸收旧 start2archive_SSO 的坡面轨道处理，并新增 --add-sso 参数，同时更新坡面和物理初始化依赖。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/03/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">04/11/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0099</code></td>
+<td><code>libf/dynphy_lonlat/phymars/start2archive_SSO.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>66000160b502→—</code>（已核验）</td>
+<td>移除独立 start2archive_SSO；其坡面轨道处理已并入 start2archive.F 的 --add-sso 路径。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/03/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">04/11/2024，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0101</code></td>
+<td><code>libf/dynphy_lonlat/phymars/write_archive.F</code></td>
+<td><code>libf/dynphy_lonlat/phymars/write_archive.F</code></td>
+<td>修改</td>
+<td><code>71a4f0f77ca8→afbb7ac8e047</code>（已核验）</td>
+<td>扩展 archive 写出格式，为土温、土壤热惯量和坡面地表字段加入 nslope 维度，使 start_archive.nc 保留多坡面状态。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/02/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/02/2023，RV</a></td>
+</tr>
+<tr>
+<td><code>M-0174</code></td>
+<td><code>libf/phymars/iostart.F90</code></td>
+<td><code>libf/phymars/iostart.F90</code></td>
+<td>修改</td>
+<td><code>0c2251d4cfad→37a3d6592d65</code>（已核验）</td>
+<td>扩展 restart 格式以写读 nslope/inter_slope、坡面土壤和地表字段及字符 controle 描述符，并处理网格重排和 1D restartfi 重建。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/02/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/02/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/02/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">30/03/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">08/11/2024，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0225</code></td>
+<td><code>libf/phymars/phyetat0_mod.F90</code></td>
+<td><code>libf/phymars/phyetat0_mod.F90</code></td>
+<td>修改</td>
+<td><code>fcab19a4389c→8eef645ffef4</code>（已核验）</td>
+<td>重构 startfi 状态读取：支持多坡面地表/土壤、qsoil/nqsoil、永久 CO2 冰与古气候、非地形重力波记忆以及 tracer 质量修正状态。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/02/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/02/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">08/11/2023，LL</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/11/2023，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">18/04/2024，JBC</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">01/04/2026，YCL</a></td>
+</tr>
+<tr>
+<td><code>M-0254</code></td>
+<td><code>libf/phymars/tabfi.F</code></td>
+<td><code>libf/phymars/tabfi.F</code></td>
+<td>修改</td>
+<td><code>b159a16fb08b→7a33b302c4db</code>（已核验）</td>
+<td>将 lsp2solp 从 tabfi 本地实现迁移为 planete_h 模块导入，保留太阳经度到 sol 的转换能力。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">8/09/2023，JBC</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/11/2025，JBC</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="证据边界">证据边界</h2>
+<ul>
+<li>路径状态和哈希关系来自两棵本地快照的机械比较。</li>
+<li>官方记录来自 MARS Changelog 增量；COMMON 命中仅表示间接记录。</li>
+<li>未找到 Changelog 条目不等于改动无意义，只表示没有可直接关联的官方文字记录。</li>
+<li>本页不把未运行的数值或性能影响写成既定事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../version-delta-index.html">全量变更索引</a></li>
+<li><a href="../../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

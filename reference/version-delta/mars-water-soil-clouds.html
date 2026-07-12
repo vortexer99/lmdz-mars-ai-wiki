@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mars-water-soil-clouds - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a href="../../modules/libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../file-index.html">文件索引</a>
+        <a href="../source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta/mars-water-soil-clouds.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-水云土壤与地下水冰">MARS 水云、土壤与地下水冰</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>覆盖水云微物理、饱和辅助、地表交换、土壤水冰和热惯量反馈。</p>
+<p>兼容性关注：影响水循环 tendency、云时间步、地表/地下水库和坡面状态。</p>
+<p>本页是 5.3 到 6.3 版本差异详情页，只解释改动职责与影响，不展开逐行代码差异。</p>
+<h2 id="变化统计">变化统计</h2>
+<p>本主题覆盖 23 个路径事件：新增 8、删除 6、修改 9。</p>
+<h2 id="主要变化">主要变化</h2>
+<ul>
+<li><code>microphys.h</code>、<code>surfini.F</code>、<code>simpleclouds.F</code> 和 <code>improvedclouds_mod.F</code> 的变化属于 include/例程模块化迁移；索引仍按每个路径事件分别登记。</li>
+<li><code>libf/phymars/comsoil_h.F90</code>：新增坡面土壤状态的 ini_comsoil_h_slope_var 与 end_comsoil_h_slope_var 生命周期接口，保留原有 comsoil_h 初始化与释放例程。</li>
+<li><code>libf/phymars/geticecover.F90</code>：更新源码文件 <code>geticecover.F90</code>：新增 <code>geticecover_mod</code>。</li>
+<li><code>libf/phymars/growthrate.F</code>：更新源码文件 <code>growthrate.F</code>：新增 <code>growthrate_mod</code>；新增模块依赖 <code>microphys_h</code>。</li>
+<li><code>libf/phymars/improvedclouds_mod.F</code>：移除旧固定格式 improvedclouds_mod.F；6.3 由同模块名的 .F90 自由格式实现承接改进水云方案。</li>
+<li><code>libf/phymars/improvedclouds_mod.F90</code>：新增模块化 improvedclouds 水云方案，以经验幂律自适应选择微物理子步，并保留 imicro 兼容/回退路径。</li>
+<li><code>libf/phymars/iniwritesoil.F90</code>：模块化 diagsoil 初始化，并将 nsoilmx、mlayer 改为显式参数，同时统一 area 的 nbplat 维度契约。</li>
+<li><code>libf/phymars/microphys.h</code>：移除旧微物理参数 include；6.3 以 microphys_h 模块提供相同职责的共享状态。</li>
+<li><code>libf/phymars/microphys_h.F90</code>：新增微物理参数模块，替代旧 microphys.h include 方式。</li>
+<li><code>libf/phymars/nuclea.F</code>：更新水冰成核以配合自适应水云微物理子步和模块化微物理参数。</li>
+<li><code>libf/phymars/sig_h2o.F90</code>：新增由旧 sig.F 重命名并模块化的水冰—空气表面张力实现，供成核和改进水云方案使用。</li>
+<li><code>libf/phymars/simpleclouds.F</code>：移除旧 simpleclouds.F；6.3 由 simpleclouds_mod.F 模块承接简化水云微物理。</li>
+<li><code>libf/phymars/simpleclouds_mod.F</code>：新增源码文件 <code>simpleclouds_mod.F</code>，其中定义 <code>simpleclouds_mod</code>、<code>simpleclouds</code>；该实现进入 6.3。</li>
+<li>其余 11 项见下表和全量索引。</li>
+</ul>
+<h2 id="受影响路径">受影响路径</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>5.3 路径</th>
+<th>6.3 路径</th>
+<th>类型</th>
+<th>SHA-256 核验</th>
+<th>改动概述</th>
+<th>官方记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>M-0126</code></td>
+<td><code>libf/phymars/comsoil_h.F90</code></td>
+<td><code>libf/phymars/comsoil_h.F90</code></td>
+<td>修改</td>
+<td><code>b7b60e8c6bbe→c506c29bd8b3</code>（已核验）</td>
+<td>新增坡面土壤状态的 ini_comsoil_h_slope_var 与 end_comsoil_h_slope_var 生命周期接口，保留原有 comsoil_h 初始化与释放例程。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">02/10/2023，LL</a></td>
+</tr>
+<tr>
+<td><code>M-0162</code></td>
+<td><code>libf/phymars/geticecover.F90</code></td>
+<td><code>libf/phymars/geticecover.F90</code></td>
+<td>修改</td>
+<td><code>d4f905f2f528→945a8931b5e3</code>（已核验）</td>
+<td>更新源码文件 <code>geticecover.F90</code>：新增 <code>geticecover_mod</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/08/2025，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0164</code></td>
+<td><code>libf/phymars/growthrate.F</code></td>
+<td><code>libf/phymars/growthrate.F</code></td>
+<td>修改</td>
+<td><code>27d67cb9d239→57d2d0aa137c</code>（已核验）</td>
+<td>更新源码文件 <code>growthrate.F</code>：新增 <code>growthrate_mod</code>；新增模块依赖 <code>microphys_h</code>。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">22/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0166</code></td>
+<td><code>libf/phymars/improvedclouds_mod.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>1859eb6a0627→—</code>（已核验）</td>
+<td>移除旧固定格式 improvedclouds_mod.F；6.3 由同模块名的 .F90 自由格式实现承接改进水云方案。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/10/2022，MV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">26/09/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0167</code></td>
+<td>—</td>
+<td><code>libf/phymars/improvedclouds_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→2dbf70a32ed1</code>（已核验）</td>
+<td>新增模块化 improvedclouds 水云方案，以经验幂律自适应选择微物理子步，并保留 imicro 兼容/回退路径。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/06/2023，JN</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">26/09/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0172</code></td>
+<td><code>libf/phymars/iniwritesoil.F90</code></td>
+<td><code>libf/phymars/iniwritesoil.F90</code></td>
+<td>修改</td>
+<td><code>53d95421f53c→bfb037f1af8d</code>（已核验）</td>
+<td>模块化 diagsoil 初始化，并将 nsoilmx、mlayer 改为显式参数，同时统一 area 的 nbplat 维度契约。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">23/05/2024，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0189</code></td>
+<td><code>libf/phymars/microphys.h</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>609509d21e2d→—</code>（已核验）</td>
+<td>移除旧微物理参数 include；6.3 以 microphys_h 模块提供相同职责的共享状态。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">22/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0190</code></td>
+<td>—</td>
+<td><code>libf/phymars/microphys_h.F90</code></td>
+<td>新增</td>
+<td><code>—→0705129d1c29</code>（已核验）</td>
+<td>新增微物理参数模块，替代旧 microphys.h include 方式。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">22/07/2023，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0214</code></td>
+<td><code>libf/phymars/nuclea.F</code></td>
+<td><code>libf/phymars/nuclea.F</code></td>
+<td>修改</td>
+<td><code>a02115c2563d→d944b2339a8b</code>（已核验）</td>
+<td>更新水冰成核以配合自适应水云微物理子步和模块化微物理参数。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">22/07/2023，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/09/2023，JN</a></td>
+</tr>
+<tr>
+<td><code>M-0235</code></td>
+<td>—</td>
+<td><code>libf/phymars/sig_h2o.F90</code></td>
+<td>新增</td>
+<td><code>—→52cd9c82b013</code>（已核验）</td>
+<td>新增由旧 sig.F 重命名并模块化的水冰—空气表面张力实现，供成核和改进水云方案使用。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">27/04/2025，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0236</code></td>
+<td><code>libf/phymars/simpleclouds.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>c2f6b4117353→—</code>（已核验）</td>
+<td>移除旧 simpleclouds.F；6.3 由 simpleclouds_mod.F 模块承接简化水云微物理。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/08/2025，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0237</code></td>
+<td>—</td>
+<td><code>libf/phymars/simpleclouds_mod.F</code></td>
+<td>新增</td>
+<td><code>—→cb140652b8e4</code>（已核验）</td>
+<td>新增源码文件 <code>simpleclouds_mod.F</code>，其中定义 <code>simpleclouds_mod</code>、<code>simpleclouds</code>；该实现进入 6.3。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/08/2025，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0239</code></td>
+<td><code>libf/phymars/soil.F</code></td>
+<td><code>libf/phymars/soil.F</code></td>
+<td>修改</td>
+<td><code>e9cef6068ae8→800311e61b78</code>（已核验）</td>
+<td>把土壤热传导状态扩展到多坡面，加入地热通量底边界以及 surface/pore ice 对热惯量的反馈。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/02/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/02/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">20/02/2024，LL</a></td>
+</tr>
+<tr>
+<td><code>M-0240</code></td>
+<td><code>libf/phymars/soil_settings.F</code></td>
+<td><code>libf/phymars/soil_settings.F</code></td>
+<td>修改</td>
+<td><code>95a23b54ca3a→dfede39368da</code>（已核验）</td>
+<td>采用 PYM 土壤深度网格，把土温和热惯量扩展到多坡面，读取地热通量边界，并初始化地下水汽、地下冰与吸附水 qsoil 状态。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">21/02/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/02/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">28/04/2023，RV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">02/11/2023，LL</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">03/11/2023，LL</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">04/03/2024，LL</a></td>
+</tr>
+<tr>
+<td><code>M-0241</code></td>
+<td><code>libf/phymars/soil_tifeedback.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>c1b819f1fd42→—</code>（已核验）</td>
+<td>移除旧 soil_tifeedback.F；其地表冰和孔隙冰热惯量反馈已并入 waterice_tifeedback_mod.F90。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">20/02/2024，LL</a></td>
+</tr>
+<tr>
+<td><code>M-0242</code></td>
+<td>—</td>
+<td><code>libf/phymars/soilwater.F90</code></td>
+<td>新增</td>
+<td><code>—→a88962334da5</code>（已核验）</td>
+<td>新增地下水冰吸附/解吸与季节霜演化模块，并纳入地表—地下水库和热惯量反馈链。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">10/11/2023，LL</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">29/02/2024，LL</a></td>
+</tr>
+<tr>
+<td><code>M-0248</code></td>
+<td><code>libf/phymars/surfini.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>3dfcf01721ad→—</code>（已核验）</td>
+<td>移除旧地表初始化例程；6.3 由 surfini_mod 模块承接其职责。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">29/11/2023，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0249</code></td>
+<td>—</td>
+<td><code>libf/phymars/surfini_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→25f83d439de3</code>（已核验）</td>
+<td>新增模块化地表初始化接口，替代旧 surfini.F 路径。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">29/11/2023，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0256</code></td>
+<td><code>libf/phymars/tcondwater.F90</code></td>
+<td><code>libf/phymars/tcondwater.F90</code></td>
+<td>修改</td>
+<td><code>80cd0a66abc2→3418a78d1b3e</code>（已核验）</td>
+<td>将水凝结温度计算模块化，并把接口从一维点列扩展为 ngrid×nlay 二维压力/水汽场，逐网格层返回 tcond。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0270</code></td>
+<td><code>libf/phymars/watercloud_mod.F</code></td>
+<td><code>libf/phymars/watercloud_mod.F</code></td>
+<td>修改</td>
+<td><code>ae0540298e0f→6c3a995b23d6</code>（已核验）</td>
+<td>重构水云微物理子步：improvedclouds 使用自适应步长、simpleclouds 使用固定 imicro，并由积分后状态回算 H2O/HDO、尘核和尘埃倾向并迁移诊断输出。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">13/10/2022，MV</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">19/05/2023，JN</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/06/2023，JN</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">29/10/2025，JM</a></td>
+</tr>
+<tr>
+<td><code>M-0271</code></td>
+<td>—</td>
+<td><code>libf/phymars/waterice_tifeedback_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→4b531dc07e22</code>（已核验）</td>
+<td>新增水冰热惯量反馈模块，供地表和地下冰路径调用。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">20/02/2024，LL</a></td>
+</tr>
+<tr>
+<td><code>M-0272</code></td>
+<td><code>libf/phymars/watersat_mod.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>f908d9da5849→—</code>（已核验）</td>
+<td>移除固定格式 watersat_mod.F；6.3 由 watersat_mod.F90 保留模块与 watersat 饱和计算例程。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+<tr>
+<td><code>M-0273</code></td>
+<td>—</td>
+<td><code>libf/phymars/watersat_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→fc233d8e02a8</code>（已核验）</td>
+<td>新增水汽饱和模块，按温度计算饱和蒸汽压并结合压力返回 qsat，供水云和凝结路径调用。</td>
+<td>源码差异；未找到对应 Changelog 条目</td>
+</tr>
+</tbody>
+</table>
+<h2 id="证据边界">证据边界</h2>
+<ul>
+<li>路径状态和哈希关系来自两棵本地快照的机械比较。</li>
+<li>官方记录来自 MARS Changelog 增量；COMMON 命中仅表示间接记录。</li>
+<li>未找到 Changelog 条目不等于改动无意义，只表示没有可直接关联的官方文字记录。</li>
+<li>本页不把未运行的数值或性能影响写成既定事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../version-delta-index.html">全量变更索引</a></li>
+<li><a href="../../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

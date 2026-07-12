@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -32,7 +33,7 @@
       <span>routines/vertical-coordinate-mars-contract.md</span>
     </nav>
     <article class="content" data-pagefind-body>
-<h1 id="mars-垂直坐标与动力-物理共享状态契约">Mars 垂直坐标与动力-物理共享状态契约</h1>
+<h1 id="mars-垂直坐标与动力-物理共享状态约定">Mars 垂直坐标与动力-物理共享状态约定</h1>
 <p>源码：</p>
 <ul>
 <li><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3d_common\disvert_noterre.F</code></li>
@@ -41,7 +42,7 @@
 <li><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\phy_common\vertical_layers_mod.F90</code></li>
 <li>边界上下文：<code>LMDZ.MARS\libf\dynphy_lonlat\phymars\iniphysiq_mod.F90</code>、<code>ini_archive.F</code>、<code>lect_start_archive.F</code>、<code>readhead_NC.F</code>、<code>newstart.F</code>、<code>start2archive.F</code>，以及 <code>LMDZ.MARS\libf\phymars\physiq_mod.F</code>、<code>dyn1d\init_testphys1d_mod.F90</code>。</li>
 </ul>
-<p>状态：TASK-0184 完成。本文只覆盖 COMMON 6.3 垂直坐标状态如何生成、复制到物理侧、被 Mars utility/physics 消费；Mars 文件只作为消费者和接口边界。</p>
+<p>本文只覆盖 COMMON 垂直坐标状态如何生成、复制到物理侧、被 Mars utility/physics 使用；Mars 文件只作为使用位置和接口边界。</p>
 <h2 id="结论">结论</h2>
 <p>Mars/Generic 默认垂直坐标链是：</p>
 <pre class="text"><code>iniconst
@@ -64,7 +65,7 @@
 <th>所在模块</th>
 <th>维度</th>
 <th>单位/含义</th>
-<th>主要消费者</th>
+<th>主要使用位置</th>
 </tr>
 </thead>
 <tbody>
@@ -221,7 +222,7 @@ pseudoalt(l) = -scaleheight * log(presnivs(l)/preff)</code></pre>
 <h2 id="动力侧压力使用">动力侧压力使用</h2>
 <p>动力核通过 <code>pression(ngrid, ap, bp, ps, p)</code> 计算 interface pressure：</p>
 <pre class="text"><code>p(:,l) = ap(l) + bp(l) * ps(:)</code></pre>
-<p>典型消费者包括：</p>
+<p>典型使用位置包括：</p>
 <ul>
 <li><code>caldyn/caldyn_p</code>：动力 tendency 前计算 pressure。</li>
 <li><code>leapfrog/leapfrog_p</code> 与 MARS <code>leapfrog_nogcm</code>：时间推进和 physics coupling 前刷新 pressure。</li>
@@ -241,7 +242,7 @@ pseudoalt(l) = -scaleheight * log(presnivs(l)/preff)</code></pre>
 <li>XIOS 输出 <code>ap/bp/aps/bps</code>。</li>
 </ul>
 <p>Mars <code>callphysiq_mod.F90</code> 仍从动力-物理接口接收 <code>zplev/zplay/presnivs</code>，但 physics 内部的垂直坐标常量来自 <code>vertical_layers_mod</code>。</p>
-<h2 id="mars-utility-和-archive-契约">Mars utility 和 archive 契约</h2>
+<h2 id="mars-utility-和-archive-约定">Mars utility 和 archive 约定</h2>
 <h3 id="ini_archivef"><code>ini_archive.F</code></h3>
 <p><code>ini_archive.F</code> 从 <code>comvert_mod</code> 读取 <code>ap,bp,aps,bps,pa,preff,presnivs,pseudoalt</code>，写入 archive 变量：</p>
 <ul>
@@ -266,7 +267,7 @@ pseudoalt(l) = -scaleheight * log(presnivs(l)/preff)</code></pre>
 <h3 id="newstartf-和-start2archivef"><code>newstart.F</code> 和 <code>start2archive.F</code></h3>
 <p><code>newstart.F</code> 在初始化 physics 前调用 <code>iniphysiq</code>，因此会经 <code>inigeomphy</code> 初始化 <code>vertical_layers_mod</code>；后续在写新 start/startfi 前调用 <code>pression(ip1jmp1, ap, bp, ps, p3d)</code>。</p>
 <p><code>start2archive.F</code> 先调用 <code>iniconst/inigeom/inifilr</code>，再调用 <code>iniphysiq</code>，随后用 <code>pression(ap,bp,ps,p3d)</code> 和 <code>exner_hyb</code> 准备 archive 转换。</p>
-<h2 id="1dtestphys1d-契约">1D/testphys1d 契约</h2>
+<h2 id="1dtestphys1d-约定">1D/testphys1d 约定</h2>
 <p>Mars 1D 初始化 <code>init_testphys1d_mod.F90</code> 直接使用 COMMON 转发的 <code>comvert_mod</code>：</p>
 <ol type="1">
 <li>设置或读取 <code>psurf</code>、<code>pa</code>、<code>preff</code>。</li>
@@ -280,8 +281,8 @@ pseudoalt(l) = -scaleheight * log(presnivs(l)/preff)</code></pre>
 <ol type="1">
 <li>确认 <code>planet_type</code> 和 <code>disvert_type</code>：Mars/Generic 默认 <code>disvert_type=2</code>。</li>
 <li>确认运行目录有 <code>esasig.def</code> 或 <code>z2sig.def</code>；若两者都有，<code>esasig.def</code> 优先。</li>
-<li>核对 <code>pa/preff</code> 来源：restart <code>controle</code>、<code>conf_planete</code>、或 1D 初始化默认/输入。</li>
-<li>核对 <code>hybrid</code>：默认 <code>.true.</code>，可由 <code>getin("hybrid")</code> 覆盖为纯 sigma。</li>
+<li>确认 <code>pa/preff</code> 来源：restart <code>controle</code>、<code>conf_planete</code>、或 1D 初始化默认/输入。</li>
+<li>确认 <code>hybrid</code>：默认 <code>.true.</code>，可由 <code>getin("hybrid")</code> 覆盖为纯 sigma。</li>
 <li>检查 <code>ap/bp/aps/bps</code> 是否写入 <code>comvert_mod</code> 后再调用 <code>inigeomphy</code> 或 1D <code>init_vertical_layers</code>。</li>
 <li>若处理 archive，检查 <code>aps/bps</code> 是否存在；旧 archive 只有 <code>sig_s</code> 时只能走 <code>lect_start_archive</code> fallback，不适合所有读取器。</li>
 <li>若排查输出坐标，确认 <code>presnivs</code> 是 Pa，history 常把它除以 100 写成 mb，而 <code>pseudoalt</code> 是 km。</li>
@@ -296,8 +297,8 @@ pseudoalt(l) = -scaleheight * log(presnivs(l)/preff)</code></pre>
 <ul>
 <li><a href="iniconst-planetary-constants.html">iniconst / conf_planete 行星常数初始化链</a></li>
 <li><a href="vertical-discretization.html">垂直离散构造</a></li>
-<li><a href="mars-utility-common-state-consumers.html">Mars utility 对 COMMON 状态的消费链</a></li>
-<li><a href="mars-utility-constants-vertical.html">Mars utility 常量和垂直坐标消费链</a></li>
+<li><a href="mars-utility-common-state-consumers.html">Mars utility 对 COMMON 状态的使用链路</a></li>
+<li><a href="mars-utility-constants-vertical.html">Mars utility 常量和垂直坐标使用链路</a></li>
 <li><a href="common-gcm-mars-run-entry.html">Mars 3D gcm 主入口链</a></li>
 <li><a href="../modules/dyn3d_common/dynetat0.html">dynetat0.F90 文件页</a></li>
 </ul>

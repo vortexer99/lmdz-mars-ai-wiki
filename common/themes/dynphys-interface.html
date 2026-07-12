@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,7 +34,7 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="动力-物理接口">动力-物理接口</h1>
-<p>页面状态：TASK-0017 完成。 源码范围：<code>LMDZ.COMMON-6.3/LMDZ.COMMON/libf/dynphy_lonlat</code>、<code>libf/phy_common</code>，并串联 <code>dyn3d/leapfrog.F</code>、<code>dyn3dpar/leapfrog_p.F</code>、<code>dyn3d/addfi.F</code>、<code>dyn3dpar/addfi_p.F</code> 的调用边界。 Mars 运行参与度：条件经过。Mars 3D GCM 启用物理时经过本主题覆盖的初始化和 <code>calfis/calfis_p -&gt; call_physiq -&gt; addfi/addfi_p</code> 接口；Mars 1D/testphys 路径只消费其中的接口兼容层和物理侧网格/垂直层初始化。</p>
+<p>源码范围：<code>LMDZ.COMMON-6.3/LMDZ.COMMON/libf/dynphy_lonlat</code>、<code>libf/phy_common</code>，并串联 <code>dyn3d/leapfrog.F</code>、<code>dyn3dpar/leapfrog_p.F</code>、<code>dyn3d/addfi.F</code>、<code>dyn3dpar/addfi_p.F</code> 的调用边界。 Mars 运行参与度：条件经过。Mars 3D GCM 启用物理时经过本主题覆盖的初始化和 <code>calfis/calfis_p -&gt; call_physiq -&gt; addfi/addfi_p</code> 接口；Mars 1D/testphys 路径只使用其中的接口兼容层和物理侧网格/垂直层初始化。</p>
 <h2 id="主题定位">主题定位</h2>
 <p>本页回答一个问题：动力网格上的 <code>ps/p/pk/teta/q/u/v/phi/flxw</code> 如何进入 Mars physics，又如何以 tendency 形式回到动力状态。</p>
 <p>接口拆成三层：</p>
@@ -111,14 +112,14 @@ leapfrog_p
   -&gt; pression_p / massdair_p / exner_*_p
   -&gt; SetDistrib(jj_Nb_Caldyn)</code></pre>
 <p><code>calfis/calfis_p</code> 只产生每秒 tendency；真正修改 <code>ucov/vcov/teta/q/ps</code> 的位置是 <code>addfi/addfi_p</code>。<code>addfi*</code> 之后必须刷新 <code>p/masse/pk</code>，否则后续动力、输出或 restart 会看到与新 <code>ps</code> 不一致的派生状态。</p>
-<h2 id="初始化契约">初始化契约</h2>
+<h2 id="初始化约定">初始化约定</h2>
 <p>Mars physics 初始化先进入 MARS 侧 <code>iniphysiq</code>，再调用 COMMON 的 <code>inigeomphy</code>。<code>inigeomphy</code> 的输出不是单个返回值，而是写入一组物理侧公共模块：</p>
 <table>
 <thead>
 <tr>
 <th>状态</th>
 <th>写入者</th>
-<th>消费者</th>
+<th>使用位置</th>
 <th>关键边界</th>
 </tr>
 </thead>
@@ -200,7 +201,7 @@ zqfi(ig,l,iq) = q(index_i(ig), index_j(ig), l, iq)</code></pre>
 <li>把 <code>_tmp</code> 加回起始纬圈。</li>
 </ol>
 <p>只有完成这一步后，<code>addfi_p</code> 才把 tendency 加到状态。因此并行差异要分成三段定位：<code>calfis_p</code> 列映射和 <code>call_physiq</code> 输出、<code>leapfrog_p</code> tendency halo、<code>addfi_p</code> 状态写回。</p>
-<h2 id="call_physiq-契约"><code>call_physiq</code> 契约</h2>
+<h2 id="call_physiq-约定"><code>call_physiq</code> 约定</h2>
 <p>COMMON 侧不实现 Mars physics 过程本体，但它负责提供一致的入口实参：</p>
 <table>
 <thead>
@@ -229,7 +230,7 @@ zqfi(ig,l,iq) = q(index_i(ig), index_j(ig), l, iq)</code></pre>
 <tr>
 <td><code>ztfi,zqfi,zufi,zvfi,zrfi</code></td>
 <td><code>calfis*</code> 转换</td>
-<td>physics 消费的温度、tracer、自然风和涡度。</td>
+<td>physics 使用的温度、tracer、自然风和涡度。</td>
 </tr>
 <tr>
 <td><code>zphi,zphis,flxwfi</code></td>
@@ -281,7 +282,7 @@ zqfi(ig,l,iq) = q(index_i(ig), index_j(ig), l, iq)</code></pre>
 <li>当前线程局部物理列的经纬度、边界、面积、输出面积写入 <code>geometry_mod</code>。</li>
 <li>动力侧 <code>comvert_mod</code> 中的 <code>ap/bp/aps/bps/presnivs/pseudoalt</code> 复制到 <code>vertical_layers_mod</code>。</li>
 </ul>
-<p>Mars physics、diagfi/stats、XIOS 输出和 archive utility 可能消费这些物理侧状态。若出现输出坐标、面积或压力轴问题，先确认 <code>iniconst/disvert/inigeom/iniphysiq -&gt; inigeomphy</code> 顺序，而不是直接查每步 <code>calfis_p</code>。</p>
+<p>Mars physics、diagfi/stats、XIOS 输出和 archive utility 可能使用这些物理侧状态。若出现输出坐标、面积或压力轴问题，先确认 <code>iniconst/disvert/inigeom/iniphysiq -&gt; inigeomphy</code> 顺序，而不是直接查每步 <code>calfis_p</code>。</p>
 <h2 id="串并行差异表">串并行差异表</h2>
 <table>
 <thead>
@@ -348,13 +349,13 @@ zqfi(ig,l,iq) = q(index_i(ig), index_j(ig), l, iq)</code></pre>
 <li><code>addfi/addfi_p</code> 改 <code>ps</code> 后必须刷新压力、质量和 Exner。</li>
 <li><code>inigeomphy</code> 初始化的是物理侧几何和垂直层状态；每步动力状态仍需由 <code>calfis*</code> 映射。</li>
 <li>串行 <code>calfis</code> 和并行 <code>calfis_p</code> 对 tracer index 的处理不同，不能直接套用同一 <code>niadv</code> 推理。</li>
-<li>Mars 1D/testphys 通过接口兼容层消费 COMMON 状态，但不等同于 3D 并行动力的 <code>calfis_p</code> 主链。</li>
+<li>Mars 1D/testphys 通过接口兼容层使用 COMMON 状态，但不等同于 3D 并行动力的 <code>calfis_p</code> 主链。</li>
 </ul>
 <h2 id="待确认">待确认</h2>
 <ul>
 <li><code>COMM_LMDZ</code> 与 <code>COMM_LMDZ_PHY</code> 在所有 Mars 并行配置中是否完全一致，需要运行配置或 MPI 初始化实测确认。</li>
-<li><code>calfis_p</code> 传入 <code>call_physiq</code> 的动力 tendency 参数在 Mars physics 侧实际消费程度，需要结合 <code>LMDZ.MARS/libf/phymars/callphysiq_mod.F90</code> 和具体物理过程继续核对。</li>
-<li>并行 <code>calfis_p</code> 未使用 <code>niadv</code> 是否依赖 6.3 tracer 顺序保证，仍需结合真实 <code>traceur.def</code> 配置验证。</li>
+<li><code>calfis_p</code> 传入 <code>call_physiq</code> 的动力 tendency 参数在 Mars physics 侧实际使用程度，需要结合 <code>LMDZ.MARS/libf/phymars/callphysiq_mod.F90</code> 和具体物理过程继续确认。</li>
+<li>并行 <code>calfis_p</code> 未使用 <code>niadv</code> 是否依赖 当前 tracer 顺序保证，仍需结合真实 <code>traceur.def</code> 配置验证。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>

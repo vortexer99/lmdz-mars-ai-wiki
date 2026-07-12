@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mars-tracer - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../../assets/wiki.css">
+  <script type="module" src="../../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../../index.html">主页</a>
+        <a href="../../architecture/project-structure.html">架构</a>
+        <a href="../../modules/libf-overview.html">模块</a>
+        <a href="../../themes/index.html">主题</a>
+        <a href="../../routines/index.html">例程</a>
+        <a href="../file-index.html">文件索引</a>
+        <a href="../source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../../index.html">LMDZ.MARS Wiki</a>
+      <span>reference/version-delta/mars-tracer.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="mars-tracer-初始化与质量修正">MARS tracer 初始化与质量修正</h1>
+<h2 id="页面定位">页面定位</h2>
+<p>覆盖旧/新 tracer 文件解析、索引初始化、父子关系和质量修正。</p>
+<p>兼容性关注：影响 tracer 配置格式、动力—物理边界、广播和守恒处理。</p>
+<p>本页是 5.3 到 6.3 版本差异详情页，只解释改动职责与影响，不展开逐行代码差异。</p>
+<h2 id="变化统计">变化统计</h2>
+<p>本主题覆盖 6 个路径事件：新增 4、删除 1、修改 1。</p>
+<h2 id="主要变化">主要变化</h2>
+<ul>
+<li><code>libf/phymars/initracer.F</code>：移除旧非模块化 tracer 初始化实现。</li>
+<li><code>libf/phymars/initracer.F90</code>：模块化 tracer 初始化并适配物理侧文件解析与新的索引接口。</li>
+<li><code>libf/phymars/parse_tracer_file.F90</code>：新增新式 tracer.def 解析接口，按网格选择 lmdz/dynamico 段，调用 COMMON readTracFiles 后广播结果。</li>
+<li><code>libf/phymars/parse_traceur_file.F90</code>：新增旧式 traceur.def 解析接口，由 master 读取并广播名称与父子关系。</li>
+<li><code>libf/phymars/tracer_mass_fixer_dyn_mod.F90</code>：新增动力 tracer 质量修正模块，并由运行时开关控制。</li>
+<li><code>libf/phymars/tracer_mod.F90</code>：让物理端由 master 优先解析 traceur.def、回退 tracer.def 并广播 tracer 信息，建立 parent/child 元数据并强制检查 CO2 tracer。</li>
+</ul>
+<h2 id="受影响路径">受影响路径</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>5.3 路径</th>
+<th>6.3 路径</th>
+<th>类型</th>
+<th>SHA-256 核验</th>
+<th>改动概述</th>
+<th>官方记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>M-0170</code></td>
+<td><code>libf/phymars/initracer.F</code></td>
+<td>—</td>
+<td>删除</td>
+<td><code>8f4740b61402→—</code>（已核验）</td>
+<td>移除旧非模块化 tracer 初始化实现。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">14/08/2023，JBC</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">17/07/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0171</code></td>
+<td>—</td>
+<td><code>libf/phymars/initracer.F90</code></td>
+<td>新增</td>
+<td><code>—→feef5a942d5f</code>（已核验）</td>
+<td>模块化 tracer 初始化并适配物理侧文件解析与新的索引接口。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/01/2026，JBC</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">17/07/2025，JBC</a></td>
+</tr>
+<tr>
+<td><code>M-0221</code></td>
+<td>—</td>
+<td><code>libf/phymars/parse_tracer_file.F90</code></td>
+<td>新增</td>
+<td><code>—→0b2833871045</code>（已核验）</td>
+<td>新增新式 tracer.def 解析接口，按网格选择 lmdz/dynamico 段，调用 COMMON readTracFiles 后广播结果。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">20/05/2026，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0222</code></td>
+<td>—</td>
+<td><code>libf/phymars/parse_traceur_file.F90</code></td>
+<td>新增</td>
+<td><code>—→5ac993f658e8</code>（已核验）</td>
+<td>新增旧式 traceur.def 解析接口，由 master 读取并广播名称与父子关系。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/05/2026，EM</a></td>
+</tr>
+<tr>
+<td><code>M-0261</code></td>
+<td>—</td>
+<td><code>libf/phymars/tracer_mass_fixer_dyn_mod.F90</code></td>
+<td>新增</td>
+<td><code>—→a58a4cdea8f0</code>（已核验）</td>
+<td>新增动力 tracer 质量修正模块，并由运行时开关控制。</td>
+<td>官方分组记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">19/03/2026，YCL</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">24/03/2026，YCL</a></td>
+</tr>
+<tr>
+<td><code>M-0262</code></td>
+<td><code>libf/phymars/tracer_mod.F90</code></td>
+<td><code>libf/phymars/tracer_mod.F90</code></td>
+<td>修改</td>
+<td><code>f2a53920c701→d3840188bb3e</code>（已核验）</td>
+<td>让物理端由 master 优先解析 traceur.def、回退 tracer.def 并广播 tracer 信息，建立 parent/child 元数据并强制检查 CO2 tracer。</td>
+<td>官方记录：<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">11/05/2026，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">12/05/2026，EM</a>；<a href="https://svn.lmd.jussieu.fr/Planeto/trunk/LMDZ.MARS/changelog.txt">20/05/2026，EM</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="证据边界">证据边界</h2>
+<ul>
+<li>路径状态和哈希关系来自两棵本地快照的机械比较。</li>
+<li>官方记录来自 MARS Changelog 增量；COMMON 命中仅表示间接记录。</li>
+<li>未找到 Changelog 条目不等于改动无意义，只表示没有可直接关联的官方文字记录。</li>
+<li>本页不把未运行的数值或性能影响写成既定事实。</li>
+</ul>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="../version-delta-index.html">全量变更索引</a></li>
+<li><a href="../../themes/version-5.3-to-6.3.html">版本差异概览</a></li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>

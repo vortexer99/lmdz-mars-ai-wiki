@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,8 +34,8 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="guide_p_modf90">guide_p_mod.F90</h1>
-<p>页面状态：TASK-0021 完成。 源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\guide_p_mod.F90</code>。</p>
-<p>Mars 运行参与度：接口兼容 + 条件边界。6.3 源码中 <code>leapfrog_p.F</code> 对 <code>guide_p_mod:guide_main</code> 的活动调用位于 <code>#ifdef CPP_IOIPSL</code> 且 <code>planet_type=="earth"</code> 的分支内；Mars/generic 并行入口的 <code>ok_guide</code> 初始化路径调用 <code>relaxetat0("relax.nc")</code>，generic 时间推进还有 inline <code>attenua</code> u-wind nudging，均不经过本模块的 NetCDF guide 输入链。</p>
+<p>源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\guide_p_mod.F90</code>。</p>
+<p>Mars 运行参与度：接口兼容 + 条件边界。当前源码中 <a href="./leapfrog_p.html"><code>leapfrog_p.F</code></a> 对 <code>guide_p_mod:guide_main</code> 的活动调用位于 <code>#ifdef CPP_IOIPSL</code> 且 <code>planet_type=="earth"</code> 的分支内；Mars/generic 并行入口的 <code>ok_guide</code> 初始化路径调用 <code>relaxetat0("relax.nc")</code>，generic 时间推进还有 inline <code>attenua</code> u-wind nudging，均不经过本模块的 NetCDF guide 输入链。</p>
 <h2 id="文件定位">文件定位</h2>
 <p><code>guide_p_mod</code> 是并行动力目录中的 nudging/guide 模块，和串行 <a href="../dyn3d/guide_mod.html">guide_mod</a> 对应。它公开 <code>guide_main(itau,ucov,vcov,teta,q,masse,ps)</code>，内部封装配置读取、NetCDF 输入、压力层插值、松弛系数、状态叠加和 <code>guide_ins.nc</code> 输出。</p>
 <p>并行版的核心区别不是输入文件分块读取，而是读入后只处理本 rank 的局部纬向带，并在 V 网格或 staggered 压力需要相邻行时显式做 halo。</p>
@@ -52,7 +53,7 @@
 <tr>
 <td><code>guide_main</code></td>
 <td>subroutine</td>
-<td><code>leapfrog_p.F</code> 的 Earth/IOIPSL <code>ok_guide</code> 分支</td>
+<td><a href="./leapfrog_p.html"><code>leapfrog_p.F</code></a> 的 Earth/IOIPSL <code>ok_guide</code> 分支</td>
 <td>建立本地 U/V 范围，按频率读取/插值 guide 输入，把 forcing 加到并行动力状态。</td>
 </tr>
 </tbody>
@@ -208,7 +209,7 @@
 <p><code>guide_out(varname,hsize,vsize,field,factt)</code> 是并行版最明显的 I/O 差异：</p>
 <pre class="text"><code>CALL gather_field(field, iip1*hsize, vsize, 0)
 IF (mpi_rank /= 0) RETURN</code></pre>
-<p>因此只有 root 创建和写 <code>guide_ins.nc</code>。<code>factt</code> 是形式参数，但 6.3 源码体内没有使用它；forcing 量级仍由调用点传入 <code>f_add/factt</code> 决定。</p>
+<p>因此只有 root 创建和写 <code>guide_ins.nc</code>。<code>factt</code> 是形式参数，但 当前源码体内没有使用它；forcing 量级仍由调用点传入 <code>f_add/factt</code> 决定。</p>
 <p>并行输出还和串行版存在两个源码级差异：</p>
 <ul>
 <li>并行版 <code>SP</code> 写层中心压力 <code>p(1:ip1jmp1,1:llm)</code>，维度定义为 <code>(LONV,LATU,LEVEL,TIME)</code>；串行版 <code>SP</code> 写表面压力 <code>ps</code>，是 3D time field。</li>
@@ -220,7 +221,7 @@ IF (mpi_rank /= 0) RETURN</code></pre>
 <thead>
 <tr>
 <th>路径</th>
-<th>6.3 源码行为</th>
+<th>当前源码行为</th>
 <th>是否经过 <code>guide_p_mod</code></th>
 </tr>
 </thead>
@@ -237,7 +238,7 @@ IF (mpi_rank /= 0) RETURN</code></pre>
 </tr>
 <tr>
 <td>Generic + <code>ok_guide</code></td>
-<td><code>gcm.F</code> 初始化读 <code>relax.nc</code>；<code>leapfrog_p</code> 中还有 inline <code>attenua</code></td>
+<td><a href="../dyn3d/gcm.html"><code>gcm.F</code></a> 初始化读 <code>relax.nc</code>；<code>leapfrog_p</code> 中还有 inline <code>attenua</code></td>
 <td>否</td>
 </tr>
 </tbody>
@@ -251,7 +252,7 @@ IF (mpi_rank /= 0) RETURN</code></pre>
 <li><a href="mod_hallo.html">mod_hallo</a></li>
 <li><a href="bands.html">bands</a></li>
 <li><a href="../dyn3d/guide_mod.html">串行 guide_mod</a></li>
-<li><a href="../../routines/guide-config-contract.html">guide 配置与初始化契约</a></li>
+<li><a href="../../routines/guide-config-contract.html">guide 配置与初始化约定</a></li>
 <li><a href="../../routines/guide-input-fields.html">guide 输入场读取</a></li>
 <li><a href="../../routines/guide-interpolation-pressure.html">guide 压力层插值和 nudging 系数</a></li>
 <li><a href="../../routines/guide-tendency-application.html">guide forcing 叠加到动力状态</a></li>

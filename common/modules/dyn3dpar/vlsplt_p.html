@@ -20,6 +20,7 @@
         <a href="../../reference/file-index.html">文件索引</a>
         <a href="../../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -33,9 +34,8 @@
     </nav>
     <article class="content" data-pagefind-body>
 <h1 id="dyn3dparvlsplt_pf">dyn3dpar/vlsplt_p.F</h1>
-<p>页面状态：TASK-0027 完成。</p>
 <p>源码路径：<code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dyn3dpar\vlsplt_p.F</code></p>
-<p>Mars 运行参与度：条件经过。<code>vlsplt_p</code> 是并行动力中的 Van Leer split transport 内核；当前 6.3 <code>advtrac_p.F90</code> 主要通过 <a href="vlspltgen_p.html">vlspltgen_p</a> 调度 <code>vlx_p/vly_p/vlz_p</code>，旧的直接 <code>vlsplt_p</code> 主例程仍保留并说明完整 halo split 模式。本页用于理解并行 <code>_p</code> 内核本体、halo/OMP/band 边界以及它与串行 <a href="../dyn3d/vlsplt.html">vlsplt</a> 的对应关系。</p>
+<p>Mars 运行参与度：条件经过。<code>vlsplt_p</code> 是并行动力中的 Van Leer split transport 内核；当前 <a href="../dyn3d/advtrac.html"><code>advtrac_p.F90</code></a> 主要通过 <a href="vlspltgen_p.html">vlspltgen_p</a> 调度 <code>vlx_p/vly_p/vlz_p</code>，旧的直接 <code>vlsplt_p</code> 主例程仍保留并说明完整 halo split 模式。本页用于理解并行 <code>_p</code> 内核本体、halo/OMP/band 边界以及它与串行 <a href="../dyn3d/vlsplt.html">vlsplt</a> 的对应关系。</p>
 <h2 id="文件角色">文件角色</h2>
 <p><code>vlsplt_p.F</code> 是 1339 行并行 Van Leer split transport 文件。它包含：</p>
 <ul>
@@ -142,7 +142,7 @@ WaitSendRequest(MyRequest2)</code></pre>
 <li>若本段包含全局北极或南极行，使用 <code>pole_nord/pole_sud</code> 排除极点行。</li>
 <li>所有主要循环使用 <code>c$OMP DO SCHEDULE(STATIC,OMP_CHUNK)</code>。</li>
 </ol>
-<p>父子 tracer 逻辑仍是 <code>masseq/Ratio</code>、递归调用、父更新后恢复子 tracer。递归调用也携带 <code>ijb_x/ije_x</code>，避免子 tracer 访问当前任务之外的 band。</p>
+<p>父子 tracer 逻辑仍是 <code>masseq/Ratio</code>、递归调用、父更新后恢复子 tracer。递归调用也携带 <code>ijb_x/ije_x</code>，避免子 tracer 访问当前 band 范围之外的 band。</p>
 <h2 id="vly_p">vly_p</h2>
 <p><code>vly_p</code> 不接收 band 实参，而是直接用全局并行状态计算扩展范围。典型范围包括：</p>
 <pre class="text"><code>ij_begin - 2*iip1 : ij_end + iip1
@@ -236,7 +236,7 @@ Ratio(ip1jmp1,llm,nqtot)</code></pre>
 <h2 id="相关页面">相关页面</h2>
 <ul>
 <li><a href="vlspltgen_p.html">vlspltgen_p</a></li>
-<li><a href="../../routines/vlsplt-p-halo-split.html">vlsplt_p halo split 支撑页</a></li>
+<li><a href="../../routines/vlsplt-p-halo-split.html">vlsplt_p halo split 细节页</a></li>
 <li><a href="../../routines/vlsplt-serial-parallel-delta.html">vlsplt 串并行差异</a></li>
 <li><a href="../dyn3d/vlsplt.html">串行 vlsplt</a></li>
 <li><a href="vlspltqs_p.html">vlspltqs_p</a></li>

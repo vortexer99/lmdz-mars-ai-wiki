@@ -20,6 +20,7 @@
         <a href="../reference/file-index.html">文件索引</a>
         <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
         <a href="../reference/pending-confirmation-triage.html">疑点</a>
+        <a href="../../index.html">返回 MARS Wiki</a>
       </nav>
       <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
         搜索
@@ -32,7 +33,7 @@
       <span>architecture/ioipsl-build-mars-contract.md</span>
     </nav>
     <article class="content" data-pagefind-body>
-<h1 id="ioipsl-build-和-mars-io-构建契约">IOIPSL build 和 Mars I/O 构建契约</h1>
+<h1 id="ioipsl-build-和-mars-io-构建约定">IOIPSL build 和 Mars I/O 构建约定</h1>
 <h2 id="输入范围">输入范围</h2>
 <pre class="text"><code>LMDZ.COMMON-6.3\LMDZ.COMMON\ioipsl\README
 LMDZ.COMMON-6.3\LMDZ.COMMON\ioipsl\install_*.bash
@@ -40,7 +41,7 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\makelmdz_fcm
 LMDZ.COMMON-6.3\LMDZ.COMMON\bld.cfg
 LMDZ.COMMON-6.3\LMDZ.COMMON\arch\arch-*.path</code></pre>
 <p>Mars 运行参与度：<code>构建期条件经过</code>。Mars 可执行文件运行时不执行 <code>ioipsl/install_*.bash</code> 或 <code>makelmdz_fcm</code>；但 Mars GCM 是否带 IOIPSL history、是否带 XIOS、include/lib 从哪里来、<code>CPP_IOIPSL</code>/<code>CPP_XIOS</code> 是否定义，都由这些构建文件决定。</p>
-<p>当前上游入口：用户提供的 IOIPSL 当前项目页为 <a href="https://gitlab.in2p3.fr/ipsl/icmc/plateforme/IOIPSL">https://gitlab.in2p3.fr/ipsl/icmc/plateforme/IOIPSL</a>。本页仍以当前 COMMON 6.3 源码中的 <code>ioipsl/README</code>、<code>install_*.bash</code>、<code>arch.path</code> 和 <code>makelmdz_fcm</code> 行为为准；该 GitLab URL 作为查找上游 IOIPSL 项目、许可和历史的外部入口。</p>
+<p>当前上游入口：用户提供的 IOIPSL 当前项目页为 <a href="https://gitlab.in2p3.fr/ipsl/icmc/plateforme/IOIPSL">https://gitlab.in2p3.fr/ipsl/icmc/plateforme/IOIPSL</a>。本页仍以当前 COMMON 源码中的 <code>ioipsl/README</code>、<code>install_*.bash</code>、<code>arch.path</code> 和 <code>makelmdz_fcm</code> 行为为准；该 GitLab URL 作为查找上游 IOIPSL 项目、许可和历史的外部入口。</p>
 <h2 id="ioipsl-在-mars-构建中的角色">IOIPSL 在 Mars 构建中的角色</h2>
 <p>IOIPSL 对 Mars 运行链路主要提供三类能力：</p>
 <table>
@@ -109,7 +110,7 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\arch\arch-*.path</code></pre>
 <li><code>mesu</code> 脚本采用 <code>modipsl/model IOIPSL_PLUS</code> 路径，成功产物检查位置是 <code>modipsl/lib/libioipsl.a</code>，和多数脚本的 <code>IOIPSL/lib/libioipsl.a</code> 不同。</li>
 <li>通用 <code>gfortran/ifort/pgf90</code> 脚本现场生成 IOIPSL arch 文件，注释要求用户按本机 NetCDF 和 GCM arch 文件调整。</li>
 </ul>
-<h2 id="makelmdz_fcm--io-契约"><code>makelmdz_fcm -io</code> 契约</h2>
+<h2 id="makelmdz_fcm--io-约定"><code>makelmdz_fcm -io</code> 约定</h2>
 <p>当前源码中 <code>makelmdz_fcm</code> 默认：</p>
 <pre class="text"><code>io=ioipsl</code></pre>
 <p>帮助文本只列出：</p>
@@ -141,13 +142,13 @@ LMDZ.COMMON-6.3\LMDZ.COMMON\arch\arch-*.path</code></pre>
 </tr>
 </tbody>
 </table>
-<p>源码核对结果：当前 <code>makelmdz_fcm</code> 没有发现 <code>-io noioipsl</code> 的帮助文本或分支。COMMON 中确实有无外部 IOIPSL 时可用的 fallback <code>ioipsl_getincom</code>，但这不等于当前 FCM 脚本提供了 <code>noioipsl</code> 模式。复现 Mars 构建时应以源码可见的 <code>ioipsl/mix/xios</code> 为准。</p>
-<h2 id="archpath-链接契约"><code>arch.path</code> 链接契约</h2>
+<p>源码确认结果：当前 <code>makelmdz_fcm</code> 没有发现 <code>-io noioipsl</code> 的帮助文本或分支。COMMON 中确实有无外部 IOIPSL 时可用的 fallback <code>ioipsl_getincom</code>，但这不等于当前 FCM 脚本提供了 <code>noioipsl</code> 模式。复现 Mars 构建时应以源码可见的 <code>ioipsl/mix/xios</code> 为准。</p>
+<h2 id="archpath-链接约定"><code>arch.path</code> 链接约定</h2>
 <p>Mars 构建时，<code>makelmdz_fcm -arch &lt;name&gt;</code> 会 source 目标 arch 的 <code>.path</code> 文件。典型 <code>arch-gfortran.path</code> 和 <code>arch-X64_JEANZAY.path</code> 都使用同一类 IOIPSL 变量：</p>
 <pre class="text"><code>IOIPSL_INCDIR=&quot;-I$ROOT/ioipsl/modipsl/lib&quot;
 IOIPSL_LIBDIR=&quot;-L$ROOT/ioipsl/modipsl/lib&quot;
 IOIPSL_LIB=&quot;-lioipsl&quot;</code></pre>
-<p>这说明 install 脚本最后创建的 <code>LMDZ.COMMON/ioipsl/modipsl/lib</code> 是 COMMON 构建入口实际消费的位置。若该目录缺少 <code>libioipsl.a</code> 或 IOIPSL <code>.mod</code>/include 文件，<code>-io ioipsl/mix/xios</code> 的编译或链接会失败。</p>
+<p>这说明 install 脚本最后创建的 <code>LMDZ.COMMON/ioipsl/modipsl/lib</code> 是 COMMON 构建入口实际读取的位置。若该目录缺少 <code>libioipsl.a</code> 或 IOIPSL <code>.mod</code>/include 文件，<code>-io ioipsl/mix/xios</code> 的编译或链接会失败。</p>
 <h2 id="bldcfg-外部依赖边界"><code>bld.cfg</code> 外部依赖边界</h2>
 <p><code>bld.cfg</code> 在依赖扫描阶段排除外部模块：</p>
 <pre class="text"><code>bld::excl_dep use::ioipsl
@@ -171,7 +172,7 @@ bld::excl_dep use::xios</code></pre>
 <h2 id="待确认">待确认</h2>
 <ul>
 <li>当前 Mars 生产工作流默认使用 <code>-io ioipsl</code>、<code>-io mix</code> 还是 <code>-io xios</code>，需要结合具体 run/deftank 脚本确认。</li>
-<li><code>makelmdz_fcm -p mars</code> 的最终可执行文件命名、外层包装脚本传参和 deftank 编译循环仍需单独收口。</li>
+<li><code>makelmdz_fcm -p mars</code> 的最终可执行文件命名、外层包装脚本传参和 deftank 编译循环见对应构建页面。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>
