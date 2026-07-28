@@ -39,6 +39,7 @@
 <pre class="text"><code>libf/dynphy_lonlat/phymars</code></pre>
 <h2 id="文件定位">文件定位</h2>
 <p>lon-lat GCM 动力-物理耦合适配器。<code>callphysiq_mod</code> 模块封装唯一入口 <code>call_physiq</code>，在动力核心与 <a href="../phymars/physiq_mod.html"><code>physiq_mod</code></a> 之间传递状态数组和 tendency；首次调用时验证 <code>planet_type=="mars"</code>，随后将动力核心传入的 OMP 并行数组按 <code>physiq</code> 参数列表转发，并把物理 tendency 回写动力侧。</p>
+<p>当前源码树中的直接调用方位于 <code>LMDZ.COMMON-6.3</code>：串行 <a href="../../common/modules/dynphy_lonlat/calfis.html"><code>calfis</code></a> 和并行 <a href="../../common/modules/dynphy_lonlat/calfis_p.html"><code>calfis_p</code></a> 都在 <code>CPP_PHYS</code> 分支内按 <code>nsplit_phys</code> 调用 <code>call_physiq</code>。MARS 本文件是行星物理包提供给 COMMON 动力核心的适配层。</p>
 <h2 id="定义的符号">定义的符号</h2>
 <table>
 <thead>
@@ -117,6 +118,28 @@
 <td><code>physiq_mod</code></td>
 <td>行 69-89</td>
 <td>将动力状态转发给 Mars 物理包，接收 tendency</td>
+</tr>
+</tbody>
+</table>
+<p>直接调用本例程的位置：</p>
+<table>
+<thead>
+<tr>
+<th>调用方</th>
+<th>源码位置</th>
+<th>调用条件与作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../common/modules/dynphy_lonlat/calfis.html"><code>calfis</code></a></td>
+<td><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dynphy_lonlat\calfis.F:699</code></td>
+<td>串行 lon-lat 路径；在 <code>CPP_PHYS</code> 下按 <code>nsplit_phys</code> 转发物理列状态。</td>
+</tr>
+<tr>
+<td><a href="../../common/modules/dynphy_lonlat/calfis_p.html"><code>calfis_p</code></a></td>
+<td><code>LMDZ.COMMON-6.3\LMDZ.COMMON\libf\dynphy_lonlat\calfis_p.F:946</code></td>
+<td>MPI/OpenMP 并行 lon-lat 路径；转发当前物理列切片并接收 tendency。</td>
 </tr>
 </tbody>
 </table>
@@ -345,7 +368,7 @@
 <h2 id="核心逻辑">核心逻辑</h2>
 <ol type="1">
 <li><strong>首次调用校验</strong>：<code>IF (firstcall)</code> 时检查 <code>planet_type</code> 是否为 <code>"mars"</code>，不是则调用 <code>abort_gcm</code> 中止，然后将 <code>firstcall</code> 置为 <code>.false.</code>。</li>
-<li><strong>转发物理调用</strong>：将动力核心传入的 22 个参数按 <code>physiq</code> 签名映射并调用，省略 <code>pducov</code>、<code>zpk_omp</code>、<code>zphis_omp</code>、<code>presnivs_omp</code>、<code>zrfi_omp</code>、<code>tname</code>、<code>jD_cur</code>、<code>jH_cur_split</code> 等 <code>physiq</code> 不直接使用的参数。</li>
+<li><strong>转发物理调用</strong>：<code>call_physiq</code> 接收 27 个形参，向 <code>physiq</code> 传递其中 21 个。未转发的是 <code>tname</code>、<code>zpk_omp</code>、<code>zphis_omp</code>、<code>presnivs_omp</code>、<code>zrfi_omp</code> 和 <code>pducov</code>；<code>jD_cur</code>、<code>jH_cur_split</code> 分别明确映射为 <code>physiq</code> 的 <code>pday</code>、<code>ptime</code>。</li>
 </ol>
 <h2 id="伪代码">伪代码</h2>
 <pre class="text"><code>SUBROUTINE call_physiq(状态参数..., tendency参数...)
@@ -374,15 +397,15 @@ END SUBROUTINE</code></pre>
 </thead>
 <tbody>
 <tr>
-<td><a href="../../themes/dust-cycle.html">动力-物理耦合</a></td>
-<td>作为 lon-lat GCM 动力核心到 phymars 物理包的唯一桥接点</td>
+<td><a href="../../common/themes/dynphys-interface.html">动力-物理接口</a></td>
+<td>作为 COMMON <code>calfis/calfis_p</code> 到 MARS <code>physiq</code> 的行星侧适配点；串、并行路径都通过本入口。</td>
 </tr>
 </tbody>
 </table>
 <h2 id="写法特点">写法特点</h2>
 <ul>
 <li><strong>OpenMP 线程私有</strong>：<code>firstcall</code> 使用 <code>SAVE</code> + <code>!$OMP THREADPRIVATE</code> 声明，确保并行区各线程独立执行首次校验。</li>
-<li><strong>参数过滤</strong>：<code>call_physiq</code> 接收 22 个参数，但只向 <code>physiq</code> 传递其中 21 个（<code>physiq</code> 不需要 <code>pducov</code>、<code>zpk_omp</code>、<code>zphis_omp</code>、<code>presnivs_omp</code>、<code>zrfi_omp</code>、<code>tname</code> 等动力侧专用参数）。</li>
+<li><strong>参数过滤</strong>：27 个入口形参中有 6 个只服务 COMMON 动力侧或接口兼容，不进入 <code>physiq</code>；其余 21 个按位置映射到 MARS 物理主调度器。</li>
 <li><strong>Free-form F90</strong>：使用 <code>&amp;</code> 续行和 <code>INTENT(IN/OUT)</code> 声明，与 dynphy_lonlat 中部分 fixed-form 文件不同。</li>
 </ul>
 <h2 id="复现要点">复现要点</h2>
@@ -393,14 +416,15 @@ END SUBROUTINE</code></pre>
 </ul>
 <h2 id="待确认">待确认</h2>
 <ul>
-<li><code>call_physiq</code> 的直接调用方在源码矩阵范围内未找到；已核验 <a href="newstart.html"><code>newstart.F</code></a> 不 <code>USE callphysiq_mod</code>，实际调用应来自外部 LMDZ 动力驱动或未纳入本矩阵的耦合入口。</li>
-<li><code>abort_gcm</code> 所在模块未在此文件中显式 <code>USE</code>，可能通过隐式接口或 include 引入。</li>
+<li><code>abort_gcm</code> 所在模块未在此文件中显式 <code>USE</code>，可能通过隐式接口或链接单元提供。</li>
 </ul>
 <h2 id="相关页面">相关页面</h2>
 <ul>
 <li><a href="../phymars/physiq_mod.html"><code>physiq_mod</code></a> — Mars 物理参数化主调度，<code>call_physiq</code> 的直接下游</li>
 <li><a href="iniphysiq_mod.html"><code>iniphysiq_mod</code></a> — 物理初始化</li>
 <li><a href="caldyn0.html"><code>caldyn0</code></a> — lon-lat 动力倾向计算</li>
+<li><a href="../../common/modules/dynphy_lonlat/calfis.html"><code>calfis</code></a> / <a href="../../common/modules/dynphy_lonlat/calfis_p.html"><code>calfis_p</code></a> — COMMON 串行/并行动力侧直接调用方</li>
+<li><a href="../../common/themes/dynphys-interface.html">COMMON 动力-物理接口主题</a> — <code>leapfrog* → calfis* → call_physiq → physiq → addfi*</code> 全链路</li>
 <li><a href="index.html">dynphy_lonlat/index</a> — 所属目录概览</li>
 </ul>
 

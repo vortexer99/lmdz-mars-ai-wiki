@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>high-resolution-dust-stability - LMDZ.MARS Wiki</title>
+  <link rel="stylesheet" href="../assets/wiki.css">
+  <script type="module" src="../assets/wiki-search.js"></script>
+</head>
+<body>
+  <header class="site-header" data-pagefind-ignore>
+    <div class="site-nav">
+      <a class="brand" href="../index.html">LMDZ.MARS Wiki</a>
+      <nav class="nav-links" aria-label="Wiki navigation">
+        <a href="../index.html">主页</a>
+        <a href="../architecture/project-structure.html">架构</a>
+        <a href="../modules/libf-overview.html">模块</a>
+        <a class="active" href="index.html">主题</a>
+        <a href="../routines/index.html">例程</a>
+        <a href="../reference/file-index.html">文件索引</a>
+        <a href="../reference/source-coverage-matrix.html">覆盖矩阵</a>
+        <a href="../reference/pending-confirmation-triage.html">疑点</a>
+      </nav>
+      <button class="search-toggle" type="button" data-search-open aria-haspopup="dialog">
+        搜索
+      </button>
+    </div>
+  </header>
+  <main class="page">
+    <nav class="topbar" data-pagefind-ignore>
+      <a href="../index.html">LMDZ.MARS Wiki</a>
+      <span>themes/high-resolution-dust-stability.md</span>
+    </nav>
+    <article class="content" data-pagefind-body>
+<h1 id="高分辨率下的沙尘数值稳定性">高分辨率下的沙尘数值稳定性</h1>
+<h2 id="结论">结论</h2>
+<blockquote>
+<p>直接提高水平分辨率后出现的失稳，首先应视为<strong>网格、动力时间步和动力—物理耦合间隔没有共同缩放</strong>的问题，而不是已经证实的单一沙尘模块错误。模式中已有多层沙尘局部保护，但没有根据分辨率自动重配时间步、耗散和物理调用频率的统一机制。</p>
+</blockquote>
+<p>脱敏运行试验进一步表明：</p>
+<ul>
+<li>缩短动力时间步可以稳定 96×45×29 和 120×60×29；</li>
+<li>对 176×90×29，只缩短动力步仍不够；把 physics 调用频率从每 sol 36 次提高到 72 次后，才完成 1 sol，并按日分段完成 10 sol；</li>
+<li>失败时，在新一次 physics 调用开始前已经出现 500–1094 m s⁻¹ 的强风和全部 7 个 tracer 的负值；</li>
+<li><code>convadj</code>、CO₂ 凝结和部分沙尘过程是异常的暴露或放大位置，现有证据不支持它们是最初触发点；</li>
+<li>10-sol 完成依赖 <code>addfi_p</code> 的 tracer clipping，只能称为“操作上有界”，不能称为严格正值、守恒或生产稳定。</li>
+</ul>
+<h2 id="范围与证据等级">范围与证据等级</h2>
+<p>本页综合当前源码树的静态审计与受控短积分结果。为避免混淆，结论分为三类：</p>
+<table>
+<thead>
+<tr>
+<th>标签</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>源码事实</strong></td>
+<td>可由下列 <code>LMDZ.MARS</code> 或 <code>COMMONS</code> 相对源码引用直接核验。</td>
+</tr>
+<tr>
+<td><strong>运行观测</strong></td>
+<td>来自同一初值下改变 <code>dtvr</code> 或 <code>iphysiq</code> 的脱敏配置对照。</td>
+</tr>
+<tr>
+<td><strong>解释/待验证</strong></td>
+<td>与现有证据一致，但仍需增加诊断或单因素试验。</td>
+</tr>
+</tbody>
+</table>
+<p>本轮运行覆盖 prescribed-scaling active dust、29 个垂直层、7 个 tracer，并关闭 free dust、RDS 和 topographic dust flow。结论不能直接外推到自由沙尘、RDS、topflows、垂直加密或季节尺度积分。</p>
+<h2 id="为什么提高分辨率会改变稳定性">为什么提高分辨率会改变稳定性</h2>
+<p>提高水平分辨率会缩小格距。若仍沿用原有 <code>day_step</code> 和 <code>iphysiq</code>，可能同时产生两类问题：</p>
+<ol type="1">
+<li>动力步相对格距过长，平流和动力算子的 Courant 约束变紧；</li>
+<li>physics 调用间隔过长，动力产生的强风、负 tracer 或其他异常在进入下一次物理修正前积累。</li>
+</ol>
+<p>当前最符合证据的失效链是：</p>
+<pre class="text"><code>水平格距缩小
+  → 动力时间步/Courant 约束变紧
+  → 强风与 tracer 异常在 coupling interval 内形成
+  → 下一次 physics 入口已存在负 tracer
+  → convadj、CO₂ 凝结、vdifc 或沙尘链条首先触发检查/停机</code></pre>
+<p>沙尘辐射反馈仍可能放大异常，但尚未完成 active dust radiation 的开关对照，不能把它确定为首发原因，也不能排除其作用。</p>
+<h2 id="模式代码中已有的稳定性处理">模式代码中已有的稳定性处理</h2>
+<h3 id="1-普通-tracer-平流">1. 普通 tracer 平流</h3>
+<p><code>iadv=10</code> 对应 Van Leer 路径，<code>advtrac_p</code> 直接调用 <code>vlsplt_p</code>。<code>adaptdt</code> 只在其他若干平流选项中调用，默认的 <code>iadv=10</code> 分支没有自动缩短时间步或自动增加子步。</p>
+<p><strong>源码引用：</strong></p>
+<ul>
+<li><code>COMMONS/libf/dyn3d_common/infotrac.F90</code></li>
+<li><code>COMMONS/libf/dyn3dpar/advtrac_p.f90</code></li>
+<li><code>COMMONS/libf/dyn3d_common/adaptdt.F</code></li>
+</ul>
+<h3 id="2-地表交换与沙尘源">2. 地表交换与沙尘源</h3>
+<p>沙尘地表通量进入 <code>vdifc</code> 的边界层隐式求解，这比完全显式更新更稳健。但它不是一个统一的源强上限，也不会代替对整体物理时间步的检查。</p>
+<p><strong>源码引用：</strong></p>
+<ul>
+<li><code>LMDZ.MARS/libf/phymars/vdifc_mod.F</code></li>
+</ul>
+<h3 id="3-沉降">3. 沉降</h3>
+<p>沙尘沉降调用链支持粒子在一个物理步内跨越多层，并限制界面输送量，避免从某层移除超过可用量的 tracer。</p>
+<p><strong>源码引用：</strong></p>
+<ul>
+<li><code>LMDZ.MARS/libf/phymars/callsedim_mod.F</code></li>
+<li><code>LMDZ.MARS/libf/phymars/newsedim_mod.F</code></li>
+<li><code>LMDZ.MARS/libf/phymars/vlz_fi.F</code></li>
+</ul>
+<p>这说明“沉降完全没有稳定性处理”并不成立；但若进入沉降前 tracer 或风场已经异常，局部通量限制不能恢复整个耦合状态。</p>
+<h3 id="4-dust-massnumber-与粒径">4. dust mass–number 与粒径</h3>
+<p><code>updaterdust</code> 在 dust mass 或 dust number 过小时回退到最小半径，并把三阶半径约束到预设上下限后再开立方。这能避免除以极小 number 和非物理粒径进入后续光学计算。</p>
+<p><strong>源码引用：</strong></p>
+<ul>
+<li><code>LMDZ.MARS/libf/phymars/updaterad.F90</code></li>
+</ul>
+<p>该保护会使粒径保持有界，但也可能掩盖上游 mass–number 配对已经失真，因此应同时检查 mass、number 和裁剪预算。</p>
+<h3 id="5-rds-与-topographic-dust-transport">5. RDS 与 topographic dust transport</h3>
+<p>RDS 和 topographic transport 内部包含速度/质量通量约束、Van Leer 垂直输送和自适应子步。这些保护只在相应功能开启时生效；本轮运行关闭了这两条路径，不能用它们解释当前稳定边界。</p>
+<p><strong>源码引用：</strong></p>
+<ul>
+<li><code>LMDZ.MARS/libf/phymars/rocketduststorm_mod.F90</code></li>
+<li><code>LMDZ.MARS/libf/phymars/topmons_mod.F90</code></li>
+</ul>
+<h3 id="6-沙尘辐射缩放">6. 沙尘辐射缩放</h3>
+<p><code>dust_rad_adjust</code> 在特定缩放路径中按本地时跨 sol 插值，并把新的调整系数上限设为 5，以避免光学厚度突然飙升。该保护依赖具体的 scaling mode，不能当作所有沙尘辐射路径的统一限幅。</p>
+<p><strong>源码引用：</strong></p>
+<ul>
+<li><code>LMDZ.MARS/libf/phymars/dust_rad_adjust_mod.F90</code></li>
+</ul>
+<h3 id="7-tracer-非负修复">7. tracer 非负修复</h3>
+<p><code>physiq</code> 中有若干过程特定的非负修复；物理倾向返回动力后，<code>addfi_p</code> 对各 tracer 独立执行正下限裁剪。</p>
+<p><strong>源码引用：</strong></p>
+<ul>
+<li><code>LMDZ.MARS/libf/phymars/physiq_mod.F</code></li>
+<li><code>LMDZ.MARS/libf/phymars/check_fields.F90</code></li>
+<li><code>COMMONS/libf/dyn3dpar/addfi_p.F</code></li>
+</ul>
+<p>这些处理能阻止负值直接保留到下一状态，但当前实现没有统一输出每个 tracer 的裁剪点数、最小值和全局质量/数浓度修正。对 dust mass 与 dust number 独立裁剪还可能改变两者配比。</p>
+<h2 id="代码没有自动处理的部分">代码没有自动处理的部分</h2>
+<p>源码中没有发现以下统一机制：</p>
+<ul>
+<li>根据水平或垂直分辨率自动计算 <code>day_step</code>；</li>
+<li>根据分辨率自动选择 <code>iphysiq</code>；</li>
+<li>为默认 <code>iadv=10</code> dust tracer 自动增加动力输送子步；</li>
+<li>根据新网格自动重标定水平耗散和 sponge；</li>
+<li>将所有局部 positivity repair 汇总成可见、守恒的 tracer 修正预算；</li>
+<li>联合修复 dust mass 与 dust number，使其在裁剪后仍保持物理一致。</li>
+</ul>
+<p>参考配置本身也说明时间步参数需要随网格和版本人工调整：</p>
+<table>
+<thead>
+<tr>
+<th>参考配置</th>
+<th style="text-align: right;"><code>day_step</code></th>
+<th style="text-align: right;"><code>iphysiq</code></th>
+<th style="text-align: right;">physics 次数/sol</th>
+<th><code>tetagdiv/tetagrot/tetatemp</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>32×24 GCM5</td>
+<td style="text-align: right;">480</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">48</td>
+<td>3000/9000/9000 s</td>
+</tr>
+<tr>
+<td>64×48 GCM5</td>
+<td style="text-align: right;">960</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">96</td>
+<td>2500/5000/5000 s</td>
+</tr>
+<tr>
+<td>64×48 GCM6</td>
+<td style="text-align: right;">960</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">192</td>
+<td>2500/5000/5000 s</td>
+</tr>
+</tbody>
+</table>
+<p><strong>源码引用：</strong></p>
+<ul>
+<li><code>LMDZ.MARS/deftank/run.def.32x24x25.GCM5</code></li>
+<li><code>LMDZ.MARS/deftank/run.def.64x48x32.GCM5</code></li>
+<li><code>LMDZ.MARS/deftank/run.def.64x48x54.GCM6</code></li>
+</ul>
+<h2 id="受控运行结果">受控运行结果</h2>
+<p>时间步关系为：</p>
+<pre class="text"><code>dtvr   = daysec / day_step
+dtphys = iphysiq × dtvr
+physics calls per sol = day_step / iphysiq</code></pre>
+<h3 id="稳定边界">稳定边界</h3>
+<table>
+<thead>
+<tr>
+<th>网格</th>
+<th>配置变化</th>
+<th>观测结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>96×45×29</td>
+<td><code>dtvr=246.60 s</code></td>
+<td>失败</td>
+</tr>
+<tr>
+<td>96×45×29</td>
+<td><code>dtvr=164.40 s</code>、<code>123.30 s</code></td>
+<td>完成 1 sol</td>
+</tr>
+<tr>
+<td>120×60×29</td>
+<td><code>dtvr=164.40 s</code></td>
+<td>超时</td>
+</tr>
+<tr>
+<td>120×60×29</td>
+<td><code>dtvr=123.30 s</code>、<code>98.64 s</code></td>
+<td>完成 1 sol</td>
+</tr>
+<tr>
+<td>176×90×29，36 次 physics/sol</td>
+<td><code>dtvr=82.20 s</code>、<code>61.65 s</code>、<code>49.32 s</code></td>
+<td>均未完成</td>
+</tr>
+<tr>
+<td>176×90×29，72 次 physics/sol</td>
+<td><code>dtvr=49.32 s</code>、<code>dtphys=1232.99 s</code></td>
+<td>完成 1 sol，并按日分段完成 10 sol</td>
+</tr>
+</tbody>
+</table>
+<p>176×90×29 当前可用的短期诊断起点是：</p>
+<pre class="text"><code>day_step = 1800
+iphysiq  = 25
+dtvr     ≈ 49.32 s
+dtphys   ≈ 1232.99 s</code></pre>
+<p>这不是精确稳定阈值，也不是生产参数。每个配置只有一条确定性轨迹，因此只能说明配置改变了该轨迹的完成状态，不能推断稳定概率或统计显著性。</p>
+<h3 id="首次完整捕获的异常">首次完整捕获的异常</h3>
+<p>在开启 physics 入口检查后，任何新的物理过程执行前已经观测到：</p>
+<ul>
+<li>7 个 tracer 全部出现负值；</li>
+<li>多处水平风超过 500 m s⁻¹；</li>
+<li>最大近地风约 1094 m s⁻¹。</li>
+</ul>
+<p>因此，首发窗口位于“上一次 physics 返回”与“下一次 physics 入口”之间。<code>convadj</code>、CO₂ 凝结和 <code>vdifc</code> 的停机位置不能直接当作根因。</p>
+<h3 id="10-sol-结果的限定">10-sol 结果的限定</h3>
+<p>10 个日末 restart 中 tracer 均有限且非负，但运行过程中记录到：</p>
+<table>
+<thead>
+<tr>
+<th>检查位置</th>
+<th style="text-align: right;">负 tracer 日志行数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>physics 输入</td>
+<td style="text-align: right;">43</td>
+</tr>
+<tr>
+<td>physics 输出</td>
+<td style="text-align: right;">23,435</td>
+</tr>
+</tbody>
+</table>
+<p>这些数字是日志行数，不是独立网格点数。physics 输出的负值随后由 <code>addfi_p</code> 裁剪；日志没有给出负值幅度或全局修正预算。</p>
+<p>短期 dust 总量演变为：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th style="text-align: right;">dust mass/初值</th>
+<th style="text-align: right;">dust number/初值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>第 1 sol</td>
+<td style="text-align: right;">0.924780</td>
+<td style="text-align: right;">0.922682</td>
+</tr>
+<tr>
+<td>第 10 sol</td>
+<td style="text-align: right;">0.923524</td>
+<td style="text-align: right;">0.868910</td>
+</tr>
+</tbody>
+</table>
+<p>dust mass 的主要调整发生在第 1 sol，dust number 此后仍继续下降。这个方向与凝并或选择性 number 损失一致，但初值 spin-up、沉降、清除、lifting、微物理和 clipping 同时存在，当前不能作单一过程归因。</p>
+<h2 id="已确认的独立代码风险">已确认的独立代码风险</h2>
+<h3 id="rds-stormdust-number-修复变量不一致">RDS stormdust number 修复变量不一致</h3>
+<p>在 <code>rdstorm</code> 路径的负值修复中，stormdust number 越界分支使用了 background dust number 计算修复趋势，mass 与 number 的索引不一致。</p>
+<p><strong>源码引用：</strong></p>
+<ul>
+<li><code>LMDZ.MARS/libf/phymars/physiq_mod.F</code></li>
+</ul>
+<p>本轮 <code>rdstorm=F</code>，因此该问题存在但不能解释本轮失稳。</p>
+<h3 id="vdifc-水汽潜热子步缺少上限"><code>vdifc</code> 水汽潜热子步缺少上限</h3>
+<p><code>make_tsub</code> 根据地表温度趋势计算 <code>ntsub=ceiling(abs(ztsub))</code>，没有统一最大子步数。异常温度倾向可能生成很大的循环次数，表现为运行停滞或超时。</p>
+<p><strong>源码引用：</strong></p>
+<ul>
+<li><code>LMDZ.MARS/libf/phymars/vdifc_mod.F</code></li>
+</ul>
+<p>这属于需要单独修复或保护的性能—稳定性风险，但不是沙尘专属机制。</p>
+<h2 id="当前判断">当前判断</h2>
+<table>
+<thead>
+<tr>
+<th>判断</th>
+<th>置信度</th>
+<th>依据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>提高水平分辨率后必须重新选择动力时间步</td>
+<td>高</td>
+<td>96×45 和 120×60 的受控 <code>dtvr</code> 对照</td>
+</tr>
+<tr>
+<td>176×90 还需要缩短 physics coupling interval</td>
+<td>高</td>
+<td>同一 <code>dtvr</code> 下只改变 <code>iphysiq</code> 即改变完成状态</td>
+</tr>
+<tr>
+<td>失稳不是已证实的单一沙尘沉降错误</td>
+<td>高</td>
+<td>沉降已有跨层和通量限制；physics 入口已出现整体异常</td>
+</tr>
+<tr>
+<td>沙尘辐射反馈可能参与放大</td>
+<td>中/待验证</td>
+<td>active dust radiation 未做开关对照</td>
+</tr>
+<tr>
+<td>当前 10-sol 配置严格正值且守恒</td>
+<td>不支持</td>
+<td>中间负 tracer 大量出现，clipping 预算未知</td>
+</tr>
+<tr>
+<td>当前结果可外推到 free dust、RDS、topflows 或垂直加密</td>
+<td>不支持</td>
+<td>相应机制未开启或未试验</td>
+</tr>
+</tbody>
+</table>
+<h2 id="建议的下一轮试验">建议的下一轮试验</h2>
+<h3 id="p0先增加诊断">P0：先增加诊断</h3>
+<ol type="1">
+<li>在 <code>addfi_p</code> 中按 tracer 输出裁剪前最小值、位置、点数和全局修正量；</li>
+<li>对 dust mass 与 dust number 同时记录单独裁剪和联合裁剪情况；</li>
+<li>每个动力步输出 <code>u/v/ps/teta</code> 与各 tracer 的全局极值；</li>
+<li>在 tracer advection 后输出真实 x/y/z Courant 最大值；</li>
+<li>记录 <code>vdifc</code> 的最大水汽子步数、位置及对应温度趋势。</li>
+</ol>
+<h3 id="p1分离动力步与-coupling-interval">P1：分离动力步与 coupling interval</h3>
+<p>优先测试：</p>
+<pre class="text"><code>day_step = 1440
+iphysiq  = 20</code></pre>
+<p>该组合保持约 72 次 physics/sol 和 <code>dtphys≈1233 s</code>，但把 <code>dtvr</code> 放宽到约 61.65 s，可检验 1800 个动力步是否必要。</p>
+<p>随后可在 <code>day_step=1800</code> 下测试 <code>iphysiq=30</code>，夹逼较经济的 coupling interval。</p>
+<h3 id="p2验证分段效应">P2：验证分段效应</h3>
+<p>用同一配置补做不中断的连续 10-sol 试验，与按日分段结果比较。</p>
+<h3 id="p3再进入沙尘专属试验">P3：再进入沙尘专属试验</h3>
+<p>固定已验证的时间步后，一次只改变一个机制：</p>
+<ol type="1">
+<li>prescribed scaling 下 active dust radiation on/off；</li>
+<li>free dust；</li>
+<li>RDS；</li>
+<li>topographic dust flow；</li>
+<li>最后才开展长季节积分。</li>
+</ol>
+<p>垂直分辨率应另建试验矩阵，因为它会同时改变 z-CFL、薄层质量、沉降落距和按层定义的物理处理。</p>
+<h2 id="相关页面">相关页面</h2>
+<ul>
+<li><a href="dust-cycle.html">沙尘循环</a></li>
+<li><a href="../reference/dust-free-evolution-tests.html">沙尘自由演化试验说明</a></li>
+<li><a href="../modules/phymars/physiq_mod.html">物理主调度</a></li>
+<li><a href="../modules/phymars/vdifc_mod.html">垂直扩散与地表交换</a></li>
+<li><a href="../modules/phymars/callsedim_mod.html">沙尘沉降入口</a></li>
+<li><a href="../modules/phymars/updaterad.html">沙尘粒径更新</a></li>
+</ul>
+<h2 id="待确认">待确认</h2>
+<ul>
+<li>强风与 tracer 负值在同一个 coupling interval 内的严格先后顺序；</li>
+<li>首个越界的 x/y/z Courant 分量和动力算子；</li>
+<li><code>iphysiq</code> 改变带来的“物理步变短”与“clipping 更频繁”各自贡献；</li>
+<li>active dust radiation 对强风和 tracer 异常的影响；</li>
+<li>clipping 对 dust mass、dust number 和有效半径的净预算；</li>
+<li>连续运行与按日分段运行是否等价；</li>
+<li>当前时间步能否支持 free dust、RDS、topflows 和季节尺度积分。</li>
+</ul>
+
+    </article>
+  </main>
+  <div class="search-overlay" data-search-overlay hidden data-pagefind-ignore>
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全站搜索">
+      <div class="search-head">
+        <input class="search-input" type="search" placeholder="搜索全站" autocomplete="off" data-search-input>
+        <button class="search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <div class="search-status" data-search-status>输入关键词开始搜索。</div>
+      <div class="search-results" data-search-results></div>
+    </div>
+  </div>
+</body>
+</html>
